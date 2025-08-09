@@ -24,7 +24,8 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "WebFetch(domain:pigskin-picksix-git-main-kurtis-hannis-projects.vercel.app)"
+      "WebFetch(domain:pigskin-picksix-git-main-kurtis-hannis-projects.vercel.app)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

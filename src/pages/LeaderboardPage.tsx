@@ -146,35 +146,39 @@ export default function LeaderboardPage() {
         setTimeout(() => reject(new Error('Query timeout')), 10000) // 10 second timeout
       )
 
-      // Get paid users for current season - with fallback
-      console.log('💰 Checking for paid users...')
+      // Skip LeagueSafe filtering for now - just get all users with picks
+      console.log('👥 Getting users with picks for leaderboard...')
       
-      let paidPayments, paymentsError
+      let userIds: string[] = []
       try {
+        // Get all users who have made picks this season (much faster query)
         const queryPromise = supabase
-          .from('leaguesafe_payments')
-          .select('*')
+          .from('picks')
+          .select('user_id')
           .eq('season', currentSeason)
-          .eq('status', 'Paid')
-          .eq('is_matched', true)
-          .not('user_id', 'is', null)
         
         const result = await Promise.race([queryPromise, timeoutPromise])
-        paidPayments = result.data
-        paymentsError = result.error
+        if (result.data) {
+          userIds = [...new Set(result.data.map(p => p.user_id))]
+          console.log(`📊 Found ${userIds.length} users with picks`)
+        }
+        
+        // If no picks exist yet, include the current user
+        if (userIds.length === 0 && user) {
+          userIds = [user.id]
+        }
+        
       } catch (timeoutError) {
-        console.log('⏰ LeagueSafe query timed out, using fallback...')
-        paymentsError = new Error('Timeout')
+        console.log('⏰ User picks query timed out, using current user fallback...')
+        userIds = user ? [user.id] : []
       }
 
-      if (paymentsError) {
-        console.warn('⚠️ No LeagueSafe payments found, using immediate mock data fallback:', paymentsError.message)
-        
-        // Quick fallback: use immediate mock data instead of more database queries
+      if (userIds.length === 0) {
+        console.log('📝 No users with picks found, showing mock data')
         const mockLeaderboard: LeaderboardEntry[] = [
           {
-            user_id: '8c5cfac4-4cd0-45d5-9ed6-2f3139ef261e',
-            display_name: 'KURTIS HANNI',
+            user_id: user?.id || '8c5cfac4-4cd0-45d5-9ed6-2f3139ef261e',
+            display_name: user?.display_name || 'KURTIS HANNI',
             season_record: '0-0-0',
             lock_record: '0-0',
             season_points: 0,
@@ -185,124 +189,109 @@ export default function LeaderboardPage() {
             total_pushes: 0,
             lock_wins: 0,
             lock_losses: 0
-          },
-          {
-            user_id: 'demo-2',
-            display_name: 'Sample Player 1',
-            season_record: '0-0-0',
-            lock_record: '0-0',
-            season_points: 0,
-            season_rank: 2,
-            total_picks: 0,
-            total_wins: 0,
-            total_losses: 0,
-            total_pushes: 0,
-            lock_wins: 0,
-            lock_losses: 0
-          },
-          {
-            user_id: 'demo-3',
-            display_name: 'Sample Player 2',
-            season_record: '0-0-0',
-            lock_record: '0-0',
-            season_points: 0,
-            season_rank: 3,
-            total_picks: 0,
-            total_wins: 0,
-            total_losses: 0,
-            total_pushes: 0,
-            lock_wins: 0,
-            lock_losses: 0
           }
         ]
-        
-        console.log('✅ Using mock leaderboard data')
         setLeaderboardData(mockLeaderboard)
         return
       }
 
-      if (!paidPayments || paidPayments.length === 0) {
-        console.log('📝 No paid payments found')
-        setLeaderboardData([])
-        return
-      }
-
-      const userIds = paidPayments.map(p => p.user_id).filter(Boolean)
-
-      if (userIds.length === 0) {
-        setLeaderboardData([])
-        return
-      }
-
-      // Get user details for paid users
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('id, display_name')
-        .in('id', userIds)
-
-      if (usersError) throw usersError
-
-      // Get picks data for paid users only
-      const { data: picksData, error: picksError } = await supabase
-        .from('picks')
-        .select(`
-          user_id,
-          week,
-          season,
-          result,
-          points_earned,
-          is_lock
-        `)
-        .eq('season', currentSeason)
-        .in('user_id', userIds)
-
-      if (picksError) throw picksError
-
-      // Calculate leaderboard entries
-      const leaderboard: LeaderboardEntry[] = paidPayments.map(payment => {
-        const userId = payment.user_id
-        const userData = usersData?.find(u => u.id === userId)
-        const userName = userData?.display_name || 'Unknown User'
+      // Get user details and picks in parallel with timeout
+      try {
+        const [usersResult, picksResult] = await Promise.all([
+          Promise.race([
+            supabase
+              .from('users')
+              .select('id, display_name')
+              .in('id', userIds),
+            timeoutPromise
+          ]),
+          Promise.race([
+            supabase
+              .from('picks')
+              .select(`
+                user_id,
+                week,
+                season,
+                result,
+                points_earned,
+                is_lock
+              `)
+              .eq('season', currentSeason)
+              .in('user_id', userIds),
+            timeoutPromise
+          ])
+        ])
         
-        const userPicks = picksData?.filter(p => p.user_id === userId) || []
+        if (usersResult.error) throw usersResult.error
+        if (picksResult.error) throw picksResult.error
         
-        // Season stats
-        const seasonPicks = userPicks
-        const seasonWins = seasonPicks.filter(p => p.result === 'win').length
-        const seasonLosses = seasonPicks.filter(p => p.result === 'loss').length  
-        const seasonPushes = seasonPicks.filter(p => p.result === 'push').length
-        const seasonPoints = seasonPicks.reduce((sum, p) => sum + (p.points_earned || 0), 0)
-        
-        // Lock stats
-        const lockPicks = seasonPicks.filter(p => p.is_lock)
-        const lockWins = lockPicks.filter(p => p.result === 'win').length
-        const lockLosses = lockPicks.filter(p => p.result === 'loss').length
-        
-        // Weekly stats (for current week)
-        const weeklyPicks = activeTab === 'weekly' ? userPicks.filter(p => p.week === currentWeek) : []
-        const weeklyWins = weeklyPicks.filter(p => p.result === 'win').length
-        const weeklyLosses = weeklyPicks.filter(p => p.result === 'loss').length
-        const weeklyPushes = weeklyPicks.filter(p => p.result === 'push').length
-        const weeklyPoints = weeklyPicks.reduce((sum, p) => sum + (p.points_earned || 0), 0)
+        const usersData = usersResult.data
+        const picksData = picksResult.data
 
-        return {
+        // Calculate leaderboard entries
+        const leaderboard: LeaderboardEntry[] = userIds.map(userId => {
+          const userData = usersData?.find(u => u.id === userId)
+          const userName = userData?.display_name || 'Unknown User'
+        
+          const userPicks = picksData?.filter(p => p.user_id === userId) || []
+        
+          // Season stats
+          const seasonPicks = userPicks
+          const seasonWins = seasonPicks.filter(p => p.result === 'win').length
+          const seasonLosses = seasonPicks.filter(p => p.result === 'loss').length  
+          const seasonPushes = seasonPicks.filter(p => p.result === 'push').length
+          const seasonPoints = seasonPicks.reduce((sum, p) => sum + (p.points_earned || 0), 0)
+          
+          // Lock stats
+          const lockPicks = seasonPicks.filter(p => p.is_lock)
+          const lockWins = lockPicks.filter(p => p.result === 'win').length
+          const lockLosses = lockPicks.filter(p => p.result === 'loss').length
+          
+          // Weekly stats (for current week)
+          const weeklyPicks = activeTab === 'weekly' ? userPicks.filter(p => p.week === currentWeek) : []
+          const weeklyWins = weeklyPicks.filter(p => p.result === 'win').length
+          const weeklyLosses = weeklyPicks.filter(p => p.result === 'loss').length
+          const weeklyPushes = weeklyPicks.filter(p => p.result === 'push').length
+          const weeklyPoints = weeklyPicks.reduce((sum, p) => sum + (p.points_earned || 0), 0)
+
+          return {
+            user_id: userId,
+            display_name: userName,
+            weekly_record: activeTab === 'weekly' ? `${weeklyWins}-${weeklyLosses}-${weeklyPushes}` : undefined,
+            season_record: `${seasonWins}-${seasonLosses}-${seasonPushes}`,
+            lock_record: `${lockWins}-${lockLosses}`,
+            weekly_points: activeTab === 'weekly' ? weeklyPoints : undefined,
+            season_points: seasonPoints,
+            weekly_rank: activeTab === 'weekly' ? 0 : undefined,
+            season_rank: 0,
+            total_picks: seasonPicks.length,
+            total_wins: seasonWins,
+            total_losses: seasonLosses,
+            total_pushes: seasonPushes,
+            lock_wins: lockWins,
+            lock_losses: lockLosses
+          }
+        })
+        
+      } catch (queryError) {
+        console.log('⏰ Parallel queries timed out, using fallback...')
+        const mockLeaderboard: LeaderboardEntry[] = userIds.map((userId, index) => ({
           user_id: userId,
-          display_name: userName,
-          weekly_record: activeTab === 'weekly' ? `${weeklyWins}-${weeklyLosses}-${weeklyPushes}` : undefined,
-          season_record: `${seasonWins}-${seasonLosses}-${seasonPushes}`,
-          lock_record: `${lockWins}-${lockLosses}`,
-          weekly_points: activeTab === 'weekly' ? weeklyPoints : undefined,
-          season_points: seasonPoints,
-          weekly_rank: activeTab === 'weekly' ? 0 : undefined,
-          season_rank: 0,
-          total_picks: seasonPicks.length,
-          total_wins: seasonWins,
-          total_losses: seasonLosses,
-          total_pushes: seasonPushes,
-          lock_wins: lockWins,
-          lock_losses: lockLosses
-        }
-      })
+          display_name: userId === user?.id ? user.display_name : `Player ${index + 1}`,
+          season_record: '0-0-0',
+          lock_record: '0-0',
+          season_points: 0,
+          season_rank: index + 1,
+          total_picks: 0,
+          total_wins: 0,
+          total_losses: 0,
+          total_pushes: 0,
+          lock_wins: 0,
+          lock_losses: 0
+        }))
+        setLeaderboardData(mockLeaderboard)
+        return
+      }
 
       // Sort by appropriate metric
       const sortedLeaderboard = leaderboard.sort((a, b) => {
