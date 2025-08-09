@@ -3,11 +3,18 @@
  * https://api.collegefootballdata.com/
  */
 
+import { ENV } from '@/lib/env'
+
 const BASE_URL = 'https://api.collegefootballdata.com'
 
 // API now requires authentication for all endpoints
 // Get your free API key at: https://collegefootballdata.com/
-const API_KEY = import.meta.env.VITE_CFBD_API_KEY
+const API_KEY = ENV.CFBD_API_KEY
+
+console.log('🏈 College Football API Config:', {
+  hasApiKey: !!API_KEY,
+  keyPreview: API_KEY ? API_KEY.slice(0, 10) + '...' : 'MISSING'
+})
 
 const getHeaders = () => {
   const headers: HeadersInit = {

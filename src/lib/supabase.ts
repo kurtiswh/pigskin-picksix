@@ -1,17 +1,26 @@
 import { createClient } from '@supabase/supabase-js'
+import { ENV, validateRequiredEnvVars } from './env'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseUrl = ENV.SUPABASE_URL
+const supabaseAnonKey = ENV.SUPABASE_ANON_KEY
 
 console.log('🔧 Supabase Config Debug:')
-console.log('URL:', supabaseUrl ? 'Present' : 'Missing', supabaseUrl?.slice(0, 20) + '...')
+console.log('URL:', supabaseUrl ? 'Present' : 'Missing', supabaseUrl?.slice(0, 30) + '...')
 console.log('Key:', supabaseAnonKey ? 'Present' : 'Missing', supabaseAnonKey?.slice(0, 20) + '...')
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Missing Supabase environment variables')
-  console.error('URL:', supabaseUrl)
-  console.error('Key:', supabaseAnonKey)
-  throw new Error('Missing Supabase environment variables')
+// Validate required environment variables
+const envValidation = validateRequiredEnvVars()
+if (!envValidation.valid) {
+  console.error('❌ Missing required Supabase environment variables:', envValidation.missing)
+  console.error('Available env methods:')
+  console.error('- import.meta.env:', typeof import.meta !== 'undefined' && !!import.meta.env)
+  console.error('- process.env:', typeof process !== 'undefined' && !!process.env)
+  console.error('- Current URL:', supabaseUrl)
+  console.error('- Current Key:', supabaseAnonKey)
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(`Missing Supabase environment variables: ${envValidation.missing.join(', ')}`)
+  }
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
