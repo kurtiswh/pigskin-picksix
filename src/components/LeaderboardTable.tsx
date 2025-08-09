@@ -75,7 +75,7 @@ export default function LeaderboardTable({
       if (typeof aVal === 'string') {
         return sortOrder === 'asc' ? aVal.localeCompare(bVal as string) : (bVal as string).localeCompare(aVal)
       }
-      return sortOrder === 'asc' ? aVal - bVal : bVal - aVal
+      return sortOrder === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number)
     })
 
   const getTitle = () => {

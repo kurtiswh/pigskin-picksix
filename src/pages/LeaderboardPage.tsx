@@ -38,7 +38,7 @@ export default function LeaderboardPage() {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([])
   const [error, setError] = useState('')
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
-  const [isLive, setIsLive] = useState(true)
+  const [isLive] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [hasLiveGames, setHasLiveGames] = useState(false)
   const [updateNotification, setUpdateNotification] = useState<string>('')
@@ -564,7 +564,7 @@ export default function LeaderboardPage() {
                   variant="outline"
                   size="sm"
                   className="border-white text-white hover:bg-white hover:text-pigskin-500"
-                  onClick={() => loadLeaderboard(false)}
+                  onClick={() => loadLeaderboard()}
                   disabled={loading}
                 >
                   🔄 Refresh

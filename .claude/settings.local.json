@@ -20,7 +20,8 @@
       "Bash(npx vite:*)",
       "Bash(psql:*)",
       "Bash(npm install resend)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { NotificationScheduler } from '@/services/notificationScheduler'
-import { EmailService } from '@/services/emailService'
+// import { EmailService } from '@/services/emailService'
 
 interface AdminNotificationsProps {
   currentWeek: number
@@ -152,7 +152,7 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
               onClick={handleProcessEmailQueue}
               disabled={processingEmails}
               className="w-full"
-              variant="default"
+              variant="secondary"
             >
               {processingEmails ? (
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
