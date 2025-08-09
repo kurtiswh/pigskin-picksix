@@ -21,7 +21,10 @@
       "Bash(psql:*)",
       "Bash(npm install resend)",
       "Bash(npm install:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:pigskin-picksix-git-main-kurtis-hannis-projects.vercel.app)"
     ],
     "deny": []
   }
