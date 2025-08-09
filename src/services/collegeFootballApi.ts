@@ -101,15 +101,23 @@ export interface CFBRanking {
 export async function getGames(
   season: number, 
   week: number, 
-  seasonType: 'regular' | 'postseason' = 'regular'
+  seasonType: 'regular' | 'postseason' = 'regular',
+  timeoutMs: number = 10000
 ): Promise<CFBGame[]> {
   try {
     const url = `${BASE_URL}/games?year=${season}&week=${week}&seasonType=${seasonType}`
     console.log('🏈 Fetching CFB games:', url)
     
+    // Add timeout to prevent hanging
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    
     const response = await fetch(url, {
-      headers: getHeaders()
+      headers: getHeaders(),
+      signal: controller.signal
     })
+    
+    clearTimeout(timeoutId)
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
@@ -153,15 +161,23 @@ export async function getGames(
 export async function getBettingLines(
   season: number, 
   week: number, 
-  seasonType: 'regular' | 'postseason' = 'regular'
+  seasonType: 'regular' | 'postseason' = 'regular',
+  timeoutMs: number = 8000
 ): Promise<CFBBetting[]> {
   try {
     const url = `${BASE_URL}/lines?year=${season}&week=${week}&seasonType=${seasonType}`
     console.log('💰 Fetching CFB betting lines:', url)
     
+    // Add timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    
     const response = await fetch(url, {
-      headers: getHeaders()
+      headers: getHeaders(),
+      signal: controller.signal
     })
+    
+    clearTimeout(timeoutId)
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
@@ -209,15 +225,23 @@ export async function getTeams(season: number): Promise<CFBTeam[]> {
 export async function getRankings(
   season: number, 
   week: number, 
-  seasonType: 'regular' | 'postseason' = 'regular'
+  seasonType: 'regular' | 'postseason' = 'regular',
+  timeoutMs: number = 6000
 ): Promise<CFBRanking[]> {
   try {
     const url = `${BASE_URL}/rankings?year=${season}&week=${week}&seasonType=${seasonType}`
     console.log('🏆 Fetching CFB rankings:', url)
     
+    // Add timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    
     const response = await fetch(url, {
-      headers: getHeaders()
+      headers: getHeaders(),
+      signal: controller.signal
     })
+    
+    clearTimeout(timeoutId)
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
@@ -236,55 +260,104 @@ export async function getRankings(
 /**
  * Combine games with betting lines and rankings
  */
+/**
+ * Fast version - gets games first, then optionally adds spreads
+ */
+export async function getGamesFast(
+  season: number, 
+  week: number, 
+  seasonType: 'regular' | 'postseason' = 'regular',
+  includeSpreads: boolean = false
+): Promise<CFBGame[]> {
+  try {
+    console.log(`⚡ Fast loading games for ${season} week ${week} (spreads: ${includeSpreads})`)
+    
+    // Get games first (fastest call) with 6 second timeout
+    const games = await getGames(season, week, seasonType, 6000)
+    
+    if (!includeSpreads || games.length === 0) {
+      console.log(`✅ Fast loaded ${games.length} games without spreads`)
+      return games
+    }
+    
+    // Try to add spreads/rankings with shorter timeouts
+    console.log('💰 Attempting to add spreads and rankings...')
+    
+    const [bettingResult, rankingResult] = await Promise.allSettled([
+      getBettingLines(season, week, seasonType, 4000),
+      getRankings(season, week, seasonType, 3000)
+    ])
+    
+    const bettingLines = bettingResult.status === 'fulfilled' ? bettingResult.value : []
+    const rankings = rankingResult.status === 'fulfilled' ? rankingResult.value : []
+    
+    return combineGamesWithData(games, bettingLines, rankings)
+    
+  } catch (error) {
+    console.error('❌ Error in getGamesFast:', error)
+    throw error
+  }
+}
+
+/**
+ * Original function with timeout fallback to mock data
+ */
 export async function getGamesWithSpreads(
   season: number, 
   week: number, 
   seasonType: 'regular' | 'postseason' = 'regular'
 ): Promise<CFBGame[]> {
   try {
-    console.log(`🎯 Fetching games with spreads and rankings for ${season} week ${week}`)
+    console.log(`🎯 Fetching games with spreads (with 10s timeout) for ${season} week ${week}`)
     
-    // Fetch games, betting lines, and rankings in parallel
-    const [games, bettingLines, rankings] = await Promise.all([
-      getGames(season, week, seasonType),
-      getBettingLines(season, week, seasonType).catch(err => {
-        console.warn('⚠️ Could not fetch betting lines, continuing without spreads:', err.message)
-        return []
-      }),
-      getRankings(season, week, seasonType).catch(async err => {
-        console.warn('⚠️ Could not fetch current rankings, trying previous season:', err.message)
-        // Try previous season's final rankings as fallback
-        try {
-          return await getRankings(season - 1, 15, 'regular')
-        } catch (fallbackErr) {
-          console.warn('⚠️ Could not fetch fallback rankings either, continuing without rankings')
-          return []
-        }
-      })
-    ])
+    // Try fast loading with timeout
+    const timeoutPromise = new Promise<CFBGame[]>((resolve) => 
+      setTimeout(() => {
+        console.log('⏰ API timeout - using mock data')
+        resolve(getMockGames(season, week))
+      }, 10000)
+    )
     
-    // Create a map of game_id to betting info for quick lookup
-    const bettingMap = new Map<number, number>()
+    const gamesPromise = getGamesFast(season, week, seasonType, true)
     
-    bettingLines.forEach(betting => {
-      // Use the first available spread (typically from a major sportsbook)
-      const spreadLine = betting.lines.find(line => line.spread !== undefined)
-      if (spreadLine && spreadLine.spread !== undefined) {
-        bettingMap.set(betting.id, spreadLine.spread)
-      }
-    })
+    return await Promise.race([gamesPromise, timeoutPromise])
     
-    // Create a map of team names to rankings (use AP Poll or first available)
-    const rankingMap = new Map<string, number>()
-    
-    if (rankings.length > 0) {
-      const poll = rankings[0].polls.find(p => p.poll === 'AP Top 25') || rankings[0].polls[0]
-      if (poll) {
-        poll.ranks.forEach(rank => {
-          rankingMap.set(rank.school, rank.rank)
-        })
-      }
+  } catch (error) {
+    console.error('❌ Error in getGamesWithSpreads, using mock data:', error)
+    return getMockGames(season, week)
+  }
+}
+
+/**
+ * Helper function to combine games with betting and ranking data
+ */
+function combineGamesWithData(
+  games: CFBGame[], 
+  bettingLines: CFBBetting[], 
+  rankings: CFBRanking[]
+): CFBGame[] {
+  // Create a map of game_id to betting info for quick lookup
+  const bettingMap = new Map<number, number>()
+  
+  bettingLines.forEach(betting => {
+    // Use the first available spread (typically from a major sportsbook)
+    const spreadLine = betting.lines.find(line => line.spread !== undefined)
+    if (spreadLine && spreadLine.spread !== undefined) {
+      bettingMap.set(betting.id, spreadLine.spread)
     }
+  })
+  
+  // Create a map of team names to rankings (use AP Poll or first available)
+  const rankingMap = new Map<string, number>()
+  
+  if (rankings.length > 0) {
+    const poll = rankings[0].polls.find(p => p.poll === 'AP Top 25') || rankings[0].polls[0]
+    if (poll) {
+      poll.ranks.forEach(rank => {
+        rankingMap.set(rank.school, rank.rank)
+      })
+    }
+  }
     
     // Calculate game importance and combine with spreads and rankings
     const gamesWithData = games.map(game => {
@@ -492,19 +565,26 @@ export async function getCompletedGames(
 }
 
 /**
- * Check if the API is accessible
+ * Check if the API is accessible with timeout
  */
-export async function testApiConnection(): Promise<boolean> {
+export async function testApiConnection(timeoutMs: number = 5000): Promise<boolean> {
   try {
     if (!API_KEY) {
       console.warn('⚠️ No CFBD API key found. Set VITE_CFBD_API_KEY environment variable.')
       return false
     }
     
+    // Add timeout to API connection test
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    
     const response = await fetch(`${BASE_URL}/teams?year=2024`, { 
       method: 'GET',
-      headers: getHeaders()
+      headers: getHeaders(),
+      signal: controller.signal
     })
+    
+    clearTimeout(timeoutId)
     
     if (response.status === 401) {
       console.error('❌ API key is invalid or missing. Get a free key at https://collegefootballdata.com/')
@@ -513,7 +593,11 @@ export async function testApiConnection(): Promise<boolean> {
     
     return response.ok
   } catch (error) {
-    console.error('❌ API connection test failed:', error)
+    if (error.name === 'AbortError') {
+      console.log('⏰ API connection test timed out')
+    } else {
+      console.error('❌ API connection test failed:', error)
+    }
     return false
   }
 }

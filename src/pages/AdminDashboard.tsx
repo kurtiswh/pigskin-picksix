@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Navigate, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Game, WeekSettings } from '@/types'
-import { getGamesWithSpreads, getCurrentWeek, testApiConnection, CFBGame } from '@/services/collegeFootballApi'
+import { getGamesWithSpreads, getGamesFast, getCurrentWeek, testApiConnection, CFBGame } from '@/services/collegeFootballApi'
 import AdminGameSelector from '@/components/AdminGameSelector'
 import WeekControls from '@/components/WeekControls'
 import UserManagement from '@/components/UserManagement'
@@ -93,10 +93,18 @@ export default function AdminDashboard() {
       
       console.log(`🏈 Fetching games for ${currentSeason} week ${currentWeek}`)
       
-      // Test API connection first
-      const apiAvailable = await testApiConnection()
+      // Test API connection first with shorter timeout
+      console.log('🔍 Quick API connection test...')
+      const apiTestPromise = testApiConnection()
+      const timeoutPromise = new Promise<boolean>((resolve) => 
+        setTimeout(() => resolve(false), 3000)
+      )
+      
+      const apiAvailable = await Promise.race([apiTestPromise, timeoutPromise])
+      
       if (!apiAvailable) {
-        setError(`CollegeFootballData API is not available. To use real data, get a free API key at https://collegefootballdata.com/ and set VITE_CFBD_API_KEY in your .env file. Using sample data for demonstration.`)
+        console.log('⚡ API unavailable or slow - using mock data immediately')
+        setError(`CollegeFootballData API is not available or slow. Using sample data for demonstration. To use real data, get a free API key at https://collegefootballdata.com/ and set VITE_CFBD_API_KEY in your .env file.`)
         
         // Use mock data as fallback
         const mockGames = [
@@ -176,7 +184,39 @@ export default function AdminDashboard() {
         return
       }
       
-      // Fetch real games with spreads from CollegeFootballData API
+      // Try fast loading first (games only), then add spreads if time permits  
+      console.log('⚡ Starting fast game loading...')
+      
+      try {
+        // First load games quickly (no spreads)
+        const gamesOnly = await getGamesFast(currentSeason, currentWeek, 'regular', false)
+        
+        if (gamesOnly.length > 0) {
+          console.log(`✅ Loaded ${gamesOnly.length} games quickly - showing immediately`)
+          setCfbGames(gamesOnly)
+          setError('')
+          
+          // Now try to add spreads in background (don't block UI)
+          console.log('💰 Adding spreads in background...')
+          getGamesFast(currentSeason, currentWeek, 'regular', true)
+            .then(gamesWithSpreads => {
+              if (gamesWithSpreads.length > 0) {
+                console.log('✅ Updated games with spreads')
+                setCfbGames(gamesWithSpreads)
+              }
+            })
+            .catch(err => {
+              console.log('⚠️ Could not add spreads:', err.message)
+              // Keep the games we already have
+            })
+          
+          return
+        }
+      } catch (fastError) {
+        console.log('⚠️ Fast loading failed, trying full fetch:', fastError.message)
+      }
+      
+      // Fallback: try the full fetch with spreads (has built-in timeout)
       const games = await getGamesWithSpreads(currentSeason, currentWeek, 'regular')
       
       if (games.length === 0) {
@@ -185,15 +225,24 @@ export default function AdminDashboard() {
         return
       }
       
-      // Filter to only FBS games (typically have venue and conference info)
-      const fbsGames = games.filter(game => 
-        game.home_conference && 
-        game.away_conference &&
-        !game.completed // Only show upcoming games
-      )
+      // Filter to only FBS games if we have real data, otherwise show all
+      let fbsGames = games
       
-      console.log(`✅ Loaded ${fbsGames.length} FBS games (${games.length} total)`)
+      if (games.length > 0 && games[0].home_conference) {
+        // Real data - filter to FBS games
+        fbsGames = games.filter(game => 
+          game.home_conference && 
+          game.away_conference &&
+          !game.completed // Only show upcoming games
+        )
+        console.log(`✅ Loaded ${fbsGames.length} FBS games (${games.length} total)`)
+      } else {
+        // Mock data - use as-is
+        console.log(`✅ Using ${games.length} mock games`)
+      }
+      
       setCfbGames(fbsGames)
+      setError('')
 
     } catch (err: any) {
       console.error('❌ Error fetching CFB games:', err)
