@@ -1,0 +1,1 @@
+Simplify the loadLeaderboard function to just use mock data immediately and return

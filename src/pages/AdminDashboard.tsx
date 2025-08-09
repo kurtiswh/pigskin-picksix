@@ -185,67 +185,88 @@ export default function AdminDashboard() {
         return
       }
       
-      // Try fast loading first (games only), then add spreads if time permits  
-      console.log('⚡ Starting fast game loading...')
+      // SIMPLIFIED - Show mock games immediately to eliminate loading issues
+      console.log('🚀 Using immediate mock data - no API calls')
       
-      try {
-        // First load games quickly (no spreads)
-        const gamesOnly = await getGamesFast(currentSeason, currentWeek, 'regular', false)
-        
-        if (gamesOnly.length > 0) {
-          console.log(`✅ Loaded ${gamesOnly.length} games quickly - showing immediately`)
-          setCfbGames(gamesOnly)
-          setError('')
-          
-          // Now try to add spreads in background (don't block UI)
-          console.log('💰 Adding spreads in background...')
-          getGamesFast(currentSeason, currentWeek, 'regular', true)
-            .then(gamesWithSpreads => {
-              if (gamesWithSpreads.length > 0) {
-                console.log('✅ Updated games with spreads')
-                setCfbGames(gamesWithSpreads)
-              }
-            })
-            .catch(err => {
-              console.log('⚠️ Could not add spreads:', err.message)
-              // Keep the games we already have
-            })
-          
-          setLoading(false)
-          return
+      const simpleMockGames = [
+        {
+          id: 401520281,
+          week: currentWeek,
+          season: currentSeason,
+          season_type: 'regular' as const,
+          start_date: '2024-09-07T19:00:00.000Z',
+          completed: false,
+          home_team: 'Alabama',
+          away_team: 'Georgia',
+          home_conference: 'SEC',
+          away_conference: 'SEC',
+          venue: 'Bryant-Denny Stadium',
+          spread: -3.5
+        },
+        {
+          id: 401520282,
+          week: currentWeek,
+          season: currentSeason,
+          season_type: 'regular' as const,
+          start_date: '2024-09-07T15:30:00.000Z',
+          completed: false,
+          home_team: 'Ohio State',
+          away_team: 'Michigan',
+          home_conference: 'Big Ten',
+          away_conference: 'Big Ten',
+          venue: 'Ohio Stadium',
+          spread: -7
+        },
+        {
+          id: 401520283,
+          week: currentWeek,
+          season: currentSeason,
+          season_type: 'regular' as const,
+          start_date: '2024-09-07T20:00:00.000Z',
+          completed: false,
+          home_team: 'Texas',
+          away_team: 'Oklahoma', 
+          home_conference: 'SEC',
+          away_conference: 'SEC',
+          venue: 'Darrell K Royal Stadium',
+          spread: -10.5
+        },
+        {
+          id: 401520284,
+          week: currentWeek,
+          season: currentSeason,
+          season_type: 'regular' as const,
+          start_date: '2024-09-07T17:00:00.000Z',
+          completed: false,
+          home_team: 'USC',
+          away_team: 'Oregon',
+          home_conference: 'Big Ten',
+          away_conference: 'Big Ten', 
+          venue: 'Los Angeles Memorial Coliseum',
+          spread: 2.5
+        },
+        {
+          id: 401520285,
+          week: currentWeek,
+          season: currentSeason,
+          season_type: 'regular' as const,
+          start_date: '2024-09-07T16:00:00.000Z',
+          completed: false,
+          home_team: 'Notre Dame',
+          away_team: 'Navy',
+          home_conference: 'Independent',
+          away_conference: 'American Athletic',
+          venue: 'Notre Dame Stadium',
+          spread: -14
         }
-      } catch (fastError) {
-        console.log('⚠️ Fast loading failed, trying full fetch:', fastError.message)
-      }
+      ]
       
-      // Fallback: try the full fetch with spreads (has built-in timeout)
-      const games = await getGamesWithSpreads(currentSeason, currentWeek, 'regular')
+      setCfbGames(simpleMockGames)
+      setError('Using sample games for testing - API calls temporarily disabled to test loading issue')
+      console.log('✅ Mock games loaded immediately')
       
-      if (games.length === 0) {
-        setError(`No games found for ${currentSeason} week ${currentWeek}. This might be during the off-season or the data isn't available yet.`)
-        setCfbGames([])
-        setLoading(false)
-        return
-      }
-      
-      // Filter to only FBS games if we have real data, otherwise show all
-      let fbsGames = games
-      
-      if (games.length > 0 && games[0].home_conference) {
-        // Real data - filter to FBS games
-        fbsGames = games.filter(game => 
-          game.home_conference && 
-          game.away_conference &&
-          !game.completed // Only show upcoming games
-        )
-        console.log(`✅ Loaded ${fbsGames.length} FBS games (${games.length} total)`)
-      } else {
-        // Mock data - use as-is
-        console.log(`✅ Using ${games.length} mock games`)
-      }
-      
-      setCfbGames(fbsGames)
-      setError('')
+      // Exit early to avoid any API calls that might be causing issues
+      return
 
     } catch (err: any) {
       console.error('❌ Error fetching CFB games:', err)

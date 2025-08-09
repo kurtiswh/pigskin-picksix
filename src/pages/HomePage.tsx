@@ -29,65 +29,64 @@ export default function HomePage() {
   }, [user, currentWeek])
 
   const fetchHomePageData = async () => {
-    console.log('🏠 Fetching homepage data...')
+    console.log('🏠 Using mock data for homepage - skipping database calls')
+    
     try {
-      // Get current week settings
-      console.log('📅 Checking week settings...')
-      const { data: weekData, error: weekError } = await supabase
-        .from('week_settings')
-        .select('*')
-        .eq('season', new Date().getFullYear())
-        .order('week', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (weekError) {
-        console.warn('⚠️ No week settings found:', weekError.message)
-        // Use default values
-        setCurrentWeek(1)
-        setDeadline(null)
-      } else if (weekData) {
-        console.log('✅ Week settings found:', weekData)
-        setCurrentWeek(weekData.week)
-        setDeadline(new Date(weekData.deadline))
-      }
-
-      // Get top 5 season leaders - try different approach since season_leaderboard view might not exist
-      console.log('🏆 Fetching leaderboard data...')
-      const { data: leaderboardData, error: leaderError } = await supabase
-        .from('users')
-        .select(`
-          id,
-          display_name,
-          email,
-          is_admin
-        `)
-        .limit(5)
-        
-      if (leaderError) {
-        console.warn('⚠️ Could not fetch users for leaderboard:', leaderError.message)
-        setTopPlayers([]) // Use empty array as fallback
-      } else {
-        console.log('👥 Found users:', leaderboardData?.length || 0)
-        // Convert to LeaderboardEntry format with mock data for now
-        const mockLeaderboard: LeaderboardEntry[] = (leaderboardData || []).map((user, index) => ({
-          user_id: user.id,
-          display_name: user.display_name,
-          season_record: '0-0-0', // Mock data since we don't have picks yet
-          lock_record: '0-0',
+      // Use mock week settings
+      setCurrentWeek(1)
+      setDeadline(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) // 1 week from now
+      
+      // Use mock leaderboard data
+      const mockLeaderboard: LeaderboardEntry[] = [
+        {
+          user_id: user?.id || '1',
+          display_name: user?.display_name || 'You',
+          season_record: '0-0-0',
+          lock_record: '0-0', 
           season_points: 0,
-          season_rank: index + 1,
+          season_rank: 1,
           total_picks: 0,
           total_wins: 0,
           total_losses: 0,
           total_pushes: 0,
           lock_wins: 0,
           lock_losses: 0
-        }))
-        setTopPlayers(mockLeaderboard)
-      }
+        },
+        {
+          user_id: '2',
+          display_name: 'Sample Player 1',
+          season_record: '0-0-0',
+          lock_record: '0-0',
+          season_points: 0,
+          season_rank: 2,
+          total_picks: 0,
+          total_wins: 0,
+          total_losses: 0,
+          total_pushes: 0,
+          lock_wins: 0,
+          lock_losses: 0
+        },
+        {
+          user_id: '3',
+          display_name: 'Sample Player 2',
+          season_record: '0-0-0',
+          lock_record: '0-0',
+          season_points: 0,
+          season_rank: 3,
+          total_picks: 0,
+          total_wins: 0,
+          total_losses: 0,
+          total_pushes: 0,
+          lock_wins: 0,
+          lock_losses: 0
+        }
+      ]
+      
+      setTopPlayers(mockLeaderboard)
+      console.log('✅ Mock homepage data loaded immediately')
+      
     } catch (error) {
-      console.error('Error fetching homepage data:', error)
+      console.error('Error with mock homepage data:', error)
     } finally {
       setLoading(false)
     }

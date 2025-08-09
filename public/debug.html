@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Environment</title>
+    <style>
+        body { font-family: monospace; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .loading { background: #fff3cd; border-color: #ffeaa7; }
+        pre { background: #f8f9fa; padding: 10px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>Environment Debug Test</h1>
+    <div id="results"></div>
+
+    <script type="module">
+        const results = document.getElementById('results');
+        
+        function addResult(title, content, status = 'loading') {
+            const div = document.createElement('div');
+            div.className = `test ${status}`;
+            div.innerHTML = `
+                <h3>${title}</h3>
+                <pre>${content}</pre>
+            `;
+            results.appendChild(div);
+            return div;
+        }
+
+        async function testEnvironment() {
+            // Test 1: Environment Variables
+            const envTest = addResult('Environment Variables', 'Testing...');
+            try {
+                const envVars = {
+                    'VITE_SUPABASE_URL': window.location.origin.includes('localhost') ? 'LOCAL' : 'PRODUCTION',
+                    'Supabase URL': import.meta.env?.VITE_SUPABASE_URL ? 'Present' : 'MISSING',
+                    'Supabase Key': import.meta.env?.VITE_SUPABASE_ANON_KEY ? 'Present' : 'MISSING',
+                    'CFB API Key': import.meta.env?.VITE_CFBD_API_KEY ? 'Present' : 'MISSING'
+                };
+                
+                envTest.className = 'test success';
+                envTest.querySelector('pre').textContent = JSON.stringify(envVars, null, 2);
+            } catch (err) {
+                envTest.className = 'test error';
+                envTest.querySelector('pre').textContent = `Error: ${err.message}`;
+            }
+
+            // Test 2: Supabase Connection
+            const supabaseTest = addResult('Supabase Database Connection', 'Testing...');
+            try {
+                const { createClient } = await import('@supabase/supabase-js');
+                const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL;
+                const supabaseKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
+                
+                if (!supabaseUrl || !supabaseKey) {
+                    throw new Error('Missing Supabase credentials');
+                }
+                
+                const supabase = createClient(supabaseUrl, supabaseKey);
+                
+                // Test simple query with timeout
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Database query timeout (5s)')), 5000)
+                );
+                
+                const queryPromise = supabase.from('users').select('count(*)').limit(1);
+                
+                const result = await Promise.race([queryPromise, timeoutPromise]);
+                
+                supabaseTest.className = 'test success';
+                supabaseTest.querySelector('pre').textContent = `Database accessible: ${JSON.stringify(result)}`;
+                
+            } catch (err) {
+                supabaseTest.className = 'test error';
+                supabaseTest.querySelector('pre').textContent = `Database Error: ${err.message}`;
+            }
+
+            // Test 3: College Football API
+            const apiTest = addResult('College Football API Connection', 'Testing...');
+            try {
+                const apiKey = import.meta.env?.VITE_CFBD_API_KEY;
+                
+                if (!apiKey) {
+                    throw new Error('Missing CFBD API key');
+                }
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
+                const response = await fetch('https://api.collegefootballdata.com/teams?year=2024', {
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                apiTest.className = 'test success';
+                apiTest.querySelector('pre').textContent = `API accessible: ${data.length} teams found`;
+                
+            } catch (err) {
+                apiTest.className = 'test error';
+                apiTest.querySelector('pre').textContent = `API Error: ${err.message}`;
+            }
+
+            // Test 4: Network/CORS Issues
+            const networkTest = addResult('Network & CORS Test', 'Testing...');
+            try {
+                const testUrls = [
+                    'https://api.collegefootballdata.com/teams?year=2024',
+                    import.meta.env?.VITE_SUPABASE_URL + '/rest/v1/users?select=count()'
+                ];
+                
+                const results = [];
+                for (const url of testUrls) {
+                    try {
+                        const response = await fetch(url, { method: 'HEAD' });
+                        results.push(`${url}: ${response.status}`);
+                    } catch (err) {
+                        results.push(`${url}: ERROR - ${err.message}`);
+                    }
+                }
+                
+                networkTest.className = 'test success';
+                networkTest.querySelector('pre').textContent = results.join('\n');
+                
+            } catch (err) {
+                networkTest.className = 'test error';
+                networkTest.querySelector('pre').textContent = `Network Error: ${err.message}`;
+            }
+
+            // Test 5: Console Logs
+            const logTest = addResult('Recent Console Logs', 'Checking...');
+            try {
+                const logs = window.debugLogs || ['No custom logs captured'];
+                logTest.className = 'test success';
+                logTest.querySelector('pre').textContent = logs.slice(-10).join('\n');
+            } catch (err) {
+                logTest.className = 'test error';
+                logTest.querySelector('pre').textContent = `Log Error: ${err.message}`;
+            }
+        }
+
+        // Capture console logs
+        window.debugLogs = [];
+        const originalLog = console.log;
+        console.log = function(...args) {
+            window.debugLogs.push(`[LOG] ${args.join(' ')}`);
+            originalLog.apply(console, args);
+        };
+        
+        const originalError = console.error;
+        console.error = function(...args) {
+            window.debugLogs.push(`[ERROR] ${args.join(' ')}`);
+            originalError.apply(console, args);
+        };
+
+        // Run tests
+        testEnvironment().catch(err => {
+            addResult('Critical Error', err.message, 'error');
+        });
+    </script>
+</body>
+</html>
