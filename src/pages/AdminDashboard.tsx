@@ -41,48 +41,72 @@ export default function AdminDashboard() {
       setLoading(true)
       setError('')
 
-      // Load week settings
-      const { data: settings, error: settingsError } = await supabase
-        .from('week_settings')
-        .select('*')
-        .eq('week', currentWeek)
-        .eq('season', currentSeason)
-        .single()
+      console.log('📊 Loading week data with timeout...')
 
-      if (settingsError && settingsError.code !== 'PGRST116') {
-        throw settingsError
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Week data loading timed out')), 5000)
+      )
+
+      try {
+        // Load week settings with timeout
+        const settingsQuery = supabase
+          .from('week_settings')
+          .select('*')
+          .eq('week', currentWeek)
+          .eq('season', currentSeason)
+          .single()
+
+        const settingsResult = await Promise.race([settingsQuery, timeoutPromise])
+        
+        if (settingsResult.error && settingsResult.error.code !== 'PGRST116') {
+          throw settingsResult.error
+        }
+
+        setWeekSettings(settingsResult.data)
+
+        // Load saved games for this week with timeout
+        const gamesQuery = supabase
+          .from('games')
+          .select('*')
+          .eq('week', currentWeek)
+          .eq('season', currentSeason)
+
+        const gamesResult = await Promise.race([gamesQuery, timeoutPromise])
+        if (gamesResult.error) throw gamesResult.error
+
+        // Convert saved games to CFB format for the selector
+        const cfbFormatGames: CFBGame[] = (gamesResult.data || []).map(game => ({
+          id: parseInt(game.id.slice(-8), 16), // Convert UUID to number for display
+          week: game.week,
+          season: game.season,
+          season_type: 'regular',
+          start_date: game.kickoff_time,
+          completed: game.status === 'completed',
+          home_team: game.home_team,
+          away_team: game.away_team,
+          spread: game.spread
+        }))
+
+        setSelectedGames(cfbFormatGames)
+        console.log('✅ Week data loaded successfully')
+
+      } catch (timeoutError) {
+        console.log('⏰ Week data loading timed out, using fallback...')
+        // Set empty states for fallback
+        setWeekSettings(null)
+        setSelectedGames([])
+        setError('Database connection timeout. Environment variables may need to be configured.')
       }
-
-      setWeekSettings(settings)
-
-      // Load saved games for this week
-      const { data: savedGames, error: gamesError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('week', currentWeek)
-        .eq('season', currentSeason)
-
-      if (gamesError) throw gamesError
-
-      // Convert saved games to CFB format for the selector
-      const cfbFormatGames: CFBGame[] = (savedGames || []).map(game => ({
-        id: parseInt(game.id.slice(-8), 16), // Convert UUID to number for display
-        week: game.week,
-        season: game.season,
-        season_type: 'regular',
-        start_date: game.kickoff_time,
-        completed: game.status === 'completed',
-        home_team: game.home_team,
-        away_team: game.away_team,
-        spread: game.spread
-      }))
-
-      setSelectedGames(cfbFormatGames)
 
     } catch (err: any) {
       console.error('Error loading week data:', err)
       setError(err.message)
+      // Set empty states
+      setWeekSettings(null)
+      setSelectedGames([])
     } finally {
+      console.log('📊 Week data loading completed')
       setLoading(false)
     }
   }
