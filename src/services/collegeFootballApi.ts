@@ -13,7 +13,8 @@ const API_KEY = ENV.CFBD_API_KEY
 
 console.log('🏈 College Football API Config:', {
   hasApiKey: !!API_KEY,
-  keyPreview: API_KEY ? API_KEY.slice(0, 10) + '...' : 'MISSING'
+  keyPreview: API_KEY ? API_KEY.slice(0, 10) + '...' : 'MISSING',
+  envLoaded: !!ENV.CFBD_API_KEY
 })
 
 const getHeaders = () => {

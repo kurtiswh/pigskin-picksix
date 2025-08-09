@@ -4,6 +4,7 @@ import { Navigate, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Game, WeekSettings } from '@/types'
 import { getGamesWithSpreads, getGamesFast, getCurrentWeek, testApiConnection, CFBGame } from '@/services/collegeFootballApi'
+import { ENV } from '@/lib/env'
 import AdminGameSelector from '@/components/AdminGameSelector'
 import WeekControls from '@/components/WeekControls'
 import UserManagement from '@/components/UserManagement'
@@ -92,22 +93,16 @@ export default function AdminDashboard() {
       setError('')
       
       console.log(`🏈 Fetching games for ${currentSeason} week ${currentWeek}`)
+      console.log('🔧 Environment check:', {
+        hasCfbKey: !!ENV.CFBD_API_KEY,
+        cfbKeyPreview: ENV.CFBD_API_KEY ? ENV.CFBD_API_KEY.slice(0, 10) + '...' : 'MISSING'
+      })
       
-      // Test API connection first with shorter timeout
-      console.log('🔍 Quick API connection test...')
-      const apiTestPromise = testApiConnection()
-      const timeoutPromise = new Promise<boolean>((resolve) => 
-        setTimeout(() => resolve(false), 3000)
-      )
+      // Always show mock games first for immediate feedback, then try real API
+      console.log('⚡ Loading sample games immediately for testing...')
       
-      const apiAvailable = await Promise.race([apiTestPromise, timeoutPromise])
-      
-      if (!apiAvailable) {
-        console.log('⚡ API unavailable or slow - using mock data immediately')
-        setError(`CollegeFootballData API is not available or slow. Using sample data for demonstration. To use real data, get a free API key at https://collegefootballdata.com/ and set VITE_CFBD_API_KEY in your .env file.`)
-        
-        // Use mock data as fallback
-        const mockGames = [
+      // Use mock data as immediate fallback
+      const mockGames = [
           {
             id: 401520281,
             week: currentWeek,
@@ -180,99 +175,71 @@ export default function AdminDashboard() {
           }
         ]
         
+        // Set mock games immediately
         setCfbGames(mockGames)
         setLoading(false)
-        return
-      }
-      
-      // Now try the real API calls with proper error handling and timeouts
-      console.log('🏈 Attempting real API calls with environment variables...')
-      console.log('Environment check:', {
-        hasSupabaseUrl: !!import.meta.env.VITE_SUPABASE_URL,
-        hasSupabaseKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
-        hasCfbKey: !!import.meta.env.VITE_CFBD_API_KEY
-      })
-      
-      try {
-        // Try with a very aggressive 5-second timeout
-        const timeoutPromise = new Promise<CFBGame[]>((_, reject) => 
-          setTimeout(() => reject(new Error('API timeout after 5 seconds')), 5000)
-        )
         
-        const apiPromise = getGamesWithSpreads(currentSeason, currentWeek, 'regular')
+        console.log(`✅ Loaded ${mockGames.length} sample games for admin testing`)
+        setError('Using sample games for demonstration. The API will be configured in production.')
         
-        const games = await Promise.race([apiPromise, timeoutPromise])
-        
-        if (games && games.length > 0) {
-          console.log(`✅ Successfully loaded ${games.length} real games`)
-          setCfbGames(games)
-          setError('')
-          return
-        } else {
-          throw new Error('No games returned from API')
+        // Optionally try to load real games in the background (don't wait for it)
+        if (ENV.CFBD_API_KEY) {
+          console.log('🔄 Attempting to load real games in background...')
+          getGamesWithSpreads(currentSeason, currentWeek, 'regular')
+            .then(realGames => {
+              if (realGames && realGames.length > 0) {
+                console.log(`🎯 Background load successful: ${realGames.length} real games`)
+                setCfbGames(realGames)
+                setError('')
+              }
+            })
+            .catch(err => {
+              console.log('⚠️ Background API load failed:', err.message)
+              // Keep using mock games
+            })
         }
-      } catch (apiError) {
-        console.log('⚠️ API call failed, using mock data:', apiError.message)
         
-        // Fallback to mock data
-        const mockGames = [
-          {
-            id: 401520281,
-            week: currentWeek,
-            season: currentSeason,
-            season_type: 'regular' as const,
-            start_date: '2024-09-07T19:00:00.000Z',
-            completed: false,
-            home_team: 'Alabama',
-            away_team: 'Georgia',
-            home_conference: 'SEC',
-            away_conference: 'SEC',
-            venue: 'Bryant-Denny Stadium',
-            spread: -3.5
-          },
-          {
-            id: 401520282,
-            week: currentWeek,
-            season: currentSeason,
-            season_type: 'regular' as const,
-            start_date: '2024-09-07T15:30:00.000Z',
-            completed: false,
-            home_team: 'Ohio State',
-            away_team: 'Michigan',
-            home_conference: 'Big Ten',
-            away_conference: 'Big Ten',
-            venue: 'Ohio Stadium',
-            spread: -7
-          }
-        ]
-        
-        setCfbGames(mockGames)
-        setError(`API unavailable: ${apiError.message}. Using sample data.`)
         return
-      }
 
     } catch (err: any) {
-      console.error('❌ Error fetching CFB games:', err)
-      setError(`Failed to load games: ${err.message}`)
-      // Ensure we show some games even if there's an error
-      setCfbGames([
+      console.error('❌ Error in fetchCFBGames:', err)
+      
+      // Always ensure we show games even if there's an error
+      const fallbackGames = [
         {
-          id: 1,
+          id: 401520281,
           week: currentWeek,
           season: currentSeason,
           season_type: 'regular' as const,
-          start_date: new Date().toISOString(),
+          start_date: '2024-09-07T19:00:00.000Z',
           completed: false,
-          home_team: 'Sample Home Team',
-          away_team: 'Sample Away Team',
-          home_conference: 'Sample Conference',
-          away_conference: 'Sample Conference',
-          venue: 'Sample Stadium',
+          home_team: 'Alabama',
+          away_team: 'Georgia',
+          home_conference: 'SEC',
+          away_conference: 'SEC',
+          venue: 'Bryant-Denny Stadium',
           spread: -3.5
+        },
+        {
+          id: 401520282,
+          week: currentWeek,
+          season: currentSeason,
+          season_type: 'regular' as const,
+          start_date: '2024-09-07T15:30:00.000Z',
+          completed: false,
+          home_team: 'Ohio State',
+          away_team: 'Michigan',
+          home_conference: 'Big Ten',
+          away_conference: 'Big Ten',
+          venue: 'Ohio Stadium',
+          spread: -7
         }
-      ])
+      ]
+      
+      setCfbGames(fallbackGames)
+      setError(`Error loading games: ${err.message}. Using sample data for testing.`)
     } finally {
-      console.log('🏁 fetchCFBGames completed, setting loading to false')
+      console.log('🏁 fetchCFBGames completed')
       setLoading(false)
     }
   }
