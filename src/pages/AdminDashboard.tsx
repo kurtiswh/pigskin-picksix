@@ -181,6 +181,7 @@ export default function AdminDashboard() {
         ]
         
         setCfbGames(mockGames)
+        setLoading(false)
         return
       }
       
@@ -210,6 +211,7 @@ export default function AdminDashboard() {
               // Keep the games we already have
             })
           
+          setLoading(false)
           return
         }
       } catch (fastError) {
@@ -222,6 +224,7 @@ export default function AdminDashboard() {
       if (games.length === 0) {
         setError(`No games found for ${currentSeason} week ${currentWeek}. This might be during the off-season or the data isn't available yet.`)
         setCfbGames([])
+        setLoading(false)
         return
       }
       
@@ -247,7 +250,25 @@ export default function AdminDashboard() {
     } catch (err: any) {
       console.error('❌ Error fetching CFB games:', err)
       setError(`Failed to load games: ${err.message}`)
+      // Ensure we show some games even if there's an error
+      setCfbGames([
+        {
+          id: 1,
+          week: currentWeek,
+          season: currentSeason,
+          season_type: 'regular' as const,
+          start_date: new Date().toISOString(),
+          completed: false,
+          home_team: 'Sample Home Team',
+          away_team: 'Sample Away Team',
+          home_conference: 'Sample Conference',
+          away_conference: 'Sample Conference',
+          venue: 'Sample Stadium',
+          spread: -3.5
+        }
+      ])
     } finally {
+      console.log('🏁 fetchCFBGames completed, setting loading to false')
       setLoading(false)
     }
   }

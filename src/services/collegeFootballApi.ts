@@ -358,55 +358,51 @@ function combineGamesWithData(
       })
     }
   }
+  
+  // Calculate game importance and combine with spreads and rankings
+  const gamesWithData = games.map(game => {
+    const homeRanking = rankingMap.get(game.home_team)
+    const awayRanking = rankingMap.get(game.away_team)
     
-    // Calculate game importance and combine with spreads and rankings
-    const gamesWithData = games.map(game => {
-      const homeRanking = rankingMap.get(game.home_team)
-      const awayRanking = rankingMap.get(game.away_team)
+    // Calculate importance score (lower is more important)
+    let importance = 1000 // default for unranked games
+    
+    if (homeRanking && awayRanking) {
+      // Both ranked: average ranking (most important)
+      importance = (homeRanking + awayRanking) / 2
+    } else if (homeRanking || awayRanking) {
+      // One ranked: use that ranking + penalty
+      importance = (homeRanking || awayRanking)! + 25
+    } else {
+      // Neither ranked: check conference importance
+      const majorConferences = ['SEC', 'Big Ten', 'Big 12', 'ACC', 'Pac-12']
+      const homeIsMajor = majorConferences.includes(game.home_conference || '')
+      const awayIsMajor = majorConferences.includes(game.away_conference || '')
       
-      // Calculate importance score (lower is more important)
-      let importance = 1000 // default for unranked games
-      
-      if (homeRanking && awayRanking) {
-        // Both ranked: average ranking (most important)
-        importance = (homeRanking + awayRanking) / 2
-      } else if (homeRanking || awayRanking) {
-        // One ranked: use that ranking + penalty
-        importance = (homeRanking || awayRanking)! + 25
-      } else {
-        // Neither ranked: check conference importance
-        const majorConferences = ['SEC', 'Big Ten', 'Big 12', 'ACC', 'Pac-12']
-        const homeIsMajor = majorConferences.includes(game.home_conference || '')
-        const awayIsMajor = majorConferences.includes(game.away_conference || '')
-        
-        if (homeIsMajor && awayIsMajor) {
-          importance = 100 // Major conference matchup
-        } else if (homeIsMajor || awayIsMajor) {
-          importance = 200 // One major conference team
-        }
+      if (homeIsMajor && awayIsMajor) {
+        importance = 100 // Major conference matchup
+      } else if (homeIsMajor || awayIsMajor) {
+        importance = 200 // One major conference team
       }
-      
-      return {
-        ...game,
-        spread: bettingMap.get(game.id) || undefined,
-        home_ranking: homeRanking,
-        away_ranking: awayRanking,
-        game_importance: importance
-      }
-    })
+    }
     
-    // Sort by importance (most important first)
-    const sortedGames = gamesWithData.sort((a, b) => a.game_importance! - b.game_importance!)
-    
-    console.log(`✅ Combined ${sortedGames.length} games with spreads and rankings`)
-    console.log(`📊 Games with spreads: ${sortedGames.filter(g => g.spread !== undefined).length}`)
-    console.log(`🏆 Games with ranked teams: ${sortedGames.filter(g => g.home_ranking || g.away_ranking).length}`)
-    
-    return sortedGames
-  } catch (error) {
-    console.error('❌ Error fetching games with spreads and rankings:', error)
-    throw error
-  }
+    return {
+      ...game,
+      spread: bettingMap.get(game.id) || undefined,
+      home_ranking: homeRanking,
+      away_ranking: awayRanking,
+      game_importance: importance
+    }
+  })
+  
+  // Sort by importance (most important first)
+  const sortedGames = gamesWithData.sort((a, b) => a.game_importance! - b.game_importance!)
+  
+  console.log(`✅ Combined ${sortedGames.length} games with spreads and rankings`)
+  console.log(`📊 Games with spreads: ${sortedGames.filter(g => g.spread !== undefined).length}`)
+  console.log(`🏆 Games with ranked teams: ${sortedGames.filter(g => g.home_ranking || g.away_ranking).length}`)
+  
+  return sortedGames
 }
 
 /**
