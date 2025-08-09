@@ -8,9 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 export default function LoginPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { user, signIn, signUp, signInWithGoogle } = useAuth()
+  const { user, signIn, signUp, setupExistingUser, signInWithGoogle } = useAuth()
   
   const [isSignUp, setIsSignUp] = useState(searchParams.get('signup') === 'true')
+  const [isFirstTime, setIsFirstTime] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -29,7 +30,10 @@ export default function LoginPage() {
     setError('')
 
     try {
-      if (isSignUp) {
+      if (isFirstTime) {
+        await setupExistingUser(email, password)
+        alert('Account setup complete! Please check your email for the confirmation link.')
+      } else if (isSignUp) {
         if (!displayName.trim()) {
           throw new Error('Display name is required')
         }
@@ -73,12 +77,30 @@ export default function LoginPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-center text-2xl">
-              {isSignUp ? 'Join the Competition' : 'Welcome Back'}
+              {isFirstTime ? 'First Time Setup' : isSignUp ? 'Join the Competition' : 'Welcome Back'}
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {/* Mode Selection */}
+            {!isFirstTime && !isSignUp && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 mb-2">
+                  <strong>Existing league member?</strong> If you were added to the league via LeagueSafe but haven't set up your login yet, 
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsFirstTime(true)}
+                  className="text-blue-700 border-blue-300 hover:bg-blue-100"
+                >
+                  Set up first-time login
+                </Button>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
-              {isSignUp && (
+              {isSignUp && !isFirstTime && (
                 <div>
                   <label htmlFor="displayName" className="block text-sm font-medium text-charcoal-700 mb-1">
                     Display Name
@@ -133,7 +155,11 @@ export default function LoginPage() {
                 className="w-full" 
                 disabled={loading}
               >
-                {loading ? 'Please wait...' : (isSignUp ? 'Create Account' : 'Sign In')}
+                {loading ? 'Please wait...' : (
+                  isFirstTime ? 'Set Up Account' : 
+                  isSignUp ? 'Create Account' : 
+                  'Sign In'
+                )}
               </Button>
             </form>
 
@@ -176,7 +202,21 @@ export default function LoginPage() {
             </div>
 
             <div className="mt-6 text-center text-sm">
-              {isSignUp ? (
+              {isFirstTime ? (
+                <p className="text-charcoal-600">
+                  Already have login credentials?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsFirstTime(false)
+                      setIsSignUp(false)
+                    }}
+                    className="text-pigskin-600 hover:text-pigskin-700 font-medium"
+                  >
+                    Regular sign in
+                  </button>
+                </p>
+              ) : isSignUp ? (
                 <p className="text-charcoal-600">
                   Already have an account?{' '}
                   <button
@@ -201,7 +241,16 @@ export default function LoginPage() {
               )}
             </div>
 
-            {isSignUp && (
+            {isFirstTime && (
+              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-800">
+                  <strong>First-time setup:</strong> Use the email address associated with your LeagueSafe payment. 
+                  We'll create your login credentials and link your account automatically.
+                </p>
+              </div>
+            )}
+            
+            {isSignUp && !isFirstTime && (
               <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
                   <strong>Important:</strong> Use the same email address that you used for LeagueSafe registration 
