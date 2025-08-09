@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-stone-50 text-charcoal-900 font-sans;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-pigskin-500 hover:bg-pigskin-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply bg-gold-500 hover:bg-gold-600 text-pigskin-900 font-semibold py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  .card {
+    @apply bg-white rounded-xl shadow-lg border border-stone-200;
+  }
+  
+  .card-dark {
+    @apply bg-charcoal-800 text-white rounded-xl shadow-lg;
+  }
+  
+  .football-laces {
+    position: relative;
+  }
+  
+  .football-laces::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px;
+    height: 60%;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 4px,
+      #C9A04E 4px,
+      #C9A04E 8px
+    );
+  }
+  
+  .yard-line {
+    background-image: repeating-linear-gradient(
+      to right,
+      #C9A04E,
+      #C9A04E 1px,
+      transparent 1px,
+      transparent 20px
+    );
+    height: 2px;
+  }
+  
+  .flip-card {
+    perspective: 1000px;
+  }
+  
+  .flip-card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+  }
+  
+  .flip-card.flipped .flip-card-inner {
+    transform: rotateY(180deg);
+  }
+  
+  .flip-card-front, .flip-card-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+  
+  .flip-card-back {
+    transform: rotateY(180deg);
+  }
+}

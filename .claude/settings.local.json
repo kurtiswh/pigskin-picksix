@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm install)",
+      "Bash(npm run dev:*)",
+      "Bash(node:*)",
+      "Bash(rm:*)",
+      "Bash(cat:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run:*)",
+      "Bash(touch:*)",
+      "Bash(pkill:*)",
+      "Bash(curl:*)",
+      "Bash(true)",
+      "Bash(python3:*)",
+      "Bash(npx vite:*)",
+      "Bash(psql:*)",
+      "Bash(npm install resend)",
+      "Bash(npm install:*)"
+    ],
+    "deny": []
+  }
+}

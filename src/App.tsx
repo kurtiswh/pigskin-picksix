@@ -1,0 +1,29 @@
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './hooks/useAuth'
+import HomePage from './pages/HomePage'
+import LoginPage from './pages/LoginPage'
+import PickSheetPage from './pages/PickSheetPage'
+import LeaderboardPage from './pages/LeaderboardPage'
+import AdminDashboard from './pages/AdminDashboard'
+import ProfilePage from './pages/ProfilePage'
+
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <div className="min-h-screen bg-stone-50">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/picks" element={<PickSheetPage />} />
+            <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/profile" element={<ProfilePage />} />
+          </Routes>
+        </div>
+      </Router>
+    </AuthProvider>
+  )
+}
+
+export default App
