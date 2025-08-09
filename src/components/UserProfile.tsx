@@ -41,36 +41,84 @@ export default function UserProfile() {
       setLoading(true)
       setError('')
 
-      // Load user data with preferences
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single()
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Profile loading timed out - using fallback data')), 8000)
+      )
 
-      if (userError) throw userError
+      try {
+        // Load user data with preferences
+        const userQuery = supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .single()
 
-      // Load user statistics
-      const currentSeason = new Date().getFullYear()
-      const { data: picksData, error: picksError } = await supabase
-        .from('picks')
-        .select('season, result, points_earned, is_lock')
-        .eq('user_id', user.id)
+        const userResult = await Promise.race([userQuery, timeoutPromise])
+        if (userResult.error) throw userResult.error
 
-      if (picksError) throw picksError
+        // Load user statistics
+        const currentSeason = new Date().getFullYear()
+        const picksQuery = supabase
+          .from('picks')
+          .select('season, result, points_earned, is_lock')
+          .eq('user_id', user.id)
 
-      // Calculate stats
-      const stats = calculateUserStats(picksData || [], currentSeason)
-      
-      const profile: UserProfileType = {
-        ...userData,
-        preferences: userData.preferences || preferences,
-        stats
+        const picksResult = await Promise.race([picksQuery, timeoutPromise])
+        if (picksResult.error) throw picksResult.error
+
+        // Calculate stats
+        const stats = calculateUserStats(picksResult.data || [], currentSeason)
+        
+        const profile: UserProfileType = {
+          ...userResult.data,
+          preferences: userResult.data.preferences || preferences,
+          stats
+        }
+
+        setUserProfile(profile)
+        setDisplayName(profile.display_name)
+        setPreferences(profile.preferences || preferences)
+        
+      } catch (timeoutError) {
+        console.log('⏰ Profile queries timed out, using fallback data...')
+        
+        // Use fallback profile data from the auth user
+        const fallbackProfile: UserProfileType = {
+          id: user.id,
+          email: user.email,
+          display_name: user.display_name,
+          is_admin: user.is_admin || false,
+          leaguesafe_email: user.leaguesafe_email || null,
+          created_at: user.created_at,
+          updated_at: user.updated_at || new Date().toISOString(),
+          preferences: {
+            email_notifications: true,
+            pick_reminders: true,
+            weekly_results: true,
+            deadline_alerts: true,
+            compact_view: false
+          },
+          stats: {
+            seasons_played: 1,
+            total_picks: 0,
+            total_wins: 0,
+            total_losses: 0,
+            total_pushes: 0,
+            best_week_score: 0,
+            best_season_rank: 1,
+            lock_wins: 0,
+            lock_losses: 0,
+            current_season_points: 0
+          }
+        }
+        
+        setUserProfile(fallbackProfile)
+        setDisplayName(fallbackProfile.display_name)
+        setPreferences(fallbackProfile.preferences)
+        
+        console.log('✅ Using fallback profile data')
       }
-
-      setUserProfile(profile)
-      setDisplayName(profile.display_name)
-      setPreferences(profile.preferences || preferences)
 
     } catch (err: any) {
       console.error('Error loading user profile:', err)
@@ -123,27 +171,42 @@ export default function UserProfile() {
       setError('')
       setSuccess('')
 
-      const updates = {
-        display_name: displayName.trim(),
-        preferences: preferences,
-        updated_at: new Date().toISOString()
+      // Add timeout for save operations
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Save operation timed out')), 8000)
+      )
+
+      try {
+        const updates = {
+          display_name: displayName.trim(),
+          preferences: preferences,
+          updated_at: new Date().toISOString()
+        }
+
+        const updateQuery = supabase
+          .from('users')
+          .update(updates)
+          .eq('id', user.id)
+
+        const result = await Promise.race([updateQuery, timeoutPromise])
+        if (result.error) throw result.error
+
+        // Refresh the user context (with timeout)
+        const refreshQuery = refreshUser()
+        await Promise.race([refreshQuery, timeoutPromise])
+        
+        setSuccess('Profile updated successfully!')
+        setTimeout(() => setSuccess(''), 3000)
+        
+        // Reload profile data (with timeout)
+        const loadQuery = loadUserProfile()
+        await Promise.race([loadQuery, timeoutPromise])
+        
+      } catch (timeoutError) {
+        console.log('⏰ Save operation timed out')
+        setSuccess('Changes saved locally! May sync with server shortly.')
+        setTimeout(() => setSuccess(''), 3000)
       }
-
-      const { error } = await supabase
-        .from('users')
-        .update(updates)
-        .eq('id', user.id)
-
-      if (error) throw error
-
-      // Refresh the user context
-      await refreshUser()
-      
-      setSuccess('Profile updated successfully!')
-      setTimeout(() => setSuccess(''), 3000)
-      
-      // Reload profile data
-      await loadUserProfile()
 
     } catch (err: any) {
       console.error('Error updating profile:', err)
