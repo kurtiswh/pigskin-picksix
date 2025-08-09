@@ -1,27 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
-import { ENV, validateRequiredEnvVars } from './env'
+import { ENV } from './env'
 
-const supabaseUrl = ENV.SUPABASE_URL
-const supabaseAnonKey = ENV.SUPABASE_ANON_KEY
-
-console.log('🔧 Supabase Config Debug:')
-console.log('URL:', supabaseUrl ? 'Present' : 'Missing', supabaseUrl?.slice(0, 30) + '...')
-console.log('Key:', supabaseAnonKey ? 'Present' : 'Missing', supabaseAnonKey?.slice(0, 20) + '...')
-
-// Validate required environment variables
-const envValidation = validateRequiredEnvVars()
-if (!envValidation.valid) {
-  console.error('❌ Missing required Supabase environment variables:', envValidation.missing)
-  console.error('Available env methods:')
-  console.error('- import.meta.env:', typeof import.meta !== 'undefined' && !!import.meta.env)
-  console.error('- process.env:', typeof process !== 'undefined' && !!process.env)
-  console.error('- Current URL:', supabaseUrl)
-  console.error('- Current Key:', supabaseAnonKey)
-  
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error(`Missing Supabase environment variables: ${envValidation.missing.join(', ')}`)
-  }
-}
+const supabaseUrl = ENV.SUPABASE_URL || 'https://placeholder.supabase.co'
+const supabaseAnonKey = ENV.SUPABASE_ANON_KEY || 'placeholder-anon-key'
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 

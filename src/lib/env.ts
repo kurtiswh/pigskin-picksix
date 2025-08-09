@@ -36,16 +36,6 @@ export const ENV = {
   RESEND_API_KEY: getEnvVar('VITE_RESEND_API_KEY'),
 } as const;
 
-// Debug logging
-console.log('🔧 Environment Variables Loaded:', {
-  SUPABASE_URL: ENV.SUPABASE_URL ? 'Present' : 'Missing',
-  SUPABASE_ANON_KEY: ENV.SUPABASE_ANON_KEY ? 'Present' : 'Missing', 
-  CFBD_API_KEY: ENV.CFBD_API_KEY ? 'Present' : 'Missing',
-  RESEND_API_KEY: ENV.RESEND_API_KEY ? 'Present' : 'Missing',
-  build_method: typeof import.meta !== 'undefined' ? 'import.meta.env' : 
-                typeof process !== 'undefined' ? 'process.env' : 'unknown'
-});
-
 // Validation helper
 export function validateRequiredEnvVars(): { valid: boolean; missing: string[] } {
   const required = [
