@@ -31,8 +31,10 @@ export default function LoginPage() {
 
     try {
       if (isFirstTime) {
-        await setupExistingUser(email, password)
-        alert('Account setup complete! Please check your email for the confirmation link.')
+        const result = await setupExistingUser(email, password)
+        if (result.success) {
+          alert(result.message || 'Setup email sent! Please check your email to complete account setup.')
+        }
       } else if (isSignUp) {
         if (!displayName.trim()) {
           throw new Error('Display name is required')

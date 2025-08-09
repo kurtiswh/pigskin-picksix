@@ -258,48 +258,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       console.log('✅ Found existing user:', existingUser.display_name, 'ID:', existingUser.id)
       
-      // Create Supabase auth account for existing user with special metadata to avoid trigger conflicts
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            display_name: existingUser.display_name,
-            existing_user_id: existingUser.id,
-            skip_user_creation: true
-          }
-        }
-      })
+      // Since the trigger is failing, let's use an admin approach
+      // Create a password reset token that they can use to set their password
+      console.log('🔄 Creating password reset for existing user...')
       
-      console.log('🔐 Auth signup response:', { 
-        user: data?.user ? `Created (${data.user.id})` : 'None', 
-        error: signUpError ? signUpError.message : 'None' 
-      })
+      // Update the existing user record with the email to ensure it matches
+      const { error: updateEmailError } = await supabase
+        .from('users')
+        .update({ email: email })
+        .eq('id', existingUser.id)
       
-      if (signUpError) {
-        console.error('❌ Error creating auth account:', signUpError)
-        throw new Error(`Failed to create auth account: ${signUpError.message}`)
+      if (updateEmailError) {
+        console.error('❌ Error updating user email:', updateEmailError)
+        // Don't fail here, continue
       }
       
-      if (data.user) {
-        console.log('🔄 Linking existing user record to new auth ID...')
-        
-        // Update the existing user record with the new auth ID
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({ id: data.user.id })
-          .eq('id', existingUser.id)
-        
-        if (updateError) {
-          console.error('❌ Error linking accounts:', updateError)
-          throw new Error('Account created but failed to link. Please contact support.')
-        }
-        
-        console.log('✅ Successfully linked existing user to new auth account')
-        return data
+      // Send password reset email which will let them set their password
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/login?message=password-set`
+      })
+      
+      if (resetError) {
+        console.error('❌ Error sending password reset:', resetError)
+        throw new Error(`Failed to send setup email: ${resetError.message}`)
       }
       
-      throw new Error('Failed to create auth account.')
+      console.log('✅ Password reset email sent!')
+      return { success: true, message: 'Check your email to complete account setup!' }
+      
     } catch (err) {
       console.error('💥 SetupExistingUser exception:', err)
       throw err
