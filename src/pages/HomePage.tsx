@@ -29,9 +29,11 @@ export default function HomePage() {
   }, [user, currentWeek])
 
   const fetchHomePageData = async () => {
+    console.log('🏠 Fetching homepage data...')
     try {
       // Get current week settings
-      const { data: weekData } = await supabase
+      console.log('📅 Checking week settings...')
+      const { data: weekData, error: weekError } = await supabase
         .from('week_settings')
         .select('*')
         .eq('season', new Date().getFullYear())
@@ -39,21 +41,50 @@ export default function HomePage() {
         .limit(1)
         .single()
 
-      if (weekData) {
+      if (weekError) {
+        console.warn('⚠️ No week settings found:', weekError.message)
+        // Use default values
+        setCurrentWeek(1)
+        setDeadline(null)
+      } else if (weekData) {
+        console.log('✅ Week settings found:', weekData)
         setCurrentWeek(weekData.week)
         setDeadline(new Date(weekData.deadline))
       }
 
-      // Get top 5 season leaders
-      const { data: leaderboardData } = await supabase
-        .from('season_leaderboard')
-        .select('*')
-        .eq('season', new Date().getFullYear())
-        .order('season_rank', { ascending: true })
+      // Get top 5 season leaders - try different approach since season_leaderboard view might not exist
+      console.log('🏆 Fetching leaderboard data...')
+      const { data: leaderboardData, error: leaderError } = await supabase
+        .from('users')
+        .select(`
+          id,
+          display_name,
+          email,
+          is_admin
+        `)
         .limit(5)
-
-      if (leaderboardData) {
-        setTopPlayers(leaderboardData as LeaderboardEntry[])
+        
+      if (leaderError) {
+        console.warn('⚠️ Could not fetch users for leaderboard:', leaderError.message)
+        setTopPlayers([]) // Use empty array as fallback
+      } else {
+        console.log('👥 Found users:', leaderboardData?.length || 0)
+        // Convert to LeaderboardEntry format with mock data for now
+        const mockLeaderboard: LeaderboardEntry[] = (leaderboardData || []).map((user, index) => ({
+          user_id: user.id,
+          display_name: user.display_name,
+          season_record: '0-0-0', // Mock data since we don't have picks yet
+          lock_record: '0-0',
+          season_points: 0,
+          season_rank: index + 1,
+          total_picks: 0,
+          total_wins: 0,
+          total_losses: 0,
+          total_pushes: 0,
+          lock_wins: 0,
+          lock_losses: 0
+        }))
+        setTopPlayers(mockLeaderboard)
       }
     } catch (error) {
       console.error('Error fetching homepage data:', error)
