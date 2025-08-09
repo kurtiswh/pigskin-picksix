@@ -239,66 +239,104 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setupExistingUser = async (email: string, password: string) => {
     console.log('🔧 Setting up existing user account for:', email)
     
-    // First, check if user exists in database
-    const { data: existingUser, error: userError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .or(`leaguesafe_email.eq.${email}`)
-      .single()
-    
-    if (userError && userError.code !== 'PGRST116') {
-      console.error('❌ Error checking existing user:', userError)
-      throw new Error('Error checking user account. Please contact support.')
-    }
-    
-    if (!existingUser) {
-      throw new Error('No existing account found with this email. Please contact support or create a new account.')
-    }
-    
-    console.log('✅ Found existing user:', existingUser.display_name)
-    
-    // Create Supabase auth account for existing user
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-    })
-    
-    if (signUpError) {
-      console.error('❌ Error creating auth account:', signUpError)
-      throw new Error(`Failed to create account: ${signUpError.message}`)
-    }
-    
-    if (data.user) {
-      // Update the existing user record with the new auth ID
-      const { error: updateError } = await supabase
+    try {
+      // First, check if user exists in database
+      const { data: existingUser, error: userError } = await supabase
         .from('users')
-        .update({ id: data.user.id })
-        .eq('id', existingUser.id)
+        .select('*')
+        .or(`email.eq.${email},leaguesafe_email.eq.${email}`)
+        .single()
       
-      if (updateError) {
-        console.error('❌ Error linking accounts:', updateError)
-        throw new Error('Account created but failed to link. Please contact support.')
+      if (userError && userError.code !== 'PGRST116') {
+        console.error('❌ Error checking existing user:', userError)
+        throw new Error('Error checking user account. Please contact support.')
       }
       
-      console.log('✅ Successfully linked existing user to new auth account')
-      return data
+      if (!existingUser) {
+        throw new Error('No existing account found with this email. Please contact support or create a new account.')
+      }
+      
+      console.log('✅ Found existing user:', existingUser.display_name, 'ID:', existingUser.id)
+      
+      // Create Supabase auth account for existing user with special metadata to avoid trigger conflicts
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            display_name: existingUser.display_name,
+            existing_user_id: existingUser.id,
+            skip_user_creation: true
+          }
+        }
+      })
+      
+      console.log('🔐 Auth signup response:', { 
+        user: data?.user ? `Created (${data.user.id})` : 'None', 
+        error: signUpError ? signUpError.message : 'None' 
+      })
+      
+      if (signUpError) {
+        console.error('❌ Error creating auth account:', signUpError)
+        throw new Error(`Failed to create auth account: ${signUpError.message}`)
+      }
+      
+      if (data.user) {
+        console.log('🔄 Linking existing user record to new auth ID...')
+        
+        // Update the existing user record with the new auth ID
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ id: data.user.id })
+          .eq('id', existingUser.id)
+        
+        if (updateError) {
+          console.error('❌ Error linking accounts:', updateError)
+          throw new Error('Account created but failed to link. Please contact support.')
+        }
+        
+        console.log('✅ Successfully linked existing user to new auth account')
+        return data
+      }
+      
+      throw new Error('Failed to create auth account.')
+    } catch (err) {
+      console.error('💥 SetupExistingUser exception:', err)
+      throw err
     }
-    
-    throw new Error('Failed to create account. Please try again.')
   }
 
   const signUp = async (email: string, password: string, displayName: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          display_name: displayName,
+    console.log('🔐 SignUp attempt:', { email, displayName })
+    
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            display_name: displayName,
+          },
         },
-      },
-    })
-    if (error) throw error
+      })
+      
+      console.log('🔐 SignUp response:', { 
+        user: data?.user ? 'Created' : 'None', 
+        session: data?.session ? 'Created' : 'None',
+        error: error ? error.message : 'None' 
+      })
+      
+      if (error) {
+        console.error('❌ SignUp error details:', error)
+        throw new Error(`Failed to create account: ${error.message}`)
+      }
+      
+      console.log('✅ SignUp successful!')
+      return data
+    } catch (err) {
+      console.error('💥 SignUp exception:', err)
+      throw err
+    }
   }
 
   const signOut = async () => {
