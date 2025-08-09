@@ -35,11 +35,22 @@
             // Test 1: Environment Variables
             const envTest = addResult('Environment Variables', 'Testing...');
             try {
+                // Check different ways environment variables might be exposed
+                const checkEnv = (key) => {
+                    return import.meta.env?.[key] || 
+                           window.__ENV__?.[key] || 
+                           process?.env?.[key] || 
+                           'MISSING';
+                };
+                
                 const envVars = {
-                    'VITE_SUPABASE_URL': window.location.origin.includes('localhost') ? 'LOCAL' : 'PRODUCTION',
-                    'Supabase URL': import.meta.env?.VITE_SUPABASE_URL ? 'Present' : 'MISSING',
-                    'Supabase Key': import.meta.env?.VITE_SUPABASE_ANON_KEY ? 'Present' : 'MISSING',
-                    'CFB API Key': import.meta.env?.VITE_CFBD_API_KEY ? 'Present' : 'MISSING'
+                    'Environment': window.location.origin.includes('localhost') ? 'LOCAL' : 'PRODUCTION',
+                    'VITE_SUPABASE_URL': checkEnv('VITE_SUPABASE_URL') !== 'MISSING' ? 'Present' : 'MISSING',
+                    'VITE_SUPABASE_ANON_KEY': checkEnv('VITE_SUPABASE_ANON_KEY') !== 'MISSING' ? 'Present' : 'MISSING',
+                    'VITE_CFBD_API_KEY': checkEnv('VITE_CFBD_API_KEY') !== 'MISSING' ? 'Present' : 'MISSING',
+                    'import.meta.env': typeof import.meta?.env,
+                    'process.env': typeof process?.env,
+                    'Raw SUPABASE_URL': import.meta.env?.VITE_SUPABASE_URL?.slice(0, 30) + '...' || 'undefined'
                 };
                 
                 envTest.className = 'test success';

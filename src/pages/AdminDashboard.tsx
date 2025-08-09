@@ -185,88 +185,71 @@ export default function AdminDashboard() {
         return
       }
       
-      // SIMPLIFIED - Show mock games immediately to eliminate loading issues
-      console.log('🚀 Using immediate mock data - no API calls')
+      // Now try the real API calls with proper error handling and timeouts
+      console.log('🏈 Attempting real API calls with environment variables...')
+      console.log('Environment check:', {
+        hasSupabaseUrl: !!import.meta.env.VITE_SUPABASE_URL,
+        hasSupabaseKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
+        hasCfbKey: !!import.meta.env.VITE_CFBD_API_KEY
+      })
       
-      const simpleMockGames = [
-        {
-          id: 401520281,
-          week: currentWeek,
-          season: currentSeason,
-          season_type: 'regular' as const,
-          start_date: '2024-09-07T19:00:00.000Z',
-          completed: false,
-          home_team: 'Alabama',
-          away_team: 'Georgia',
-          home_conference: 'SEC',
-          away_conference: 'SEC',
-          venue: 'Bryant-Denny Stadium',
-          spread: -3.5
-        },
-        {
-          id: 401520282,
-          week: currentWeek,
-          season: currentSeason,
-          season_type: 'regular' as const,
-          start_date: '2024-09-07T15:30:00.000Z',
-          completed: false,
-          home_team: 'Ohio State',
-          away_team: 'Michigan',
-          home_conference: 'Big Ten',
-          away_conference: 'Big Ten',
-          venue: 'Ohio Stadium',
-          spread: -7
-        },
-        {
-          id: 401520283,
-          week: currentWeek,
-          season: currentSeason,
-          season_type: 'regular' as const,
-          start_date: '2024-09-07T20:00:00.000Z',
-          completed: false,
-          home_team: 'Texas',
-          away_team: 'Oklahoma', 
-          home_conference: 'SEC',
-          away_conference: 'SEC',
-          venue: 'Darrell K Royal Stadium',
-          spread: -10.5
-        },
-        {
-          id: 401520284,
-          week: currentWeek,
-          season: currentSeason,
-          season_type: 'regular' as const,
-          start_date: '2024-09-07T17:00:00.000Z',
-          completed: false,
-          home_team: 'USC',
-          away_team: 'Oregon',
-          home_conference: 'Big Ten',
-          away_conference: 'Big Ten', 
-          venue: 'Los Angeles Memorial Coliseum',
-          spread: 2.5
-        },
-        {
-          id: 401520285,
-          week: currentWeek,
-          season: currentSeason,
-          season_type: 'regular' as const,
-          start_date: '2024-09-07T16:00:00.000Z',
-          completed: false,
-          home_team: 'Notre Dame',
-          away_team: 'Navy',
-          home_conference: 'Independent',
-          away_conference: 'American Athletic',
-          venue: 'Notre Dame Stadium',
-          spread: -14
+      try {
+        // Try with a very aggressive 5-second timeout
+        const timeoutPromise = new Promise<CFBGame[]>((_, reject) => 
+          setTimeout(() => reject(new Error('API timeout after 5 seconds')), 5000)
+        )
+        
+        const apiPromise = getGamesWithSpreads(currentSeason, currentWeek, 'regular')
+        
+        const games = await Promise.race([apiPromise, timeoutPromise])
+        
+        if (games && games.length > 0) {
+          console.log(`✅ Successfully loaded ${games.length} real games`)
+          setCfbGames(games)
+          setError('')
+          return
+        } else {
+          throw new Error('No games returned from API')
         }
-      ]
-      
-      setCfbGames(simpleMockGames)
-      setError('Using sample games for testing - API calls temporarily disabled to test loading issue')
-      console.log('✅ Mock games loaded immediately')
-      
-      // Exit early to avoid any API calls that might be causing issues
-      return
+      } catch (apiError) {
+        console.log('⚠️ API call failed, using mock data:', apiError.message)
+        
+        // Fallback to mock data
+        const mockGames = [
+          {
+            id: 401520281,
+            week: currentWeek,
+            season: currentSeason,
+            season_type: 'regular' as const,
+            start_date: '2024-09-07T19:00:00.000Z',
+            completed: false,
+            home_team: 'Alabama',
+            away_team: 'Georgia',
+            home_conference: 'SEC',
+            away_conference: 'SEC',
+            venue: 'Bryant-Denny Stadium',
+            spread: -3.5
+          },
+          {
+            id: 401520282,
+            week: currentWeek,
+            season: currentSeason,
+            season_type: 'regular' as const,
+            start_date: '2024-09-07T15:30:00.000Z',
+            completed: false,
+            home_team: 'Ohio State',
+            away_team: 'Michigan',
+            home_conference: 'Big Ten',
+            away_conference: 'Big Ten',
+            venue: 'Ohio Stadium',
+            spread: -7
+          }
+        ]
+        
+        setCfbGames(mockGames)
+        setError(`API unavailable: ${apiError.message}. Using sample data.`)
+        return
+      }
 
     } catch (err: any) {
       console.error('❌ Error fetching CFB games:', err)
