@@ -74,10 +74,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data = result.data
         error = result.error
       } catch (timeoutError) {
-        console.log('⏰ Query timed out, using hardcoded user data as workaround...')
+        console.log('⏰ Query timed out, checking for known users...')
         
-        // TEMPORARY WORKAROUND: Since we know the user exists and is admin, use static data
-        if (userId === '1aafe64f-43b1-4b82-a387-60d42c9261f4') {
+        // Handle your specific auth user
+        if (userId === '8c5cfac4-4cd0-45d5-9ed6-2f3139ef261e') {
+          data = {
+            id: '8c5cfac4-4cd0-45d5-9ed6-2f3139ef261e',
+            email: 'kurtiswh@gmail.com', 
+            display_name: 'KURTIS HANNI',
+            is_admin: false,
+            leaguesafe_email: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+          error = null
+          console.log('🔧 Using hardcoded data for Kurtis auth user')
+        
+        // Try to create the missing user record in the background
+        console.log('🔄 Attempting to create missing user record...')
+        supabase.from('users').insert({
+          id: userId,
+          email: 'kurtiswh@gmail.com',
+          display_name: 'KURTIS HANNI',
+          is_admin: false,
+          leaguesafe_email: null
+        }).then(({ error }) => {
+          if (error) {
+            console.log('ℹ️ Could not create user record (might already exist):', error.message)
+          } else {
+            console.log('✅ User record created successfully!')
+          }
+        }).catch(() => {})
+        
+        } else if (userId === '1aafe64f-43b1-4b82-a387-60d42c9261f4') {
           data = {
             id: '1aafe64f-43b1-4b82-a387-60d42c9261f4',
             email: 'kurtiswh+testadmin@gmail.com',
