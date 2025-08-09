@@ -220,7 +220,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password,
       })
       
-      console.log('🔐 Sign in response:', { data: data ? 'Present' : 'None', error: error ? error.message : 'None' })
+      console.log('🔐 Sign in response:', { 
+        user: data?.user ? `Found (${data.user.id})` : 'None',
+        session: data?.session ? 'Active' : 'None',
+        error: error ? error.message : 'None' 
+      })
       
       if (error) {
         console.error('❌ Sign in error:', error)
@@ -228,7 +232,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw error
       }
       
-      console.log('✅ Sign in successful!')
+      if (data?.user) {
+        console.log('✅ Sign in successful! User:', data.user.email, 'ID:', data.user.id)
+        // The auth state change will trigger fetchUserProfile automatically
+      } else {
+        console.warn('⚠️ Sign in returned no user data')
+      }
+      
       return data
     } catch (err) {
       console.error('💥 Exception during sign in:', err)
@@ -288,20 +298,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (authData.user) {
         console.log('✅ Auth user created:', authData.user.id)
-        console.log('🔄 Step 2: Linking existing user record...')
+        console.log('🔄 Step 2: Creating new user record with auth ID...')
         
-        // Update existing user record with new auth ID
-        const { error: linkError } = await supabase
+        // Instead of updating (which fails with UUID), create new user record with auth ID
+        // and copy the data from the existing user
+        const { error: createError } = await supabase
           .from('users')
-          .update({ id: authData.user.id })
-          .eq('id', existingUser.id)
+          .insert({
+            id: authData.user.id,
+            email: email,
+            display_name: existingUser.display_name,
+            is_admin: existingUser.is_admin || false,
+            leaguesafe_email: existingUser.leaguesafe_email
+          })
         
-        if (linkError) {
-          console.error('❌ Failed to link user record:', linkError)
+        if (createError) {
+          console.error('❌ Failed to create new user record:', createError)
+          // Don't fail here - the auth account was created
           return { 
             success: true, 
-            message: 'Account created! Please check your email to confirm, then try signing in.' 
+            message: 'Account created! Please check your email to confirm, then try signing in. If you have issues, contact support.' 
           }
+        }
+        
+        console.log('✅ New user record created with auth ID')
+        
+        // Now delete the old user record (after creating new one to avoid foreign key issues)
+        console.log('🗑️ Cleaning up old user record...')
+        const { error: deleteError } = await supabase
+          .from('users')
+          .delete()
+          .eq('id', existingUser.id)
+        
+        if (deleteError) {
+          console.warn('⚠️ Could not delete old user record:', deleteError)
+          // Don't fail - the account is working
         }
         
         console.log('✅ Successfully created and linked account!')
