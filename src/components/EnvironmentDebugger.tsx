@@ -27,13 +27,18 @@ export default function EnvironmentDebugger() {
         supabaseUrl: ENV.SUPABASE_URL ? 'Present' : 'Missing',
         supabaseKey: ENV.SUPABASE_ANON_KEY ? 'Present' : 'Missing',
         cfbdKey: ENV.CFBD_API_KEY ? 'Present' : 'Missing',
-        resendKey: ENV.RESEND_API_KEY ? 'Present' : 'Missing'
+        resendKey: ENV.RESEND_API_KEY ? 'Present' : 'Missing',
+        nodeEnv: import.meta.env.MODE || 'unknown',
+        isDev: import.meta.env.DEV || false,
+        isProd: import.meta.env.PROD || false
       },
       tests: {
         cfbdApi: 'Testing...',
         supabaseConnection: 'Testing...',
         supabaseUsers: 'Testing...',
-        supabaseGames: 'Testing...'
+        supabaseGames: 'Testing...',
+        supabaseIndexes: 'Testing...',
+        queryPerformance: 'Testing...'
       }
     }
 
@@ -47,6 +52,8 @@ export default function EnvironmentDebugger() {
       diagnostics.tests.supabaseConnection = diagnostics.tests.supabaseConnection === 'Testing...' ? 'Global timeout' : diagnostics.tests.supabaseConnection
       diagnostics.tests.supabaseUsers = diagnostics.tests.supabaseUsers === 'Testing...' ? 'Global timeout' : diagnostics.tests.supabaseUsers
       diagnostics.tests.supabaseGames = diagnostics.tests.supabaseGames === 'Testing...' ? 'Global timeout' : diagnostics.tests.supabaseGames
+      diagnostics.tests.supabaseIndexes = diagnostics.tests.supabaseIndexes === 'Testing...' ? 'Global timeout' : diagnostics.tests.supabaseIndexes
+      diagnostics.tests.queryPerformance = diagnostics.tests.queryPerformance === 'Testing...' ? 'Global timeout' : diagnostics.tests.queryPerformance
       setResults({ ...diagnostics })
       setTesting(false)
     }, 8000) // 8 second global timeout
@@ -164,6 +171,95 @@ export default function EnvironmentDebugger() {
       }
     } catch (error) {
       diagnostics.tests.supabaseGames = `Games Exception: ${error.message}`
+    }
+    
+    // Update results after games test
+    setResults({ ...diagnostics })
+
+    // Test database indexes
+    try {
+      const supabaseUrl = ENV.SUPABASE_URL
+      const supabaseKey = ENV.SUPABASE_ANON_KEY
+      
+      if (supabaseUrl && supabaseKey) {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 3000)
+        
+        try {
+          // Check for indexes using a simple query
+          const response = await fetch(`${supabaseUrl}/rest/v1/rpc/check_indexes`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseKey}`,
+              'apikey': supabaseKey,
+              'Content-Type': 'application/json'
+            },
+            signal: controller.signal,
+            body: JSON.stringify({})
+          })
+          
+          clearTimeout(timeoutId)
+          
+          if (response.ok) {
+            diagnostics.tests.supabaseIndexes = 'Index check function available'
+          } else if (response.status === 404) {
+            diagnostics.tests.supabaseIndexes = 'No index check function (expected)'
+          } else {
+            diagnostics.tests.supabaseIndexes = `HTTP ${response.status}`
+          }
+        } catch (fetchError) {
+          clearTimeout(timeoutId)
+          if (fetchError.name === 'AbortError') {
+            diagnostics.tests.supabaseIndexes = 'Index check timeout'
+          } else {
+            diagnostics.tests.supabaseIndexes = `Index check error: ${fetchError.message}`
+          }
+        }
+      } else {
+        diagnostics.tests.supabaseIndexes = 'Missing credentials'
+      }
+    } catch (error) {
+      diagnostics.tests.supabaseIndexes = `Exception: ${error.message}`
+    }
+    
+    // Update results after index test
+    setResults({ ...diagnostics })
+
+    // Test query performance with a simple timed query
+    try {
+      if (user) {
+        const startTime = Date.now()
+        
+        const performanceQuery = supabase
+          .from('users')
+          .select('id')
+          .eq('id', user.id)
+          .limit(1)
+        
+        const performanceTimeout = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Performance test timeout')), 3000)
+        )
+        
+        try {
+          await Promise.race([performanceQuery, performanceTimeout])
+          const endTime = Date.now()
+          const duration = endTime - startTime
+          
+          if (duration < 500) {
+            diagnostics.tests.queryPerformance = `Fast: ${duration}ms`
+          } else if (duration < 2000) {
+            diagnostics.tests.queryPerformance = `Slow: ${duration}ms`
+          } else {
+            diagnostics.tests.queryPerformance = `Very slow: ${duration}ms`
+          }
+        } catch (perfError) {
+          diagnostics.tests.queryPerformance = `Timeout or error after 3s`
+        }
+      } else {
+        diagnostics.tests.queryPerformance = 'No user to test with'
+      }
+    } catch (error) {
+      diagnostics.tests.queryPerformance = `Exception: ${error.message}`
     }
 
     // Clear timeout since we completed successfully
