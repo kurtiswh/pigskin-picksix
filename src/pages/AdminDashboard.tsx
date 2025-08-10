@@ -44,9 +44,9 @@ export default function AdminDashboard() {
 
       console.log('📊 Loading week data with timeout...')
 
-      // Add timeout to prevent hanging
+      // Add timeout to prevent hanging (extended for production)
       const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Week data loading timed out')), 10000)
+        setTimeout(() => reject(new Error('Week data loading timed out')), 20000)
       )
 
       try {
@@ -299,9 +299,9 @@ export default function AdminDashboard() {
 
       console.log('💾 Starting to save games with timeout protection...')
 
-      // Add timeout to prevent infinite hanging
+      // Add timeout to prevent infinite hanging (extended for production)
       const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Save operation timed out')), 10000)
+        setTimeout(() => reject(new Error('Save operation timed out')), 20000)
       )
 
       try {
@@ -411,9 +411,9 @@ export default function AdminDashboard() {
 
       console.log('🗑️ Starting to unsave games with timeout protection...')
 
-      // Add timeout to prevent infinite hanging
+      // Add timeout to prevent infinite hanging (extended for production)  
       const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Unsave operation timed out')), 10000)
+        setTimeout(() => reject(new Error('Unsave operation timed out')), 20000)
       )
 
       try {

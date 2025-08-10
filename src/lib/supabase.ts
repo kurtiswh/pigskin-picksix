@@ -4,7 +4,26 @@ import { ENV } from './env'
 const supabaseUrl = ENV.SUPABASE_URL || 'https://placeholder.supabase.co'
 const supabaseAnonKey = ENV.SUPABASE_ANON_KEY || 'placeholder-anon-key'
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  db: {
+    schema: 'public'
+  },
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  },
+  global: {
+    headers: {
+      'x-application-name': 'pigskin-pick-six-pro'
+    }
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  }
+})
 
 export type Database = {
   public: {

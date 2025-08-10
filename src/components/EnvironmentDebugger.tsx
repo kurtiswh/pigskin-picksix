@@ -138,9 +138,9 @@ export default function EnvironmentDebugger() {
       const supabaseKey = ENV.SUPABASE_ANON_KEY
       
       if (supabaseUrl && supabaseKey) {
-        // Direct REST API test for games
+        // Direct REST API test for games with extended timeout
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 5000)
+        const timeoutId = setTimeout(() => controller.abort(), 15000)
         
         try {
           const response = await fetch(`${supabaseUrl}/rest/v1/games?limit=1`, {
@@ -163,7 +163,7 @@ export default function EnvironmentDebugger() {
         } catch (fetchError) {
           clearTimeout(timeoutId)
           if (fetchError.name === 'AbortError') {
-            diagnostics.tests.supabaseGames = 'REST: Timeout after 5 seconds'
+            diagnostics.tests.supabaseGames = 'REST: Timeout after 15 seconds'
           } else {
             diagnostics.tests.supabaseGames = `REST: ${fetchError.message}`
           }
