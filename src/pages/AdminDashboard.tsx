@@ -46,7 +46,7 @@ export default function AdminDashboard() {
 
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Week data loading timed out')), 5000)
+        setTimeout(() => reject(new Error('Week data loading timed out')), 10000)
       )
 
       try {
@@ -97,7 +97,7 @@ export default function AdminDashboard() {
         // Set empty states for fallback
         setWeekSettings(null)
         setSelectedGames([])
-        setError('Database connection timeout. Environment variables may need to be configured.')
+        setError('Database queries are slow. Please run the performance migration SQL in Supabase to add indexes.')
       }
 
     } catch (err: any) {

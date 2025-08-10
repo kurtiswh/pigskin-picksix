@@ -12,7 +12,9 @@ export default function EnvironmentDebugger() {
   const [results, setResults] = useState<any>(null)
 
   const runDiagnostics = async () => {
+    console.log('🔧 Starting diagnostics...')
     setTesting(true)
+    
     const diagnostics = {
       timestamp: new Date().toISOString(),
       authentication: {
@@ -28,20 +30,40 @@ export default function EnvironmentDebugger() {
         resendKey: ENV.RESEND_API_KEY ? 'Present' : 'Missing'
       },
       tests: {
-        cfbdApi: 'Not tested',
-        supabaseConnection: 'Not tested',
-        supabaseUsers: 'Not tested',
-        supabaseGames: 'Not tested'
+        cfbdApi: 'Testing...',
+        supabaseConnection: 'Testing...',
+        supabaseUsers: 'Testing...',
+        supabaseGames: 'Testing...'
       }
     }
 
-    // Test CFBD API
+    // Set initial results to show progress
+    setResults({ ...diagnostics })
+
+    // Add global timeout for entire diagnostic process
+    const globalTimeout = setTimeout(() => {
+      console.log('🚨 Global diagnostic timeout')
+      diagnostics.tests.cfbdApi = diagnostics.tests.cfbdApi === 'Testing...' ? 'Global timeout' : diagnostics.tests.cfbdApi
+      diagnostics.tests.supabaseConnection = diagnostics.tests.supabaseConnection === 'Testing...' ? 'Global timeout' : diagnostics.tests.supabaseConnection
+      diagnostics.tests.supabaseUsers = diagnostics.tests.supabaseUsers === 'Testing...' ? 'Global timeout' : diagnostics.tests.supabaseUsers
+      diagnostics.tests.supabaseGames = diagnostics.tests.supabaseGames === 'Testing...' ? 'Global timeout' : diagnostics.tests.supabaseGames
+      setResults({ ...diagnostics })
+      setTesting(false)
+    }, 8000) // 8 second global timeout
+
+    // Test CFBD API with timeout
     try {
-      const cfbdTest = await testApiConnection(3000)
+      const cfbdTimeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('CFBD API timeout')), 4000)
+      )
+      const cfbdTest = await Promise.race([testApiConnection(3000), cfbdTimeout])
       diagnostics.tests.cfbdApi = cfbdTest ? 'Success' : 'Failed'
     } catch (error) {
       diagnostics.tests.cfbdApi = `Error: ${error.message}`
     }
+    
+    // Update results after each test
+    setResults({ ...diagnostics })
 
     // Test Supabase connection with direct REST API call
     try {
@@ -99,6 +121,9 @@ export default function EnvironmentDebugger() {
     } catch (error) {
       diagnostics.tests.supabaseConnection = `General Exception: ${error.message}`
     }
+    
+    // Update results after Supabase tests
+    setResults({ ...diagnostics })
 
     // Test games table with both methods
     try {
@@ -141,6 +166,8 @@ export default function EnvironmentDebugger() {
       diagnostics.tests.supabaseGames = `Games Exception: ${error.message}`
     }
 
+    // Clear timeout since we completed successfully
+    clearTimeout(globalTimeout)
     setResults(diagnostics)
     setTesting(false)
   }
