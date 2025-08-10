@@ -12,6 +12,7 @@ import ApiStatusWidget from '@/components/ApiStatusWidget'
 import ScoreManager from '@/components/ScoreManager'
 import HistoricalPicksImport from '@/components/HistoricalPicksImport'
 import AdminNotifications from '@/components/AdminNotifications'
+import EnvironmentDebugger from '@/components/EnvironmentDebugger'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -19,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth()
-  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'picks-import' | 'notifications'>('games')
+  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'picks-import' | 'notifications' | 'debug'>('games')
   const [cfbGames, setCfbGames] = useState<CFBGame[]>([])
   const [selectedGames, setSelectedGames] = useState<CFBGame[]>([])
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
@@ -549,6 +550,16 @@ export default function AdminDashboard() {
           >
             📧 Notifications
           </button>
+          <button
+            onClick={() => setActiveTab('debug')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'debug'
+                ? 'bg-pigskin-500 text-white'
+                : 'text-charcoal-600 hover:text-pigskin-700'
+            }`}
+          >
+            🔧 Debug
+          </button>
         </div>
 
         {/* Error Display */}
@@ -657,6 +668,13 @@ export default function AdminDashboard() {
               currentWeek={currentWeek}
               currentSeason={currentSeason}
             />
+          </div>
+        )}
+
+        {activeTab === 'debug' && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-pigskin-900">Environment & API Diagnostics</h2>
+            <EnvironmentDebugger />
           </div>
         )}
       </main>
