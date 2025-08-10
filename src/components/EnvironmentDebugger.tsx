@@ -12,7 +12,7 @@ export default function EnvironmentDebugger() {
   const [results, setResults] = useState<any>(null)
 
   const runDiagnostics = async () => {
-    console.log('🔧 Starting diagnostics...')
+    console.log('🔧 Starting simplified diagnostics...')
     setTesting(true)
     
     const diagnostics = {
@@ -37,7 +37,6 @@ export default function EnvironmentDebugger() {
         supabaseConnection: 'Testing...',
         supabaseUsers: 'Testing...',
         supabaseGames: 'Testing...',
-        supabaseIndexes: 'Testing...',
         queryPerformance: 'Testing...'
       }
     }
@@ -45,216 +44,82 @@ export default function EnvironmentDebugger() {
     // Set initial results to show progress
     setResults({ ...diagnostics })
 
-    // Individual timeouts handle timing - no global timeout needed
-    // Global timeout was interfering with individual timeout handling
-
-    // Test CFBD API with timeout
+    // Use try/catch with finally to ensure completion
     try {
-      const cfbdTimeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('CFBD API timeout')), 4000)
-      )
-      const cfbdTest = await Promise.race([testApiConnection(3000), cfbdTimeout])
-      diagnostics.tests.cfbdApi = cfbdTest ? 'Success' : 'Failed'
-    } catch (error) {
-      diagnostics.tests.cfbdApi = `Error: ${error.message}`
-    }
-    
-    // Update results after each test
-    setResults({ ...diagnostics })
+      // Test CFBD API
+      try {
+        const cfbdTest = await testApiConnection(3000)
+        diagnostics.tests.cfbdApi = cfbdTest ? 'Success' : 'Failed'
+      } catch (error) {
+        diagnostics.tests.cfbdApi = `Error: ${error.message}`
+      }
+      setResults({ ...diagnostics })
 
-    // Test Supabase connection with direct REST API call
-    try {
-      const supabaseUrl = ENV.SUPABASE_URL
-      const supabaseKey = ENV.SUPABASE_ANON_KEY
-      
-      if (!supabaseUrl || !supabaseKey) {
-        diagnostics.tests.supabaseConnection = 'Missing URL or Key'
-      } else {
-        // Direct REST API test with timeout
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 5000)
-        
-        try {
-          const response = await fetch(`${supabaseUrl}/rest/v1/users?limit=1`, {
-            headers: {
-              'Authorization': `Bearer ${supabaseKey}`,
-              'apikey': supabaseKey,
-              'Content-Type': 'application/json'
-            },
-            signal: controller.signal
-          })
-          
-          clearTimeout(timeoutId)
-          
-          if (response.ok) {
-            const data = await response.json()
-            diagnostics.tests.supabaseConnection = 'Success (Direct REST)'
-            diagnostics.tests.supabaseUsers = `Found ${data.length || 0} users via REST`
-          } else {
-            const errorText = await response.text()
-            diagnostics.tests.supabaseConnection = `HTTP ${response.status}: ${errorText}`
-          }
-        } catch (fetchError) {
-          clearTimeout(timeoutId)
-          if (fetchError.name === 'AbortError') {
-            diagnostics.tests.supabaseConnection = 'Timeout after 5 seconds (Direct REST)'
-          } else {
-            diagnostics.tests.supabaseConnection = `Fetch error: ${fetchError.message}`
-          }
+      // Test Supabase connection
+      try {
+        const { data, error } = await supabase.from('users').select('id').limit(1)
+        if (error) {
+          diagnostics.tests.supabaseConnection = `Error: ${error.message}`
+          diagnostics.tests.supabaseUsers = `Error: ${error.message}`
+        } else {
+          diagnostics.tests.supabaseConnection = 'Success'
+          diagnostics.tests.supabaseUsers = `Found ${data?.length || 0} users`
         }
-        
-        // Also test with Supabase client
-        try {
-          const { data, error } = await supabase.from('users').select('id').limit(1)
+      } catch (error) {
+        diagnostics.tests.supabaseConnection = `Exception: ${error.message}`
+        diagnostics.tests.supabaseUsers = `Exception: ${error.message}`
+      }
+      setResults({ ...diagnostics })
+
+      // Test games table
+      try {
+        const { data, error } = await supabase.from('games').select('id').limit(1)
+        if (error) {
+          diagnostics.tests.supabaseGames = `Error: ${error.message}`
+        } else {
+          diagnostics.tests.supabaseGames = `Found ${data?.length || 0} games`
+        }
+      } catch (error) {
+        diagnostics.tests.supabaseGames = `Exception: ${error.message}`
+      }
+      setResults({ ...diagnostics })
+
+      // Test query performance
+      try {
+        if (user) {
+          const startTime = Date.now()
+          const { data, error } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', user.id)
+            .limit(1)
+          
+          const duration = Date.now() - startTime
+          
           if (error) {
-            diagnostics.tests.supabaseUsers = `Client Error: ${error.message}`
-          } else {
-            diagnostics.tests.supabaseUsers += ` | Client: ${data?.length || 0} users`
-          }
-        } catch (clientError) {
-          diagnostics.tests.supabaseUsers += ` | Client Exception: ${clientError.message}`
-        }
-      }
-    } catch (error) {
-      diagnostics.tests.supabaseConnection = `General Exception: ${error.message}`
-    }
-    
-    // Update results after Supabase tests
-    setResults({ ...diagnostics })
-
-    // Test games table with both methods
-    try {
-      const supabaseUrl = ENV.SUPABASE_URL
-      const supabaseKey = ENV.SUPABASE_ANON_KEY
-      
-      if (supabaseUrl && supabaseKey) {
-        // Direct REST API test for games with extended timeout
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 15000)
-        
-        try {
-          const response = await fetch(`${supabaseUrl}/rest/v1/games?limit=1`, {
-            headers: {
-              'Authorization': `Bearer ${supabaseKey}`,
-              'apikey': supabaseKey,
-              'Content-Type': 'application/json'
-            },
-            signal: controller.signal
-          })
-          
-          clearTimeout(timeoutId)
-          
-          if (response.ok) {
-            const data = await response.json()
-            diagnostics.tests.supabaseGames = `REST: ${data.length || 0} games`
-          } else {
-            diagnostics.tests.supabaseGames = `REST HTTP ${response.status}`
-          }
-        } catch (fetchError) {
-          clearTimeout(timeoutId)
-          if (fetchError.name === 'AbortError') {
-            diagnostics.tests.supabaseGames = 'REST: Timeout after 15 seconds'
-          } else {
-            diagnostics.tests.supabaseGames = `REST: ${fetchError.message}`
-          }
-        }
-      }
-    } catch (error) {
-      diagnostics.tests.supabaseGames = `Games Exception: ${error.message}`
-    }
-    
-    // Update results after games test
-    setResults({ ...diagnostics })
-
-    // Test database indexes
-    try {
-      const supabaseUrl = ENV.SUPABASE_URL
-      const supabaseKey = ENV.SUPABASE_ANON_KEY
-      
-      if (supabaseUrl && supabaseKey) {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 3000)
-        
-        try {
-          // Check for indexes using a simple query
-          const response = await fetch(`${supabaseUrl}/rest/v1/rpc/check_indexes`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${supabaseKey}`,
-              'apikey': supabaseKey,
-              'Content-Type': 'application/json'
-            },
-            signal: controller.signal,
-            body: JSON.stringify({})
-          })
-          
-          clearTimeout(timeoutId)
-          
-          if (response.ok) {
-            diagnostics.tests.supabaseIndexes = 'Index check function available'
-          } else if (response.status === 404) {
-            diagnostics.tests.supabaseIndexes = 'No index check function (expected)'
-          } else {
-            diagnostics.tests.supabaseIndexes = `HTTP ${response.status}`
-          }
-        } catch (fetchError) {
-          clearTimeout(timeoutId)
-          if (fetchError.name === 'AbortError') {
-            diagnostics.tests.supabaseIndexes = 'Index check timeout'
-          } else {
-            diagnostics.tests.supabaseIndexes = `Index check error: ${fetchError.message}`
-          }
-        }
-      } else {
-        diagnostics.tests.supabaseIndexes = 'Missing credentials'
-      }
-    } catch (error) {
-      diagnostics.tests.supabaseIndexes = `Exception: ${error.message}`
-    }
-    
-    // Update results after index test
-    setResults({ ...diagnostics })
-
-    // Test query performance with a simple timed query
-    try {
-      if (user) {
-        const startTime = Date.now()
-        
-        const performanceQuery = supabase
-          .from('users')
-          .select('id')
-          .eq('id', user.id)
-          .limit(1)
-        
-        const performanceTimeout = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Performance test timeout')), 3000)
-        )
-        
-        try {
-          await Promise.race([performanceQuery, performanceTimeout])
-          const endTime = Date.now()
-          const duration = endTime - startTime
-          
-          if (duration < 500) {
+            diagnostics.tests.queryPerformance = `Error: ${error.message}`
+          } else if (duration < 500) {
             diagnostics.tests.queryPerformance = `Fast: ${duration}ms`
           } else if (duration < 2000) {
             diagnostics.tests.queryPerformance = `Slow: ${duration}ms`
           } else {
             diagnostics.tests.queryPerformance = `Very slow: ${duration}ms`
           }
-        } catch (perfError) {
-          diagnostics.tests.queryPerformance = `Timeout or error after 3s`
+        } else {
+          diagnostics.tests.queryPerformance = 'No user to test with'
         }
-      } else {
-        diagnostics.tests.queryPerformance = 'No user to test with'
+      } catch (error) {
+        diagnostics.tests.queryPerformance = `Exception: ${error.message}`
       }
-    } catch (error) {
-      diagnostics.tests.queryPerformance = `Exception: ${error.message}`
-    }
 
-    // All tests completed successfully
-    setResults(diagnostics)
-    setTesting(false)
+    } catch (error) {
+      console.error('Diagnostic error:', error)
+    } finally {
+      // Always complete the test
+      setResults(diagnostics)
+      setTesting(false)
+      console.log('🔧 Diagnostics completed')
+    }
   }
 
   return (
