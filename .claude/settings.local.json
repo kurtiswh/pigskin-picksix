@@ -26,7 +26,8 @@
       "Bash(git push:*)",
       "WebFetch(domain:pigskin-picksix-git-main-kurtis-hannis-projects.vercel.app)",
       "Bash(find:*)",
-      "Bash(npx vercel env:*)"
+      "Bash(npx vercel env:*)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }
