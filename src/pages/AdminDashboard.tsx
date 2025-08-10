@@ -297,60 +297,93 @@ export default function AdminDashboard() {
       setLoading(true)
       setError('')
 
-      // Create week settings if doesn't exist
-      if (!weekSettings) {
-        const { data: newSettings, error: settingsError } = await supabase
+      console.log('💾 Starting to save games with timeout protection...')
+
+      // Add timeout to prevent infinite hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Save operation timed out')), 10000)
+      )
+
+      try {
+        // Create week settings if doesn't exist
+        if (!weekSettings) {
+          console.log('📝 Creating new week settings...')
+          const settingsQuery = supabase
+            .from('week_settings')
+            .insert({
+              week: currentWeek,
+              season: currentSeason,
+              deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Default: 1 week from now
+              games_selected: false,
+              picks_open: false,
+              games_locked: false
+            })
+            .select()
+            .single()
+
+          const settingsResult = await Promise.race([settingsQuery, timeoutPromise])
+          if (settingsResult.error) throw settingsResult.error
+          setWeekSettings(settingsResult.data)
+          console.log('✅ Week settings created')
+        }
+
+        // Save games to database
+        console.log(`🏈 Inserting ${selectedGames.length} games...`)
+        const gamesToInsert = selectedGames.map(game => ({
+          week: currentWeek,
+          season: currentSeason,
+          home_team: game.home_team,
+          away_team: game.away_team,
+          spread: game.spread || 0,
+          kickoff_time: game.start_date,
+          status: 'scheduled' as const
+        }))
+
+        const insertQuery = supabase
+          .from('games')
+          .insert(gamesToInsert)
+
+        const insertResult = await Promise.race([insertQuery, timeoutPromise])
+        if (insertResult.error) throw insertResult.error
+        console.log('✅ Games inserted successfully')
+
+        // Update week settings
+        console.log('📊 Updating week settings...')
+        const updateQuery = supabase
           .from('week_settings')
-          .insert({
-            week: currentWeek,
-            season: currentSeason,
-            deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Default: 1 week from now
-            games_selected: false,
-            picks_open: false,
-            games_locked: false
-          })
-          .select()
-          .single()
+          .update({ games_selected: true })
+          .eq('week', currentWeek)
+          .eq('season', currentSeason)
 
-        if (settingsError) throw settingsError
-        setWeekSettings(newSettings)
+        const updateResult = await Promise.race([updateQuery, timeoutPromise])
+        if (updateResult.error) throw updateResult.error
+        console.log('✅ Week settings updated')
+
+        // Reload data with timeout
+        console.log('🔄 Reloading week data...')
+        const reloadPromise = loadWeekData()
+        await Promise.race([reloadPromise, timeoutPromise])
+
+        alert('Games saved successfully! 🏈')
+        console.log('🎉 Save operation completed successfully')
+
+      } catch (timeoutError) {
+        console.log('⏰ Save operation timed out')
+        setError('Save operation timed out. Please check if the database indexes have been applied.')
+        
+        // Try to reload data to see if anything was actually saved
+        try {
+          await loadWeekData()
+        } catch (reloadError) {
+          console.log('⚠️ Failed to reload after timeout')
+        }
       }
-
-      // Save games to database
-      const gamesToInsert = selectedGames.map(game => ({
-        week: currentWeek,
-        season: currentSeason,
-        home_team: game.home_team,
-        away_team: game.away_team,
-        spread: game.spread || 0,
-        kickoff_time: game.start_date,
-        status: 'scheduled' as const
-      }))
-
-      const { error: insertError } = await supabase
-        .from('games')
-        .insert(gamesToInsert)
-
-      if (insertError) throw insertError
-
-      // Update week settings
-      const { error: updateError } = await supabase
-        .from('week_settings')
-        .update({ games_selected: true })
-        .eq('week', currentWeek)
-        .eq('season', currentSeason)
-
-      if (updateError) throw updateError
-
-      // Reload data
-      await loadWeekData()
-
-      alert('Games saved successfully! 🏈')
 
     } catch (err: any) {
       console.error('Error saving games:', err)
-      setError(err.message)
+      setError(`Save failed: ${err.message}. Check if database indexes are applied.`)
     } finally {
+      console.log('🏁 Save games operation finished')
       setLoading(false)
     }
   }
@@ -376,42 +409,72 @@ export default function AdminDashboard() {
       setLoading(true)
       setError('')
 
-      // Check if deadline has passed
-      if (weekSettings?.deadline && new Date() > new Date(weekSettings.deadline)) {
-        throw new Error('Cannot unsave games after deadline has passed')
+      console.log('🗑️ Starting to unsave games with timeout protection...')
+
+      // Add timeout to prevent infinite hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Unsave operation timed out')), 10000)
+      )
+
+      try {
+        // Check if deadline has passed
+        if (weekSettings?.deadline && new Date() > new Date(weekSettings.deadline)) {
+          throw new Error('Cannot unsave games after deadline has passed')
+        }
+
+        // Delete all games for this week
+        console.log('🗑️ Deleting games from database...')
+        const deleteQuery = supabase
+          .from('games')
+          .delete()
+          .eq('week', currentWeek)
+          .eq('season', currentSeason)
+
+        const deleteResult = await Promise.race([deleteQuery, timeoutPromise])
+        if (deleteResult.error) throw deleteResult.error
+        console.log('✅ Games deleted successfully')
+
+        // Update week settings
+        console.log('📊 Updating week settings...')
+        const updateQuery = supabase
+          .from('week_settings')
+          .update({ 
+            games_selected: false,
+            picks_open: false,
+            games_locked: false
+          })
+          .eq('week', currentWeek)
+          .eq('season', currentSeason)
+
+        const updateResult = await Promise.race([updateQuery, timeoutPromise])
+        if (updateResult.error) throw updateResult.error
+        console.log('✅ Week settings updated')
+
+        // Reload data with timeout
+        console.log('🔄 Reloading week data...')
+        const reloadPromise = loadWeekData()
+        await Promise.race([reloadPromise, timeoutPromise])
+
+        alert('Games unsaved successfully! You can now make changes to your selection.')
+        console.log('🎉 Unsave operation completed successfully')
+
+      } catch (timeoutError) {
+        console.log('⏰ Unsave operation timed out')
+        setError('Unsave operation timed out. Please check if the database indexes have been applied.')
+        
+        // Try to reload data to see current state
+        try {
+          await loadWeekData()
+        } catch (reloadError) {
+          console.log('⚠️ Failed to reload after timeout')
+        }
       }
-
-      // Delete all games for this week
-      const { error: deleteError } = await supabase
-        .from('games')
-        .delete()
-        .eq('week', currentWeek)
-        .eq('season', currentSeason)
-
-      if (deleteError) throw deleteError
-
-      // Update week settings
-      const { error: updateError } = await supabase
-        .from('week_settings')
-        .update({ 
-          games_selected: false,
-          picks_open: false,
-          games_locked: false
-        })
-        .eq('week', currentWeek)
-        .eq('season', currentSeason)
-
-      if (updateError) throw updateError
-
-      // Reload data
-      await loadWeekData()
-
-      alert('Games unsaved successfully! You can now make changes to your selection.')
 
     } catch (err: any) {
       console.error('Error unsaving games:', err)
-      setError(err.message)
+      setError(`Unsave failed: ${err.message}. Check if database indexes are applied.`)
     } finally {
+      console.log('🏁 Unsave games operation finished')
       setLoading(false)
     }
   }
