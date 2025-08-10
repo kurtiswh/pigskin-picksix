@@ -45,18 +45,8 @@ export default function EnvironmentDebugger() {
     // Set initial results to show progress
     setResults({ ...diagnostics })
 
-    // Add global timeout for entire diagnostic process
-    const globalTimeout = setTimeout(() => {
-      console.log('🚨 Global diagnostic timeout')
-      diagnostics.tests.cfbdApi = diagnostics.tests.cfbdApi === 'Testing...' ? 'Global timeout' : diagnostics.tests.cfbdApi
-      diagnostics.tests.supabaseConnection = diagnostics.tests.supabaseConnection === 'Testing...' ? 'Global timeout' : diagnostics.tests.supabaseConnection
-      diagnostics.tests.supabaseUsers = diagnostics.tests.supabaseUsers === 'Testing...' ? 'Global timeout' : diagnostics.tests.supabaseUsers
-      diagnostics.tests.supabaseGames = diagnostics.tests.supabaseGames === 'Testing...' ? 'Global timeout' : diagnostics.tests.supabaseGames
-      diagnostics.tests.supabaseIndexes = diagnostics.tests.supabaseIndexes === 'Testing...' ? 'Global timeout' : diagnostics.tests.supabaseIndexes
-      diagnostics.tests.queryPerformance = diagnostics.tests.queryPerformance === 'Testing...' ? 'Global timeout' : diagnostics.tests.queryPerformance
-      setResults({ ...diagnostics })
-      setTesting(false)
-    }, 25000) // 25 second global timeout (longer than individual timeouts)
+    // Individual timeouts handle timing - no global timeout needed
+    // Global timeout was interfering with individual timeout handling
 
     // Test CFBD API with timeout
     try {
@@ -262,8 +252,7 @@ export default function EnvironmentDebugger() {
       diagnostics.tests.queryPerformance = `Exception: ${error.message}`
     }
 
-    // Clear timeout since we completed successfully
-    clearTimeout(globalTimeout)
+    // All tests completed successfully
     setResults(diagnostics)
     setTesting(false)
   }
