@@ -17,6 +17,7 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [userCache, setUserCache] = useState<{[key: string]: {user: User, timestamp: number}}>({})
   
   // Debug user state changes
   useEffect(() => {
@@ -54,8 +55,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserProfile = async (userId: string) => {
     console.log('👤 Starting fetchUserProfile for ID:', userId)
+    
+    // Check cache first (cache for 5 minutes)
+    const cached = userCache[userId]
+    const now = Date.now()
+    if (cached && (now - cached.timestamp < 5 * 60 * 1000)) {
+      console.log('⚡ Using cached user profile (fast!)')
+      setUser(cached.user)
+      setLoading(false)
+      return
+    }
+    
     try {
-      console.log('📊 Making database query...')
+      console.log('📊 Making database query (not in cache)...')
       
       // Add timeout to prevent hanging
       const queryPromise = supabase
@@ -228,6 +240,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('✅ User profile loaded successfully:', data.email, 'Admin:', data.is_admin)
         console.log('👤 Full user object:', data)
         setUser(data)
+        
+        // Cache the successful result for 5 minutes
+        setUserCache(prev => ({
+          ...prev,
+          [userId]: { user: data, timestamp: Date.now() }
+        }))
+        console.log('💾 Cached user profile for fast future loads')
       }
     } catch (error) {
       console.error('💥 Unexpected error in fetchUserProfile:', error)
@@ -416,6 +435,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.signOut()
     if (error) throw error
     setUser(null)
+    
+    // Clear user cache on sign out
+    setUserCache({})
+    console.log('🧹 Cleared user cache on sign out')
   }
 
   const signInWithGoogle = async () => {
