@@ -15,6 +15,7 @@ import HistoricalPicksImport from '@/components/HistoricalPicksImport'
 import AdminNotifications from '@/components/AdminNotifications'
 import EnvironmentDebugger from '@/components/EnvironmentDebugger'
 import NetworkDiagnostic from '@/components/NetworkDiagnostic'
+import SimpleConnectionTest from '@/components/SimpleConnectionTest'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -829,6 +830,7 @@ export default function AdminDashboard() {
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-pigskin-900">Environment & API Diagnostics</h2>
             <div className="grid gap-6">
+              <SimpleConnectionTest />
               <NetworkDiagnostic />
               <EnvironmentDebugger />
             </div>
