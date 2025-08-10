@@ -56,7 +56,7 @@ export default function EnvironmentDebugger() {
       diagnostics.tests.queryPerformance = diagnostics.tests.queryPerformance === 'Testing...' ? 'Global timeout' : diagnostics.tests.queryPerformance
       setResults({ ...diagnostics })
       setTesting(false)
-    }, 8000) // 8 second global timeout
+    }, 25000) // 25 second global timeout (longer than individual timeouts)
 
     // Test CFBD API with timeout
     try {
