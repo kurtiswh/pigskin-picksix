@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Navigate, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { getWeekDataDirect, saveGamesDirect } from '@/lib/supabase-direct'
+import { getWeekDataDirect, saveGamesDirect, unsaveGamesDirect } from '@/lib/supabase-direct'
 import { Game, WeekSettings } from '@/types'
 import { getGamesWithSpreads, getGamesFast, getCurrentWeek, testApiConnection, CFBGame } from '@/services/collegeFootballApi'
 import { ENV } from '@/lib/env'
@@ -512,14 +512,41 @@ export default function AdminDashboard() {
         console.log('🎉 Unsave operation completed successfully')
 
       } catch (timeoutError) {
-        console.log('⏰ Unsave operation timed out')
-        setError('Unsave operation timed out. Please check if the database indexes have been applied.')
+        console.log('⏰ Standard client unsave timed out, trying direct API...')
         
-        // Try to reload data to see current state
         try {
+          // Fallback to direct API for unsaving
+          await unsaveGamesDirect(currentWeek, currentSeason)
+          
+          // Still need to update week settings
+          const updateQuery = supabase
+            .from('week_settings')
+            .update({ 
+              games_selected: false,
+              picks_open: false,
+              games_locked: false
+            })
+            .eq('week', currentWeek)
+            .eq('season', currentSeason)
+
+          await Promise.race([updateQuery, timeoutPromise])
+          
+          console.log('✅ Games unsaved successfully via direct API')
+          alert('Games unsaved successfully! (via direct API) You can now make changes to your selection.')
+          
+          // Reload data
           await loadWeekData()
-        } catch (reloadError) {
-          console.log('⚠️ Failed to reload after timeout')
+          
+        } catch (directError) {
+          console.log('❌ Both standard client and direct API unsave failed')
+          setError('Unsave failed with both methods. Check network and database connection.')
+          
+          // Try to reload data to see current state
+          try {
+            await loadWeekData()
+          } catch (reloadError) {
+            console.log('⚠️ Failed to reload after timeout')
+          }
         }
       }
 

@@ -102,6 +102,49 @@ export async function getWeekDataDirect(week: number, season: number) {
   }
 }
 
+// Helper for unsaving games directly via REST API
+export async function unsaveGamesDirect(week: number, season: number) {
+  console.log(`🗑️ Unsaving games for week ${week} season ${season} via direct API...`)
+  
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Missing Supabase credentials')
+  }
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 20000)
+  
+  try {
+    // Delete games for this week/season
+    const response = await fetch(`${supabaseUrl}/rest/v1/games?week=eq.${week}&season=eq.${season}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'apikey': supabaseKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      signal: controller.signal
+    })
+    
+    clearTimeout(timeoutId)
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Unsave failed HTTP ${response.status}: ${errorText}`)
+    }
+    
+    console.log('✅ Games unsaved successfully via direct API')
+    return true
+    
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error.name === 'AbortError') {
+      throw new Error('Unsave operation timed out after 20 seconds')
+    }
+    throw error
+  }
+}
+
 // Helper for saving games directly via REST API
 export async function saveGamesDirect(games: any[], week: number, season: number) {
   console.log(`💾 Saving ${games.length} games directly via REST API...`)
