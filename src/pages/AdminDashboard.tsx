@@ -123,10 +123,37 @@ export default function AdminDashboard() {
         cfbKeyPreview: ENV.CFBD_API_KEY ? ENV.CFBD_API_KEY.slice(0, 10) + '...' : 'MISSING'
       })
       
-      // Always show mock games first for immediate feedback, then try real API
-      console.log('⚡ Loading sample games immediately for testing...')
+      // Try real API first, then show mock games as fallback after delay
+      console.log('🔄 Attempting to load real games first...')
       
-      // Use mock data as immediate fallback
+      // First attempt real API call
+      if (ENV.CFBD_API_KEY) {
+        try {
+          console.log('🎯 Loading real games from CFBD API...')
+          const realGames = await getGamesWithSpreads(currentSeason, currentWeek, 'regular')
+          
+          if (realGames && realGames.length > 0) {
+            console.log(`✅ Successfully loaded ${realGames.length} real games`)
+            setCfbGames(realGames)
+            setLoading(false)
+            return
+          } else {
+            console.log('⚠️ Real API returned no games, will show mock games after delay...')
+          }
+        } catch (apiError) {
+          console.log('⚠️ Real API failed, will show mock games after delay:', apiError.message)
+        }
+      } else {
+        console.log('⚠️ No CFBD API key found, will show mock games after delay...')
+      }
+      
+      // Wait 3 seconds before showing mock games to give real API preference
+      console.log('⏱️ Waiting 3 seconds before showing sample games...')
+      await new Promise(resolve => setTimeout(resolve, 3000))
+      
+      console.log('⚡ Now showing sample games for testing...')
+      
+      // Use mock data as delayed fallback
       const mockGames = [
           {
             id: 401520281,
@@ -200,29 +227,12 @@ export default function AdminDashboard() {
           }
         ]
         
-        // Set mock games immediately
+        // Set mock games after delay
         setCfbGames(mockGames)
         setLoading(false)
         
         console.log(`✅ Loaded ${mockGames.length} sample games for admin testing`)
-        setError('Using sample games for demonstration. The API will be configured in production.')
-        
-        // Optionally try to load real games in the background (don't wait for it)
-        if (ENV.CFBD_API_KEY) {
-          console.log('🔄 Attempting to load real games in background...')
-          getGamesWithSpreads(currentSeason, currentWeek, 'regular')
-            .then(realGames => {
-              if (realGames && realGames.length > 0) {
-                console.log(`🎯 Background load successful: ${realGames.length} real games`)
-                setCfbGames(realGames)
-                setError('')
-              }
-            })
-            .catch(err => {
-              console.log('⚠️ Background API load failed:', err.message)
-              // Keep using mock games
-            })
-        }
+        setError('Using sample games for demonstration. The real API either failed or returned no games.')
         
         return
 
