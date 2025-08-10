@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Navigate, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { getWeekDataDirect, saveGamesDirect } from '@/lib/supabase-direct'
 import { Game, WeekSettings } from '@/types'
 import { getGamesWithSpreads, getGamesFast, getCurrentWeek, testApiConnection, CFBGame } from '@/services/collegeFootballApi'
 import { ENV } from '@/lib/env'
@@ -50,6 +51,9 @@ export default function AdminDashboard() {
       )
 
       try {
+        // Try standard Supabase client first
+        console.log('🔄 Trying standard Supabase client...')
+        
         // Load week settings with timeout
         const settingsQuery = supabase
           .from('week_settings')
@@ -90,14 +94,40 @@ export default function AdminDashboard() {
         }))
 
         setSelectedGames(cfbFormatGames)
-        console.log('✅ Week data loaded successfully')
+        console.log('✅ Week data loaded successfully via standard client')
 
       } catch (timeoutError) {
-        console.log('⏰ Week data loading timed out, using fallback...')
-        // Set empty states for fallback
-        setWeekSettings(null)
-        setSelectedGames([])
-        setError('Database queries are slow. Please run the performance migration SQL in Supabase to add indexes.')
+        console.log('⏰ Standard client timed out, trying direct API...')
+        
+        try {
+          // Fallback to direct API calls
+          const directData = await getWeekDataDirect(currentWeek, currentSeason)
+          
+          setWeekSettings(directData.weekSettings)
+          
+          // Convert games to CFB format
+          const cfbFormatGames: CFBGame[] = (directData.games || []).map(game => ({
+            id: parseInt(game.id.slice(-8), 16),
+            week: game.week,
+            season: game.season,
+            season_type: 'regular',
+            start_date: game.kickoff_time,
+            completed: game.status === 'completed',
+            home_team: game.home_team,
+            away_team: game.away_team,
+            spread: game.spread
+          }))
+          
+          setSelectedGames(cfbFormatGames)
+          console.log('✅ Week data loaded successfully via direct API')
+          setError('Standard client slow - using direct API (this is normal)')
+          
+        } catch (directError) {
+          console.log('❌ Both standard client and direct API failed')
+          setWeekSettings(null)
+          setSelectedGames([])
+          setError('Both standard client and direct API failed. Check network connection.')
+        }
       }
 
     } catch (err: any) {
@@ -345,7 +375,7 @@ export default function AdminDashboard() {
 
         const insertResult = await Promise.race([insertQuery, timeoutPromise])
         if (insertResult.error) throw insertResult.error
-        console.log('✅ Games inserted successfully')
+        console.log('✅ Games inserted successfully via standard client')
 
         // Update week settings
         console.log('📊 Updating week settings...')
@@ -368,14 +398,37 @@ export default function AdminDashboard() {
         console.log('🎉 Save operation completed successfully')
 
       } catch (timeoutError) {
-        console.log('⏰ Save operation timed out')
-        setError('Save operation timed out. Please check if the database indexes have been applied.')
+        console.log('⏰ Standard client save timed out, trying direct API...')
         
-        // Try to reload data to see if anything was actually saved
         try {
+          // Fallback to direct API for saving
+          await saveGamesDirect(gamesToInsert, currentWeek, currentSeason)
+          
+          // Still need to update week settings
+          const updateQuery = supabase
+            .from('week_settings')
+            .update({ games_selected: true })
+            .eq('week', currentWeek)
+            .eq('season', currentSeason)
+
+          await Promise.race([updateQuery, timeoutPromise])
+          
+          console.log('✅ Games saved successfully via direct API')
+          alert('Games saved successfully! (via direct API) 🏈')
+          
+          // Reload data
           await loadWeekData()
-        } catch (reloadError) {
-          console.log('⚠️ Failed to reload after timeout')
+          
+        } catch (directError) {
+          console.log('❌ Both standard client and direct API save failed')
+          setError('Save failed with both methods. Check network and database connection.')
+          
+          // Try to reload data to see current state
+          try {
+            await loadWeekData()
+          } catch (reloadError) {
+            console.log('⚠️ Failed to reload after timeout')
+          }
         }
       }
 
