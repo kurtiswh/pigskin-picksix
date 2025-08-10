@@ -14,6 +14,7 @@ import ScoreManager from '@/components/ScoreManager'
 import HistoricalPicksImport from '@/components/HistoricalPicksImport'
 import AdminNotifications from '@/components/AdminNotifications'
 import EnvironmentDebugger from '@/components/EnvironmentDebugger'
+import NetworkDiagnostic from '@/components/NetworkDiagnostic'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -827,7 +828,10 @@ export default function AdminDashboard() {
         {activeTab === 'debug' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-pigskin-900">Environment & API Diagnostics</h2>
-            <EnvironmentDebugger />
+            <div className="grid gap-6">
+              <NetworkDiagnostic />
+              <EnvironmentDebugger />
+            </div>
           </div>
         )}
       </main>
