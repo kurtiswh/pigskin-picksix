@@ -30,7 +30,10 @@
       "Bash(cp:*)",
       "Bash(echo:*)",
       "WebFetch(domain:api.collegefootballdata.com)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(supabase:*)",
+      "Bash(mv:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

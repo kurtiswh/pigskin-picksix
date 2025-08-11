@@ -590,6 +590,83 @@ The Pigskin Pick 6 Pro Team
       text
     }
   }
+
+  static passwordReset(userDisplayName: string, resetUrl: string): EmailTemplate {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+        <div style="background-color: #8B4513; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h1 style="margin: 0; font-size: 24px;">🔐 Password Reset</h1>
+          <p style="margin: 10px 0 0 0; font-size: 16px;">Pigskin Pick 6 Pro</p>
+        </div>
+        
+        <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <h2 style="color: #1f2937; margin-top: 0;">Hi ${userDisplayName}!</h2>
+          
+          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">
+            A password reset has been requested for your Pigskin Pick 6 Pro account. If you didn't request this reset, you can safely ignore this email.
+          </p>
+          
+          <div style="background-color: #dbeafe; border: 1px solid #3b82f6; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
+            <h3 style="color: #1e40af; margin-top: 0; font-size: 18px;">
+              🔑 Reset Your Password
+            </h3>
+            <p style="color: #1e3a8a; margin: 10px 0; font-size: 14px;">
+              Click the button below to create a new password for your account.
+            </p>
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetUrl}" 
+               style="background-color: #8B4513; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
+              Reset Password
+            </a>
+          </div>
+          
+          <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h4 style="color: #92400e; margin-top: 0; font-size: 14px;">⚠️ Security Notice:</h4>
+            <div style="color: #92400e; font-size: 13px; line-height: 1.5;">
+              <p style="margin: 5px 0;">• This link will expire in 1 hour for security</p>
+              <p style="margin: 5px 0;">• If you didn't request this, please contact an admin</p>
+              <p style="margin: 5px 0;">• Never share this reset link with anyone</p>
+            </div>
+          </div>
+          
+          <p style="color: #6b7280; font-size: 14px; text-align: center; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+            If the button doesn't work, copy and paste this link:<br>
+            <span style="word-break: break-all; color: #3b82f6;">${resetUrl}</span>
+          </p>
+          
+          <p style="color: #6b7280; font-size: 12px; text-align: center; margin-top: 20px;">
+            <em>The Pigskin Pick 6 Pro Team</em>
+          </p>
+        </div>
+      </div>
+    `
+
+    const text = `
+🔐 PASSWORD RESET - Pigskin Pick 6 Pro
+
+Hi ${userDisplayName}!
+
+A password reset has been requested for your Pigskin Pick 6 Pro account. If you didn't request this reset, you can safely ignore this email.
+
+🔑 RESET YOUR PASSWORD
+Click this link to create a new password: ${resetUrl}
+
+⚠️ SECURITY NOTICE:
+• This link will expire in 1 hour for security
+• If you didn't request this, please contact an admin  
+• Never share this reset link with anyone
+
+The Pigskin Pick 6 Pro Team
+    `.trim()
+
+    return {
+      subject: '🔐 Password Reset Request - Pigskin Pick 6 Pro',
+      html,
+      text
+    }
+  }
 }
 
 /**
@@ -1077,6 +1154,36 @@ export class EmailService {
     } catch (error) {
       console.error('❌ Error sending email:', error)
       return false
+    }
+  }
+
+  /**
+   * Send password reset email
+   */
+  static async sendPasswordReset(
+    userId: string,
+    email: string,
+    displayName: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log(`🔐 Sending password reset email to ${email}`)
+
+      // Generate password reset link using Supabase Auth
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      })
+
+      if (error) {
+        console.error('❌ Error generating password reset:', error)
+        return { success: false, error: error.message }
+      }
+
+      console.log('✅ Password reset email sent via Supabase Auth')
+      return { success: true }
+
+    } catch (error: any) {
+      console.error('❌ Exception sending password reset:', error)
+      return { success: false, error: error.message }
     }
   }
 

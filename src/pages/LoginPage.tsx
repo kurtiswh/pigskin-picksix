@@ -102,6 +102,30 @@ export default function LoginPage() {
     }
   }
 
+  const handleForgotPassword = async () => {
+    const userEmail = prompt('Enter your email address to receive a password reset link:')
+    
+    if (!userEmail) return
+    
+    if (!userEmail.includes('@')) {
+      alert('Please enter a valid email address')
+      return
+    }
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+        redirectTo: `${window.location.origin}/reset-password`
+      })
+
+      if (error) throw error
+
+      alert(`✅ Password reset email sent to ${userEmail}. Please check your inbox and follow the instructions.`)
+    } catch (err: any) {
+      console.error('Password reset error:', err)
+      alert(`❌ Failed to send password reset email: ${err.message}`)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-pigskin-600 to-pigskin-800 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -288,6 +312,18 @@ export default function LoginPage() {
                 </p>
               )}
             </div>
+
+            {!isFirstTime && !isSignUp && (
+              <div className="mt-4 text-center">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-sm text-pigskin-600 hover:text-pigskin-700 font-medium underline"
+                >
+                  Forgot your password?
+                </button>
+              </div>
+            )}
 
             {isFirstTime && (
               <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">

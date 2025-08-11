@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './hooks/useAuth'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import PickSheetPage from './pages/PickSheetPage'
 import AnonymousPicksPage from './pages/AnonymousPicksPage'
 import LeaderboardPage from './pages/LeaderboardPage'
@@ -16,6 +17,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/picks" element={<PickSheetPage />} />
             <Route path="/anonymous-picks" element={<AnonymousPicksPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />

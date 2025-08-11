@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 import { UserWithPayment, LeagueSafePayment } from '@/types'
+import { EmailService } from '@/services/emailService'
 import LeagueSafeUpload from './LeagueSafeUpload'
 import PaymentMatcher from './PaymentMatcher'
 import UnmatchedUsersPayments from './UnmatchedUsersPayments'
@@ -198,6 +199,25 @@ export default function UserManagement() {
     } catch (err: any) {
       console.error('Error updating payment status:', err)
       setError(err.message)
+    }
+  }
+
+  const sendPasswordReset = async (userId: string, email: string, displayName: string) => {
+    if (!confirm(`Send a password reset email to ${displayName} (${email})?`)) {
+      return
+    }
+
+    try {
+      const result = await EmailService.sendPasswordReset(userId, email, displayName)
+      
+      if (result.success) {
+        alert(`✅ Password reset email sent to ${email}`)
+      } else {
+        alert(`❌ Failed to send password reset: ${result.error}`)
+      }
+    } catch (err: any) {
+      console.error('Error sending password reset:', err)
+      alert(`❌ Error sending password reset: ${err.message}`)
     }
   }
 
@@ -425,6 +445,16 @@ export default function UserManagement() {
                         className="text-xs"
                       >
                         {user.is_admin ? 'Remove Admin' : 'Make Admin'}
+                      </Button>
+                      
+                      <Button
+                        onClick={() => sendPasswordReset(user.id, user.email, user.display_name)}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
+                        title="Send password reset email"
+                      >
+                        Reset Password
                       </Button>
                       
                       <Button
