@@ -76,22 +76,33 @@ export class MagicLinkService {
       console.log(`🔮 Generating magic link for ${email}`)
 
       // Check if user exists by email
+      console.log(`🔍 Looking up user in database...`)
       const existingUser = await findUserByAnyEmail(email)
       
+      console.log(`📊 User lookup result:`, existingUser ? `Found: ${existingUser.display_name}` : 'Not found')
+      
       if (!existingUser) {
-        // Don't reveal whether email exists or not for security
-        console.log(`🔮 Email ${email} not found, but returning success for security`)
+        // Don't reveal whether email exists or not for security, but log it
+        console.log(`🔮 Email ${email} not found in database, returning success for security`)
+        console.log(`ℹ️ If this is your email and you should have access, check your user record in Supabase`)
         return { success: true }
       }
+
+      console.log(`👤 Found user: ${existingUser.display_name} (${existingUser.id})`)
 
       // Generate secure token
       const token = this.generateSecureToken()
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
 
+      console.log(`🔐 Generated token, expires at: ${expiresAt.toISOString()}`)
+
       // Store token in database
+      console.log(`💾 Storing magic link token in database...`)
       await this.storeMagicToken(email, token, expiresAt)
+      console.log(`✅ Token stored successfully`)
 
       // Send email via Resend
+      console.log(`📧 Sending magic link email...`)
       const emailResult = await EmailService.sendMagicLink(
         email,
         existingUser.display_name,
@@ -99,6 +110,7 @@ export class MagicLinkService {
       )
 
       if (!emailResult.success) {
+        console.error(`❌ Email send failed:`, emailResult.error)
         throw new Error(emailResult.error || 'Failed to send magic link email')
       }
 
@@ -107,6 +119,8 @@ export class MagicLinkService {
 
     } catch (error: any) {
       console.error('❌ Error sending magic link:', error)
+      console.error('❌ Error details:', error.message)
+      console.error('❌ Stack trace:', error.stack)
       return { success: false, error: error.message }
     }
   }

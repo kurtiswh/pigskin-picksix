@@ -17,6 +17,7 @@ export async function findUserByAnyEmail(email: string): Promise<User | null> {
     console.log('🔍 Searching for user with email:', searchEmail)
 
     // First try direct lookup in users table (fallback)
+    console.log('📊 Attempting direct database lookup...')
     const { data: directUser, error: directError } = await supabase
       .from('users')
       .select('*')
@@ -24,22 +25,41 @@ export async function findUserByAnyEmail(email: string): Promise<User | null> {
       .limit(1)
       .single()
 
+    console.log('📊 Direct lookup result:', {
+      found: !!directUser,
+      error: directError?.message || 'none',
+      errorCode: directError?.code
+    })
+
     if (directUser && !directError) {
-      console.log('✅ Found user via direct lookup:', directUser.email)
+      console.log('✅ Found user via direct lookup:', directUser.email, `ID: ${directUser.id}`)
       return directUser
     }
 
+    if (directError && directError.code !== 'PGRST116') {
+      console.error('❌ Database error during direct lookup:', directError)
+    }
+
     // Try the database function if it exists
+    console.log('📊 Attempting RPC function lookup...')
     try {
       const { data, error } = await supabase
         .rpc('find_user_by_any_email', { search_email: searchEmail })
+
+      console.log('📊 RPC lookup result:', {
+        data,
+        error: error?.message || 'none'
+      })
 
       if (error) {
         console.warn('RPC function not available yet:', error.message)
         return null
       }
 
-      if (!data) return null
+      if (!data) {
+        console.log('📊 RPC function returned no data')
+        return null
+      }
 
       // Fetch the full user record
       const { data: userData, error: userError } = await supabase
@@ -56,11 +76,13 @@ export async function findUserByAnyEmail(email: string): Promise<User | null> {
       console.log('✅ Found user via RPC function:', userData.email)
       return userData
     } catch (rpcError) {
-      console.warn('RPC function call failed, using direct lookup result')
+      console.warn('RPC function call failed:', rpcError.message)
+      console.log('📊 No user found via any method')
       return null
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Exception finding user by email:', error)
+    console.error('Exception details:', error.message)
     return null
   }
 }
