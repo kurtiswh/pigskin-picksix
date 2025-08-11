@@ -18,12 +18,48 @@ export async function findUserByAnyEmail(email: string): Promise<User | null> {
 
     // First try direct lookup in users table (fallback)
     console.log('📊 Attempting direct database lookup...')
-    const { data: directUser, error: directError } = await supabase
+    
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Database query timed out after 10 seconds')), 10000)
+    )
+    
+    const queryPromise = supabase
       .from('users')
       .select('*')
       .or(`email.eq.${searchEmail},leaguesafe_email.eq.${searchEmail}`)
       .limit(1)
       .single()
+    
+    let directUser, directError
+    try {
+      const result = await Promise.race([queryPromise, timeoutPromise])
+      directUser = result.data
+      directError = result.error
+    } catch (timeoutError: any) {
+      console.error('❌ Database query timed out:', timeoutError.message)
+      // Try a simpler fallback approach
+      console.log('🔄 Trying simplified query...')
+      try {
+        const { data: fallbackUser, error: fallbackError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', searchEmail)
+          .limit(1)
+          .single()
+        
+        if (fallbackUser && !fallbackError) {
+          console.log('✅ Found user via fallback query:', fallbackUser.email)
+          return fallbackUser
+        }
+        
+        console.log('❌ Fallback query also failed or found nothing')
+        return null
+      } catch (fallbackErr) {
+        console.error('❌ Fallback query exception:', fallbackErr)
+        return null
+      }
+    }
 
     console.log('📊 Direct lookup result:', {
       found: !!directUser,

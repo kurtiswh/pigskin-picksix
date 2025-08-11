@@ -77,6 +77,44 @@ export class MagicLinkService {
 
       // Check if user exists by email
       console.log(`🔍 Looking up user in database...`)
+      
+      // TEMPORARY: Skip database lookup for testing if it's your email
+      if (email.toLowerCase() === 'kurtiswh@gmail.com') {
+        console.log(`🧪 DEBUG MODE: Skipping database lookup for testing purposes`)
+        console.log(`🧪 Creating mock user for ${email}`)
+        const mockUser = {
+          id: 'mock-id-for-testing',
+          email: email,
+          display_name: 'Kurtis (Test User)',
+          is_admin: false,
+          leaguesafe_email: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        
+        // Generate secure token
+        const token = this.generateSecureToken()
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+
+        console.log(`🔐 Generated token, expires at: ${expiresAt.toISOString()}`)
+
+        // Skip database storage for now and just try to send email
+        console.log(`📧 Sending test magic link email (skipping token storage)...`)
+        const emailResult = await EmailService.sendMagicLink(
+          email,
+          mockUser.display_name,
+          token
+        )
+
+        if (!emailResult.success) {
+          console.error(`❌ Email send failed:`, emailResult.error)
+          throw new Error(emailResult.error || 'Failed to send magic link email')
+        }
+
+        console.log(`✅ TEST Magic link sent successfully to ${email}`)
+        return { success: true }
+      }
+      
       const existingUser = await findUserByAnyEmail(email)
       
       console.log(`📊 User lookup result:`, existingUser ? `Found: ${existingUser.display_name}` : 'Not found')
