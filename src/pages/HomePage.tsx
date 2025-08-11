@@ -168,6 +168,11 @@ export default function HomePage() {
                 </>
               ) : (
                 <>
+                  <Link to="/anonymous-picks">
+                    <Button variant="default" className="bg-gold-500 hover:bg-gold-600 text-pigskin-900">
+                      Submit Picks
+                    </Button>
+                  </Link>
                   <Link to="/login">
                     <Button variant="secondary">Log In</Button>
                   </Link>
@@ -195,6 +200,11 @@ export default function HomePage() {
           </p>
           {!user && (
             <div className="flex justify-center space-x-4">
+              <Link to="/anonymous-picks">
+                <Button size="lg" className="bg-gold-500 hover:bg-gold-600 text-pigskin-900">
+                  Submit Picks Now
+                </Button>
+              </Link>
               <Link to="/login?signup=true">
                 <Button size="lg" variant="secondary">
                   Join the Competition

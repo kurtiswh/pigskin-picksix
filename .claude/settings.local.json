@@ -29,7 +29,8 @@
       "Bash(npx vercel env:*)",
       "Bash(cp:*)",
       "Bash(echo:*)",
-      "WebFetch(domain:api.collegefootballdata.com)"
+      "WebFetch(domain:api.collegefootballdata.com)",
+      "Bash(npx supabase:*)"
     ],
     "deny": []
   }

@@ -3,6 +3,7 @@ import { AuthProvider } from './hooks/useAuth'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import PickSheetPage from './pages/PickSheetPage'
+import AnonymousPicksPage from './pages/AnonymousPicksPage'
 import LeaderboardPage from './pages/LeaderboardPage'
 import AdminDashboard from './pages/AdminDashboard'
 import ProfilePage from './pages/ProfilePage'
@@ -16,6 +17,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/picks" element={<PickSheetPage />} />
+            <Route path="/anonymous-picks" element={<AnonymousPicksPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/profile" element={<ProfilePage />} />
