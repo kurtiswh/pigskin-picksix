@@ -586,6 +586,15 @@ export default function AdminDashboard() {
           games_locked: false
         } : null)
 
+        // Sync selected games with available games to fix ID matching after unsave
+        if (cfbGames.length > 0) {
+          setSelectedGames(prev => {
+            const synced = syncSelectedGamesWithAvailable(prev, cfbGames)
+            console.log(`🔄 Post-unsave sync: Updated ${synced.length} selected games with correct IDs`)
+            return synced
+          })
+        }
+
         alert('Games unsaved successfully! You can now make changes to your selection.')
         console.log('🎉 Unsave operation completed successfully - selected games preserved')
 
@@ -619,6 +628,15 @@ export default function AdminDashboard() {
             picks_open: false,
             games_locked: false
           } : null)
+
+          // Sync selected games with available games to fix ID matching after unsave
+          if (cfbGames.length > 0) {
+            setSelectedGames(prev => {
+              const synced = syncSelectedGamesWithAvailable(prev, cfbGames)
+              console.log(`🔄 Post-unsave sync (direct): Updated ${synced.length} selected games with correct IDs`)
+              return synced
+            })
+          }
           
         } catch (directError) {
           console.log('❌ Both standard client and direct API unsave failed')
