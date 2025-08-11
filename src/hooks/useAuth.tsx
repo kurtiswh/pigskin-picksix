@@ -30,21 +30,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log('📋 Initial session check result:', session ? 'Session found' : 'No session')
       if (session?.user) {
-        console.log('👤 Session user:', session.user.email)
+        console.log('👤 Session user:', session.user.email, 'ID:', session.user.id)
         fetchUserProfile(session.user.id)
       } else {
         console.log('❌ No session found, setting loading to false')
         setLoading(false)
       }
+    }).catch(err => {
+      console.error('💥 Error getting initial session:', err)
+      setLoading(false)
     })
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        await fetchUserProfile(session.user.id)
-      } else {
+      console.log('🔄 Auth state change event:', event, 'Session:', session ? 'Present' : 'None')
+      try {
+        if (session?.user) {
+          console.log('📋 Auth change - fetching profile for:', session.user.email, session.user.id)
+          await fetchUserProfile(session.user.id)
+        } else {
+          console.log('📋 Auth change - no session, clearing user')
+          setUser(null)
+          setLoading(false)
+        }
+      } catch (err) {
+        console.error('💥 Error in auth state change:', err)
         setUser(null)
         setLoading(false)
       }
@@ -77,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single()
       
       const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout after 5 seconds')), 5000)
+        setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
       )
       
       let data, error
@@ -131,16 +143,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           error = null
           console.log('🔧 Using hardcoded admin user data')
         } else {
-          // For other users, still try the fallback query
-          const fallbackResult = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', userId)
-            .limit(1)
-          
-          data = fallbackResult.data?.[0] || null
-          error = fallbackResult.error
-          console.log('🔄 Fallback query result:', { data, error })
+          // For other users, try a simpler fallback query without timeout
+          console.log('🔄 Trying fallback query for other users...')
+          try {
+            const fallbackResult = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', userId)
+              .single()
+            
+            data = fallbackResult.data
+            error = fallbackResult.error
+            console.log('🔄 Fallback query result:', { data: data ? 'Found' : 'Not found', error: error?.message || 'None' })
+          } catch (fallbackError) {
+            console.log('🔄 Fallback query also failed, will create profile:', fallbackError.message)
+            data = null
+            error = { code: 'PGRST116', message: 'No rows returned' } // Simulate not found error
+          }
         }
       }
 
@@ -326,6 +345,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: email,
         password: password,
         options: {
+          emailRedirectTo: `${window.location.origin}/login`,
           data: {
             display_name: existingUser.display_name,
             existing_user_id: existingUser.id,
@@ -384,9 +404,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         console.log('✅ Successfully created and linked account!')
+        
+        // Check if user needs email confirmation
+        const needsConfirmation = authData.user && !authData.session
+        
         return { 
           success: true, 
-          message: 'Account setup complete! Please check your email to confirm, then you can sign in.' 
+          message: needsConfirmation 
+            ? 'Account setup complete! Please check your email for a confirmation link, then you can sign in. If you don\'t receive an email within a few minutes, check your spam folder or contact support.'
+            : 'Account setup complete! You can now sign in with your new credentials.'
         }
       }
       
