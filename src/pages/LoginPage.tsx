@@ -113,8 +113,14 @@ export default function LoginPage() {
     }
 
     try {
-      await signInWithMagicLink(userEmail)
-      alert(`✅ Magic link sent to ${userEmail}! Please check your inbox and click the link to sign in.`)
+      const { MagicLinkService } = await import('@/services/magicLinkService')
+      const result = await MagicLinkService.sendMagicLink(userEmail)
+      
+      if (result.success) {
+        alert(`✅ Magic link sent to ${userEmail}! Please check your inbox and click the link to sign in.`)
+      } else {
+        throw new Error(result.error || 'Failed to send magic link')
+      }
     } catch (err: any) {
       console.error('Magic link error:', err)
       alert(`❌ Failed to send magic link: ${err.message}`)

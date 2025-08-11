@@ -591,6 +591,83 @@ The Pigskin Pick 6 Pro Team
     }
   }
 
+  static magicLink(userDisplayName: string, magicLinkUrl: string): EmailTemplate {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+        <div style="background-color: #8B4513; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h1 style="margin: 0; font-size: 24px;">🔮 Magic Link Sign-In</h1>
+          <p style="margin: 10px 0 0 0; font-size: 16px;">Pigskin Pick 6 Pro</p>
+        </div>
+        
+        <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <h2 style="color: #1f2937; margin-top: 0;">Hi ${userDisplayName}!</h2>
+          
+          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">
+            You requested a magic link to sign in to your Pigskin Pick 6 Pro account. Click the button below to sign in instantly - no password required!
+          </p>
+          
+          <div style="background-color: #dbeafe; border: 1px solid #3b82f6; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
+            <h3 style="color: #1e40af; margin-top: 0; font-size: 18px;">
+              ✨ One-Click Sign In
+            </h3>
+            <p style="color: #1e3a8a; margin: 10px 0; font-size: 14px;">
+              Click the button below to sign in to your account securely.
+            </p>
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${magicLinkUrl}" 
+               style="background-color: #8B4513; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
+              Sign In with Magic Link
+            </a>
+          </div>
+          
+          <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h4 style="color: #92400e; margin-top: 0; font-size: 14px;">🔒 Security Notice:</h4>
+            <div style="color: #92400e; font-size: 13px; line-height: 1.5;">
+              <p style="margin: 5px 0;">• This link will expire in 15 minutes for security</p>
+              <p style="margin: 5px 0;">• Only works once - request a new link if expired</p>
+              <p style="margin: 5px 0;">• If you didn't request this, please ignore this email</p>
+            </div>
+          </div>
+          
+          <p style="color: #6b7280; font-size: 14px; text-align: center; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+            If the button doesn't work, copy and paste this link:<br>
+            <span style="word-break: break-all; color: #3b82f6;">${magicLinkUrl}</span>
+          </p>
+          
+          <p style="color: #6b7280; font-size: 12px; text-align: center; margin-top: 20px;">
+            <em>The Pigskin Pick 6 Pro Team</em>
+          </p>
+        </div>
+      </div>
+    `
+
+    const text = `
+🔮 MAGIC LINK SIGN-IN - Pigskin Pick 6 Pro
+
+Hi ${userDisplayName}!
+
+You requested a magic link to sign in to your Pigskin Pick 6 Pro account. 
+
+✨ ONE-CLICK SIGN IN
+Click this link to sign in instantly: ${magicLinkUrl}
+
+🔒 SECURITY NOTICE:
+• This link will expire in 15 minutes for security
+• Only works once - request a new link if expired  
+• If you didn't request this, please ignore this email
+
+The Pigskin Pick 6 Pro Team
+    `.trim()
+
+    return {
+      subject: '🔮 Your Magic Sign-In Link - Pigskin Pick 6 Pro',
+      html,
+      text
+    }
+  }
+
   static passwordReset(userDisplayName: string, resetUrl: string): EmailTemplate {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
@@ -1154,6 +1231,55 @@ export class EmailService {
     } catch (error) {
       console.error('❌ Error sending email:', error)
       return false
+    }
+  }
+
+  /**
+   * Send magic link email via Resend
+   */
+  static async sendMagicLink(
+    email: string,
+    displayName: string,
+    magicToken: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log(`🔮 Sending magic link email to ${email}`)
+
+      const magicLinkUrl = `${window.location.origin}/magic-login?token=${magicToken}`
+      const template = EmailTemplates.magicLink(displayName, magicLinkUrl)
+
+      const apiKey = import.meta.env.VITE_RESEND_API_KEY
+      
+      if (!apiKey) {
+        console.error('❌ VITE_RESEND_API_KEY not found in environment variables')
+        console.log('📧 FALLBACK: Mock magic link send (no API key)')
+        console.log(`   To: ${email}`)
+        console.log(`   Magic Link: ${magicLinkUrl}`)
+        return { success: true } // Return true for development
+      }
+
+      const { Resend } = await import('resend')
+      const resend = new Resend(apiKey)
+
+      const { data, error } = await resend.emails.send({
+        from: 'Pigskin Pick 6 Pro <noreply@pigskinpick6.com>',
+        to: [email],
+        subject: template.subject,
+        html: template.html,
+        text: template.text,
+      })
+
+      if (error) {
+        console.error('❌ Resend magic link error:', error)
+        return { success: false, error: error.message }
+      }
+
+      console.log('✅ Magic link email sent via Resend:', data?.id)
+      return { success: true }
+
+    } catch (error: any) {
+      console.error('❌ Exception sending magic link:', error)
+      return { success: false, error: error.message }
     }
   }
 
