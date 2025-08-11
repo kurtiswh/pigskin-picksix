@@ -403,11 +403,14 @@ function combineGamesWithData(
     }
   })
   
-  // Sort by importance (most important first)
-  const sortedGames = gamesWithData.sort((a, b) => a.game_importance! - b.game_importance!)
+  // Filter out games without betting lines (likely FCS/Division II opponents)
+  const gamesWithLines = gamesWithData.filter(game => game.spread !== undefined)
   
-  console.log(`✅ Combined ${sortedGames.length} games with spreads and rankings`)
-  console.log(`📊 Games with spreads: ${sortedGames.filter(g => g.spread !== undefined).length}`)
+  // Sort by importance (most important first)
+  const sortedGames = gamesWithLines.sort((a, b) => a.game_importance! - b.game_importance!)
+  
+  console.log(`✅ Combined ${gamesWithData.length} total games, filtered to ${sortedGames.length} games with betting lines`)
+  console.log(`📊 Filtered out ${gamesWithData.length - sortedGames.length} games without betting lines (likely FCS opponents)`)
   console.log(`🏆 Games with ranked teams: ${sortedGames.filter(g => g.home_ranking || g.away_ranking).length}`)
   
   return sortedGames

@@ -509,6 +509,9 @@ export default function AdminDashboard() {
         console.log('🔄 Reloading week data...')
         const reloadPromise = loadWeekData()
         await Promise.race([reloadPromise, timeoutPromise])
+        
+        // Clear selected games but keep available games loaded
+        setSelectedGames([])
 
         alert('Games unsaved successfully! You can now make changes to your selection.')
         console.log('🎉 Unsave operation completed successfully')
@@ -538,6 +541,9 @@ export default function AdminDashboard() {
           
           // Reload data
           await loadWeekData()
+          
+          // Clear selected games but keep available games loaded
+          setSelectedGames([])
           
         } catch (directError) {
           console.log('❌ Both standard client and direct API unsave failed')
