@@ -346,7 +346,11 @@ export default function AdminDashboard() {
 
   // Helper function to sync selected games with available games after save/unsave
   const syncSelectedGamesWithAvailable = (selectedGames: CFBGame[], availableGames: CFBGame[]) => {
-    return selectedGames.map(selected => {
+    console.log('🔄 Syncing selected games with available games...')
+    console.log('📋 Selected games before sync:', selectedGames.map(g => `${g.home_team} vs ${g.away_team} (ID: ${g.id})`))
+    console.log('📋 Available games:', availableGames.map(g => `${g.home_team} vs ${g.away_team} (ID: ${g.id})`))
+    
+    const synced = selectedGames.map(selected => {
       // Find matching game in available games by team names
       const matching = availableGames.find(available => 
         available.home_team === selected.home_team && 
@@ -354,25 +358,39 @@ export default function AdminDashboard() {
       )
       
       if (matching) {
+        console.log(`✅ Found match for ${selected.home_team} vs ${selected.away_team}: ${selected.id} → ${matching.id}`)
         // Use the available game's ID and preserve any manual edits
         return {
           ...matching,
           spread: selected.spread || matching.spread, // Keep manual spread edits
           custom_lock_time: selected.custom_lock_time // Keep manual lock time edits
         }
+      } else {
+        console.log(`❌ No match found for ${selected.home_team} vs ${selected.away_team}`)
       }
       
       return selected // Keep as is if no match found
     })
+    
+    console.log('📋 Selected games after sync:', synced.map(g => `${g.home_team} vs ${g.away_team} (ID: ${g.id})`))
+    return synced
   }
 
   const handleGameToggle = (game: CFBGame) => {
+    console.log('🎯 Game toggle clicked for:', game.home_team, 'vs', game.away_team, 'ID:', game.id)
+    
     setSelectedGames(prev => {
       const isSelected = prev.some(g => g.id === game.id)
+      console.log('🔍 Is selected:', isSelected, 'Selected games:', prev.map(g => `${g.home_team} vs ${g.away_team} (ID: ${g.id})`))
+      
       if (isSelected) {
+        console.log('➖ Removing game from selection')
         return prev.filter(g => g.id !== game.id)
       } else if (prev.length < maxGames) {
+        console.log('➕ Adding game to selection')
         return [...prev, game]
+      } else {
+        console.log('❌ Max games reached, cannot add more')
       }
       return prev
     })
