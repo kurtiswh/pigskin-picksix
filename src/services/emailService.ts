@@ -865,32 +865,31 @@ export class EmailService {
     preferences: UserPreferences
   }>> {
     try {
-      // Get users with notification preferences enabled AND who are paid for the current season
-      const { data: users, error } = await supabase
+      // Get users with notification preferences enabled first
+      const { data: allUsers, error: usersError } = await supabase
         .from('users')
-        .select(`
-          id, 
-          email, 
-          display_name, 
-          preferences,
-          leaguesafe_payments!inner (
-            status
-          )
-        `)
+        .select('id, email, display_name, preferences')
         .eq('preferences->>email_notifications', true)
         .eq(`preferences->>${notificationType}`, true)
-        .eq('leaguesafe_payments.season', season)
-        .eq('leaguesafe_payments.status', 'Paid')
 
-      if (error) throw error
-      
-      // Flatten the data to match expected format
-      const flattenedUsers = users?.map(user => ({
-        id: user.id,
-        email: user.email,
-        display_name: user.display_name,
-        preferences: user.preferences
-      })) || []
+      if (usersError) throw usersError
+
+      // Get paid users for this season
+      const { data: paidUsers, error: paymentsError } = await supabase
+        .from('leaguesafe_payments')
+        .select('user_id')
+        .eq('season', season)
+        .eq('status', 'Paid')
+        .in('user_id', allUsers?.map(u => u.id) || [])
+
+      if (paymentsError) throw paymentsError
+
+      // Filter users to only those who are paid
+      const paidUserIds = new Set(paidUsers?.map(p => p.user_id) || [])
+      const users = allUsers?.filter(user => paidUserIds.has(user.id)) || []
+
+      // Return the filtered users (already in the correct format)
+      const flattenedUsers = users
       
       // Filter out users who already have picks submitted if it's a pick reminder
       if (notificationType === 'pick_reminders') {
@@ -927,30 +926,30 @@ export class EmailService {
     preferences: UserPreferences
   }>> {
     try {
-      const { data: users, error } = await supabase
+      // Get users with email notifications enabled first
+      const { data: allUsers, error: usersError } = await supabase
         .from('users')
-        .select(`
-          id, 
-          email, 
-          display_name, 
-          preferences,
-          leaguesafe_payments!inner (
-            status
-          )
-        `)
+        .select('id, email, display_name, preferences')
         .eq('preferences->>email_notifications', true)
-        .eq('leaguesafe_payments.season', season)
-        .eq('leaguesafe_payments.status', 'Paid')
 
-      if (error) throw error
-      
-      // Flatten the data to match expected format
-      return users?.map(user => ({
-        id: user.id,
-        email: user.email,
-        display_name: user.display_name,
-        preferences: user.preferences
-      })) || []
+      if (usersError) throw usersError
+
+      // Get paid users for this season
+      const { data: paidUsers, error: paymentsError } = await supabase
+        .from('leaguesafe_payments')
+        .select('user_id')
+        .eq('season', season)
+        .eq('status', 'Paid')
+        .in('user_id', allUsers?.map(u => u.id) || [])
+
+      if (paymentsError) throw paymentsError
+
+      // Filter users to only those who are paid
+      const paidUserIds = new Set(paidUsers?.map(p => p.user_id) || [])
+      const users = allUsers?.filter(user => paidUserIds.has(user.id)) || []
+
+      // Return the filtered users (already in the correct format)
+      return users
     } catch (error) {
       console.error('Error getting active users:', error)
       throw error

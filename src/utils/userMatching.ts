@@ -273,36 +273,50 @@ export async function matchOrCreateUserForLeagueSafe(
  */
 export async function getUnmatchedUsersAndPayments(season: number) {
   try {
-    // Get users without payments for this season
-    const { data: usersWithoutPayments, error: usersError } = await supabase
-      .from('users')
-      .select(`
-        *,
-        leaguesafe_payments!left(id, status, season)
-      `)
-      .is('leaguesafe_payments.id', null)
-      .or(`leaguesafe_payments.season.neq.${season},leaguesafe_payments.season.is.null`)
+    console.log('🔍 Getting unmatched users and payments for season:', season)
 
-    if (usersError) {
-      console.error('Error fetching users without payments:', usersError)
+    // Get all users first
+    const { data: allUsers, error: allUsersError } = await supabase
+      .from('users')
+      .select('*')
+
+    if (allUsersError) {
+      console.error('Error fetching all users:', allUsersError)
       return { unmatchedUsers: [], unmatchedPayments: [] }
     }
 
-    // Get payments without matched users for this season
-    const { data: unmatchedPayments, error: paymentsError } = await supabase
+    // Get all payments for this season
+    const { data: allPayments, error: allPaymentsError } = await supabase
       .from('leaguesafe_payments')
       .select('*')
       .eq('season', season)
-      .eq('is_matched', false)
 
-    if (paymentsError) {
-      console.error('Error fetching unmatched payments:', paymentsError)
-      return { unmatchedUsers: usersWithoutPayments || [], unmatchedPayments: [] }
+    if (allPaymentsError) {
+      console.error('Error fetching all payments:', allPaymentsError)
+      return { unmatchedUsers: [], unmatchedPayments: [] }
     }
 
+    // Find users without payments for this season (including Manual Registration users)
+    const usersWithPaymentIds = new Set(allPayments?.map(p => p.user_id).filter(Boolean) || [])
+    const usersWithoutPayments = (allUsers || []).filter(user => {
+      const hasPaymentForSeason = usersWithPaymentIds.has(user.id)
+      const isManualRegistration = user.payment_status === 'Manual Registration'
+      
+      // Show users who either have no payment OR are manual registrations
+      return !hasPaymentForSeason || isManualRegistration
+    })
+
+    // Find unmatched payments (payments without valid user_id or is_matched = false)
+    const unmatchedPayments = (allPayments || []).filter(payment => {
+      return !payment.user_id || payment.is_matched === false
+    })
+
+    console.log(`📊 Found ${usersWithoutPayments.length} users without payments`)
+    console.log(`📊 Found ${unmatchedPayments.length} unmatched payments`)
+
     return {
-      unmatchedUsers: usersWithoutPayments || [],
-      unmatchedPayments: unmatchedPayments || []
+      unmatchedUsers: usersWithoutPayments,
+      unmatchedPayments: unmatchedPayments
     }
   } catch (error) {
     console.error('Exception getting unmatched users and payments:', error)

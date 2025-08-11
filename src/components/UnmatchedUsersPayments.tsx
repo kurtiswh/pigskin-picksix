@@ -36,7 +36,7 @@ export default function UnmatchedUsersPayments({ season, onMatchComplete }: Unma
       // Load all users for matching
       const { data: allUsersData, error } = await supabase
         .from('users')
-        .select('*, leaguesafe_payments!left(*)')
+        .select('*')
         .order('display_name')
 
       if (error) {

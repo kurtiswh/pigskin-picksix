@@ -58,9 +58,22 @@ export default function UserManagement() {
           (p: any) => p.user_id === user.id
         )
         
+        // Prioritize current season payment status over stored user payment_status
+        let paymentStatus: string
+        if (currentSeasonPayment) {
+          // Has payment record for current season - use that status
+          paymentStatus = currentSeasonPayment.status
+        } else if (user.payment_status === 'Manual Registration') {
+          // Keep Manual Registration for users who manually signed up
+          paymentStatus = 'Manual Registration'
+        } else {
+          // No payment for current season - show as No Payment
+          paymentStatus = 'No Payment'
+        }
+        
         return {
           ...user,
-          payment_status: user.payment_status || currentSeasonPayment?.status || 'Manual Registration',
+          payment_status: paymentStatus,
           leaguesafe_payment: currentSeasonPayment
         }
       })
