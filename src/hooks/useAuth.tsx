@@ -26,37 +26,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Get initial session
-    console.log('🔍 Checking initial session...')
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('📋 Initial session check result:', session ? 'Session found' : 'No session')
       if (session?.user) {
-        console.log('👤 Session user:', session.user.email, 'ID:', session.user.id)
         fetchUserProfile(session.user.id)
       } else {
-        console.log('❌ No session found, setting loading to false')
         setLoading(false)
       }
-    }).catch(err => {
-      console.error('💥 Error getting initial session:', err)
+    }).catch(() => {
       setLoading(false)
     })
 
     // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Auth state change event:', event, 'Session:', session ? 'Present' : 'None')
-      try {
-        if (session?.user) {
-          console.log('📋 Auth change - fetching profile for:', session.user.email, session.user.id)
-          await fetchUserProfile(session.user.id)
-        } else {
-          console.log('📋 Auth change - no session, clearing user')
-          setUser(null)
-          setLoading(false)
-        }
-      } catch (err) {
-        console.error('💥 Error in auth state change:', err)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        await fetchUserProfile(session.user.id)
+      } else {
         setUser(null)
         setLoading(false)
       }
@@ -68,252 +52,101 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUserProfile = async (userId: string) => {
     console.log('👤 Starting fetchUserProfile for ID:', userId)
     
-    // Set a maximum timeout for the entire function
-    const maxTimeout = setTimeout(() => {
-      console.error('🚨 fetchUserProfile timed out completely, stopping loading')
-      setLoading(false)
-    }, 15000) // 15 second maximum timeout
-    
     try {
       // Check cache first (cache for 5 minutes)
       const cached = userCache[userId]
       const now = Date.now()
       if (cached && (now - cached.timestamp < 5 * 60 * 1000)) {
-        console.log('⚡ Using cached user profile (fast!)')
+        console.log('⚡ Using cached user profile')
         setUser(cached.user)
         setLoading(false)
-        clearTimeout(maxTimeout)
         return
       }
     
-      console.log('📊 Making database query (not in cache)...')
+      console.log('📊 Making database query...')
       
-      // Add timeout to prevent hanging
-      const queryPromise = supabase
+      // Simple query without complex timeout handling
+      const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .single()
-      
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout after 10 seconds')), 10000)
-      )
-      
-      let data, error
-      try {
-        const result = await Promise.race([queryPromise, timeoutPromise])
-        data = result.data
-        error = result.error
-      } catch (timeoutError) {
-        console.log('⏰ Query timed out, checking for known users...')
+
+      console.log('📊 Database response - data:', data ? 'Found' : 'None', 'error:', error?.message || 'None')
+
+      if (error && error.code === 'PGRST116') {
+        console.log('🆕 Profile not found, creating new user...')
+        const { data: { user: authUser } } = await supabase.auth.getUser()
         
-        // Handle your specific auth user
-        if (userId === '8c5cfac4-4cd0-45d5-9ed6-2f3139ef261e') {
-          data = {
-            id: '8c5cfac4-4cd0-45d5-9ed6-2f3139ef261e',
-            email: 'kurtiswh@gmail.com', 
-            display_name: 'KURTIS HANNI',
-            is_admin: false,
-            leaguesafe_email: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-          error = null
-          console.log('🔧 Using hardcoded data for Kurtis auth user')
-        
-        // Try to create the missing user record in the background
-        console.log('🔄 Attempting to create missing user record...')
-        supabase.from('users').insert({
-          id: userId,
-          email: 'kurtiswh@gmail.com',
-          display_name: 'KURTIS HANNI',
-          is_admin: false,
-          leaguesafe_email: null
-        }).then(({ error }) => {
-          if (error) {
-            console.log('ℹ️ Could not create user record (might already exist):', error.message)
+        if (authUser && authUser.email) {
+          // Try to find existing user by email
+          const existingUser = await findUserByAnyEmail(authUser.email)
+          
+          if (existingUser) {
+            console.log('✅ Found existing user profile')
+            setUser(existingUser)
+            // Cache the result
+            setUserCache(prev => ({
+              ...prev,
+              [userId]: { user: existingUser, timestamp: Date.now() }
+            }))
           } else {
-            console.log('✅ User record created successfully!')
-          }
-        }).catch(() => {})
-        
-        } else if (userId === '1aafe64f-43b1-4b82-a387-60d42c9261f4') {
-          data = {
-            id: '1aafe64f-43b1-4b82-a387-60d42c9261f4',
-            email: 'kurtiswh+testadmin@gmail.com',
-            display_name: 'Test Admin',
-            is_admin: true,
-            leaguesafe_email: null,
-            created_at: '2025-07-30T03:48:36.572062+00:00',
-            updated_at: '2025-07-30T03:50:40.403119+00:00'
-          }
-          error = null
-          console.log('🔧 Using hardcoded admin user data')
-        } else {
-          // For other users, try a simpler fallback query without timeout
-          console.log('🔄 Trying fallback query for other users...')
-          try {
-            const fallbackResult = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', userId)
-              .single()
-            
-            data = fallbackResult.data
-            error = fallbackResult.error
-            console.log('🔄 Fallback query result:', { data: data ? 'Found' : 'Not found', error: error?.message || 'None' })
-          } catch (fallbackError) {
-            console.log('🔄 Fallback query also failed, will create profile:', fallbackError.message)
-            data = null
-            error = { code: 'PGRST116', message: 'No rows returned' } // Simulate not found error
-          }
-        }
-      }
-
-      console.log('📊 Database response - data:', data, 'error:', error)
-
-      if (error) {
-        console.error('❌ Error fetching user profile:', error)
-        console.log('🔍 Error code:', error.code, 'Error message:', error.message)
-        
-        // If profile doesn't exist, try to get user from auth and find existing profile
-        if (error.code === 'PGRST116') {
-          console.log('🆕 Profile not found, searching for existing user...')
-          const { data: { user: authUser } } = await supabase.auth.getUser()
-          if (authUser && authUser.email) {
-            console.log('🔍 Looking for existing profile for:', authUser.email)
-            
-            // Check if this email exists in the users table by email (not by auth ID)
-            const existingUser = await findUserByAnyEmail(authUser.email)
-            
-            if (existingUser) {
-              console.log('✅ Found existing user profile, using it directly')
-              // Just use the existing user profile - don't try to change IDs
-              setUser(existingUser)
-              setLoading(false)
-              
-              // Cache the result
-              setUserCache(prev => ({
-                ...prev,
-                [userId]: { user: existingUser, timestamp: Date.now() }
-              }))
-              console.log('💾 Cached existing user profile for fast future loads')
-              return
-            }
-            
-            // Check LeagueSafe payments for this email
-            const { data: leaguesafePayments } = await supabase
-              .from('leaguesafe_payments')
-              .select('*')
-              .eq('leaguesafe_email', authUser.email)
-              .eq('is_matched', false)
-              .limit(1)
-            
-            const hasLeagueSafePayment = leaguesafePayments && leaguesafePayments.length > 0
-            const leaguesafeInfo = hasLeagueSafePayment ? leaguesafePayments[0] : null
-            
-            // Create new user profile with LeagueSafe info if available
-            const displayName = leaguesafeInfo?.leaguesafe_owner_name || 
-                              authUser.user_metadata?.display_name || 
-                              authUser.email!.split('@')[0]
-            
-            const newUser = await createUserWithEmails(
-              authUser.email,
-              displayName,
-              hasLeagueSafePayment ? [{ email: authUser.email, type: 'leaguesafe' }] : [],
-              false
-            )
+            // Create new user record
+            const displayName = authUser.user_metadata?.display_name || authUser.email.split('@')[0]
+            const newUser = await createUserWithEmails(authUser.email, displayName, [], false)
             
             if (newUser) {
-              // Update auth user ID to match our generated ID
-              await supabase.auth.admin.updateUserById(authUser.id, {
-                user_metadata: { ...authUser.user_metadata, profile_id: newUser.id }
-              })
-              
-              // If there was a matching LeagueSafe payment, link it
-              if (hasLeagueSafePayment && leaguesafeInfo) {
-                await supabase
-                  .from('leaguesafe_payments')
-                  .update({
-                    user_id: newUser.id,
-                    is_matched: true
-                  })
-                  .eq('id', leaguesafeInfo.id)
-                
-                console.log('✅ Linked new user to LeagueSafe payment')
-              }
-              
-              console.log('✅ New profile created with LeagueSafe integration:', newUser)
+              console.log('✅ Created new user profile')
               setUser(newUser)
+              setUserCache(prev => ({
+                ...prev,
+                [userId]: { user: newUser, timestamp: Date.now() }
+              }))
             } else {
-              console.error('Failed to create user with LeagueSafe integration')
+              console.error('❌ Failed to create user')
               setUser(null)
             }
-          } else {
-            console.log('❌ No auth user found')
-            setUser(null)
           }
         } else {
-          console.log('❌ Other error, setting user to null')
+          console.log('❌ No auth user found')
           setUser(null)
         }
+      } else if (error) {
+        console.error('❌ Database error:', error.message)
+        setUser(null)
       } else {
-        console.log('✅ User profile loaded successfully:', data.email, 'Admin:', data.is_admin)
-        console.log('👤 Full user object:', data)
+        console.log('✅ User profile loaded:', data?.email)
         setUser(data)
         
-        // Cache the successful result for 5 minutes
+        // Cache the result
         setUserCache(prev => ({
           ...prev,
           [userId]: { user: data, timestamp: Date.now() }
         }))
-        console.log('💾 Cached user profile for fast future loads')
       }
     } catch (error) {
-      console.error('💥 Unexpected error in fetchUserProfile:', error)
+      console.error('💥 Error in fetchUserProfile:', error)
       setUser(null)
     } finally {
-      console.log('🏁 Setting loading to false')
       setLoading(false)
-      clearTimeout(maxTimeout) // Clear the timeout
     }
   }
 
   const signIn = async (email: string, password: string) => {
-    console.log('🔐 Attempting sign in for:', email)
-    console.log('🔍 Email type:', typeof email, 'Password type:', typeof password)
-    console.log('🔍 Email length:', email?.length, 'Password length:', password?.length)
+    console.log('🔐 Signing in:', email)
     
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      
-      console.log('🔐 Sign in response:', { 
-        user: data?.user ? `Found (${data.user.id})` : 'None',
-        session: data?.session ? 'Active' : 'None',
-        error: error ? error.message : 'None' 
-      })
-      
-      if (error) {
-        console.error('❌ Sign in error:', error)
-        console.error('❌ Error details:', error.message, error.status)
-        throw error
-      }
-      
-      if (data?.user) {
-        console.log('✅ Sign in successful! User:', data.user.email, 'ID:', data.user.id)
-        // The auth state change will trigger fetchUserProfile automatically
-      } else {
-        console.warn('⚠️ Sign in returned no user data')
-      }
-      
-      return data
-    } catch (err) {
-      console.error('💥 Exception during sign in:', err)
-      throw err
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    
+    if (error) {
+      console.error('❌ Sign in error:', error.message)
+      throw error
     }
+    
+    console.log('✅ Sign in successful')
+    return data
   }
 
   const setupExistingUser = async (email: string, password: string) => {
@@ -480,6 +313,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error
   }
 
+  const signInWithMagicLink = async (email: string) => {
+    console.log('🔮 Attempting magic link sign in for:', email)
+    
+    try {
+      const { data, error } = await supabase.auth.signInWithOtp({
+        email: email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            display_name: email.split('@')[0], // Use email prefix as fallback display name
+          }
+        }
+      })
+      
+      console.log('🔮 Magic link response:', { 
+        error: error ? error.message : 'None'
+      })
+      
+      if (error) {
+        console.error('❌ Magic link error:', error)
+        throw error
+      }
+      
+      console.log('✅ Magic link sent successfully!')
+      return data
+    } catch (err) {
+      console.error('💥 Exception during magic link:', err)
+      throw err
+    }
+  }
+
   const refreshUser = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user?.id) {
@@ -495,6 +359,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setupExistingUser,
     signOut,
     signInWithGoogle,
+    signInWithMagicLink,
     refreshUser,
   }
 

@@ -137,5 +137,6 @@ export interface AuthContextType {
   setupExistingUser: (email: string, password: string) => Promise<any>
   signOut: () => Promise<void>
   signInWithGoogle: () => Promise<void>
+  signInWithMagicLink: (email: string) => Promise<any>
   refreshUser: () => Promise<void>
 }

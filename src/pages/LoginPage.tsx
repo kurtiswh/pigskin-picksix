@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 export default function LoginPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { user, signIn, signUp, setupExistingUser, signInWithGoogle } = useAuth()
+  const { user, signIn, signUp, setupExistingUser, signInWithGoogle, signInWithMagicLink } = useAuth()
   
   const [isSignUp, setIsSignUp] = useState(searchParams.get('signup') === 'true')
   const [isFirstTime, setIsFirstTime] = useState(false)
@@ -99,6 +99,25 @@ export default function LoginPage() {
       await signInWithGoogle()
     } catch (err: any) {
       setError(err.message)
+    }
+  }
+
+  const handleMagicLink = async () => {
+    const userEmail = prompt('Enter your email address to receive a magic sign-in link:')
+    
+    if (!userEmail) return
+    
+    if (!userEmail.includes('@')) {
+      alert('Please enter a valid email address')
+      return
+    }
+
+    try {
+      await signInWithMagicLink(userEmail)
+      alert(`✅ Magic link sent to ${userEmail}! Please check your inbox and click the link to sign in.`)
+    } catch (err: any) {
+      console.error('Magic link error:', err)
+      alert(`❌ Failed to send magic link: ${err.message}`)
     }
   }
 
@@ -279,6 +298,19 @@ export default function LoginPage() {
                   />
                 </svg>
                 Continue with Google
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full mt-2"
+                onClick={handleMagicLink}
+              >
+                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+                Send Magic Link
               </Button>
             </div>
 

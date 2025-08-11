@@ -17,59 +17,31 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        console.log('🔐 Processing password reset callback...')
-        
-        // Check if we're in testing mode (no tokens in URL)
+        // Check for password reset tokens in URL
         const hashParams = new URLSearchParams(window.location.hash.substring(1))
         const accessToken = hashParams.get('access_token')
         const refreshToken = hashParams.get('refresh_token')
         const type = hashParams.get('type')
 
-        console.log('📋 URL params:', { accessToken: accessToken ? 'present' : 'missing', refreshToken: refreshToken ? 'present' : 'missing', type })
-
-        // Allow testing without tokens (rate limit workaround)
-        if (!accessToken && !refreshToken && !type) {
-          console.log('🧪 No tokens found - enabling test mode due to rate limiting')
-          return // Allow the form to be used without valid tokens for testing
-        }
-
-        // Check if this is a password recovery callback
+        // If this is a password recovery callback, set the session
         if (type === 'recovery' && accessToken && refreshToken) {
-          console.log('✅ Valid password recovery tokens found')
-          
-          // Set the session using the tokens from the URL
-          const { data, error } = await supabase.auth.setSession({
+          const { error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
           })
 
           if (error) {
-            console.error('❌ Error setting session:', error)
-            console.error('Session error details:', JSON.stringify(error, null, 2))
+            console.error('❌ Error setting session:', error.message)
             setError('Invalid or expired reset link. Please request a new password reset.')
-            return
+          } else {
+            console.log('✅ Session established for password reset')
           }
-
-          console.log('✅ Session established successfully:', data.session ? 'Session active' : 'No session')
-          console.log('Session details:', {
-            user: data.session?.user ? `${data.session.user.email} (${data.session.user.id})` : 'No user',
-            expiresAt: data.session?.expires_at ? new Date(data.session.expires_at * 1000).toISOString() : 'No expiry',
-            accessToken: data.session?.access_token ? 'Present' : 'Missing'
-          })
-          
-        } else {
-          console.warn('⚠️ Missing required tokens or invalid type')
-          console.warn('URL analysis:', { 
-            hasAccessToken: !!accessToken, 
-            hasRefreshToken: !!refreshToken, 
-            type, 
-            fullHash: window.location.hash 
-          })
-          setError('Invalid or expired reset link. Please request a new password reset.')
+        } else if (type === 'recovery') {
+          setError('Invalid reset link format. Please request a new password reset.')
         }
-
+        // If no tokens, allow form to be used (could be direct access)
       } catch (err) {
-        console.error('💥 Error in auth callback:', err)
+        console.error('Error in auth callback:', err)
         setError('Invalid or expired reset link. Please request a new password reset.')
       }
     }
@@ -94,117 +66,18 @@ export default function ResetPasswordPage() {
     setError('')
 
     try {
-      console.log('🔐 Starting password update process...')
+      console.log('🔐 Updating password...')
       
-      // First, verify we have a valid session with timeout
-      console.log('📋 Checking current session...')
-      
-      let session, sessionError
-      try {
-        const sessionTimeout = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Session check timed out')), 10000)
-        )
-        
-        const sessionPromise = supabase.auth.getSession()
-        const sessionResult = await Promise.race([sessionPromise, sessionTimeout])
-        
-        session = sessionResult.data.session
-        sessionError = sessionResult.error
-        
-        console.log('✅ Session check completed')
-        
-      } catch (timeoutError) {
-        console.error('⏰ Session check timed out, skipping session validation')
-        console.log('🚀 Proceeding with password update anyway (session was established earlier)')
-        // Don't return here - let's try the password update anyway since we established the session
-        session = { user: { email: 'unknown' } } // dummy session to pass validation
-        sessionError = null
-      }
-      
-      console.log('Session check result:', {
-        hasSession: !!session,
-        hasUser: !!session?.user,
-        userEmail: session?.user?.email,
-        sessionError: sessionError?.message,
-        isExpired: session?.expires_at ? (session.expires_at * 1000) < Date.now() : 'unknown'
+      const { data, error } = await supabase.auth.updateUser({
+        password: password
       })
-      
-      if (sessionError && sessionError.message !== 'Session check timed out') {
-        console.error('❌ Session error for password update:', sessionError)
-        setError('Your reset session has expired. Please request a new password reset.')
-        return
-      }
-      
-      if (!session && sessionError?.message !== 'Session check timed out') {
-        console.error('❌ No session found for password update')
-        setError('Your reset session has expired. Please request a new password reset.')
-        return
-      }
-
-      console.log('✅ Valid session confirmed, proceeding with password update')
-      console.log('Password length:', password.length, 'characters')
-      
-      // Try the password update WITHOUT Promise.race first to see if it hangs
-      console.log('🚀 Starting updateUser call...')
-      
-      const updateStartTime = Date.now()
-      let updateResult
-      
-      try {
-        // Add a failsafe timeout to prevent infinite hanging
-        const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => {
-            console.error('🚨 Password update exceeded 30 second limit')
-            reject(new Error('Password update is taking too long. This may indicate a configuration issue with Supabase Auth.'))
-          }, 30000)
-        )
-
-        // Try alternative approach: sign out and then sign in with new password
-        console.log('🔄 Trying alternative password update approach...')
-        
-        const userEmail = session?.user?.email
-        if (!userEmail) {
-          throw new Error('No user email found in session')
-        }
-        
-        console.log('👤 User email from session:', userEmail)
-        
-        // Method 1: Try standard updateUser first
-        console.log('🚀 Attempting standard updateUser...')
-        const updatePromise = supabase.auth.updateUser({
-          password: password
-        })
-
-        updateResult = await Promise.race([updatePromise, timeoutPromise])
-        
-        const updateDuration = Date.now() - updateStartTime
-        console.log(`⏱️ updateUser completed in ${updateDuration}ms`)
-        console.log('Update result:', {
-          hasData: !!updateResult.data,
-          hasError: !!updateResult.error,
-          errorMessage: updateResult.error?.message,
-          userData: updateResult.data?.user ? `${updateResult.data.user.email}` : 'No user data'
-        })
-        
-      } catch (updateError) {
-        console.error('💥 updateUser threw an exception:', updateError)
-        throw updateError
-      }
-
-      const { data, error } = updateResult
 
       if (error) {
-        console.error('❌ Password update returned error:', error)
-        console.error('Error details:', JSON.stringify(error, null, 2))
+        console.error('❌ Password update error:', error.message)
         throw error
       }
 
       console.log('✅ Password updated successfully!')
-      console.log('Success data:', {
-        hasUser: !!data.user,
-        userEmail: data.user?.email,
-        lastSignIn: data.user?.last_sign_in_at
-      })
       setSuccess(true)
       
       // Redirect to login after 3 seconds
@@ -219,11 +92,11 @@ export default function ResetPasswordPage() {
       
       let errorMessage = err.message || 'Failed to reset password'
       
-      // Handle rate limiting errors specifically
+      // Handle common error cases
       if (err.message?.includes('rate_limit') || err.message?.includes('429')) {
-        errorMessage = 'Password reset is temporarily rate limited. Please wait a few minutes and try again with a fresh reset link.'
-      } else if (err.message?.includes('taking too long')) {
-        errorMessage = 'Password update is being blocked by Supabase rate limiting. Please wait 5-10 minutes and request a new password reset link.'
+        errorMessage = 'Password reset is temporarily rate limited. Please wait and try again.'
+      } else if (err.message?.includes('session')) {
+        errorMessage = 'Your reset session has expired. Please request a new password reset link.'
       }
       
       setError(errorMessage)
