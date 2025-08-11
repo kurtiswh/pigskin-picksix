@@ -1245,7 +1245,11 @@ export class EmailService {
     try {
       console.log(`🔮 Sending magic link email to ${email}`)
 
-      const magicLinkUrl = `${window.location.origin}/magic-login?token=${magicToken}`
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : 'https://pigskin-picksix.vercel.app'
+      
+      const magicLinkUrl = `${baseUrl}/magic-login?token=${magicToken}`
       const template = EmailTemplates.magicLink(displayName, magicLinkUrl)
 
       const apiKey = import.meta.env.VITE_RESEND_API_KEY
@@ -1255,6 +1259,7 @@ export class EmailService {
         console.log('📧 FALLBACK: Mock magic link send (no API key)')
         console.log(`   To: ${email}`)
         console.log(`   Magic Link: ${magicLinkUrl}`)
+        console.log('🔧 To enable real emails, set VITE_RESEND_API_KEY in your environment')
         return { success: true } // Return true for development
       }
 
@@ -1262,7 +1267,7 @@ export class EmailService {
       const resend = new Resend(apiKey)
 
       const { data, error } = await resend.emails.send({
-        from: 'Pigskin Pick 6 Pro <noreply@pigskinpick6.com>',
+        from: 'Pigskin Pick 6 Pro <noreply@resend.dev>', // Use resend.dev for testing
         to: [email],
         subject: template.subject,
         html: template.html,

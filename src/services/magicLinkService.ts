@@ -34,26 +34,37 @@ export class MagicLinkService {
     token: string,
     expiresAt: Date
   ): Promise<void> {
-    // First, clean up any expired tokens for this email
-    await supabase
-      .from('magic_link_tokens')
-      .delete()
-      .eq('email', email)
-      .or('expires_at.lt.now(),used.eq.true')
+    try {
+      // First, clean up any expired tokens for this email
+      await supabase
+        .from('magic_link_tokens')
+        .delete()
+        .eq('email', email)
+        .or('expires_at.lt.now(),used.eq.true')
 
-    // Store the new token
-    const { error } = await supabase
-      .from('magic_link_tokens')
-      .insert({
-        email,
-        token,
-        expires_at: expiresAt.toISOString(),
-        used: false
-      })
+      // Store the new token
+      const { error } = await supabase
+        .from('magic_link_tokens')
+        .insert({
+          email,
+          token,
+          expires_at: expiresAt.toISOString(),
+          used: false
+        })
 
-    if (error) {
-      console.error('Error storing magic token:', error)
-      throw new Error('Failed to generate magic link')
+      if (error) {
+        console.error('Error storing magic token:', error)
+        if (error.message?.includes('relation "magic_link_tokens" does not exist')) {
+          throw new Error('Magic link system not fully configured. Please run database migration.')
+        }
+        throw new Error('Failed to generate magic link')
+      }
+    } catch (error: any) {
+      console.error('Exception storing magic token:', error)
+      if (error.message?.includes('Magic link system not fully configured')) {
+        throw error
+      }
+      throw new Error('Database error while generating magic link')
     }
   }
 
