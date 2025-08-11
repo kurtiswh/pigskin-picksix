@@ -25,19 +25,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, loading])
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchUserProfile(session.user.id)
-      } else {
+    const initializeAuth = async () => {
+      try {
+        // First, check for magic link tokens in URL
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+        const type = hashParams.get('type')
+        
+        // Handle magic link callback
+        if (type === 'magiclink' && accessToken && refreshToken) {
+          console.log('🔮 Processing magic link callback')
+          
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          })
+          
+          if (error) {
+            console.error('❌ Magic link session error:', error.message)
+            setLoading(false)
+            return
+          }
+          
+          if (data.session?.user) {
+            console.log('✅ Magic link authentication successful')
+            // Clear the URL hash
+            window.history.replaceState({}, document.title, window.location.pathname)
+            await fetchUserProfile(data.session.user.id)
+            return
+          }
+        }
+        
+        // Get current session if no magic link
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          await fetchUserProfile(session.user.id)
+        } else {
+          setLoading(false)
+        }
+      } catch (error) {
+        console.error('❌ Auth initialization error:', error)
         setLoading(false)
       }
-    }).catch(() => {
-      setLoading(false)
-    })
+    }
+
+    initializeAuth()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔄 Auth state change:', event)
       if (session?.user) {
         await fetchUserProfile(session.user.id)
       } else {
