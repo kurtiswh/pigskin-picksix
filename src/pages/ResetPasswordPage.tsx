@@ -39,14 +39,26 @@ export default function ResetPasswordPage() {
 
           if (error) {
             console.error('❌ Error setting session:', error)
+            console.error('Session error details:', JSON.stringify(error, null, 2))
             setError('Invalid or expired reset link. Please request a new password reset.')
             return
           }
 
           console.log('✅ Session established successfully:', data.session ? 'Session active' : 'No session')
+          console.log('Session details:', {
+            user: data.session?.user ? `${data.session.user.email} (${data.session.user.id})` : 'No user',
+            expiresAt: data.session?.expires_at ? new Date(data.session.expires_at * 1000).toISOString() : 'No expiry',
+            accessToken: data.session?.access_token ? 'Present' : 'Missing'
+          })
           
         } else {
           console.warn('⚠️ Missing required tokens or invalid type')
+          console.warn('URL analysis:', { 
+            hasAccessToken: !!accessToken, 
+            hasRefreshToken: !!refreshToken, 
+            type, 
+            fullHash: window.location.hash 
+          })
           setError('Invalid or expired reset link. Please request a new password reset.')
         }
 
@@ -76,10 +88,19 @@ export default function ResetPasswordPage() {
     setError('')
 
     try {
-      console.log('🔐 Attempting to update password...')
+      console.log('🔐 Starting password update process...')
       
       // First, verify we have a valid session
+      console.log('📋 Checking current session...')
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      console.log('Session check result:', {
+        hasSession: !!session,
+        hasUser: !!session?.user,
+        userEmail: session?.user?.email,
+        sessionError: sessionError?.message,
+        isExpired: session?.expires_at ? (session.expires_at * 1000) < Date.now() : 'unknown'
+      })
       
       if (sessionError || !session) {
         console.error('❌ No valid session for password update:', sessionError)
@@ -88,24 +109,57 @@ export default function ResetPasswordPage() {
       }
 
       console.log('✅ Valid session confirmed, proceeding with password update')
+      console.log('Password length:', password.length, 'characters')
       
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Password update timed out after 15 seconds')), 15000)
-      )
+      // Try the password update WITHOUT Promise.race first to see if it hangs
+      console.log('🚀 Starting updateUser call...')
+      
+      const updateStartTime = Date.now()
+      let updateResult
+      
+      try {
+        // Add a failsafe timeout to prevent infinite hanging
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => {
+            console.error('🚨 Password update exceeded 30 second limit')
+            reject(new Error('Password update is taking too long. This may indicate a configuration issue with Supabase Auth.'))
+          }, 30000)
+        )
 
-      const updatePromise = supabase.auth.updateUser({
-        password: password
-      })
+        const updatePromise = supabase.auth.updateUser({
+          password: password
+        })
 
-      const { data, error } = await Promise.race([updatePromise, timeoutPromise])
+        updateResult = await Promise.race([updatePromise, timeoutPromise])
+        
+        const updateDuration = Date.now() - updateStartTime
+        console.log(`⏱️ updateUser completed in ${updateDuration}ms`)
+        console.log('Update result:', {
+          hasData: !!updateResult.data,
+          hasError: !!updateResult.error,
+          errorMessage: updateResult.error?.message,
+          userData: updateResult.data?.user ? `${updateResult.data.user.email}` : 'No user data'
+        })
+        
+      } catch (updateError) {
+        console.error('💥 updateUser threw an exception:', updateError)
+        throw updateError
+      }
+
+      const { data, error } = updateResult
 
       if (error) {
-        console.error('Password update error:', error)
+        console.error('❌ Password update returned error:', error)
+        console.error('Error details:', JSON.stringify(error, null, 2))
         throw error
       }
 
-      console.log('✅ Password updated successfully:', data)
+      console.log('✅ Password updated successfully!')
+      console.log('Success data:', {
+        hasUser: !!data.user,
+        userEmail: data.user?.email,
+        lastSignIn: data.user?.last_sign_in_at
+      })
       setSuccess(true)
       
       // Redirect to login after 3 seconds
