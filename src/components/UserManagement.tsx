@@ -60,7 +60,7 @@ export default function UserManagement() {
         
         return {
           ...user,
-          payment_status: currentSeasonPayment?.status || 'No Payment',
+          payment_status: user.payment_status || currentSeasonPayment?.status || 'Manual Registration',
           leaguesafe_payment: currentSeasonPayment
         }
       })
@@ -157,15 +157,27 @@ export default function UserManagement() {
     }
   }
 
-  const updatePaymentStatus = async (userId: string, newStatus: 'Paid' | 'NotPaid' | 'Pending') => {
+  const updatePaymentStatus = async (userId: string, newStatus: 'Paid' | 'NotPaid' | 'Pending' | 'Manual Registration' | 'No Payment') => {
     try {
-      const { error } = await supabase
+      // Update the user's payment status in the users table
+      const { error: userError } = await supabase
+        .from('users')
+        .update({ payment_status: newStatus })
+        .eq('id', userId)
+
+      if (userError) throw userError
+
+      // Also update leaguesafe_payments if it exists for this user
+      const { error: paymentError } = await supabase
         .from('leaguesafe_payments')
         .update({ status: newStatus })
         .eq('user_id', userId)
         .eq('season', currentSeason)
 
-      if (error) throw error
+      // Don't fail if there's no leaguesafe payment record - that's okay
+      if (paymentError && paymentError.code !== 'PGRST116') {
+        console.warn('Could not update leaguesafe payment (might not exist):', paymentError)
+      }
 
       // Refresh data
       await loadUsers()
@@ -334,7 +346,9 @@ export default function UserManagement() {
                     className={`flex items-center justify-between p-3 border rounded-lg hover:bg-stone-50 ${
                       user.payment_status === 'No Payment' ? 'border-orange-300 bg-orange-50' : 
                       user.payment_status === 'NotPaid' ? 'border-red-300 bg-red-50' :
-                      user.payment_status === 'Paid' ? 'border-green-300 bg-green-50' : 'border-yellow-300 bg-yellow-50'
+                      user.payment_status === 'Paid' ? 'border-green-300 bg-green-50' : 
+                      user.payment_status === 'Manual Registration' ? 'border-blue-300 bg-blue-50' :
+                      'border-yellow-300 bg-yellow-50'
                     }`}
                   >
                     <div className="flex-1">
@@ -369,22 +383,23 @@ export default function UserManagement() {
                         user.payment_status === 'Paid' ? 'bg-green-100 text-green-700' :
                         user.payment_status === 'NotPaid' ? 'bg-red-100 text-red-700' :
                         user.payment_status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                        user.payment_status === 'Manual Registration' ? 'bg-blue-100 text-blue-700' :
                         'bg-orange-100 text-orange-700'
                       }`}>
                         {user.payment_status}
                       </span>
                       
-                      {user.leaguesafe_payment && (
-                        <select
-                          value={user.payment_status}
-                          onChange={(e) => updatePaymentStatus(user.id, e.target.value as 'Paid' | 'NotPaid' | 'Pending')}
-                          className="text-xs border rounded px-2 py-1"
-                        >
-                          <option value="Paid">Paid</option>
-                          <option value="NotPaid">Not Paid</option>
-                          <option value="Pending">Pending</option>
-                        </select>
-                      )}
+                      <select
+                        value={user.payment_status}
+                        onChange={(e) => updatePaymentStatus(user.id, e.target.value as 'Paid' | 'NotPaid' | 'Pending' | 'Manual Registration' | 'No Payment')}
+                        className="text-xs border rounded px-2 py-1"
+                      >
+                        <option value="Paid">Paid</option>
+                        <option value="NotPaid">Not Paid</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Manual Registration">Manual Registration</option>
+                        <option value="No Payment">No Payment</option>
+                      </select>
                       
                       <div className="text-xs text-charcoal-500">
                         {new Date(user.created_at).toLocaleDateString()}
