@@ -169,34 +169,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('❌ Error fetching user profile:', error)
         console.log('🔍 Error code:', error.code, 'Error message:', error.message)
         
-        // If profile doesn't exist, try to get user from auth and create it
+        // If profile doesn't exist, try to get user from auth and find existing profile
         if (error.code === 'PGRST116') {
-          console.log('🆕 Profile not found, creating new one...')
+          console.log('🆕 Profile not found, searching for existing user...')
           const { data: { user: authUser } } = await supabase.auth.getUser()
           if (authUser && authUser.email) {
-            console.log('Creating missing profile for user:', authUser.email)
+            console.log('🔍 Looking for existing profile for:', authUser.email)
             
-            // Check if this email exists in LeagueSafe records
+            // Check if this email exists in the users table by email (not by auth ID)
             const existingUser = await findUserByAnyEmail(authUser.email)
             
             if (existingUser) {
-              console.log('✅ Found existing user with matching email, linking auth account')
-              // Link this auth user to the existing profile
-              const { error: updateError } = await supabase
-                .from('users')
-                .update({ id: authUser.id })
-                .eq('id', existingUser.id)
+              console.log('✅ Found existing user profile, using it directly')
+              // Just use the existing user profile - don't try to change IDs
+              setUser(existingUser)
+              setLoading(false)
               
-              if (updateError) {
-                console.error('Failed to link auth user to existing profile:', updateError)
-              } else {
-                // Add the primary email if it's different
-                if (authUser.email !== existingUser.email) {
-                  await addEmailToUser(existingUser.id, authUser.email, 'primary')
-                }
-                setUser({ ...existingUser, id: authUser.id })
-                return
-              }
+              // Cache the result
+              setUserCache(prev => ({
+                ...prev,
+                [userId]: { user: existingUser, timestamp: Date.now() }
+              }))
+              console.log('💾 Cached existing user profile for fast future loads')
+              return
             }
             
             // Check LeagueSafe payments for this email
