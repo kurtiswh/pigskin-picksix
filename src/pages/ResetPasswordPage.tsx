@@ -15,34 +15,48 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    // Supabase automatically handles the session from the URL hash
-    // We just need to check if we're in a valid reset context
-    const checkSession = async () => {
+    const handleAuthCallback = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
+        console.log('🔐 Processing password reset callback...')
         
-        if (error) {
-          console.error('Session error:', error)
+        // Get tokens from URL hash
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+        const type = hashParams.get('type')
+
+        console.log('📋 URL params:', { accessToken: accessToken ? 'present' : 'missing', refreshToken: refreshToken ? 'present' : 'missing', type })
+
+        // Check if this is a password recovery callback
+        if (type === 'recovery' && accessToken && refreshToken) {
+          console.log('✅ Valid password recovery tokens found')
+          
+          // Set the session using the tokens from the URL
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          })
+
+          if (error) {
+            console.error('❌ Error setting session:', error)
+            setError('Invalid or expired reset link. Please request a new password reset.')
+            return
+          }
+
+          console.log('✅ Session established successfully:', data.session ? 'Session active' : 'No session')
+          
+        } else {
+          console.warn('⚠️ Missing required tokens or invalid type')
           setError('Invalid or expired reset link. Please request a new password reset.')
-          return
         }
 
-        // If no session, check if we have tokens in the URL
-        if (!session) {
-          const hashParams = new URLSearchParams(window.location.hash.substring(1))
-          const accessToken = hashParams.get('access_token')
-          
-          if (!accessToken) {
-            setError('Invalid or expired reset link. Please request a new password reset.')
-          }
-        }
       } catch (err) {
-        console.error('Error checking session:', err)
+        console.error('💥 Error in auth callback:', err)
         setError('Invalid or expired reset link. Please request a new password reset.')
       }
     }
 
-    checkSession()
+    handleAuthCallback()
   }, [])
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -63,6 +77,17 @@ export default function ResetPasswordPage() {
 
     try {
       console.log('🔐 Attempting to update password...')
+      
+      // First, verify we have a valid session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError || !session) {
+        console.error('❌ No valid session for password update:', sessionError)
+        setError('Your reset session has expired. Please request a new password reset.')
+        return
+      }
+
+      console.log('✅ Valid session confirmed, proceeding with password update')
       
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise<never>((_, reject) => 
