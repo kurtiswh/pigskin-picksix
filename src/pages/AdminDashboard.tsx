@@ -167,6 +167,17 @@ export default function AdminDashboard() {
           if (realGames && realGames.length > 0) {
             console.log(`✅ Successfully loaded ${realGames.length} real games`)
             setCfbGames(realGames)
+            
+            // Sync selected games with newly loaded available games to fix ID matching
+            setSelectedGames(prev => {
+              if (prev.length > 0) {
+                const synced = syncSelectedGamesWithAvailable(prev, realGames)
+                console.log(`🔄 Synced ${synced.length} selected games with available games`)
+                return synced
+              }
+              return prev
+            })
+            
             setLoading(false)
             return
           } else {
@@ -261,6 +272,17 @@ export default function AdminDashboard() {
         
         // Set mock games after delay
         setCfbGames(mockGames)
+        
+        // Sync selected games with mock games
+        setSelectedGames(prev => {
+          if (prev.length > 0) {
+            const synced = syncSelectedGamesWithAvailable(prev, mockGames)
+            console.log(`🔄 Synced ${synced.length} selected games with mock games`)
+            return synced
+          }
+          return prev
+        })
+        
         setLoading(false)
         
         console.log(`✅ Loaded ${mockGames.length} sample games for admin testing`)
@@ -304,11 +326,44 @@ export default function AdminDashboard() {
       ]
       
       setCfbGames(fallbackGames)
+      
+      // Sync selected games with fallback games
+      setSelectedGames(prev => {
+        if (prev.length > 0) {
+          const synced = syncSelectedGamesWithAvailable(prev, fallbackGames)
+          console.log(`🔄 Synced ${synced.length} selected games with fallback games`)
+          return synced
+        }
+        return prev
+      })
+      
       setError(`Error loading games: ${err.message}. Using sample data for testing.`)
     } finally {
       console.log('🏁 fetchCFBGames completed')
       setLoading(false)
     }
+  }
+
+  // Helper function to sync selected games with available games after save/unsave
+  const syncSelectedGamesWithAvailable = (selectedGames: CFBGame[], availableGames: CFBGame[]) => {
+    return selectedGames.map(selected => {
+      // Find matching game in available games by team names
+      const matching = availableGames.find(available => 
+        available.home_team === selected.home_team && 
+        available.away_team === selected.away_team
+      )
+      
+      if (matching) {
+        // Use the available game's ID and preserve any manual edits
+        return {
+          ...matching,
+          spread: selected.spread || matching.spread, // Keep manual spread edits
+          custom_lock_time: selected.custom_lock_time // Keep manual lock time edits
+        }
+      }
+      
+      return selected // Keep as is if no match found
+    })
   }
 
   const handleGameToggle = (game: CFBGame) => {
