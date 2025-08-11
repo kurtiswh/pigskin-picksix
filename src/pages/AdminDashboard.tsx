@@ -505,16 +505,16 @@ export default function AdminDashboard() {
         if (updateResult.error) throw updateResult.error
         console.log('✅ Week settings updated')
 
-        // Reload data with timeout
-        console.log('🔄 Reloading week data...')
-        const reloadPromise = loadWeekData()
-        await Promise.race([reloadPromise, timeoutPromise])
-        
-        // Clear selected games but keep available games loaded
-        setSelectedGames([])
+        // Update local week settings state (don't reload data as it would clear selected games)
+        setWeekSettings(prev => prev ? { 
+          ...prev, 
+          games_selected: false,
+          picks_open: false,
+          games_locked: false
+        } : null)
 
         alert('Games unsaved successfully! You can now make changes to your selection.')
-        console.log('🎉 Unsave operation completed successfully')
+        console.log('🎉 Unsave operation completed successfully - selected games preserved')
 
       } catch (timeoutError) {
         console.log('⏰ Standard client unsave timed out, trying direct API...')
@@ -539,11 +539,13 @@ export default function AdminDashboard() {
           console.log('✅ Games unsaved successfully via direct API')
           alert('Games unsaved successfully! (via direct API) You can now make changes to your selection.')
           
-          // Reload data
-          await loadWeekData()
-          
-          // Clear selected games but keep available games loaded
-          setSelectedGames([])
+          // Update local week settings state (don't reload data as it would clear selected games)
+          setWeekSettings(prev => prev ? { 
+            ...prev, 
+            games_selected: false,
+            picks_open: false,
+            games_locked: false
+          } : null)
           
         } catch (directError) {
           console.log('❌ Both standard client and direct API unsave failed')
