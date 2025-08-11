@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [isPositiveMessage, setIsPositiveMessage] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -24,10 +25,36 @@ export default function LoginPage() {
     }
   }, [user, navigate])
 
+  const checkForExistingUser = async (email: string) => {
+    try {
+      const { supabase } = await import('@/lib/supabase')
+      
+      // Check if user exists in the users table or leaguesafe_payments table
+      const { data: existingUsers } = await supabase
+        .from('users')
+        .select('email, leaguesafe_email')
+        .or(`email.eq.${email},leaguesafe_email.eq.${email}`)
+        .limit(1)
+
+      const { data: leaguesafeUsers } = await supabase
+        .from('leaguesafe_payments')
+        .select('leaguesafe_email')
+        .eq('leaguesafe_email', email)
+        .eq('is_matched', false)
+        .limit(1)
+
+      return (existingUsers && existingUsers.length > 0) || (leaguesafeUsers && leaguesafeUsers.length > 0)
+    } catch (error) {
+      console.error('Error checking for existing user:', error)
+      return false
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setIsPositiveMessage(false)
 
     try {
       if (isFirstTime) {
@@ -39,6 +66,21 @@ export default function LoginPage() {
         if (!displayName.trim()) {
           throw new Error('Display name is required')
         }
+        
+        // Check if user already exists before attempting signup
+        const userExists = await checkForExistingUser(email)
+        if (userExists) {
+          // Instead of throwing an error, smoothly transition to existing user setup
+          setIsSignUp(false)
+          setIsFirstTime(true)
+          setDisplayName('') // Clear display name since it's not needed for first-time setup
+          
+          // Show a helpful message instead of an alert
+          setIsPositiveMessage(true)
+          setError('Good news! We found your email in our system. The form has been switched to "First Time Setup" mode. Please create a password to access your existing account.')
+          return
+        }
+        
         await signUp(email, password, displayName)
         alert('Check your email for the confirmation link!')
       } else {
@@ -147,7 +189,11 @@ export default function LoginPage() {
               </div>
 
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
+                <div className={`px-4 py-3 rounded-lg text-sm ${
+                  isPositiveMessage 
+                    ? 'bg-green-50 border border-green-200 text-green-700'
+                    : 'bg-red-50 border border-red-200 text-red-600'
+                }`}>
                   {error}
                 </div>
               )}
