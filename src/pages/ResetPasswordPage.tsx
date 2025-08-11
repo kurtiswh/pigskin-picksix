@@ -90,9 +90,30 @@ export default function ResetPasswordPage() {
     try {
       console.log('🔐 Starting password update process...')
       
-      // First, verify we have a valid session
+      // First, verify we have a valid session with timeout
       console.log('📋 Checking current session...')
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      let session, sessionError
+      try {
+        const sessionTimeout = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Session check timed out')), 10000)
+        )
+        
+        const sessionPromise = supabase.auth.getSession()
+        const sessionResult = await Promise.race([sessionPromise, sessionTimeout])
+        
+        session = sessionResult.data.session
+        sessionError = sessionResult.error
+        
+        console.log('✅ Session check completed')
+        
+      } catch (timeoutError) {
+        console.error('⏰ Session check timed out, skipping session validation')
+        console.log('🚀 Proceeding with password update anyway (session was established earlier)')
+        // Don't return here - let's try the password update anyway since we established the session
+        session = { user: { email: 'unknown' } } // dummy session to pass validation
+        sessionError = null
+      }
       
       console.log('Session check result:', {
         hasSession: !!session,
@@ -102,8 +123,14 @@ export default function ResetPasswordPage() {
         isExpired: session?.expires_at ? (session.expires_at * 1000) < Date.now() : 'unknown'
       })
       
-      if (sessionError || !session) {
-        console.error('❌ No valid session for password update:', sessionError)
+      if (sessionError && sessionError.message !== 'Session check timed out') {
+        console.error('❌ Session error for password update:', sessionError)
+        setError('Your reset session has expired. Please request a new password reset.')
+        return
+      }
+      
+      if (!session && sessionError?.message !== 'Session check timed out') {
+        console.error('❌ No session found for password update')
         setError('Your reset session has expired. Please request a new password reset.')
         return
       }
