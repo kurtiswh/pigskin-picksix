@@ -68,17 +68,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUserProfile = async (userId: string) => {
     console.log('👤 Starting fetchUserProfile for ID:', userId)
     
-    // Check cache first (cache for 5 minutes)
-    const cached = userCache[userId]
-    const now = Date.now()
-    if (cached && (now - cached.timestamp < 5 * 60 * 1000)) {
-      console.log('⚡ Using cached user profile (fast!)')
-      setUser(cached.user)
+    // Set a maximum timeout for the entire function
+    const maxTimeout = setTimeout(() => {
+      console.error('🚨 fetchUserProfile timed out completely, stopping loading')
       setLoading(false)
-      return
-    }
+    }, 15000) // 15 second maximum timeout
     
     try {
+      // Check cache first (cache for 5 minutes)
+      const cached = userCache[userId]
+      const now = Date.now()
+      if (cached && (now - cached.timestamp < 5 * 60 * 1000)) {
+        console.log('⚡ Using cached user profile (fast!)')
+        setUser(cached.user)
+        setLoading(false)
+        clearTimeout(maxTimeout)
+        return
+      }
+    
       console.log('📊 Making database query (not in cache)...')
       
       // Add timeout to prevent hanging
@@ -268,6 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       console.log('🏁 Setting loading to false')
       setLoading(false)
+      clearTimeout(maxTimeout) // Clear the timeout
     }
   }
 

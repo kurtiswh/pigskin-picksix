@@ -15,14 +15,34 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    // Check if we have the required hash/access token in the URL
-    const hashParams = new URLSearchParams(window.location.hash.substring(1))
-    const accessToken = hashParams.get('access_token')
-    const refreshToken = hashParams.get('refresh_token')
+    // Supabase automatically handles the session from the URL hash
+    // We just need to check if we're in a valid reset context
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('Session error:', error)
+          setError('Invalid or expired reset link. Please request a new password reset.')
+          return
+        }
 
-    if (!accessToken || !refreshToken) {
-      setError('Invalid or expired reset link. Please request a new password reset.')
+        // If no session, check if we have tokens in the URL
+        if (!session) {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1))
+          const accessToken = hashParams.get('access_token')
+          
+          if (!accessToken) {
+            setError('Invalid or expired reset link. Please request a new password reset.')
+          }
+        }
+      } catch (err) {
+        console.error('Error checking session:', err)
+        setError('Invalid or expired reset link. Please request a new password reset.')
+      }
     }
+
+    checkSession()
   }, [])
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -42,13 +62,25 @@ export default function ResetPasswordPage() {
     setError('')
 
     try {
-      // Update the user's password
-      const { error } = await supabase.auth.updateUser({
+      console.log('🔐 Attempting to update password...')
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Password update timed out after 15 seconds')), 15000)
+      )
+
+      const updatePromise = supabase.auth.updateUser({
         password: password
       })
 
-      if (error) throw error
+      const { data, error } = await Promise.race([updatePromise, timeoutPromise])
 
+      if (error) {
+        console.error('Password update error:', error)
+        throw error
+      }
+
+      console.log('✅ Password updated successfully:', data)
       setSuccess(true)
       
       // Redirect to login after 3 seconds

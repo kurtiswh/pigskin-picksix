@@ -1168,10 +1168,17 @@ export class EmailService {
     try {
       console.log(`🔐 Sending password reset email to ${email}`)
 
+      // Create a timeout promise to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Password reset request timed out after 10 seconds')), 10000)
+      )
+
       // Generate password reset link using Supabase Auth
-      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      const resetPromise = supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`
       })
+
+      const { data, error } = await Promise.race([resetPromise, timeoutPromise])
 
       if (error) {
         console.error('❌ Error generating password reset:', error)

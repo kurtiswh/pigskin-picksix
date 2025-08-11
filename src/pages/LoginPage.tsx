@@ -114,9 +114,17 @@ export default function LoginPage() {
 
     try {
       const { supabase } = await import('@/lib/supabase')
-      const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Request timed out after 10 seconds')), 10000)
+      )
+
+      const resetPromise = supabase.auth.resetPasswordForEmail(userEmail, {
         redirectTo: `${window.location.origin}/reset-password`
       })
+
+      const { error } = await Promise.race([resetPromise, timeoutPromise])
 
       if (error) throw error
 
