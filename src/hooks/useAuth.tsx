@@ -173,23 +173,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // If there's a database issue, create a minimal user object to prevent hanging
       if (error instanceof Error && error.message.includes('timeout')) {
         console.log('⚠️ Database timeout - creating minimal user profile')
-        const { data: { user: authUser } } = await supabase.auth.getUser()
-        if (authUser) {
-          const minimalUser = {
-            id: authUser.id,
-            email: authUser.email,
-            display_name: authUser.user_metadata?.display_name || authUser.email?.split('@')[0] || 'User',
+        
+        try {
+          // Add timeout to getUser call as well
+          const getUserPromise = supabase.auth.getUser()
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('getUser timeout')), 5000)
+          )
+          
+          const { data: { user: authUser } } = await Promise.race([getUserPromise, timeoutPromise]) as any
+          
+          if (authUser) {
+            const minimalUser = {
+              id: authUser.id,
+              email: authUser.email,
+              display_name: authUser.user_metadata?.display_name || authUser.email?.split('@')[0] || 'User',
+              created_at: new Date().toISOString(),
+              role: 'user'
+            }
+            console.log('✅ Created minimal user profile:', minimalUser.email)
+            setUser(minimalUser)
+          } else {
+            console.log('❌ No auth user found')
+            setUser(null)
+          }
+        } catch (authError) {
+          console.log('❌ Auth user fetch also timed out, using basic fallback')
+          // Create a very basic user from the userId we have
+          setUser({
+            id: userId,
+            email: 'user@example.com', // Fallback email
+            display_name: 'User',
             created_at: new Date().toISOString(),
             role: 'user'
-          }
-          setUser(minimalUser)
-        } else {
-          setUser(null)
+          })
         }
       } else {
+        console.log('❌ Non-timeout error, setting user to null')
         setUser(null)
       }
     } finally {
+      console.log('🏁 fetchUserProfile complete - setting loading to false')
       setLoading(false)
     }
   }
