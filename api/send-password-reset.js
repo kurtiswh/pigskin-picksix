@@ -41,6 +41,7 @@ export default async function handler(req, res) {
     const displayName = email.split('@')[0]
 
     console.log('Attempting to send email via Resend...')
+    console.log('Email details:', { email, hasToken: !!token })
     
     const { data, error } = await resend.emails.send({
       from: 'Pigskin Pick 6 Pro <onboarding@resend.dev>', // Using Resend's shared domain
@@ -117,16 +118,23 @@ The Pigskin Pick 6 Pro Team
 
     if (error) {
       console.error('Resend API error:', error)
+      console.error('Full error object:', JSON.stringify(error, null, 2))
       return res.status(500).json({ 
         error: 'Failed to send email', 
         details: error.message,
         errorType: error.name,
-        resendError: error
+        resendError: error,
+        fullError: JSON.stringify(error)
       })
     }
 
-    console.log('Password reset email sent successfully:', data?.id)
-    return res.status(200).json({ success: true, messageId: data?.id })
+    console.log('Password reset email sent successfully!')
+    console.log('Resend response data:', JSON.stringify(data, null, 2))
+    return res.status(200).json({ 
+      success: true, 
+      messageId: data?.id,
+      fullData: data 
+    })
 
   } catch (error) {
     console.error('Exception in password reset API:', error)
