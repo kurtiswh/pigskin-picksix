@@ -102,12 +102,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
       console.log('📊 Making database query...')
       
-      // Simple query without complex timeout handling
-      const { data, error } = await supabase
+      // Add timeout to prevent hanging
+      const queryPromise = supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .single()
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database query timeout')), 10000)
+      )
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any
 
       console.log('📊 Database response - data:', data ? 'Found' : 'None', 'error:', error?.message || 'None')
 
@@ -163,7 +169,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('💥 Error in fetchUserProfile:', error)
-      setUser(null)
+      
+      // If there's a database issue, create a minimal user object to prevent hanging
+      if (error instanceof Error && error.message.includes('timeout')) {
+        console.log('⚠️ Database timeout - creating minimal user profile')
+        const { data: { user: authUser } } = await supabase.auth.getUser()
+        if (authUser) {
+          const minimalUser = {
+            id: authUser.id,
+            email: authUser.email,
+            display_name: authUser.user_metadata?.display_name || authUser.email?.split('@')[0] || 'User',
+            created_at: new Date().toISOString(),
+            role: 'user'
+          }
+          setUser(minimalUser)
+        } else {
+          setUser(null)
+        }
+      } else {
+        setUser(null)
+      }
     } finally {
       setLoading(false)
     }
