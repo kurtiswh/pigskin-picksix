@@ -1284,7 +1284,8 @@ export class EmailService {
         const processingResult = await this.processPendingEmails()
         console.log('📊 Email processing result:', processingResult)
       } catch (processError) {
-        console.warn('⚠️ Could not process email immediately, will be processed by background job')
+        console.warn('⚠️ Could not process email immediately:', processError)
+        console.log('💡 You can manually process emails by running: EmailService.processPendingEmails() in console')
       }
 
       return { success: true }
@@ -1358,4 +1359,10 @@ export class EmailService {
       throw error
     }
   }
+}
+
+// Make EmailService available globally for debugging
+if (typeof window !== 'undefined') {
+  (window as any).EmailService = EmailService
+  console.log('🛠️ EmailService available globally for debugging. Try: EmailService.processPendingEmails()')
 }
