@@ -184,61 +184,59 @@ export class PasswordResetService {
   }
 
   /**
-   * Complete password reset - simplified version for custom tokens
+   * Complete password reset via serverless function
    */
   static async completePasswordReset(token: string, newPassword: string, email?: string): Promise<{
     success: boolean
     error?: string
   }> {
     try {
-      console.log(`🔐 Completing password reset for custom token system`)
+      console.log(`🔐 Completing password reset via secure serverless function`)
 
-      // For our simplified system, we'll require the email to be provided
+      // Validate required parameters
       if (!email) {
         return { success: false, error: 'Email address is required for password reset.' }
       }
 
-      // Basic token validation (just check it exists and has reasonable length)
       if (!token || token.length < 16) {
         return { success: false, error: 'Invalid reset token.' }
       }
 
-      // Find the auth user by email
-      console.log(`🔍 Finding auth account for email: ${email}`)
+      if (!newPassword || newPassword.length < 6) {
+        return { success: false, error: 'Password must be at least 6 characters long.' }
+      }
+
+      console.log(`📧 Processing password reset for: ${email}`)
+
+      // Call our serverless function to complete the reset securely
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'
       
-      const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers()
+      const response = await fetch(`${baseUrl}/api/complete-password-reset`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          newPassword,
+          token
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('❌ Password reset API error:', errorData)
+        throw new Error(errorData.error || `Password reset failed with status ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log(`✅ Password reset completed successfully via serverless function`)
       
-      if (listError) {
-        console.error('❌ Error listing auth users:', listError)
-        return { success: false, error: 'Failed to access authentication system.' }
-      }
-
-      const authUser = authUsers.users.find(u => u.email === email)
-
-      if (!authUser) {
-        console.error(`❌ No auth account found for email: ${email}`)
-        return { success: false, error: 'Authentication account not found. Please contact support if you believe this is an error.' }
-      }
-
-      console.log(`✅ Found auth account: ${authUser.id}`)
-
-      // Update the password using Supabase Auth Admin API
-      const { error: updateError } = await supabase.auth.admin.updateUserById(
-        authUser.id,
-        { password: newPassword }
-      )
-
-      if (updateError) {
-        console.error('❌ Error updating password:', updateError)
-        return { success: false, error: 'Failed to update password. Please try again.' }
-      }
-
-      console.log(`✅ Password reset completed successfully for ${email}`)
       return { success: true }
 
     } catch (error: any) {
       console.error('❌ Error completing password reset:', error)
-      return { success: false, error: 'Failed to complete password reset.' }
+      return { success: false, error: error.message || 'Failed to complete password reset.' }
     }
   }
 
