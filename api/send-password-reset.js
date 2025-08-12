@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     console.log('Attempting to send email via Resend...')
     
     const { data, error } = await resend.emails.send({
-      from: 'Pigskin Pick 6 Pro <noreply@pigskinpick6.com>', // Update with your verified domain
+      from: 'Pigskin Pick 6 Pro <onboarding@resend.dev>', // Using Resend's shared domain
       to: [email],
       subject: '🔐 Password Reset Request - Pigskin Pick 6 Pro',
       html: `
