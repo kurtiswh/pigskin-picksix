@@ -188,8 +188,11 @@ export default function LoginPage() {
         return
       }
 
+      const responseText = await response.text()
+      console.log('Resend response text:', responseText)
+      
       try {
-        const result = await response.json()
+        const result = JSON.parse(responseText)
         console.log('Resend result:', result)
         
         if (response.ok) {
@@ -199,9 +202,8 @@ export default function LoginPage() {
         }
       } catch (jsonError) {
         console.error('JSON parse error:', jsonError)
-        const text = await response.text()
-        console.error('Response text:', text)
-        alert(`❌ Invalid JSON response. Status: ${response.status}, Text: ${text}`)
+        console.error('Response text:', responseText)
+        alert(`❌ Invalid JSON response. Status: ${response.status}, Text: ${responseText}`)
       }
     } catch (err: any) {
       console.error('Test exception:', err)
