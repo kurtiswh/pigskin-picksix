@@ -1,8 +1,6 @@
 // Vercel serverless function for sending password reset emails via Resend
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 export default async function handler(req, res) {
   // Only allow POST requests
   if (req.method !== 'POST') {
@@ -10,21 +8,37 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log('Password reset API called')
+    
+    // Check if API key is available
+    if (!process.env.RESEND_API_KEY) {
+      console.error('RESEND_API_KEY environment variable not set')
+      return res.status(500).json({ error: 'Email service not configured' })
+    }
+
+    const resend = new Resend(process.env.RESEND_API_KEY)
+    
     const { email, token } = req.body
 
     if (!email || !token) {
+      console.error('Missing email or token in request body')
       return res.status(400).json({ error: 'Email and token are required' })
     }
+
+    console.log(`Sending password reset email to: ${email}`)
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
+      console.error(`Invalid email format: ${email}`)
       return res.status(400).json({ error: 'Invalid email format' })
     }
 
     const resetUrl = `https://pigskin-picksix.vercel.app/reset-password?token=${token}`
     const displayName = email.split('@')[0]
 
+    console.log('Attempting to send email via Resend...')
+    
     const { data, error } = await resend.emails.send({
       from: 'Pigskin Pick 6 Pro <noreply@pigskinpick6.com>', // Update with your verified domain
       to: [email],
@@ -99,15 +113,19 @@ The Pigskin Pick 6 Pro Team
     })
 
     if (error) {
-      console.error('Resend error:', error)
-      return res.status(500).json({ error: 'Failed to send email' })
+      console.error('Resend API error:', error)
+      return res.status(500).json({ error: 'Failed to send email', details: error.message })
     }
 
     console.log('Password reset email sent successfully:', data?.id)
     return res.status(200).json({ success: true, messageId: data?.id })
 
   } catch (error) {
-    console.error('Error sending password reset email:', error)
-    return res.status(500).json({ error: 'Internal server error' })
+    console.error('Exception in password reset API:', error)
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    })
   }
 }
