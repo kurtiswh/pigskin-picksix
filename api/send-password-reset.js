@@ -114,7 +114,12 @@ The Pigskin Pick 6 Pro Team
 
     if (error) {
       console.error('Resend API error:', error)
-      return res.status(500).json({ error: 'Failed to send email', details: error.message })
+      return res.status(500).json({ 
+        error: 'Failed to send email', 
+        details: error.message,
+        errorType: error.name,
+        resendError: error
+      })
     }
 
     console.log('Password reset email sent successfully:', data?.id)
