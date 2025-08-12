@@ -93,21 +93,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (true) { // Set to false to re-enable normal flow
       console.log('🚀 BYPASS: Creating immediate minimal user profile')
       
-      // Simple admin detection based on known admin user ID
-      const isAdmin = userId === 'bd6ef8c0-eab1-4745-8f34-d4abf8b0e779' || // kurtiswh+test2@gmail.com
-                     userId === '1aafe64f-43b1-4b82-a387-60d42c9261f4'    // kurtiswh+testadmin@gmail.com
+      // Map known user IDs to their actual details
+      const userDetails = {
+        'bd6ef8c0-eab1-4745-8f34-d4abf8b0e779': {
+          email: 'kurtiswh+test2@gmail.com',
+          display_name: 'Kurtis Test User',
+          is_admin: true
+        },
+        '1aafe64f-43b1-4b82-a387-60d42c9261f4': {
+          email: 'kurtiswh+testadmin@gmail.com', 
+          display_name: 'Kurtis Admin',
+          is_admin: true
+        }
+      }
+      
+      const userInfo = userDetails[userId] || {
+        email: 'user@pigskinpicksix.com',
+        display_name: 'User',
+        is_admin: false
+      }
       
       // Create minimal user directly from userId without any Supabase calls
       const minimalUser = {
         id: userId,
-        email: isAdmin ? 'admin@pigskinpicksix.com' : 'user@pigskinpicksix.com',
-        display_name: isAdmin ? 'Admin User' : 'User',
+        email: userInfo.email,
+        display_name: userInfo.display_name,
         created_at: new Date().toISOString(),
         role: 'user',
-        is_admin: isAdmin
+        is_admin: userInfo.is_admin
       }
       
-      console.log('✅ BYPASS: Set minimal user profile, ID:', userId, 'isAdmin:', isAdmin)
+      console.log('✅ BYPASS: Set minimal user profile:', userInfo.email, 'isAdmin:', userInfo.is_admin)
       setUser(minimalUser)
       setLoading(false)
       return

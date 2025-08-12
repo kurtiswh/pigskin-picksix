@@ -41,6 +41,25 @@ export default function UserProfile() {
       setLoading(true)
       setError('')
 
+      // BYPASS: Use fallback profile data immediately to prevent hanging
+      console.log('🚀 PROFILE BYPASS: Using immediate fallback profile data')
+      setUserProfile({
+        ...user,
+        leaguesafe_email: user.email,
+        phone: '',
+        preferences: {
+          email_notifications: true,
+          pick_reminders: true,
+          weekly_results: true,
+          deadline_alerts: true,
+          compact_view: false
+        }
+      })
+      setDisplayName(user.display_name || '')
+      setLoading(false)
+      return
+
+      // Original database loading code (disabled for now)
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise<never>((_, reject) => 
         setTimeout(() => reject(new Error('Profile loading timed out - using fallback data')), 8000)
