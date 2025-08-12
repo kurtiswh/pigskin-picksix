@@ -420,13 +420,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
-    setUser(null)
-    
-    // Clear user cache on sign out
-    setUserCache({})
-    console.log('🧹 Cleared user cache on sign out')
+    try {
+      console.log('🚪 Starting sign out process...')
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('❌ Supabase sign out error:', error)
+        throw error
+      }
+      console.log('✅ Supabase sign out successful')
+      setUser(null)
+      
+      // Clear user cache on sign out
+      setUserCache({})
+      console.log('🧹 Cleared user cache on sign out')
+    } catch (err) {
+      console.error('❌ Error during sign out:', err)
+      // Force sign out even if Supabase fails
+      setUser(null)
+      setUserCache({})
+      console.log('🔒 Forced local sign out completed')
+    }
   }
 
   const signInWithGoogle = async () => {
