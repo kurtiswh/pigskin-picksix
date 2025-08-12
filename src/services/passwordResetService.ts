@@ -82,29 +82,9 @@ export class PasswordResetService {
 
       console.log(`🔐 Generated reset token, expires at: ${expiresAt.toISOString()}`)
 
-      // Store token in database (with simplified approach)
-      console.log(`💾 Attempting to store reset token...`)
-      try {
-        // Try a simple insert without complex error handling
-        const { supabase } = await import('@/lib/supabase')
-        const { error } = await supabase
-          .from('password_reset_tokens')
-          .insert({
-            email,
-            token,
-            expires_at: expiresAt.toISOString(),
-            used: false
-          })
-
-        if (error) {
-          console.warn(`⚠️ Could not store token in database:`, error.message)
-          console.log(`📧 Proceeding with email anyway - token validation will use auth lookup`)
-        } else {
-          console.log(`✅ Reset token stored successfully`)
-        }
-      } catch (storeError) {
-        console.warn(`⚠️ Database store failed, proceeding anyway:`, storeError)
-      }
+      // TEMPORARY: Skip database storage to avoid hanging
+      console.log(`⚠️ TEMP: Skipping database token storage due to permission issues`)
+      console.log(`📧 Will use Supabase Auth user lookup for password reset validation instead`)
 
       // Send email via our serverless function
       console.log(`📧 Sending email via Resend API...`)
