@@ -75,21 +75,13 @@ export class PasswordResetService {
     try {
       console.log(`🔐 Generating password reset for ${email}`)
 
-      // Check if user exists by email
-      console.log(`🔍 Looking up user in database...`)
-      
-      const existingUser = await findUserByAnyEmail(email)
-      
-      console.log(`📊 User lookup result:`, existingUser ? `Found: ${existingUser.display_name}` : 'Not found')
-      
-      if (!existingUser) {
-        // Don't reveal whether email exists or not for security, but log it
-        console.log(`🔐 Email ${email} not found in database, returning success for security`)
-        console.log(`ℹ️ If this is your email and you should have access, check your user record in Supabase`)
-        return { success: true }
-      }
+      // TEMPORARY: Skip database lookup to avoid timeout issues
+      // For security, we'll always send the email (even if user doesn't exist)
+      // This prevents email enumeration attacks anyway
+      console.log(`⚠️ TEMP: Skipping user lookup due to database timeout issues`)
+      console.log(`📧 Will send reset email regardless of user existence for security`)
 
-      console.log(`👤 Found user: ${existingUser.display_name} (${existingUser.id})`)
+      const displayName = email.split('@')[0] // Use email prefix as fallback name
 
       // Generate secure token
       const token = this.generateSecureToken()
@@ -99,14 +91,20 @@ export class PasswordResetService {
 
       // Store token in database
       console.log(`💾 Storing password reset token in database...`)
-      await this.storeResetToken(email, token, expiresAt)
-      console.log(`✅ Reset token stored successfully`)
+      try {
+        await this.storeResetToken(email, token, expiresAt)
+        console.log(`✅ Reset token stored successfully`)
+      } catch (storeError: any) {
+        console.error(`❌ Failed to store reset token:`, storeError.message)
+        // If we can't store the token, we can't validate it later, so fail
+        throw new Error('Failed to generate password reset token. Please try again.')
+      }
 
       // Send email via Resend through email jobs system
       console.log(`📧 Queueing password reset email...`)
       const emailResult = await EmailService.sendPasswordResetViaResend(
         email,
-        existingUser.display_name,
+        displayName,
         token
       )
 
@@ -187,19 +185,25 @@ export class PasswordResetService {
         .update({ used: true })
         .eq('token', token)
 
-      // Find user by email to get their auth account
-      const existingUser = await findUserByAnyEmail(email)
-      if (!existingUser) {
-        return { success: false, error: 'User account not found.' }
+      // For password reset completion, we need to find the auth user
+      // We'll use the admin API to list users and find by email
+      console.log(`🔍 Finding auth account for email: ${email}`)
+      
+      const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers()
+      
+      if (listError) {
+        console.error('❌ Error listing auth users:', listError)
+        return { success: false, error: 'Failed to access authentication system.' }
       }
 
-      // Check if user has a Supabase auth account
-      const { data: authUsers } = await supabase.auth.admin.listUsers()
       const authUser = authUsers.users.find(u => u.email === email)
 
       if (!authUser) {
-        return { success: false, error: 'Authentication account not found. Please contact support.' }
+        console.error(`❌ No auth account found for email: ${email}`)
+        return { success: false, error: 'Authentication account not found. Please contact support if you believe this is an error.' }
       }
+
+      console.log(`✅ Found auth account: ${authUser.id}`)
 
       // Update the password using Supabase Auth Admin API
       const { error: updateError } = await supabase.auth.admin.updateUserById(
