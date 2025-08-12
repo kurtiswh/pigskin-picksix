@@ -1255,9 +1255,8 @@ export class EmailService {
       console.log('📧 Queueing magic link email in email jobs system...')
 
       // Use the email jobs system instead of direct Resend call
-      const { data, error } = await supabase
-        .from('email_jobs')
-        .insert({
+      try {
+        const emailData = {
           user_id: 'magic-link-user', // Placeholder ID for magic link emails
           email,
           template_type: 'magic_link',
@@ -1267,16 +1266,37 @@ export class EmailService {
           scheduled_for: new Date().toISOString(), // Send immediately
           status: 'pending',
           attempts: 0
-        })
-        .select()
-        .single()
+        }
+        
+        console.log('📧 Email data to insert:', emailData)
+        
+        const { data, error } = await supabase
+          .from('email_jobs')
+          .insert(emailData)
+          .select()
+          .single()
 
-      if (error) {
-        console.error('❌ Error queueing magic link email:', error)
-        return { success: false, error: error.message }
+        console.log('📧 Database insert result:', { data: !!data, error: error?.message || 'none' })
+
+        if (error) {
+          console.error('❌ Error queueing magic link email:', error)
+          console.error('❌ Error details:', JSON.stringify(error, null, 2))
+          
+          if (error.message?.includes('relation "email_jobs" does not exist')) {
+            console.error('💡 The email_jobs table does not exist! You need to create it.')
+            console.error('💡 This table is needed for email processing. Check your database setup.')
+          }
+          
+          return { success: false, error: error.message }
+        }
+        
+        console.log('✅ Email data inserted successfully:', data)
+        console.log('✅ Magic link email queued successfully:', data?.id)
+        
+      } catch (insertError: any) {
+        console.error('❌ Exception during email insert:', insertError)
+        return { success: false, error: insertError.message }
       }
-
-      console.log('✅ Magic link email queued successfully:', data?.id)
       
       // Try to process it immediately if possible
       try {
