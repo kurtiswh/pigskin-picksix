@@ -52,11 +52,17 @@ export default function ResetPasswordPage() {
           // Handle custom token (our simplified system)
           console.log('🔐 Processing custom password reset token...')
           
-          // For our simplified system, we'll validate the token format and allow the reset
+          // Get email from URL parameters
+          const emailFromUrl = searchParams.get('email')
+          
+          // For our simplified system, validate token format and extract email
           if (customToken && customToken.length >= 16) {
             console.log('✅ Custom reset token format valid, proceeding with reset')
+            if (emailFromUrl) {
+              setEmail(emailFromUrl)
+              console.log('✅ Email extracted from URL:', emailFromUrl)
+            }
             setTokenValid(true)
-            // We don't need to set email since we'll get it from the user during reset
           } else {
             console.error('❌ Custom token format invalid')
             setError('Invalid reset token format. Please request a new password reset.')
@@ -238,7 +244,7 @@ export default function ResetPasswordPage() {
                 </div>
               )}
 
-              {/* Email input for custom token resets */}
+              {/* Email input for custom token resets - only show if email not provided */}
               {searchParams.get('token') && !email && (
                 <div>
                   <label className="block text-sm font-medium text-charcoal-700 mb-2">

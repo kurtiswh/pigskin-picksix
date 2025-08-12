@@ -37,7 +37,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid email format' })
     }
 
-    const resetUrl = `https://pigskin-picksix.vercel.app/reset-password?token=${token}`
+    const resetUrl = `https://pigskin-picksix.vercel.app/reset-password?token=${token}&email=${encodeURIComponent(email)}`
     const displayName = email.split('@')[0]
 
     console.log('Attempting to send email via Resend...')
