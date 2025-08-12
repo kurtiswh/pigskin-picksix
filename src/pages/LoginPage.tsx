@@ -169,16 +169,9 @@ export default function LoginPage() {
         return
       }
 
-      // Then test the Resend endpoint
-      const userEmail = prompt('Enter your email address for Resend test:')
-      if (!userEmail) return
-
-      console.log('Testing Resend endpoint...')
-      const response = await fetch('/api/test-resend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: userEmail })
-      })
+      // Test with a simple GET request first
+      console.log('Testing Resend endpoint with GET...')
+      const response = await fetch('/api/test-resend')
 
       console.log('Resend response status:', response.status)
       console.log('Resend response headers:', Object.fromEntries(response.headers.entries()))
