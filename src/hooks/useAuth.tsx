@@ -93,16 +93,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (true) { // Set to false to re-enable normal flow
       console.log('🚀 BYPASS: Creating immediate minimal user profile')
       
-      // Create minimal user directly from userId without any Supabase calls
-      const minimalUser = {
-        id: userId,
-        email: 'user@pigskinpicksix.com', // Fallback email 
-        display_name: 'User',
-        created_at: new Date().toISOString(),
-        role: 'user'
+      // Try to get the actual email from auth session for better user experience
+      let userEmail = 'user@pigskinpicksix.com'
+      let isAdmin = false
+      
+      try {
+        // Quick check for auth session data (this should be cached/fast)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user?.email) {
+          userEmail = session.user.email
+          // Check if this is a known admin email
+          isAdmin = userEmail === 'kurtiswh@gmail.com' || 
+                   userEmail === 'kwh@bisoncfo.com' ||
+                   userEmail.includes('kurtiswh')
+        }
+      } catch (e) {
+        console.log('Could not get session for bypass, using fallback')
       }
       
-      console.log('✅ BYPASS: Set minimal user profile with ID:', userId)
+      // Create minimal user directly from userId without any database calls
+      const minimalUser = {
+        id: userId,
+        email: userEmail,
+        display_name: userEmail.split('@')[0] || 'User',
+        created_at: new Date().toISOString(),
+        role: 'user',
+        is_admin: isAdmin
+      }
+      
+      console.log('✅ BYPASS: Set minimal user profile:', userEmail, 'isAdmin:', isAdmin)
       setUser(minimalUser)
       setLoading(false)
       return
