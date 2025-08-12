@@ -17,39 +17,67 @@ export default function ResetPasswordPage() {
   const [email, setEmail] = useState('')
 
   useEffect(() => {
-    const verifyToken = async () => {
+    const handleAuthCallback = async () => {
       try {
-        // Get token from URL parameters
-        const token = searchParams.get('token')
-        
-        if (!token) {
-          setError('No reset token provided. Please use the link from your email.')
-          setTokenValid(false)
-          return
-        }
+        // Check for password reset tokens in URL (Supabase Auth format)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+        const type = hashParams.get('type')
 
-        console.log('🔐 Verifying password reset token...')
-        
-        // Verify the token with our custom service
-        const result = await PasswordResetService.verifyResetToken(token)
-        
-        if (result.success && result.email) {
-          console.log('✅ Reset token verified for email:', result.email)
-          setEmail(result.email)
-          setTokenValid(true)
+        // Also check for custom token in query params (fallback)
+        const customToken = searchParams.get('token')
+
+        console.log('🔐 Checking reset tokens...', { type, hasAccessToken: !!accessToken, hasCustomToken: !!customToken })
+
+        // If this is a Supabase password recovery callback, set the session
+        if (type === 'recovery' && accessToken && refreshToken) {
+          console.log('🔐 Processing Supabase Auth recovery callback...')
+          
+          const { supabase } = await import('@/lib/supabase')
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          })
+
+          if (error) {
+            console.error('❌ Error setting session:', error.message)
+            setError('Invalid or expired reset link. Please request a new password reset.')
+            setTokenValid(false)
+          } else {
+            console.log('✅ Session established for password reset')
+            setTokenValid(true)
+          }
+        } else if (customToken) {
+          // Handle custom token (our new system)
+          console.log('🔐 Verifying custom password reset token...')
+          
+          const result = await PasswordResetService.verifyResetToken(customToken)
+          
+          if (result.success && result.email) {
+            console.log('✅ Custom reset token verified for email:', result.email)
+            setEmail(result.email)
+            setTokenValid(true)
+          } else {
+            console.error('❌ Custom token verification failed:', result.error)
+            setError(result.error || 'Invalid or expired reset token.')
+            setTokenValid(false)
+          }
+        } else if (type === 'recovery') {
+          setError('Invalid reset link format. Please request a new password reset.')
+          setTokenValid(false)
         } else {
-          console.error('❌ Token verification failed:', result.error)
-          setError(result.error || 'Invalid or expired reset token.')
+          setError('No reset token provided. Please use the link from your email.')
           setTokenValid(false)
         }
       } catch (err: any) {
-        console.error('Error verifying reset token:', err)
+        console.error('Error in auth callback:', err)
         setError('Failed to verify reset token. Please try again.')
         setTokenValid(false)
       }
     }
 
-    verifyToken()
+    handleAuthCallback()
   }, [searchParams])
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -65,37 +93,64 @@ export default function ResetPasswordPage() {
       return
     }
 
-    const token = searchParams.get('token')
-    if (!token) {
-      setError('No reset token found. Please use the link from your email.')
-      return
-    }
-
     setLoading(true)
     setError('')
 
     try {
-      console.log('🔐 Completing password reset...')
+      console.log('🔐 Updating password...')
       
-      const result = await PasswordResetService.completePasswordReset(token, password)
+      // Check if we have a custom token or Supabase session
+      const customToken = searchParams.get('token')
+      
+      if (customToken) {
+        // Use custom password reset service
+        console.log('🔐 Using custom password reset service...')
+        const result = await PasswordResetService.completePasswordReset(customToken, password)
 
-      if (result.success) {
-        console.log('✅ Password reset completed successfully!')
-        setSuccess(true)
-        
-        // Redirect to login after 3 seconds
-        setTimeout(() => {
-          navigate('/login', { 
-            state: { message: 'Password reset successful! Please log in with your new password.' }
-          })
-        }, 3000)
+        if (result.success) {
+          console.log('✅ Password reset completed successfully!')
+          setSuccess(true)
+        } else {
+          throw new Error(result.error || 'Failed to reset password')
+        }
       } else {
-        throw new Error(result.error || 'Failed to reset password')
+        // Use Supabase Auth (default)
+        console.log('🔐 Using Supabase Auth password update...')
+        const { supabase } = await import('@/lib/supabase')
+        
+        const { error } = await supabase.auth.updateUser({
+          password: password
+        })
+
+        if (error) {
+          console.error('❌ Password update error:', error.message)
+          throw error
+        }
+
+        console.log('✅ Password updated successfully!')
+        setSuccess(true)
       }
+      
+      // Redirect to login after 3 seconds
+      setTimeout(() => {
+        navigate('/login', { 
+          state: { message: 'Password reset successful! Please log in with your new password.' }
+        })
+      }, 3000)
 
     } catch (err: any) {
       console.error('Error resetting password:', err)
-      setError(err.message || 'Failed to reset password. Please try again.')
+      
+      let errorMessage = err.message || 'Failed to reset password'
+      
+      // Handle common error cases
+      if (err.message?.includes('rate_limit') || err.message?.includes('429')) {
+        errorMessage = 'Password reset is temporarily rate limited. Please wait and try again.'
+      } else if (err.message?.includes('session')) {
+        errorMessage = 'Your reset session has expired. Please request a new password reset link.'
+      }
+      
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }

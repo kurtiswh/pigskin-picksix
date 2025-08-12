@@ -75,51 +75,29 @@ export class PasswordResetService {
     try {
       console.log(`🔐 Generating password reset for ${email}`)
 
-      // TEMPORARY: Skip database lookup to avoid timeout issues
-      // For security, we'll always send the email (even if user doesn't exist)
-      // This prevents email enumeration attacks anyway
-      console.log(`⚠️ TEMP: Skipping user lookup due to database timeout issues`)
-      console.log(`📧 Will send reset email regardless of user existence for security`)
+      // TEMPORARY: Use Supabase Auth for now to bypass database issues
+      // This uses the built-in password reset but with custom SMTP
+      console.log(`⚠️ TEMP: Using Supabase Auth password reset with custom SMTP`)
+      console.log(`📧 This should now use your Resend SMTP settings`)
 
-      const displayName = email.split('@')[0] // Use email prefix as fallback name
+      const { supabase } = await import('@/lib/supabase')
+      
+      // Use Supabase Auth but with custom SMTP configuration
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'}/reset-password`
+      })
 
-      // Generate secure token
-      const token = this.generateSecureToken()
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
-
-      console.log(`🔐 Generated reset token, expires at: ${expiresAt.toISOString()}`)
-
-      // Store token in database
-      console.log(`💾 Storing password reset token in database...`)
-      try {
-        await this.storeResetToken(email, token, expiresAt)
-        console.log(`✅ Reset token stored successfully`)
-      } catch (storeError: any) {
-        console.error(`❌ Failed to store reset token:`, storeError.message)
-        // If we can't store the token, we can't validate it later, so fail
-        throw new Error('Failed to generate password reset token. Please try again.')
+      if (error) {
+        console.error('❌ Supabase Auth reset error:', error)
+        throw new Error(error.message)
       }
 
-      // Send email via Resend through email jobs system
-      console.log(`📧 Queueing password reset email...`)
-      const emailResult = await EmailService.sendPasswordResetViaResend(
-        email,
-        displayName,
-        token
-      )
-
-      if (!emailResult.success) {
-        console.error(`❌ Email send failed:`, emailResult.error)
-        throw new Error(emailResult.error || 'Failed to send password reset email')
-      }
-
-      console.log(`✅ Password reset email queued successfully for ${email}`)
+      console.log(`✅ Password reset email sent via Supabase Auth + Resend SMTP for ${email}`)
       return { success: true }
 
     } catch (error: any) {
       console.error('❌ Error sending password reset:', error)
       console.error('❌ Error details:', error.message)
-      console.error('❌ Stack trace:', error.stack)
       return { success: false, error: error.message }
     }
   }
