@@ -49,18 +49,17 @@ export default function ResetPasswordPage() {
             setTokenValid(true)
           }
         } else if (customToken) {
-          // Handle custom token (our new system)
-          console.log('🔐 Verifying custom password reset token...')
+          // Handle custom token (our simplified system)
+          console.log('🔐 Processing custom password reset token...')
           
-          const result = await PasswordResetService.verifyResetToken(customToken)
-          
-          if (result.success && result.email) {
-            console.log('✅ Custom reset token verified for email:', result.email)
-            setEmail(result.email)
+          // For our simplified system, we'll validate the token format and allow the reset
+          if (customToken && customToken.length >= 16) {
+            console.log('✅ Custom reset token format valid, proceeding with reset')
             setTokenValid(true)
+            // We don't need to set email since we'll get it from the user during reset
           } else {
-            console.error('❌ Custom token verification failed:', result.error)
-            setError(result.error || 'Invalid or expired reset token.')
+            console.error('❌ Custom token format invalid')
+            setError('Invalid reset token format. Please request a new password reset.')
             setTokenValid(false)
           }
         } else if (type === 'recovery') {
@@ -105,7 +104,14 @@ export default function ResetPasswordPage() {
       if (customToken) {
         // Use custom password reset service
         console.log('🔐 Using custom password reset service...')
-        const result = await PasswordResetService.completePasswordReset(customToken, password)
+        
+        // For custom tokens, we need the email address
+        if (!email) {
+          setError('Email address is required. Please enter the email address you used for password reset.')
+          return
+        }
+        
+        const result = await PasswordResetService.completePasswordReset(customToken, password, email)
 
         if (result.success) {
           console.log('✅ Password reset completed successfully!')
@@ -229,6 +235,26 @@ export default function ResetPasswordPage() {
               {email && (
                 <div className="p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm">
                   <strong>Resetting password for:</strong> {email}
+                </div>
+              )}
+
+              {/* Email input for custom token resets */}
+              {searchParams.get('token') && !email && (
+                <div>
+                  <label className="block text-sm font-medium text-charcoal-700 mb-2">
+                    Email Address
+                  </label>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email address"
+                    required
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-charcoal-500 mt-1">
+                    Enter the email address you used for password reset
+                  </p>
                 </div>
               )}
 
