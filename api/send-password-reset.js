@@ -16,6 +16,9 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Email service not configured' })
     }
 
+    console.log('RESEND_API_KEY length:', process.env.RESEND_API_KEY.length)
+    console.log('RESEND_API_KEY starts with:', process.env.RESEND_API_KEY.substring(0, 7))
+
     const resend = new Resend(process.env.RESEND_API_KEY)
     
     const { email, token } = req.body
