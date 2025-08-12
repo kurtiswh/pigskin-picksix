@@ -98,17 +98,48 @@ export class MagicLinkService {
 
         console.log(`🔐 Generated token, expires at: ${expiresAt.toISOString()}`)
 
-        // Skip database storage for now and just try to send email
-        console.log(`📧 Sending test magic link email (skipping token storage)...`)
-        const emailResult = await EmailService.sendMagicLink(
-          email,
-          mockUser.display_name,
-          token
-        )
-
-        if (!emailResult.success) {
-          console.error(`❌ Email send failed:`, emailResult.error)
-          throw new Error(emailResult.error || 'Failed to send magic link email')
+        // Skip database storage for now and just try to send email directly via Supabase Auth
+        console.log(`📧 TESTING: Trying alternative approach - using Supabase Auth for magic link...`)
+        
+        try {
+          // Try using Supabase Auth's built-in magic link as a test
+          const { data: authResult, error: authError } = await supabase.auth.signInWithOtp({
+            email: email,
+            options: {
+              emailRedirectTo: `${typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'}/`,
+            }
+          })
+          
+          if (authError) {
+            console.error('❌ Supabase Auth magic link failed:', authError.message)
+            // Fall back to the email jobs approach
+            console.log(`📧 Falling back to email jobs system...`)
+            const emailResult = await EmailService.sendMagicLink(
+              email,
+              mockUser.display_name,
+              token
+            )
+            
+            if (!emailResult.success) {
+              console.error(`❌ Email fallback also failed:`, emailResult.error)
+              throw new Error(emailResult.error || 'Both magic link methods failed')
+            }
+          } else {
+            console.log(`✅ Supabase Auth magic link sent successfully!`)
+            return { success: true }
+          }
+        } catch (testError) {
+          console.warn('⚠️ Supabase Auth test failed, trying email jobs...', testError)
+          const emailResult = await EmailService.sendMagicLink(
+            email,
+            mockUser.display_name,
+            token
+          )
+          
+          if (!emailResult.success) {
+            console.error(`❌ Email send failed:`, emailResult.error)
+            throw new Error(emailResult.error || 'Failed to send magic link email')
+          }
         }
 
         console.log(`✅ TEST Magic link sent successfully to ${email}`)

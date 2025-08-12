@@ -1270,13 +1270,29 @@ export class EmailService {
         
         console.log('📧 Email data to insert:', emailData)
         
-        const { data, error } = await supabase
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Email insert timed out after 10 seconds')), 10000)
+        )
+        
+        const insertPromise = supabase
           .from('email_jobs')
           .insert(emailData)
           .select()
           .single()
-
-        console.log('📧 Database insert result:', { data: !!data, error: error?.message || 'none' })
+        
+        let data, error
+        try {
+          const result = await Promise.race([insertPromise, timeoutPromise])
+          data = result.data
+          error = result.error
+          console.log('📧 Database insert result:', { data: !!data, error: error?.message || 'none' })
+        } catch (timeoutError: any) {
+          console.error('❌ Database insert timed out:', timeoutError.message)
+          console.error('💡 This suggests a database connectivity or permissions issue')
+          console.error('💡 Try checking your Supabase database status and RLS policies')
+          return { success: false, error: 'Database insert timed out - check database connectivity' }
+        }
 
         if (error) {
           console.error('❌ Error queueing magic link email:', error)
