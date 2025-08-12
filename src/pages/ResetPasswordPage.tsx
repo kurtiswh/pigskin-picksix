@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { supabase } from '@/lib/supabase'
+import { PasswordResetService } from '@/services/passwordResetService'
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
@@ -13,41 +13,44 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [tokenValid, setTokenValid] = useState<boolean | null>(null)
+  const [email, setEmail] = useState('')
 
   useEffect(() => {
-    const handleAuthCallback = async () => {
+    const verifyToken = async () => {
       try {
-        // Check for password reset tokens in URL
-        const hashParams = new URLSearchParams(window.location.hash.substring(1))
-        const accessToken = hashParams.get('access_token')
-        const refreshToken = hashParams.get('refresh_token')
-        const type = hashParams.get('type')
-
-        // If this is a password recovery callback, set the session
-        if (type === 'recovery' && accessToken && refreshToken) {
-          const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken
-          })
-
-          if (error) {
-            console.error('❌ Error setting session:', error.message)
-            setError('Invalid or expired reset link. Please request a new password reset.')
-          } else {
-            console.log('✅ Session established for password reset')
-          }
-        } else if (type === 'recovery') {
-          setError('Invalid reset link format. Please request a new password reset.')
+        // Get token from URL parameters
+        const token = searchParams.get('token')
+        
+        if (!token) {
+          setError('No reset token provided. Please use the link from your email.')
+          setTokenValid(false)
+          return
         }
-        // If no tokens, allow form to be used (could be direct access)
-      } catch (err) {
-        console.error('Error in auth callback:', err)
-        setError('Invalid or expired reset link. Please request a new password reset.')
+
+        console.log('🔐 Verifying password reset token...')
+        
+        // Verify the token with our custom service
+        const result = await PasswordResetService.verifyResetToken(token)
+        
+        if (result.success && result.email) {
+          console.log('✅ Reset token verified for email:', result.email)
+          setEmail(result.email)
+          setTokenValid(true)
+        } else {
+          console.error('❌ Token verification failed:', result.error)
+          setError(result.error || 'Invalid or expired reset token.')
+          setTokenValid(false)
+        }
+      } catch (err: any) {
+        console.error('Error verifying reset token:', err)
+        setError('Failed to verify reset token. Please try again.')
+        setTokenValid(false)
       }
     }
 
-    handleAuthCallback()
-  }, [])
+    verifyToken()
+  }, [searchParams])
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -62,44 +65,37 @@ export default function ResetPasswordPage() {
       return
     }
 
+    const token = searchParams.get('token')
+    if (!token) {
+      setError('No reset token found. Please use the link from your email.')
+      return
+    }
+
     setLoading(true)
     setError('')
 
     try {
-      console.log('🔐 Updating password...')
+      console.log('🔐 Completing password reset...')
       
-      const { data, error } = await supabase.auth.updateUser({
-        password: password
-      })
+      const result = await PasswordResetService.completePasswordReset(token, password)
 
-      if (error) {
-        console.error('❌ Password update error:', error.message)
-        throw error
+      if (result.success) {
+        console.log('✅ Password reset completed successfully!')
+        setSuccess(true)
+        
+        // Redirect to login after 3 seconds
+        setTimeout(() => {
+          navigate('/login', { 
+            state: { message: 'Password reset successful! Please log in with your new password.' }
+          })
+        }, 3000)
+      } else {
+        throw new Error(result.error || 'Failed to reset password')
       }
-
-      console.log('✅ Password updated successfully!')
-      setSuccess(true)
-      
-      // Redirect to login after 3 seconds
-      setTimeout(() => {
-        navigate('/login', { 
-          state: { message: 'Password reset successful! Please log in with your new password.' }
-        })
-      }, 3000)
 
     } catch (err: any) {
       console.error('Error resetting password:', err)
-      
-      let errorMessage = err.message || 'Failed to reset password'
-      
-      // Handle common error cases
-      if (err.message?.includes('rate_limit') || err.message?.includes('429')) {
-        errorMessage = 'Password reset is temporarily rate limited. Please wait and try again.'
-      } else if (err.message?.includes('session')) {
-        errorMessage = 'Your reset session has expired. Please request a new password reset link.'
-      }
-      
-      setError(errorMessage)
+      setError(err.message || 'Failed to reset password. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -148,12 +144,38 @@ export default function ResetPasswordPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleResetPassword} className="space-y-4">
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          {tokenValid === false ? (
+            <div className="text-center">
+              <div className="text-6xl mb-4">⚠️</div>
+              <h2 className="text-xl font-semibold text-red-600 mb-4">Invalid Reset Link</h2>
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm mb-4">
                 {error}
               </div>
-            )}
+              <Button
+                onClick={() => navigate('/login')}
+                className="w-full bg-pigskin-600 hover:bg-pigskin-700"
+              >
+                Back to Login
+              </Button>
+            </div>
+          ) : tokenValid === null ? (
+            <div className="text-center">
+              <div className="w-8 h-8 border-2 border-pigskin-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-charcoal-600">Verifying reset token...</p>
+            </div>
+          ) : (
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                  {error}
+                </div>
+              )}
+              
+              {email && (
+                <div className="p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm">
+                  <strong>Resetting password for:</strong> {email}
+                </div>
+              )}
 
             <div>
               <label className="block text-sm font-medium text-charcoal-700 mb-2">
@@ -188,32 +210,33 @@ export default function ResetPasswordPage() {
               />
             </div>
 
-            <Button
-              type="submit"
-              disabled={loading || !password || !confirmPassword}
-              className="w-full bg-pigskin-600 hover:bg-pigskin-700"
-            >
-              {loading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  Updating Password...
-                </>
-              ) : (
-                'Update Password'
-              )}
-            </Button>
-
-            <div className="text-center">
               <Button
-                type="button"
-                variant="ghost"
-                onClick={() => navigate('/login')}
-                className="text-sm text-pigskin-600 hover:text-pigskin-700"
+                type="submit"
+                disabled={loading || !password || !confirmPassword}
+                className="w-full bg-pigskin-600 hover:bg-pigskin-700"
               >
-                Back to Login
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Updating Password...
+                  </>
+                ) : (
+                  'Update Password'
+                )}
               </Button>
-            </div>
-          </form>
+
+              <div className="text-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => navigate('/login')}
+                  className="text-sm text-pigskin-600 hover:text-pigskin-700"
+                >
+                  Back to Login
+                </Button>
+              </div>
+            </form>
+          )}
 
           <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <h4 className="text-sm font-medium text-blue-800 mb-2">Password Requirements:</h4>

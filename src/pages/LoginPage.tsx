@@ -138,22 +138,14 @@ export default function LoginPage() {
     }
 
     try {
-      const { supabase } = await import('@/lib/supabase')
+      const { PasswordResetService } = await import('@/services/passwordResetService')
+      const result = await PasswordResetService.sendPasswordReset(userEmail)
       
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Request timed out after 10 seconds')), 10000)
-      )
-
-      const resetPromise = supabase.auth.resetPasswordForEmail(userEmail, {
-        redirectTo: `${window.location.origin}/reset-password`
-      })
-
-      const { error } = await Promise.race([resetPromise, timeoutPromise])
-
-      if (error) throw error
-
-      alert(`✅ Password reset email sent to ${userEmail}. Please check your inbox and follow the instructions.`)
+      if (result.success) {
+        alert(`✅ Password reset email sent to ${userEmail}! Please check your inbox and click the reset link.`)
+      } else {
+        throw new Error(result.error || 'Failed to send password reset email')
+      }
     } catch (err: any) {
       console.error('Password reset error:', err)
       alert(`❌ Failed to send password reset email: ${err.message}`)

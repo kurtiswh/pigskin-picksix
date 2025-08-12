@@ -208,7 +208,8 @@ export default function UserManagement() {
     }
 
     try {
-      const result = await EmailService.sendPasswordReset(userId, email, displayName)
+      const { PasswordResetService } = await import('@/services/passwordResetService')
+      const result = await PasswordResetService.sendPasswordReset(email)
       
       if (result.success) {
         alert(`✅ Password reset email sent to ${email}`)

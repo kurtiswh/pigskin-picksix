@@ -17,7 +17,7 @@ export interface EmailJob {
   id: string
   user_id: string
   email: string
-  template_type: 'pick_reminder' | 'deadline_alert' | 'weekly_results' | 'game_completed' | 'picks_submitted' | 'week_opened' | 'magic_link'
+  template_type: 'pick_reminder' | 'deadline_alert' | 'weekly_results' | 'game_completed' | 'picks_submitted' | 'week_opened' | 'magic_link' | 'password_reset'
   subject: string
   html_content: string
   text_content: string
@@ -1333,7 +1333,95 @@ export class EmailService {
   }
 
   /**
-   * Send password reset email
+   * Send password reset email via Resend instead of Supabase Auth
+   */
+  static async sendPasswordResetViaResend(
+    email: string,
+    displayName: string,
+    resetToken: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log(`🔐 Sending custom password reset email via Resend to ${email}`)
+
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : 'https://pigskin-picksix.vercel.app'
+      
+      const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`
+      const template = EmailTemplates.passwordReset(displayName, resetUrl)
+
+      console.log('📧 Queueing password reset email in email jobs system...')
+
+      // Use the email jobs system instead of direct Resend call to avoid CORS
+      try {
+        const emailData = {
+          user_id: 'password-reset-user', // Placeholder ID for password reset emails
+          email,
+          template_type: 'password_reset',
+          subject: template.subject,
+          html_content: template.html,
+          text_content: template.text,
+          scheduled_for: new Date().toISOString(), // Send immediately
+          status: 'pending',
+          attempts: 0
+        }
+        
+        console.log('📧 Password reset email data to insert:', emailData)
+        
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Password reset email insert timed out after 10 seconds')), 10000)
+        )
+        
+        const insertPromise = supabase
+          .from('email_jobs')
+          .insert(emailData)
+          .select()
+          .single()
+        
+        let data, error
+        try {
+          const result = await Promise.race([insertPromise, timeoutPromise])
+          data = result.data
+          error = result.error
+          console.log('📧 Password reset database insert result:', { data: !!data, error: error?.message || 'none' })
+        } catch (timeoutError: any) {
+          console.error('❌ Password reset database insert timed out:', timeoutError.message)
+          return { success: false, error: 'Database insert timed out - check database connectivity' }
+        }
+
+        if (error) {
+          console.error('❌ Error queueing password reset email:', error)
+          console.error('❌ Error details:', JSON.stringify(error, null, 2))
+          return { success: false, error: error.message }
+        }
+        
+        console.log('✅ Password reset email queued successfully:', data?.id)
+        
+      } catch (insertError: any) {
+        console.error('❌ Exception during password reset email insert:', insertError)
+        return { success: false, error: insertError.message }
+      }
+      
+      // Try to process it immediately if possible
+      try {
+        console.log('🔄 Attempting immediate password reset email processing...')
+        const processingResult = await this.processPendingEmails()
+        console.log('📊 Password reset email processing result:', processingResult)
+      } catch (processError) {
+        console.warn('⚠️ Could not process password reset email immediately:', processError)
+      }
+
+      return { success: true }
+
+    } catch (error: any) {
+      console.error('❌ Exception sending password reset via Resend:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
+  /**
+   * Send password reset email (legacy Supabase Auth version - kept for backward compatibility)
    */
   static async sendPasswordReset(
     userId: string,
