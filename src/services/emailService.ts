@@ -17,7 +17,7 @@ export interface EmailJob {
   id: string
   user_id: string
   email: string
-  template_type: 'pick_reminder' | 'deadline_alert' | 'weekly_results' | 'game_completed' | 'picks_submitted' | 'week_opened'
+  template_type: 'pick_reminder' | 'deadline_alert' | 'weekly_results' | 'game_completed' | 'picks_submitted' | 'week_opened' | 'magic_link'
   subject: string
   html_content: string
   text_content: string
@@ -1235,7 +1235,7 @@ export class EmailService {
   }
 
   /**
-   * Send magic link email via Resend
+   * Send magic link email by queuing it in the email jobs system
    */
   static async sendMagicLink(
     email: string,
@@ -1252,34 +1252,41 @@ export class EmailService {
       const magicLinkUrl = `${baseUrl}/magic-login?token=${magicToken}`
       const template = EmailTemplates.magicLink(displayName, magicLinkUrl)
 
-      const apiKey = import.meta.env.VITE_RESEND_API_KEY
-      
-      if (!apiKey) {
-        console.error('❌ VITE_RESEND_API_KEY not found in environment variables')
-        console.log('📧 FALLBACK: Mock magic link send (no API key)')
-        console.log(`   To: ${email}`)
-        console.log(`   Magic Link: ${magicLinkUrl}`)
-        console.log('🔧 To enable real emails, set VITE_RESEND_API_KEY in your environment')
-        return { success: true } // Return true for development
-      }
+      console.log('📧 Queueing magic link email in email jobs system...')
 
-      const { Resend } = await import('resend')
-      const resend = new Resend(apiKey)
-
-      const { data, error } = await resend.emails.send({
-        from: 'Pigskin Pick 6 Pro <noreply@resend.dev>', // Use resend.dev for testing
-        to: [email],
-        subject: template.subject,
-        html: template.html,
-        text: template.text,
-      })
+      // Use the email jobs system instead of direct Resend call
+      const { data, error } = await supabase
+        .from('email_jobs')
+        .insert({
+          user_id: 'magic-link-user', // Placeholder ID for magic link emails
+          email,
+          template_type: 'magic_link',
+          subject: template.subject,
+          html_content: template.html,
+          text_content: template.text,
+          scheduled_for: new Date().toISOString(), // Send immediately
+          status: 'pending',
+          attempts: 0
+        })
+        .select()
+        .single()
 
       if (error) {
-        console.error('❌ Resend magic link error:', error)
+        console.error('❌ Error queueing magic link email:', error)
         return { success: false, error: error.message }
       }
 
-      console.log('✅ Magic link email sent via Resend:', data?.id)
+      console.log('✅ Magic link email queued successfully:', data?.id)
+      
+      // Try to process it immediately if possible
+      try {
+        console.log('🔄 Attempting immediate email processing...')
+        const processingResult = await this.processPendingEmails()
+        console.log('📊 Email processing result:', processingResult)
+      } catch (processError) {
+        console.warn('⚠️ Could not process email immediately, will be processed by background job')
+      }
+
       return { success: true }
 
     } catch (error: any) {
