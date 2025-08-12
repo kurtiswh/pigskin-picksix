@@ -92,20 +92,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Temporary bypass for testing - create minimal user immediately
     if (true) { // Set to false to re-enable normal flow
       console.log('🚀 BYPASS: Creating immediate minimal user profile')
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (authUser) {
-        const minimalUser = {
-          id: authUser.id,
-          email: authUser.email,
-          display_name: authUser.user_metadata?.display_name || authUser.email?.split('@')[0] || 'User',
-          created_at: new Date().toISOString(),
-          role: 'user'
-        }
-        console.log('✅ BYPASS: Set minimal user profile:', minimalUser.email)
-        setUser(minimalUser)
-        setLoading(false)
-        return
+      
+      // Create minimal user directly from userId without any Supabase calls
+      const minimalUser = {
+        id: userId,
+        email: 'user@pigskinpicksix.com', // Fallback email 
+        display_name: 'User',
+        created_at: new Date().toISOString(),
+        role: 'user'
       }
+      
+      console.log('✅ BYPASS: Set minimal user profile with ID:', userId)
+      setUser(minimalUser)
+      setLoading(false)
+      return
     }
     
     try {
