@@ -1,5 +1,5 @@
 // Debug endpoint to check environment variables
-module.exports = function handler(req, res) {
+export default function handler(req, res) {
   try {
     return res.status(200).json({
       hasResendApiKey: !!process.env.RESEND_API_KEY,
