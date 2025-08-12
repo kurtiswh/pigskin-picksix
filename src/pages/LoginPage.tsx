@@ -152,6 +152,32 @@ export default function LoginPage() {
     }
   }
 
+  const handleTestResend = async () => {
+    const userEmail = prompt('Enter your email address for Resend test:')
+    
+    if (!userEmail) return
+
+    try {
+      const response = await fetch('/api/test-resend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail })
+      })
+
+      const result = await response.json()
+      
+      if (response.ok) {
+        alert(`✅ Test email sent successfully! Message ID: ${result.messageId}`)
+      } else {
+        console.error('Test error:', result)
+        alert(`❌ Test failed: ${result.error}\nDetails: ${JSON.stringify(result.details || result.message)}`)
+      }
+    } catch (err: any) {
+      console.error('Test exception:', err)
+      alert(`❌ Test exception: ${err.message}`)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-pigskin-600 to-pigskin-800 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -309,6 +335,15 @@ export default function LoginPage() {
                   <polyline points="22,6 12,13 2,6"/>
                 </svg>
                 Send Magic Link
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full mt-2 bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                onClick={handleTestResend}
+              >
+                🧪 Test Resend API
               </Button>
             </div>
 
