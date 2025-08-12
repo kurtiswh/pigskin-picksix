@@ -69,39 +69,80 @@ export class PasswordResetService {
   }
 
   /**
-   * Send password reset email via Supabase Auth with custom SMTP
+   * Send password reset email with fallback system
    */
   static async sendPasswordReset(email: string): Promise<{ success: boolean; error?: string }> {
     try {
       console.log(`🔐 Generating password reset for ${email}`)
-      console.log(`📧 Using Supabase Auth with custom SMTP configuration`)
+      console.log(`📧 Attempting Supabase Auth with custom SMTP configuration`)
 
-      // Use Supabase Auth's built-in password reset functionality
+      // First try Supabase Auth with custom SMTP
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`
       })
 
       if (error) {
         console.error('❌ Supabase Auth password reset error:', error)
+        console.log('🔄 Supabase SMTP failed, attempting fallback to direct Resend API...')
         
-        // Handle specific error cases
-        if (error.message?.includes('rate_limit') || error.status === 429) {
-          return { success: false, error: 'Too many password reset requests. Please wait a few minutes before trying again.' }
-        }
-        
-        if (error.message?.includes('User not found')) {
-          return { success: false, error: 'No account found with that email address.' }
-        }
-        
-        return { success: false, error: error.message || 'Failed to send password reset email.' }
+        // If Supabase SMTP fails, fall back to our working Resend API
+        return await this.sendPasswordResetViaResendAPI(email)
       }
 
       console.log(`✅ Password reset email sent successfully via Supabase Auth with custom SMTP`)
       return { success: true }
 
     } catch (error: any) {
-      console.error('❌ Error sending password reset:', error)
-      return { success: false, error: error.message || 'Failed to send password reset email.' }
+      console.error('❌ Error with Supabase Auth, trying fallback:', error)
+      return await this.sendPasswordResetViaResendAPI(email)
+    }
+  }
+
+  /**
+   * Fallback method using direct Resend API
+   */
+  private static async sendPasswordResetViaResendAPI(email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log(`📧 Using fallback: Direct Resend API via serverless function`)
+
+      // Generate secure token
+      const token = this.generateSecureToken()
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'
+      
+      const response = await fetch(`${baseUrl}/api/send-password-reset`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          token
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('❌ Resend API error:', errorData)
+        
+        // If it's the domain verification error, provide helpful message
+        if (errorData.resendError?.statusCode === 403) {
+          return { 
+            success: false, 
+            error: 'Email sending is currently limited. Please contact support or use a verified email address.' 
+          }
+        }
+        
+        throw new Error(errorData.error || `API request failed with status ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log(`✅ Fallback password reset email sent via Resend API:`, result.messageId)
+      
+      return { success: true }
+
+    } catch (error: any) {
+      console.error('❌ Fallback Resend API also failed:', error)
+      return { success: false, error: 'Unable to send password reset email. Please try again later or contact support.' }
     }
   }
 
