@@ -69,53 +69,39 @@ export class PasswordResetService {
   }
 
   /**
-   * Send password reset email via direct Resend API
+   * Send password reset email via Supabase Auth with custom SMTP
    */
   static async sendPasswordReset(email: string): Promise<{ success: boolean; error?: string }> {
     try {
       console.log(`🔐 Generating password reset for ${email}`)
-      console.log(`📧 Using direct Resend API via serverless function`)
+      console.log(`📧 Using Supabase Auth with custom SMTP configuration`)
 
-      // Generate secure token
-      const token = this.generateSecureToken()
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
-
-      console.log(`🔐 Generated reset token, expires at: ${expiresAt.toISOString()}`)
-
-      // TEMPORARY: Skip database storage to avoid hanging
-      console.log(`⚠️ TEMP: Skipping database token storage due to permission issues`)
-      console.log(`📧 Will use Supabase Auth user lookup for password reset validation instead`)
-
-      // Send email via our serverless function
-      console.log(`📧 Sending email via Resend API...`)
-      
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'
-      
-      const response = await fetch(`${baseUrl}/api/send-password-reset`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          token
-        })
+      // Use Supabase Auth's built-in password reset functionality
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || `API request failed with status ${response.status}`)
+      if (error) {
+        console.error('❌ Supabase Auth password reset error:', error)
+        
+        // Handle specific error cases
+        if (error.message?.includes('rate_limit') || error.status === 429) {
+          return { success: false, error: 'Too many password reset requests. Please wait a few minutes before trying again.' }
+        }
+        
+        if (error.message?.includes('User not found')) {
+          return { success: false, error: 'No account found with that email address.' }
+        }
+        
+        return { success: false, error: error.message || 'Failed to send password reset email.' }
       }
 
-      const result = await response.json()
-      console.log(`✅ Password reset email sent successfully via Resend API:`, result.messageId)
-      
+      console.log(`✅ Password reset email sent successfully via Supabase Auth with custom SMTP`)
       return { success: true }
 
     } catch (error: any) {
       console.error('❌ Error sending password reset:', error)
-      console.error('❌ Error details:', error.message)
-      return { success: false, error: error.message }
+      return { success: false, error: error.message || 'Failed to send password reset email.' }
     }
   }
 
