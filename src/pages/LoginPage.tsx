@@ -153,24 +153,55 @@ export default function LoginPage() {
   }
 
   const handleTestResend = async () => {
-    const userEmail = prompt('Enter your email address for Resend test:')
-    
-    if (!userEmail) return
-
     try {
+      // First test the ultra-simple endpoint
+      console.log('Testing basic API endpoint...')
+      const helloResponse = await fetch('/api/hello')
+      console.log('Hello response status:', helloResponse.status)
+      
+      if (helloResponse.ok) {
+        const helloResult = await helloResponse.json()
+        console.log('Hello result:', helloResult)
+        alert(`✅ Basic API works: ${helloResult.message}`)
+      } else {
+        console.error('Hello endpoint failed:', helloResponse.status)
+        alert(`❌ Basic API failed with status: ${helloResponse.status}`)
+        return
+      }
+
+      // Then test the Resend endpoint
+      const userEmail = prompt('Enter your email address for Resend test:')
+      if (!userEmail) return
+
+      console.log('Testing Resend endpoint...')
       const response = await fetch('/api/test-resend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: userEmail })
       })
 
-      const result = await response.json()
-      
-      if (response.ok) {
-        alert(`✅ Test email sent successfully! Message ID: ${result.messageId}`)
-      } else {
-        console.error('Test error:', result)
-        alert(`❌ Test failed: ${result.error}\nDetails: ${JSON.stringify(result.details || result.message)}`)
+      console.log('Resend response status:', response.status)
+      console.log('Resend response headers:', Object.fromEntries(response.headers.entries()))
+
+      if (response.status === 0) {
+        alert('❌ Network error - function may not exist')
+        return
+      }
+
+      try {
+        const result = await response.json()
+        console.log('Resend result:', result)
+        
+        if (response.ok) {
+          alert(`✅ Resend test passed: ${JSON.stringify(result)}`)
+        } else {
+          alert(`❌ Resend test failed: ${JSON.stringify(result)}`)
+        }
+      } catch (jsonError) {
+        console.error('JSON parse error:', jsonError)
+        const text = await response.text()
+        console.error('Response text:', text)
+        alert(`❌ Invalid JSON response. Status: ${response.status}, Text: ${text}`)
       }
     } catch (err: any) {
       console.error('Test exception:', err)
