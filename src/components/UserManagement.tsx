@@ -10,6 +10,7 @@ import { ENV } from '@/lib/env'
 import LeagueSafeUpload from './LeagueSafeUpload'
 import PaymentMatcher from './PaymentMatcher'
 import UnmatchedUsersPayments from './UnmatchedUsersPayments'
+import UserDetailsModal from './UserDetailsModal'
 
 interface UserStats {
   totalUsers: number
@@ -31,6 +32,7 @@ export default function UserManagement() {
   const [error, setError] = useState('')
   const [currentSeason, setCurrentSeason] = useState(2024) // Default to 2024 where the data is
   const [matchingPayment, setMatchingPayment] = useState<LeagueSafePayment | null>(null)
+  const [selectedUser, setSelectedUser] = useState<UserWithPayment | null>(null)
 
   useEffect(() => {
     loadUsers()
@@ -80,13 +82,24 @@ export default function UserManagement() {
         console.log('⚠️ No payment data available for season', currentSeason)
       }
 
-      // Combine users with their payment information
+      // Combine users with their payment information for the selected season
       const usersWithPayments = usersData.map((user: any) => {
         const payment = paymentsData.find((p: any) => p.user_id === user.id)
+        
+        // For season filtering, use season-specific payment status
+        let seasonPaymentStatus = 'No Payment'
+        if (payment) {
+          seasonPaymentStatus = payment.status || 'No Payment'
+        } else if (currentSeason === 2024 && user.payment_status) {
+          // For 2024, fall back to user's general payment status if no specific payment record
+          seasonPaymentStatus = user.payment_status
+        }
+        
         return {
           ...user,
-          payment_status: payment?.status || user.payment_status || 'No Payment',
-          leaguesafe_payment: payment
+          payment_status: seasonPaymentStatus, // This is now season-specific
+          leaguesafe_payment: payment,
+          season_payment_history: paymentsData.filter((p: any) => p.user_id === user.id) // All payments for this user
         }
       })
 
@@ -183,33 +196,36 @@ export default function UserManagement() {
           : user
       ))
 
+      // Update selected user if it's the one being modified
+      if (selectedUser?.id === userId) {
+        setSelectedUser(prev => prev ? { ...prev, is_admin: !currentAdminStatus } : null)
+      }
+
       await loadStats()
     } catch (err: any) {
       console.error('Error updating admin status:', err)
       setError(err.message)
+      throw err // Re-throw so modal can handle it
     }
   }
 
-  const updatePaymentStatus = async (userId: string, newStatus: 'Paid' | 'NotPaid' | 'Pending' | 'Manual Registration' | 'No Payment') => {
+  const updatePaymentStatus = async (userId: string, newStatus: string) => {
     try {
-      // Update the user's payment status in the users table
-      const { error: userError } = await supabase
-        .from('users')
-        .update({ payment_status: newStatus })
-        .eq('id', userId)
-
-      if (userError) throw userError
-
-      // Also update leaguesafe_payments if it exists for this user
-      const { error: paymentError } = await supabase
+      // Update or create payment record for current season
+      const { error: upsertError } = await supabase
         .from('leaguesafe_payments')
-        .update({ status: newStatus })
-        .eq('user_id', userId)
-        .eq('season', currentSeason)
+        .upsert({
+          user_id: userId,
+          season: currentSeason,
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
 
-      // Don't fail if there's no leaguesafe payment record - that's okay
-      if (paymentError && paymentError.code !== 'PGRST116') {
-        console.warn('Could not update leaguesafe payment (might not exist):', paymentError)
+      if (upsertError) throw upsertError
+
+      // Update selected user if it's the one being modified
+      if (selectedUser?.id === userId) {
+        setSelectedUser(prev => prev ? { ...prev, payment_status: newStatus } : null)
       }
 
       // Refresh data
@@ -218,14 +234,11 @@ export default function UserManagement() {
     } catch (err: any) {
       console.error('Error updating payment status:', err)
       setError(err.message)
+      throw err
     }
   }
 
   const sendPasswordReset = async (userId: string, email: string, displayName: string) => {
-    if (!confirm(`Send a password reset email to ${displayName} (${email})?`)) {
-      return
-    }
-
     try {
       const { PasswordResetService } = await import('@/services/passwordResetService')
       const result = await PasswordResetService.sendPasswordReset(email)
@@ -234,18 +247,16 @@ export default function UserManagement() {
         alert(`✅ Password reset email sent to ${email}`)
       } else {
         alert(`❌ Failed to send password reset: ${result.error}`)
+        throw new Error(result.error)
       }
     } catch (err: any) {
       console.error('Error sending password reset:', err)
       alert(`❌ Error sending password reset: ${err.message}`)
+      throw err
     }
   }
 
   const deleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this user? This will also delete all their picks and payment records and cannot be undone.')) {
-      return
-    }
-
     try {
       // First delete all picks for this user
       const { error: picksError } = await supabase
@@ -276,6 +287,7 @@ export default function UserManagement() {
     } catch (err: any) {
       console.error('Error deleting user:', err)
       setError(err.message)
+      throw err
     }
   }
 
@@ -396,13 +408,14 @@ export default function UserManagement() {
                 {filteredUsers.map(user => (
                   <div
                     key={user.id}
-                    className={`flex items-center justify-between p-3 border rounded-lg hover:bg-stone-50 ${
-                      user.payment_status === 'No Payment' ? 'border-orange-300 bg-orange-50' : 
-                      user.payment_status === 'NotPaid' ? 'border-red-300 bg-red-50' :
-                      user.payment_status === 'Paid' ? 'border-green-300 bg-green-50' : 
-                      user.payment_status === 'Manual Registration' ? 'border-blue-300 bg-blue-50' :
-                      'border-yellow-300 bg-yellow-50'
+                    className={`flex items-center justify-between p-3 border rounded-lg hover:bg-stone-50 cursor-pointer transition-colors ${
+                      user.payment_status === 'No Payment' ? 'border-orange-300 bg-orange-50 hover:bg-orange-100' : 
+                      user.payment_status === 'NotPaid' ? 'border-red-300 bg-red-50 hover:bg-red-100' :
+                      user.payment_status === 'Paid' ? 'border-green-300 bg-green-50 hover:bg-green-100' : 
+                      user.payment_status === 'Manual Registration' ? 'border-blue-300 bg-blue-50 hover:bg-blue-100' :
+                      'border-yellow-300 bg-yellow-50 hover:bg-yellow-100'
                     }`}
+                    onClick={() => setSelectedUser(user)}
                   >
                     <div className="flex-1">
                       <div className="flex items-center space-x-3">
@@ -442,48 +455,20 @@ export default function UserManagement() {
                         {user.payment_status}
                       </span>
                       
-                      <select
-                        value={user.payment_status}
-                        onChange={(e) => updatePaymentStatus(user.id, e.target.value as 'Paid' | 'NotPaid' | 'Pending' | 'Manual Registration' | 'No Payment')}
-                        className="text-xs border rounded px-2 py-1"
-                      >
-                        <option value="Paid">Paid</option>
-                        <option value="NotPaid">Not Paid</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Manual Registration">Manual Registration</option>
-                        <option value="No Payment">No Payment</option>
-                      </select>
-                      
                       <div className="text-xs text-charcoal-500">
                         {new Date(user.created_at).toLocaleDateString()}
                       </div>
                       
                       <Button
-                        onClick={() => toggleAdmin(user.id, user.is_admin)}
                         variant="outline"
                         size="sm"
                         className="text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedUser(user)
+                        }}
                       >
-                        {user.is_admin ? 'Remove Admin' : 'Make Admin'}
-                      </Button>
-                      
-                      <Button
-                        onClick={() => sendPasswordReset(user.id, user.email, user.display_name)}
-                        variant="outline"
-                        size="sm"
-                        className="text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
-                        title="Send password reset email"
-                      >
-                        Reset Password
-                      </Button>
-                      
-                      <Button
-                        onClick={() => deleteUser(user.id)}
-                        variant="outline"
-                        size="sm"
-                        className="text-xs text-red-600 border-red-200 hover:bg-red-50"
-                      >
-                        Delete
+                        Manage
                       </Button>
                     </div>
                   </div>
@@ -519,6 +504,16 @@ export default function UserManagement() {
           onCancel={() => setMatchingPayment(null)}
         />
       )}
+
+      {/* User Details Modal */}
+      <UserDetailsModal
+        user={selectedUser}
+        onClose={() => setSelectedUser(null)}
+        onToggleAdmin={toggleAdmin}
+        onSendPasswordReset={sendPasswordReset}
+        onDeleteUser={deleteUser}
+        onUpdatePaymentStatus={updatePaymentStatus}
+      />
     </div>
   )
 }
