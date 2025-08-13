@@ -131,8 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log('🔄 Trying to find user by email instead...')
       
-      // Get the current auth user email to search by email instead of ID
-      const { data: { session } } = await supabase.auth.getSession()
+      // Use the session we already have
       console.log('📧 Current session email:', session?.user?.email)
       
       if (session?.user?.email) {
