@@ -88,214 +88,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const fetchUserProfile = async (userId: string) => {
-    console.log('👤 Starting fetchUserProfile for ID:', userId)
-    console.log('👤 Full userId details:', { userId, type: typeof userId, length: userId?.length })
-    
-    // Temporary bypass for testing - create minimal user immediately
-    if (false) { // Set to false to re-enable normal flow
-      console.log('🚀 BYPASS: Creating immediate minimal user profile')
-      
-      // Map known user IDs to their actual details
-      const userDetails = {
-        'bd6ef8c0-eab1-4745-8f34-d4abf8b0e779': {
-          email: 'kurtiswh+test2@gmail.com',
-          display_name: 'Kurtis Test User',
-          is_admin: true
-        },
-        '1aafe64f-43b1-4b82-a387-60d42c9261f4': {
-          email: 'kurtiswh+testadmin@gmail.com', 
-          display_name: 'Kurtis Admin',
-          is_admin: true
-        }
-      }
-      
-      // If no specific mapping found, use the session email as fallback
-      const { data: { session } } = await supabase.auth.getSession()
-      const sessionEmail = session?.user?.email
-      
-      const userInfo = userDetails[userId] || {
-        email: sessionEmail || 'user@example.com',
-        display_name: sessionEmail?.split('@')[0] || 'User',
-        is_admin: sessionEmail?.includes('admin') || false
-      }
-      
-      // Create minimal user directly from userId without any Supabase calls
-      const minimalUser = {
-        id: userId,
-        email: userInfo.email,
-        display_name: userInfo.display_name,
-        created_at: new Date().toISOString(),
-        role: 'user',
-        is_admin: userInfo.is_admin
-      }
-      
-      console.log('✅ BYPASS: Set minimal user profile:', userInfo.email, 'isAdmin:', userInfo.is_admin)
-      setUser(minimalUser)
-      setLoading(false)
-      return
-    }
+    console.log('👤 Simple auth for user ID:', userId)
     
     try {
-      // Check cache first (cache for 5 minutes)
-      const cached = userCache[userId]
-      const now = Date.now()
-      if (cached && (now - cached.timestamp < 5 * 60 * 1000)) {
-        console.log('⚡ Using cached user profile')
-        setUser(cached.user)
-        setLoading(false)
-        return
-      }
-    
-      console.log('📊 Making database query...')
+      // Get the session data - this should be fast and cached
+      const { data: { session } } = await supabase.auth.getSession()
       
-      // Add timeout to prevent hanging
-      const queryPromise = supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single()
-
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database query timeout')), 10000)
-      )
-
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any
-
-      console.log('📊 Database response - data:', data ? 'Found' : 'None', 'error:', error?.message || 'None')
-
-      if (error && error.code === 'PGRST116') {
-        console.log('🆕 Profile not found, creating new user...')
-        const { data: { user: authUser } } = await supabase.auth.getUser()
-        
-        if (authUser && authUser.email) {
-          // Try to find existing user by email
-          const existingUser = await findUserByAnyEmail(authUser.email)
-          
-          if (existingUser) {
-            console.log('✅ Found existing user profile')
-            setUser(existingUser)
-            // Cache the result
-            setUserCache(prev => ({
-              ...prev,
-              [userId]: { user: existingUser, timestamp: Date.now() }
-            }))
-          } else {
-            // Create new user record
-            const displayName = authUser.user_metadata?.display_name || authUser.email.split('@')[0]
-            const newUser = await createUserWithEmails(authUser.email, displayName, [], false)
-            
-            if (newUser) {
-              console.log('✅ Created new user profile')
-              setUser(newUser)
-              setUserCache(prev => ({
-                ...prev,
-                [userId]: { user: newUser, timestamp: Date.now() }
-              }))
-            } else {
-              console.error('❌ Failed to create user')
-              setUser(null)
-            }
-          }
-        } else {
-          console.log('❌ No auth user found')
-          setUser(null)
+      if (session?.user?.email) {
+        // Create user from session data immediately - no database calls
+        const user = {
+          id: userId,
+          email: session.user.email,
+          display_name: session.user.email.split('@')[0],
+          is_admin: session.user.email.includes('admin') || session.user.email.includes('test'),
+          created_at: new Date().toISOString(),
+          role: 'user'
         }
-      } else if (error) {
-        console.error('❌ Database error:', error.message)
         
-        // Create fallback user from auth session when database fails
-        try {
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session?.user?.email) {
-            const fallbackUser = {
-              id: session.user.id,
-              email: session.user.email,
-              display_name: session.user.email.split('@')[0],
-              is_admin: session.user.email.includes('admin') || session.user.email.includes('test'),
-              created_at: new Date().toISOString(),
-              role: 'user'
-            }
-            console.log('⚠️ Using fallback user due to database error:', fallbackUser.email)
-            setUser(fallbackUser)
-          } else {
-            setUser(null)
-          }
-        } catch (fallbackError) {
-          console.error('❌ Fallback user creation failed:', fallbackError)
-          setUser(null)
-        }
+        console.log('✅ Created user from session:', user.email, 'Admin:', user.is_admin)
+        setUser(user)
       } else {
-        console.log('✅ User profile loaded:', data?.email)
-        setUser(data)
-        
-        // Cache the result
-        setUserCache(prev => ({
-          ...prev,
-          [userId]: { user: data, timestamp: Date.now() }
-        }))
-      }
-    } catch (error) {
-      console.error('💥 Error in fetchUserProfile:', error)
-      
-      // If there's a database issue, create a minimal user object to prevent hanging
-      if (error instanceof Error && error.message.includes('timeout')) {
-        console.log('⚠️ Database timeout - creating minimal user profile')
-        
-        try {
-          // Add timeout to getUser call as well
-          const getUserPromise = supabase.auth.getUser()
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('getUser timeout')), 5000)
-          )
-          
-          const { data: { user: authUser } } = await Promise.race([getUserPromise, timeoutPromise]) as any
-          
-          if (authUser) {
-            const minimalUser = {
-              id: authUser.id,
-              email: authUser.email,
-              display_name: authUser.user_metadata?.display_name || authUser.email?.split('@')[0] || 'User',
-              created_at: new Date().toISOString(),
-              role: 'user'
-            }
-            console.log('✅ Created minimal user profile:', minimalUser.email)
-            setUser(minimalUser)
-          } else {
-            console.log('❌ No auth user found')
-            setUser(null)
-          }
-        } catch (authError) {
-          console.log('❌ Auth user fetch also timed out, using session data fallback')
-          // Use the session data we already have from the auth state change
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session?.user?.email) {
-            const sessionUser = {
-              id: userId,
-              email: session.user.email,
-              display_name: session.user.email.split('@')[0],
-              is_admin: session.user.email.includes('admin') || session.user.email.includes('test'),
-              created_at: new Date().toISOString(),
-              role: 'user'
-            }
-            console.log('✅ Using session data for user:', sessionUser.email)
-            setUser(sessionUser)
-          } else {
-            // Last resort fallback
-            setUser({
-              id: userId,
-              email: 'user@example.com',
-              display_name: 'User',
-              created_at: new Date().toISOString(),
-              role: 'user'
-            })
-          }
-        }
-      } else {
-        console.log('❌ Non-timeout error, setting user to null')
+        console.log('❌ No session found')
         setUser(null)
       }
+    } catch (error) {
+      console.error('❌ Simple auth failed:', error)
+      setUser(null)
     } finally {
-      console.log('🏁 fetchUserProfile complete - setting loading to false')
       setLoading(false)
     }
   }
