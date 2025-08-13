@@ -91,25 +91,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('👤 Fetching user profile from database for ID:', userId)
     
     try {
-      console.log('🔄 Step 1: Trying normal Supabase client query...')
-      
-      // First try the normal Supabase client approach (should work now that RLS is fixed)
-      const { data: supabaseData, error: supabaseError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single()
+      console.log('🔄 Starting direct API call approach...')
 
-      if (supabaseData && !supabaseError) {
-        console.log('✅ SUCCESS: User profile loaded via Supabase client:', supabaseData.email)
-        setUser(supabaseData)
-        return
-      }
-
-      console.log('⚠️ Supabase client failed:', supabaseError)
-      console.log('🔄 Step 2: Trying direct API call...')
-
-      // Fallback to direct API call
+      // Go straight to direct API call since Supabase client seems to hang
       const response = await fetch(`https://zgdaqbnpgrabbnljmiqy.supabase.co/rest/v1/users?id=eq.${userId}`, {
         headers: {
           'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
@@ -122,42 +106,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (response.status === 200) {
         const data = await response.json()
+        console.log('📥 Raw API response:', data)
+        
         if (data && data.length > 0) {
           console.log('✅ SUCCESS: User profile loaded via direct API:', data[0].email)
           setUser(data[0])
           return
         } else {
-          console.log('⚠️ Direct API returned empty results')
+          console.log('⚠️ Direct API returned empty results - no user found with ID:', userId)
         }
+      } else if (response.status === 401) {
+        console.log('❌ 401 Unauthorized - RLS policies still blocking access')
       } else {
         console.log('⚠️ Direct API failed with status:', response.status)
+        const errorText = await response.text()
+        console.log('⚠️ Error response:', errorText)
       }
 
-      console.log('🔄 Step 3: Trying to find user by email instead of ID...')
+      console.log('🔄 Trying to find user by email instead...')
       
       // Get the current auth user email to search by email instead of ID
       const { data: { session } } = await supabase.auth.getSession()
+      console.log('📧 Current session email:', session?.user?.email)
+      
       if (session?.user?.email) {
-        console.log('🔍 Searching for user by email:', session.user.email)
+        console.log('🔍 Searching for user by email via direct API...')
         
-        const { data: emailData, error: emailError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', session.user.email)
-          .single()
+        const emailResponse = await fetch(`https://zgdaqbnpgrabbnljmiqy.supabase.co/rest/v1/users?email=eq.${encodeURIComponent(session.user.email)}`, {
+          headers: {
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
+            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
+            'Content-Type': 'application/json'
+          }
+        })
 
-        if (emailData && !emailError) {
-          console.log('✅ SUCCESS: Found user by email:', emailData.email)
-          setUser(emailData)
-          return
-        }
+        console.log('📧 Email search API response status:', emailResponse.status)
         
-        console.log('⚠️ Email search failed:', emailError)
+        if (emailResponse.status === 200) {
+          const emailData = await emailResponse.json()
+          console.log('📥 Email search raw response:', emailData)
+          
+          if (emailData && emailData.length > 0) {
+            console.log('✅ SUCCESS: Found user by email:', emailData[0].email)
+            setUser(emailData[0])
+            return
+          }
+        }
       }
 
       // If all methods fail, user profile doesn't exist in database
-      console.log('❌ FINAL RESULT: No user profile found in database for this authenticated user')
-      console.log('❌ This likely means the user authenticated with Supabase Auth but has no user record in the users table')
+      console.log('❌ FINAL RESULT: No user profile found in database')
+      console.log('❌ Auth ID:', userId)
+      console.log('❌ Auth Email:', session?.user?.email)
+      console.log('❌ This user is authenticated but has no matching record in the users table')
       setUser(null)
       
     } catch (error) {
