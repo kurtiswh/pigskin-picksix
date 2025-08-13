@@ -55,19 +55,25 @@ export default function EnvironmentDebugger() {
       }
       setResults({ ...diagnostics })
 
-      // Test Supabase connection
+      // Test Supabase connection with timeout
       try {
-        const { data, error } = await supabase.from('users').select('id').limit(1)
-        if (error) {
-          diagnostics.tests.supabaseConnection = `Error: ${error.message}`
-          diagnostics.tests.supabaseUsers = `Error: ${error.message}`
+        const queryPromise = supabase.from('users').select('id').limit(1)
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Database query timeout after 5s')), 5000)
+        )
+        
+        const result = await Promise.race([queryPromise, timeoutPromise]) as any
+        
+        if (result?.error) {
+          diagnostics.tests.supabaseConnection = `Error: ${result.error.message}`
+          diagnostics.tests.supabaseUsers = `Error: ${result.error.message}`
         } else {
           diagnostics.tests.supabaseConnection = 'Success'
-          diagnostics.tests.supabaseUsers = `Found ${data?.length || 0} users`
+          diagnostics.tests.supabaseUsers = `Found ${result?.data?.length || 0} users`
         }
       } catch (error) {
-        diagnostics.tests.supabaseConnection = `Exception: ${error.message}`
-        diagnostics.tests.supabaseUsers = `Exception: ${error.message}`
+        diagnostics.tests.supabaseConnection = `Timeout: ${error.message}`
+        diagnostics.tests.supabaseUsers = `Timeout: ${error.message}`
       }
       setResults({ ...diagnostics })
 
