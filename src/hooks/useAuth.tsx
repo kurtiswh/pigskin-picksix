@@ -90,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('👤 Starting fetchUserProfile for ID:', userId)
     
     // Temporary bypass for testing - create minimal user immediately
-    if (true) { // Set to false to re-enable normal flow
+    if (false) { // Set to false to re-enable normal flow
       console.log('🚀 BYPASS: Creating immediate minimal user profile')
       
       // Map known user IDs to their actual details

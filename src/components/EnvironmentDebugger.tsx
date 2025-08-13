@@ -57,7 +57,9 @@ export default function EnvironmentDebugger() {
 
       // Test Supabase connection with timeout
       try {
-        const queryPromise = supabase.from('users').select('id').limit(1)
+        console.log('Testing Supabase with current session:', await supabase.auth.getSession())
+        
+        const queryPromise = supabase.from('users').select('id, email, display_name, is_admin').limit(3)
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Database query timeout after 5s')), 5000)
         )
@@ -65,23 +67,23 @@ export default function EnvironmentDebugger() {
         const result = await Promise.race([queryPromise, timeoutPromise]) as any
         
         if (result?.error) {
-          diagnostics.tests.supabaseConnection = `Error: ${result.error.message}`
-          diagnostics.tests.supabaseUsers = `Error: ${result.error.message}`
+          diagnostics.tests.supabaseConnection = `Error: ${result.error.message} (Code: ${result.error.code})`
+          diagnostics.tests.supabaseUsers = `Error: ${result.error.message} (Code: ${result.error.code})`
         } else {
           diagnostics.tests.supabaseConnection = 'Success'
           diagnostics.tests.supabaseUsers = `Found ${result?.data?.length || 0} users`
         }
       } catch (error) {
-        diagnostics.tests.supabaseConnection = `Timeout: ${error.message}`
-        diagnostics.tests.supabaseUsers = `Timeout: ${error.message}`
+        diagnostics.tests.supabaseConnection = `Exception: ${error.message}`
+        diagnostics.tests.supabaseUsers = `Exception: ${error.message}`
       }
       setResults({ ...diagnostics })
 
       // Test games table
       try {
-        const { data, error } = await supabase.from('games').select('id').limit(1)
+        const { data, error } = await supabase.from('games').select('id, week, season, home_team, away_team').limit(3)
         if (error) {
-          diagnostics.tests.supabaseGames = `Error: ${error.message}`
+          diagnostics.tests.supabaseGames = `Error: ${error.message} (Code: ${error.code})`
         } else {
           diagnostics.tests.supabaseGames = `Found ${data?.length || 0} games`
         }
@@ -96,23 +98,23 @@ export default function EnvironmentDebugger() {
           const startTime = Date.now()
           const { data, error } = await supabase
             .from('users')
-            .select('id')
+            .select('id, display_name')
             .eq('id', user.id)
-            .limit(1)
+            .single()
           
           const duration = Date.now() - startTime
           
           if (error) {
-            diagnostics.tests.queryPerformance = `Error: ${error.message}`
+            diagnostics.tests.queryPerformance = `Error: ${error.message} (Code: ${error.code})`
           } else if (duration < 500) {
-            diagnostics.tests.queryPerformance = `Fast: ${duration}ms`
+            diagnostics.tests.queryPerformance = `Fast: ${duration}ms - Found user: ${data?.display_name}`
           } else if (duration < 2000) {
-            diagnostics.tests.queryPerformance = `Slow: ${duration}ms`
+            diagnostics.tests.queryPerformance = `Slow: ${duration}ms - Found user: ${data?.display_name}`
           } else {
-            diagnostics.tests.queryPerformance = `Very slow: ${duration}ms`
+            diagnostics.tests.queryPerformance = `Very slow: ${duration}ms - Found user: ${data?.display_name}`
           }
         } else {
-          diagnostics.tests.queryPerformance = 'No user to test with'
+          diagnostics.tests.queryPerformance = 'No authenticated user to test with'
         }
       } catch (error) {
         diagnostics.tests.queryPerformance = `Exception: ${error.message}`
