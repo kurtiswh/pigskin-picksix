@@ -91,22 +91,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('👤 Fetching user profile from database for ID:', userId)
     
     try {
-      console.log('🔄 Starting direct API call approach...')
+      console.log('🔄 Starting simplified approach - just try the Supabase client...')
+      
+      // Since RLS should now be working, let's just try the normal Supabase client
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single()
 
-      // Get the current authenticated session token
-      const { data: { session } } = await supabase.auth.getSession()
-      const accessToken = session?.access_token
-      
-      console.log('🔑 Using access token:', accessToken ? 'Present' : 'Missing')
-      
-      // Use authenticated user token for API call
+      console.log('🔍 Supabase client result:', { hasData: !!data, error: error?.message })
+
+      if (data && !error) {
+        console.log('✅ SUCCESS: User profile loaded:', data.email)
+        setUser(data)
+        return
+      }
+
+      if (error) {
+        console.log('⚠️ Supabase client error, trying direct API...')
+      }
+
+      console.log('🔄 Fallback: Direct API call...')
+      // Fallback to direct API without trying to get session again
       const response = await fetch(`https://zgdaqbnpgrabbnljmiqy.supabase.co/rest/v1/users?id=eq.${userId}`, {
         headers: {
           'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
-          'Authorization': `Bearer ${accessToken || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ'}`,
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
           'Content-Type': 'application/json'
         }
       })
+      console.log('🔄 Direct API completed')
 
       console.log('🔍 Direct API response status:', response.status)
 
@@ -129,40 +144,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('⚠️ Error response:', errorText)
       }
 
-      console.log('🔄 Trying to find user by email instead...')
-      
-      // Use the session we already have
-      console.log('📧 Current session email:', session?.user?.email)
-      
-      if (session?.user?.email) {
-        console.log('🔍 Searching for user by email via direct API...')
-        
-        const emailResponse = await fetch(`https://zgdaqbnpgrabbnljmiqy.supabase.co/rest/v1/users?email=eq.${encodeURIComponent(session.user.email)}`, {
-          headers: {
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
-            'Authorization': `Bearer ${accessToken || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ'}`,
-            'Content-Type': 'application/json'
-          }
-        })
-
-        console.log('📧 Email search API response status:', emailResponse.status)
-        
-        if (emailResponse.status === 200) {
-          const emailData = await emailResponse.json()
-          console.log('📥 Email search raw response:', emailData)
-          
-          if (emailData && emailData.length > 0) {
-            console.log('✅ SUCCESS: Found user by email:', emailData[0].email)
-            setUser(emailData[0])
-            return
-          }
-        }
-      }
-
       // If all methods fail, user profile doesn't exist in database
       console.log('❌ FINAL RESULT: No user profile found in database')
       console.log('❌ Auth ID:', userId)
-      console.log('❌ Auth Email:', session?.user?.email)
       console.log('❌ This user is authenticated but has no matching record in the users table')
       setUser(null)
       
