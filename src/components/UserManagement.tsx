@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { directSupabaseQuery } from '@/lib/supabase-direct'
 import { UserWithPayment, LeagueSafePayment } from '@/types'
 import { EmailService } from '@/services/emailService'
+import { ENV } from '@/lib/env'
 import LeagueSafeUpload from './LeagueSafeUpload'
 import PaymentMatcher from './PaymentMatcher'
 import UnmatchedUsersPayments from './UnmatchedUsersPayments'
@@ -41,30 +42,55 @@ export default function UserManagement() {
       setLoading(true)
       console.log(`🔄 UserManagement: Loading users for season ${currentSeason}...`)
       
-      // Try direct API call to bypass RLS issues
-      const response = await fetch('https://zgdaqbnpgrabbnljmiqy.supabase.co/rest/v1/users?select=*', {
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
+      // Load users with payment information for the selected season
+      const usersResponse = await fetch(`${supabaseUrl}/rest/v1/users?select=*`, {
         headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
           'Content-Type': 'application/json'
         }
       })
 
-      console.log('🔍 UserManagement API response status:', response.status)
+      console.log('🔍 UserManagement users response status:', usersResponse.status)
 
-      if (response.status === 401) {
-        console.error('❌ 401 Unauthorized - RLS policy blocking access to users table')
-        setError('Unable to access user data due to database permissions. Please check RLS policies.')
-        return
+      if (!usersResponse.ok) {
+        throw new Error(`Failed to load users: ${usersResponse.status}`)
       }
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`)
+      const usersData = await usersResponse.json()
+      console.log(`✅ UserManagement: Loaded ${usersData.length} users from database`)
+
+      // Load payment information for the current season
+      const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?season=eq.${currentSeason}&select=*`, {
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      let paymentsData = []
+      if (paymentsResponse.ok) {
+        paymentsData = await paymentsResponse.json()
+        console.log(`✅ UserManagement: Loaded ${paymentsData.length} payments for season ${currentSeason}`)
+      } else {
+        console.log('⚠️ No payment data available for season', currentSeason)
       }
 
-      const userData = await response.json()
-      console.log(`✅ UserManagement: Loaded ${userData.length} users from database`)
-      setUsers(userData)
+      // Combine users with their payment information
+      const usersWithPayments = usersData.map((user: any) => {
+        const payment = paymentsData.find((p: any) => p.user_id === user.id)
+        return {
+          ...user,
+          payment_status: payment?.status || user.payment_status || 'No Payment',
+          leaguesafe_payment: payment
+        }
+      })
+
+      setUsers(usersWithPayments)
 
     } catch (err: any) {
       console.error('Error loading users:', err)
@@ -76,26 +102,64 @@ export default function UserManagement() {
 
   const loadStats = async () => {
     try {
-      console.log('📊 UserManagement: Loading stats with mock data...')
+      console.log('📊 UserManagement: Loading real stats...')
       
-      // Mock stats for now
-      const stats = {
-        totalUsers: 2,
-        adminUsers: 1,
-        usersWithPicks: 0,
-        paidUsers: 0,
-        unpaidUsers: 1,
-        unmatchedPayments: 0
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
+      // Get payment stats for current season
+      const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?season=eq.${currentSeason}&select=*`, {
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      let payments = []
+      if (paymentsResponse.ok) {
+        payments = await paymentsResponse.json()
       }
 
-      console.log('✅ UserManagement: Using mock stats:', stats)
+      // Get picks stats for current season
+      const picksResponse = await fetch(`${supabaseUrl}/rest/v1/picks?season=eq.${currentSeason}&select=user_id`, {
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      let picks = []
+      if (picksResponse.ok) {
+        picks = await picksResponse.json()
+      }
+
+      // Calculate stats from loaded users and payment data
+      const totalUsers = users.length
+      const adminUsers = users.filter(u => u.is_admin).length
+      const paidUsers = users.filter(u => ['Paid', 'Manual Registration'].includes(u.payment_status)).length
+      const unpaidUsers = users.filter(u => ['NotPaid', 'No Payment'].includes(u.payment_status)).length
+      const usersWithPicks = new Set(picks.map((p: any) => p.user_id)).size
+      const unmatchedPayments = payments.filter((p: any) => !users.find(u => u.id === p.user_id)).length
+
+      const stats = {
+        totalUsers,
+        adminUsers,
+        usersWithPicks,
+        paidUsers,
+        unpaidUsers,
+        unmatchedPayments
+      }
+
+      console.log('✅ UserManagement: Calculated stats:', stats)
       setStats(stats)
       
     } catch (err: any) {
       console.error('Error loading stats:', err)
       setStats({
-        totalUsers: 0,
-        adminUsers: 0,
+        totalUsers: users.length,
+        adminUsers: users.filter(u => u.is_admin).length,
         usersWithPicks: 0,
         paidUsers: 0,
         unpaidUsers: 0,
