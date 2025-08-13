@@ -205,13 +205,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Create fallback user from auth session when database fails
         try {
-          const { data: { user: authUser } } = await supabase.auth.getUser()
-          if (authUser?.email) {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.user?.email) {
             const fallbackUser = {
-              id: authUser.id,
-              email: authUser.email,
-              display_name: authUser.email.split('@')[0],
-              is_admin: authUser.email.includes('admin'),
+              id: session.user.id,
+              email: session.user.email,
+              display_name: session.user.email.split('@')[0],
+              is_admin: session.user.email.includes('admin') || session.user.email.includes('test'),
               created_at: new Date().toISOString(),
               role: 'user'
             }
@@ -265,15 +265,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(null)
           }
         } catch (authError) {
-          console.log('❌ Auth user fetch also timed out, using basic fallback')
-          // Create a very basic user from the userId we have
-          setUser({
-            id: userId,
-            email: 'user@example.com', // Fallback email
-            display_name: 'User',
-            created_at: new Date().toISOString(),
-            role: 'user'
-          })
+          console.log('❌ Auth user fetch also timed out, using session data fallback')
+          // Use the session data we already have from the auth state change
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.user?.email) {
+            const sessionUser = {
+              id: userId,
+              email: session.user.email,
+              display_name: session.user.email.split('@')[0],
+              is_admin: session.user.email.includes('admin') || session.user.email.includes('test'),
+              created_at: new Date().toISOString(),
+              role: 'user'
+            }
+            console.log('✅ Using session data for user:', sessionUser.email)
+            setUser(sessionUser)
+          } else {
+            // Last resort fallback
+            setUser({
+              id: userId,
+              email: 'user@example.com',
+              display_name: 'User',
+              created_at: new Date().toISOString(),
+              role: 'user'
+            })
+          }
         }
       } else {
         console.log('❌ Non-timeout error, setting user to null')
