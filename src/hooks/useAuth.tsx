@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('👤 Full userId details:', { userId, type: typeof userId, length: userId?.length })
     
     // Temporary bypass for testing - create minimal user immediately
-    if (true) { // Set to false to re-enable normal flow
+    if (false) { // Set to false to re-enable normal flow
       console.log('🚀 BYPASS: Creating immediate minimal user profile')
       
       // Map known user IDs to their actual details
@@ -202,7 +202,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } else if (error) {
         console.error('❌ Database error:', error.message)
-        setUser(null)
+        
+        // Create fallback user from auth session when database fails
+        try {
+          const { data: { user: authUser } } = await supabase.auth.getUser()
+          if (authUser?.email) {
+            const fallbackUser = {
+              id: authUser.id,
+              email: authUser.email,
+              display_name: authUser.email.split('@')[0],
+              is_admin: authUser.email.includes('admin'),
+              created_at: new Date().toISOString(),
+              role: 'user'
+            }
+            console.log('⚠️ Using fallback user due to database error:', fallbackUser.email)
+            setUser(fallbackUser)
+          } else {
+            setUser(null)
+          }
+        } catch (fallbackError) {
+          console.error('❌ Fallback user creation failed:', fallbackError)
+          setUser(null)
+        }
       } else {
         console.log('✅ User profile loaded:', data?.email)
         setUser(data)
