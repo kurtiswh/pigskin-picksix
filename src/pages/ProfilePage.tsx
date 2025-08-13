@@ -2,6 +2,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Navigate, Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import UserProfile from '@/components/UserProfile'
+import AuthDebugger from '@/components/AuthDebugger'
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth()
@@ -42,6 +43,7 @@ export default function ProfilePage() {
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <UserProfile />
+        <AuthDebugger />
       </main>
     </div>
   )

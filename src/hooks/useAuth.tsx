@@ -91,7 +91,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('👤 Fetching user profile from database for ID:', userId)
     
     try {
-      // Try direct API call to bypass RLS issues
+      console.log('🔄 Step 1: Trying normal Supabase client query...')
+      
+      // First try the normal Supabase client approach (should work now that RLS is fixed)
+      const { data: supabaseData, error: supabaseError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single()
+
+      if (supabaseData && !supabaseError) {
+        console.log('✅ SUCCESS: User profile loaded via Supabase client:', supabaseData.email)
+        setUser(supabaseData)
+        return
+      }
+
+      console.log('⚠️ Supabase client failed:', supabaseError)
+      console.log('🔄 Step 2: Trying direct API call...')
+
+      // Fallback to direct API call
       const response = await fetch(`https://zgdaqbnpgrabbnljmiqy.supabase.co/rest/v1/users?id=eq.${userId}`, {
         headers: {
           'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
@@ -102,34 +120,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log('🔍 Direct API response status:', response.status)
 
-      if (response.status === 401) {
-        console.error('❌ 401 Unauthorized - RLS policy blocking access')
-        // For now, create a mock user profile to allow the app to function
-        const mockUser = {
-          id: userId,
-          email: 'user@example.com', // This will be replaced once we fix RLS
-          display_name: 'User',
-          is_admin: false,
-          created_at: new Date().toISOString()
+      if (response.status === 200) {
+        const data = await response.json()
+        if (data && data.length > 0) {
+          console.log('✅ SUCCESS: User profile loaded via direct API:', data[0].email)
+          setUser(data[0])
+          return
+        } else {
+          console.log('⚠️ Direct API returned empty results')
         }
-        console.log('🔧 Using mock user profile temporarily')
-        setUser(mockUser)
-        return
-      }
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`)
-      }
-
-      const data = await response.json()
-      
-      if (data && data.length > 0) {
-        console.log('✅ User profile loaded from database:', data[0].email)
-        setUser(data[0])
       } else {
-        console.log('❌ No user data returned')
-        setUser(null)
+        console.log('⚠️ Direct API failed with status:', response.status)
       }
+
+      console.log('🔄 Step 3: Trying to find user by email instead of ID...')
+      
+      // Get the current auth user email to search by email instead of ID
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user?.email) {
+        console.log('🔍 Searching for user by email:', session.user.email)
+        
+        const { data: emailData, error: emailError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', session.user.email)
+          .single()
+
+        if (emailData && !emailError) {
+          console.log('✅ SUCCESS: Found user by email:', emailData.email)
+          setUser(emailData)
+          return
+        }
+        
+        console.log('⚠️ Email search failed:', emailError)
+      }
+
+      // If all methods fail, user profile doesn't exist in database
+      console.log('❌ FINAL RESULT: No user profile found in database for this authenticated user')
+      console.log('❌ This likely means the user authenticated with Supabase Auth but has no user record in the users table')
+      setUser(null)
+      
     } catch (error) {
       console.error('❌ Exception in fetchUserProfile:', error)
       setUser(null)
