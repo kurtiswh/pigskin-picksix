@@ -36,22 +36,42 @@ export default function UserManagement() {
   const loadUsers = async () => {
     try {
       setLoading(true)
+      console.log(`🔄 Loading users for season ${currentSeason}...`)
       
-      // Load all users first
-      const { data: userData, error: userError } = await supabase
+      // Add timeout wrapper for database queries
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Database query timeout after 10 seconds')), 10000)
+      )
+      
+      // Load all users first with timeout
+      console.log('📊 Loading users...')
+      const userQuery = supabase
         .from('users')
         .select('*')
         .order('display_name', { ascending: true })
 
-      if (userError) throw userError
+      const { data: userData, error: userError } = await Promise.race([userQuery, timeoutPromise]) as any
 
-      // Load all payments for current season
-      const { data: paymentsData, error: paymentsError } = await supabase
+      if (userError) {
+        console.error('❌ User query error:', userError)
+        throw userError
+      }
+      console.log(`✅ Loaded ${userData?.length || 0} users`)
+
+      // Load all payments for current season with timeout
+      console.log(`📊 Loading payments for season ${currentSeason}...`)
+      const paymentsQuery = supabase
         .from('leaguesafe_payments')
         .select('*')
         .eq('season', currentSeason)
 
-      if (paymentsError) throw paymentsError
+      const { data: paymentsData, error: paymentsError } = await Promise.race([paymentsQuery, timeoutPromise]) as any
+
+      if (paymentsError) {
+        console.error('❌ Payments query error:', paymentsError)
+        throw paymentsError
+      }
+      console.log(`✅ Loaded ${paymentsData?.length || 0} payments`)
 
       // Process users to add payment status
       const usersWithPayments: UserWithPayment[] = (userData || []).map(user => {
@@ -94,47 +114,91 @@ export default function UserManagement() {
 
   const loadStats = async () => {
     try {
-      // Get total users
-      const { count: totalUsers } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
+      console.log('📊 Loading user statistics...')
+      
+      // Add timeout wrapper for stats queries
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Stats query timeout after 8 seconds')), 8000)
+      )
 
-      // Get admin users
-      const { count: adminUsers } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_admin', true)
+      // Use Promise.allSettled to handle individual query failures gracefully
+      const statsQueries = [
+        // Get total users
+        Promise.race([
+          supabase.from('users').select('*', { count: 'exact', head: true }),
+          timeoutPromise
+        ]),
+        // Get admin users  
+        Promise.race([
+          supabase.from('users').select('*', { count: 'exact', head: true }).eq('is_admin', true),
+          timeoutPromise
+        ]),
+        // Get users with picks for current season
+        Promise.race([
+          supabase.from('picks').select('user_id').eq('season', currentSeason),
+          timeoutPromise
+        ]),
+        // Get paid users for current season
+        Promise.race([
+          supabase.from('leaguesafe_payments')
+            .select('*', { count: 'exact', head: true })
+            .eq('season', currentSeason)
+            .eq('status', 'Paid')
+            .eq('is_matched', true),
+          timeoutPromise
+        ]),
+        // Get unpaid users
+        Promise.race([
+          supabase.from('leaguesafe_payments')
+            .select('*', { count: 'exact', head: true })
+            .eq('season', currentSeason)
+            .neq('status', 'Paid')
+            .eq('is_matched', true),
+          timeoutPromise
+        ]),
+        // Get unmatched payments
+        Promise.race([
+          supabase.from('leaguesafe_payments')
+            .select('*', { count: 'exact', head: true })
+            .eq('season', currentSeason)
+            .eq('is_matched', false),
+          timeoutPromise
+        ])
+      ]
 
-      // Get users with picks for current season
-      const { data: usersWithPicks } = await supabase
-        .from('picks')
-        .select('user_id')
-        .eq('season', currentSeason)
+      const results = await Promise.allSettled(statsQueries)
+      
+      // Extract results with fallback values
+      const [
+        totalUsersResult,
+        adminUsersResult,
+        usersWithPicksResult,
+        paidUsersResult,
+        unpaidUsersResult,
+        unmatchedPaymentsResult
+      ] = results
 
-      const uniqueUsersWithPicks = new Set(usersWithPicks?.map(p => p.user_id) || []).size
+      const totalUsers = totalUsersResult.status === 'fulfilled' 
+        ? (totalUsersResult.value as any)?.count || 0 
+        : 0
+      const adminUsers = adminUsersResult.status === 'fulfilled' 
+        ? (adminUsersResult.value as any)?.count || 0 
+        : 0
+      const usersWithPicksData = usersWithPicksResult.status === 'fulfilled' 
+        ? (usersWithPicksResult.value as any)?.data || [] 
+        : []
+      const uniqueUsersWithPicks = new Set(usersWithPicksData.map((p: any) => p.user_id)).size
+      const paidUsers = paidUsersResult.status === 'fulfilled' 
+        ? (paidUsersResult.value as any)?.count || 0 
+        : 0
+      const unpaidUsers = unpaidUsersResult.status === 'fulfilled' 
+        ? (unpaidUsersResult.value as any)?.count || 0 
+        : 0
+      const unmatchedPayments = unmatchedPaymentsResult.status === 'fulfilled' 
+        ? (unmatchedPaymentsResult.value as any)?.count || 0 
+        : 0
 
-      // Get paid users for current season
-      const { count: paidUsers } = await supabase
-        .from('leaguesafe_payments')
-        .select('*', { count: 'exact', head: true })
-        .eq('season', currentSeason)
-        .eq('status', 'Paid')
-        .eq('is_matched', true)
-
-      // Get unpaid users (users with payment records but not paid)
-      const { count: unpaidUsers } = await supabase
-        .from('leaguesafe_payments')
-        .select('*', { count: 'exact', head: true })
-        .eq('season', currentSeason)
-        .neq('status', 'Paid')
-        .eq('is_matched', true)
-
-      // Get unmatched payments
-      const { count: unmatchedPayments } = await supabase
-        .from('leaguesafe_payments')
-        .select('*', { count: 'exact', head: true })
-        .eq('season', currentSeason)
-        .eq('is_matched', false)
+      console.log('✅ Loaded stats:', { totalUsers, adminUsers, uniqueUsersWithPicks, paidUsers, unpaidUsers, unmatchedPayments })
 
       setStats({
         totalUsers: totalUsers || 0,

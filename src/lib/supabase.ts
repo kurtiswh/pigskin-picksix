@@ -17,6 +17,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
       'x-application-name': 'pigskin-pick-six-pro'
+    },
+    fetch: (url, options = {}) => {
+      return fetch(url, {
+        ...options,
+        // Increase timeout to 15 seconds for database queries
+        signal: AbortSignal.timeout(15000)
+      })
     }
   },
   realtime: {
