@@ -91,12 +91,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('👤 Fetching user profile from database for ID:', userId)
     
     try {
-      // Query the users table directly - this should work
-      const { data, error } = await supabase
+      // Add a 5 second timeout to see what happens
+      const queryPromise = supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .single()
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Query timeout after 5 seconds')), 5000)
+      )
+
+      console.log('🔍 Starting database query with timeout...')
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any
+
+      console.log('🔍 Query completed. Data:', !!data, 'Error:', !!error)
 
       if (error) {
         console.error('❌ Database query failed:', error)
@@ -113,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('❌ Exception in fetchUserProfile:', error)
       setUser(null)
     } finally {
+      console.log('🏁 Setting loading to false')
       setLoading(false)
     }
   }
