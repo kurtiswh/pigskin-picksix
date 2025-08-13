@@ -88,31 +88,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const fetchUserProfile = async (userId: string) => {
-    console.log('👤 Simple auth for user ID:', userId)
+    console.log('👤 Fetching user profile from database for ID:', userId)
     
     try {
-      // Get the session data - this should be fast and cached
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (session?.user?.email) {
-        // Create user from session data immediately - no database calls
-        const user = {
-          id: userId,
-          email: session.user.email,
-          display_name: session.user.email.split('@')[0],
-          is_admin: session.user.email.includes('admin') || session.user.email.includes('test'),
-          created_at: new Date().toISOString(),
-          role: 'user'
-        }
-        
-        console.log('✅ Created user from session:', user.email, 'Admin:', user.is_admin)
-        setUser(user)
+      // Query the users table directly - this should work
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single()
+
+      if (error) {
+        console.error('❌ Database query failed:', error)
+        console.error('❌ Error details:', { code: error.code, message: error.message, details: error.details })
+        setUser(null)
+      } else if (data) {
+        console.log('✅ User profile loaded from database:', data.email)
+        setUser(data)
       } else {
-        console.log('❌ No session found')
+        console.log('❌ No user data returned')
         setUser(null)
       }
     } catch (error) {
-      console.error('❌ Simple auth failed:', error)
+      console.error('❌ Exception in fetchUserProfile:', error)
       setUser(null)
     } finally {
       setLoading(false)
