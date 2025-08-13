@@ -59,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Get current session if no magic link
         const { data: { session } } = await supabase.auth.getSession()
+        console.log('🔍 Current session user:', session?.user?.id, session?.user?.email)
         if (session?.user) {
           await fetchUserProfile(session.user.id)
         } else {
@@ -88,9 +89,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserProfile = async (userId: string) => {
     console.log('👤 Starting fetchUserProfile for ID:', userId)
+    console.log('👤 Full userId details:', { userId, type: typeof userId, length: userId?.length })
     
     // Temporary bypass for testing - create minimal user immediately
-    if (false) { // Set to false to re-enable normal flow
+    if (true) { // Set to false to re-enable normal flow
       console.log('🚀 BYPASS: Creating immediate minimal user profile')
       
       // Map known user IDs to their actual details
@@ -107,10 +109,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
+      // If no specific mapping found, use the session email as fallback
+      const { data: { session } } = await supabase.auth.getSession()
+      const sessionEmail = session?.user?.email
+      
       const userInfo = userDetails[userId] || {
-        email: 'user@pigskinpicksix.com',
-        display_name: 'User',
-        is_admin: false
+        email: sessionEmail || 'user@example.com',
+        display_name: sessionEmail?.split('@')[0] || 'User',
+        is_admin: sessionEmail?.includes('admin') || false
       }
       
       // Create minimal user directly from userId without any Supabase calls
