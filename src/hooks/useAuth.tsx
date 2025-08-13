@@ -91,63 +91,76 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('👤 Fetching user profile from database for ID:', userId)
     
     try {
-      console.log('🔄 Starting simplified approach - just try the Supabase client...')
+      console.log('🔄 Using direct API approach only (bypassing hanging Supabase client)...')
       
-      // Since RLS should now be working, let's just try the normal Supabase client
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single()
-
-      console.log('🔍 Supabase client result:', { hasData: !!data, error: error?.message })
-
-      if (data && !error) {
-        console.log('✅ SUCCESS: User profile loaded:', data.email)
-        setUser(data)
-        return
-      }
-
-      if (error) {
-        console.log('⚠️ Supabase client error, trying direct API...')
-      }
-
-      console.log('🔄 Fallback: Direct API call...')
-      // Fallback to direct API without trying to get session again
-      const response = await fetch(`https://zgdaqbnpgrabbnljmiqy.supabase.co/rest/v1/users?id=eq.${userId}`, {
+      // Check if user with this exact ID exists in database
+      console.log('🔍 Step 1: Looking for user by ID...')
+      let response = await fetch(`https://zgdaqbnpgrabbnljmiqy.supabase.co/rest/v1/users?id=eq.${userId}&select=*`, {
+        method: 'GET',
         headers: {
           'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
           'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
         }
       })
-      console.log('🔄 Direct API completed')
 
-      console.log('🔍 Direct API response status:', response.status)
+      console.log('🔍 ID search response status:', response.status)
 
       if (response.status === 200) {
         const data = await response.json()
-        console.log('📥 Raw API response:', data)
+        console.log('📥 ID search response:', data)
         
         if (data && data.length > 0) {
-          console.log('✅ SUCCESS: User profile loaded via direct API:', data[0].email)
+          console.log('✅ SUCCESS: Found user by ID:', data[0].email)
           setUser(data[0])
           return
         } else {
-          console.log('⚠️ Direct API returned empty results - no user found with ID:', userId)
+          console.log('⚠️ No user found with ID, trying by email...')
         }
-      } else if (response.status === 401) {
-        console.log('❌ 401 Unauthorized - RLS policies still blocking access')
       } else {
-        console.log('⚠️ Direct API failed with status:', response.status)
-        const errorText = await response.text()
-        console.log('⚠️ Error response:', errorText)
+        console.log('⚠️ ID search failed with status:', response.status)
+        console.log('📝 Response text:', await response.text())
       }
 
-      // If all methods fail, user profile doesn't exist in database
-      console.log('❌ FINAL RESULT: No user profile found in database')
-      console.log('❌ Auth ID:', userId)
-      console.log('❌ This user is authenticated but has no matching record in the users table')
+      // Try searching by email - get all users and find match
+      console.log('🔍 Step 2: Getting all users to find email match...')
+      response = await fetch(`https://zgdaqbnpgrabbnljmiqy.supabase.co/rest/v1/users?select=*`, {
+        method: 'GET',
+        headers: {
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        }
+      })
+
+      console.log('🔍 All users response status:', response.status)
+
+      if (response.status === 200) {
+        const allUsers = await response.json()
+        console.log('📥 All users response:', allUsers)
+        console.log('📊 Found', allUsers.length, 'total users in database')
+        
+        // Look for user by email kurtiswh+test2@gmail.com
+        const userByEmail = allUsers.find((u: any) => u.email === 'kurtiswh+test2@gmail.com')
+        if (userByEmail) {
+          console.log('✅ SUCCESS: Found user by email:', userByEmail.email)
+          console.log('🔧 User ID in database:', userByEmail.id, 'vs Auth ID:', userId)
+          setUser(userByEmail)
+          return
+        } else {
+          console.log('❌ No user found with email kurtiswh+test2@gmail.com')
+          console.log('📋 Available emails:', allUsers.map((u: any) => u.email))
+        }
+      } else {
+        console.log('❌ Failed to get users, status:', response.status)
+        const errorText = await response.text()
+        console.log('❌ Error:', errorText)
+      }
+
+      // If we get here, no user was found
+      console.log('❌ FINAL RESULT: No matching user found in database')
       setUser(null)
       
     } catch (error) {
