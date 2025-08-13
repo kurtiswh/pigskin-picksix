@@ -33,7 +33,8 @@
       "Bash(npx supabase:*)",
       "Bash(supabase:*)",
       "Bash(mv:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(kill:*)"
     ],
     "deny": []
   }

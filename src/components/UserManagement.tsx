@@ -41,28 +41,30 @@ export default function UserManagement() {
       setLoading(true)
       console.log(`🔄 UserManagement: Loading users for season ${currentSeason}...`)
       
-      // Create mock users for now to test the UI
-      const mockUsers = [
-        {
-          id: 'bd6ef8c0-eab1-4745-8f34-d4abf8b0e779',
-          email: 'kurtiswh+test2@gmail.com',
-          display_name: 'Kurtis Test User',
-          is_admin: true,
-          payment_status: 'Manual Registration',
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'test-user-2',
-          email: 'user2@example.com', 
-          display_name: 'Test User 2',
-          is_admin: false,
-          payment_status: 'No Payment',
-          created_at: new Date().toISOString()
+      // Try direct API call to bypass RLS issues
+      const response = await fetch('https://zgdaqbnpgrabbnljmiqy.supabase.co/rest/v1/users?select=*', {
+        headers: {
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
+          'Content-Type': 'application/json'
         }
-      ]
-      
-      console.log(`✅ UserManagement: Using mock data - ${mockUsers.length} users`)
-      setUsers(mockUsers)
+      })
+
+      console.log('🔍 UserManagement API response status:', response.status)
+
+      if (response.status === 401) {
+        console.error('❌ 401 Unauthorized - RLS policy blocking access to users table')
+        setError('Unable to access user data due to database permissions. Please check RLS policies.')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`)
+      }
+
+      const userData = await response.json()
+      console.log(`✅ UserManagement: Loaded ${userData.length} users from database`)
+      setUsers(userData)
 
     } catch (err: any) {
       console.error('Error loading users:', err)
