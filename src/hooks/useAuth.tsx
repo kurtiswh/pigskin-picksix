@@ -3,6 +3,7 @@ import { User as SupabaseUser } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { User, AuthContextType } from '@/types'
 import { findUserByAnyEmail, createUserWithEmails, addEmailToUser } from '@/utils/userMatching'
+import { ENV } from '@/lib/env'
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
@@ -95,11 +96,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Check if user with this exact ID exists in database
       console.log('🔍 Step 1: Looking for user by ID...')
-      let response = await fetch(`https://zgdaqbnpgrabbnljmiqy.supabase.co/rest/v1/users?id=eq.${userId}&select=*`, {
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
+      console.log('🔧 Using Supabase URL:', supabaseUrl)
+      console.log('🔧 API Key available:', !!apiKey)
+      
+      let response = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${userId}&select=*`, {
         method: 'GET',
         headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
           'Content-Type': 'application/json',
           'Prefer': 'return=representation'
         }
@@ -125,11 +132,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Try searching by email - get all users and find match
       console.log('🔍 Step 2: Getting all users to find email match...')
-      response = await fetch(`https://zgdaqbnpgrabbnljmiqy.supabase.co/rest/v1/users?select=*`, {
+      response = await fetch(`${supabaseUrl}/rest/v1/users?select=*`, {
         method: 'GET',
         headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQyMDc1MzksImV4cCI6MjA0OTc4MzUzOX0.sjdJ-M5Cw3YjGhCPdxfrE_CqpNI8sS7Dhr3qVxnMCdQ',
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
           'Content-Type': 'application/json',
           'Prefer': 'return=representation'
         }
