@@ -135,20 +135,14 @@ export default function UserManagement() {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
       
-      // Get payment stats for current season
-      const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?season=eq.${currentSeason}&select=*`, {
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      let payments = []
-      if (paymentsResponse.ok) {
-        payments = await paymentsResponse.json()
-      }
-
+      // Calculate stats from current loaded users (which are already filtered by season)
+      const totalUsers = users.length
+      const adminUsers = users.filter(u => u.is_admin).length
+      
+      // Use season-specific payment status from the users array (which is already season-filtered)
+      const paidUsers = users.filter(u => ['Paid', 'Manual Registration'].includes(u.payment_status)).length
+      const unpaidUsers = users.filter(u => ['NotPaid', 'No Payment'].includes(u.payment_status)).length
+      
       // Get picks stats for current season
       const picksResponse = await fetch(`${supabaseUrl}/rest/v1/picks?season=eq.${currentSeason}&select=user_id`, {
         headers: {
@@ -162,13 +156,21 @@ export default function UserManagement() {
       if (picksResponse.ok) {
         picks = await picksResponse.json()
       }
-
-      // Calculate stats from loaded users and payment data
-      const totalUsers = users.length
-      const adminUsers = users.filter(u => u.is_admin).length
-      const paidUsers = users.filter(u => ['Paid', 'Manual Registration'].includes(u.payment_status)).length
-      const unpaidUsers = users.filter(u => ['NotPaid', 'No Payment'].includes(u.payment_status)).length
       const usersWithPicks = new Set(picks.map((p: any) => p.user_id)).size
+
+      // Get unmatched payments for current season
+      const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?season=eq.${currentSeason}&select=*`, {
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      let payments = []
+      if (paymentsResponse.ok) {
+        payments = await paymentsResponse.json()
+      }
       const unmatchedPayments = payments.filter((p: any) => !users.find(u => u.id === p.user_id)).length
 
       const stats = {

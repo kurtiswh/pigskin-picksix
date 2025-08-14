@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { UserWithPayment } from '@/types'
@@ -23,6 +23,18 @@ export default function UserDetailsModal({
   currentSeason = 2024
 }: UserDetailsModalProps) {
   const [loading, setLoading] = useState(false)
+  const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>('')
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
+  // Initialize selected payment status when user changes
+  React.useEffect(() => {
+    if (user) {
+      const currentSeasonPayment = user.season_payment_history?.find((p: any) => p.season === currentSeason)
+      const currentStatus = currentSeasonPayment?.status || (currentSeason === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
+      setSelectedPaymentStatus(currentStatus)
+      setHasUnsavedChanges(false)
+    }
+  }, [user, currentSeason])
 
   if (!user) return null
 
@@ -72,14 +84,20 @@ export default function UserDetailsModal({
     }
   }
 
-  const handlePaymentStatusUpdate = async (newStatus: string) => {
-    if (!confirm(`Update ${user.display_name}'s payment status to "${newStatus}"?`)) {
-      return
-    }
+  const handlePaymentStatusChange = (newStatus: string) => {
+    setSelectedPaymentStatus(newStatus)
+    const currentSeasonPayment = user.season_payment_history?.find((p: any) => p.season === currentSeason)
+    const currentStatus = currentSeasonPayment?.status || (currentSeason === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
+    setHasUnsavedChanges(newStatus !== currentStatus)
+  }
+
+  const handleSavePaymentStatus = async () => {
+    if (!hasUnsavedChanges) return
     
     setLoading(true)
     try {
-      await onUpdatePaymentStatus(user.id, newStatus)
+      await onUpdatePaymentStatus(user.id, selectedPaymentStatus)
+      setHasUnsavedChanges(false)
     } finally {
       setLoading(false)
     }
@@ -181,33 +199,65 @@ export default function UserDetailsModal({
           {/* Current Season Payment Status Update */}
           <div>
             <h4 className="font-semibold mb-3">Update Payment Status for Season {currentSeason}</h4>
-            <div className="flex flex-wrap gap-2">
-              {['Paid', 'NotPaid', 'Pending', 'Manual Registration', 'No Payment'].map(status => {
-                const currentSeasonPayment = user.season_payment_history?.find((p: any) => p.season === currentSeason)
-                const currentSeasonStatus = currentSeasonPayment?.status || (currentSeason === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
-                
-                return (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {['Paid', 'NotPaid', 'Pending', 'Manual Registration', 'No Payment'].map(status => (
                   <Button
                     key={status}
-                    variant={currentSeasonStatus === status ? "default" : "outline"}
+                    variant={selectedPaymentStatus === status ? "default" : "outline"}
                     size="sm"
-                    onClick={() => handlePaymentStatusUpdate(status)}
-                    disabled={loading || currentSeasonStatus === status}
+                    onClick={() => handlePaymentStatusChange(status)}
+                    disabled={loading}
                     className="text-xs"
                   >
                     {status}
                   </Button>
-                )
-              })}
+                ))}
+              </div>
+              
+              {hasUnsavedChanges && (
+                <div className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <div>
+                    <p className="text-sm font-medium text-yellow-800">
+                      Status changed to: <span className="font-bold">{selectedPaymentStatus}</span>
+                    </p>
+                    <p className="text-xs text-yellow-600">Click Save to apply changes</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleSavePaymentStatus}
+                      disabled={loading}
+                      className="bg-yellow-600 hover:bg-yellow-700"
+                    >
+                      {loading ? 'Saving...' : 'Save'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const currentSeasonPayment = user.season_payment_history?.find((p: any) => p.season === currentSeason)
+                        const currentStatus = currentSeasonPayment?.status || (currentSeason === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
+                        setSelectedPaymentStatus(currentStatus)
+                        setHasUnsavedChanges(false)
+                      }}
+                      disabled={loading}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              <p className="text-xs text-gray-500">
+                Current status: <span className="font-medium">{
+                  (() => {
+                    const currentSeasonPayment = user.season_payment_history?.find((p: any) => p.season === currentSeason)
+                    return currentSeasonPayment?.status || (currentSeason === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
+                  })()
+                }</span> for Season {currentSeason}
+              </p>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Currently: <span className="font-medium">{
-                (() => {
-                  const currentSeasonPayment = user.season_payment_history?.find((p: any) => p.season === currentSeason)
-                  return currentSeasonPayment?.status || (currentSeason === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
-                })()
-              }</span> for Season {currentSeason}
-            </p>
           </div>
 
           {/* Admin Actions */}
