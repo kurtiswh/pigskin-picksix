@@ -37,8 +37,7 @@ export default function UserManagement() {
   useEffect(() => {
     // Don't reload data if a modal is open (user details or payment matching)
     if (!selectedUser && !matchingPayment) {
-      loadUsers()
-      loadStats()
+      loadUsers() // loadStats will be called from within loadUsers after users are processed
     }
   }, [currentSeason, selectedUser, matchingPayment]) // Reload when season changes, but not when modal is open
 
@@ -126,6 +125,9 @@ export default function UserManagement() {
       })
 
       setUsers(usersWithPayments)
+      
+      // Load stats after users are updated with correct payment statuses
+      await loadStats(usersWithPayments)
 
     } catch (err: any) {
       console.error('Error loading users:', err)
@@ -135,20 +137,30 @@ export default function UserManagement() {
     }
   }
 
-  const loadStats = async () => {
+  const loadStats = async (usersData?: UserWithPayment[]) => {
     try {
       console.log('📊 UserManagement: Loading real stats...')
       
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
       
+      // Use provided users data or fall back to state (for manual refresh)
+      const currentUsers = usersData || users
+      
       // Calculate stats from current loaded users (which are already filtered by season)
-      const totalUsers = users.length
-      const adminUsers = users.filter(u => u.is_admin).length
+      const totalUsers = currentUsers.length
+      const adminUsers = currentUsers.filter(u => u.is_admin).length
       
       // Use season-specific payment status from the users array (which is already season-filtered)
-      const paidUsers = users.filter(u => ['Paid', 'Manual Registration'].includes(u.payment_status)).length
-      const unpaidUsers = users.filter(u => ['NotPaid', 'No Payment'].includes(u.payment_status)).length
+      const paidUsers = currentUsers.filter(u => ['Paid', 'Manual Registration'].includes(u.payment_status)).length
+      const unpaidUsers = currentUsers.filter(u => ['NotPaid', 'No Payment'].includes(u.payment_status)).length
+      
+      console.log('🔍 Stats calculation details:', {
+        totalUsers,
+        paidCount: paidUsers,
+        unpaidCount: unpaidUsers,
+        samplePaymentStatuses: currentUsers.slice(0, 5).map(u => ({ name: u.display_name, status: u.payment_status }))
+      })
       
       // Get picks stats for current season
       const picksResponse = await fetch(`${supabaseUrl}/rest/v1/picks?season=eq.${currentSeason}&select=user_id`, {
@@ -178,7 +190,7 @@ export default function UserManagement() {
       if (paymentsResponse.ok) {
         payments = await paymentsResponse.json()
       }
-      const unmatchedPayments = payments.filter((p: any) => !users.find(u => u.id === p.user_id)).length
+      const unmatchedPayments = payments.filter((p: any) => !currentUsers.find(u => u.id === p.user_id)).length
 
       const stats = {
         totalUsers,
@@ -195,8 +207,8 @@ export default function UserManagement() {
     } catch (err: any) {
       console.error('Error loading stats:', err)
       setStats({
-        totalUsers: users.length,
-        adminUsers: users.filter(u => u.is_admin).length,
+        totalUsers: currentUsers.length,
+        adminUsers: currentUsers.filter(u => u.is_admin).length,
         usersWithPicks: 0,
         paidUsers: 0,
         unpaidUsers: 0,
