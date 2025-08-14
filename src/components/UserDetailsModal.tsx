@@ -10,6 +10,7 @@ interface UserDetailsModalProps {
   onSendPasswordReset: (userId: string, email: string, displayName: string) => Promise<void>
   onDeleteUser: (userId: string) => Promise<void>
   onUpdatePaymentStatus: (userId: string, newStatus: string) => Promise<void>
+  currentSeason?: number
 }
 
 export default function UserDetailsModal({
@@ -18,7 +19,8 @@ export default function UserDetailsModal({
   onToggleAdmin,
   onSendPasswordReset,
   onDeleteUser,
-  onUpdatePaymentStatus
+  onUpdatePaymentStatus,
+  currentSeason = 2024
 }: UserDetailsModalProps) {
   const [loading, setLoading] = useState(false)
 
@@ -121,17 +123,29 @@ export default function UserDetailsModal({
               <h4 className="font-semibold text-sm text-gray-600 mb-1">Created</h4>
               <p className="text-sm">{new Date(user.created_at).toLocaleDateString()}</p>
             </div>
-            <div>
-              <h4 className="font-semibold text-sm text-gray-600 mb-1">Current Payment Status</h4>
-              <span className={`px-2 py-1 text-xs rounded ${
-                user.payment_status === 'Paid' ? 'bg-green-100 text-green-700' :
-                user.payment_status === 'NotPaid' ? 'bg-red-100 text-red-700' :
-                user.payment_status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
-                user.payment_status === 'Manual Registration' ? 'bg-blue-100 text-blue-700' :
-                'bg-orange-100 text-orange-700'
-              }`}>
-                {user.payment_status}
-              </span>
+            <div className="md:col-span-2">
+              <h4 className="font-semibold text-sm text-gray-600 mb-2">Payment Status by Season</h4>
+              <div className="space-y-1">
+                {[2024, 2025, 2026].map(season => {
+                  const seasonPayment = user.season_payment_history?.find((p: any) => p.season === season)
+                  const status = seasonPayment?.status || (season === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
+                  
+                  return (
+                    <div key={season} className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Season {season}:</span>
+                      <span className={`px-2 py-1 text-xs rounded ${
+                        status === 'Paid' ? 'bg-green-100 text-green-700' :
+                        status === 'NotPaid' ? 'bg-red-100 text-red-700' :
+                        status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                        status === 'Manual Registration' ? 'bg-blue-100 text-blue-700' :
+                        'bg-orange-100 text-orange-700'
+                      }`}>
+                        {status}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </div>
 
@@ -166,21 +180,34 @@ export default function UserDetailsModal({
 
           {/* Current Season Payment Status Update */}
           <div>
-            <h4 className="font-semibold mb-3">Update Payment Status</h4>
+            <h4 className="font-semibold mb-3">Update Payment Status for Season {currentSeason}</h4>
             <div className="flex flex-wrap gap-2">
-              {['Paid', 'NotPaid', 'Pending', 'Manual Registration', 'No Payment'].map(status => (
-                <Button
-                  key={status}
-                  variant={user.payment_status === status ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handlePaymentStatusUpdate(status)}
-                  disabled={loading || user.payment_status === status}
-                  className="text-xs"
-                >
-                  {status}
-                </Button>
-              ))}
+              {['Paid', 'NotPaid', 'Pending', 'Manual Registration', 'No Payment'].map(status => {
+                const currentSeasonPayment = user.season_payment_history?.find((p: any) => p.season === currentSeason)
+                const currentSeasonStatus = currentSeasonPayment?.status || (currentSeason === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
+                
+                return (
+                  <Button
+                    key={status}
+                    variant={currentSeasonStatus === status ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handlePaymentStatusUpdate(status)}
+                    disabled={loading || currentSeasonStatus === status}
+                    className="text-xs"
+                  >
+                    {status}
+                  </Button>
+                )
+              })}
             </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Currently: <span className="font-medium">{
+                (() => {
+                  const currentSeasonPayment = user.season_payment_history?.find((p: any) => p.season === currentSeason)
+                  return currentSeasonPayment?.status || (currentSeason === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
+                })()
+              }</span> for Season {currentSeason}
+            </p>
           </div>
 
           {/* Admin Actions */}

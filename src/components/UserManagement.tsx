@@ -65,8 +65,8 @@ export default function UserManagement() {
       const usersData = await usersResponse.json()
       console.log(`✅ UserManagement: Loaded ${usersData.length} users from database`)
 
-      // Load payment information for the current season
-      const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?season=eq.${currentSeason}&select=*`, {
+      // Load payment information for the current season (for display)
+      const currentSeasonPaymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?season=eq.${currentSeason}&select=*`, {
         headers: {
           'apikey': apiKey || '',
           'Authorization': `Bearer ${apiKey || ''}`,
@@ -74,17 +74,32 @@ export default function UserManagement() {
         }
       })
 
-      let paymentsData = []
-      if (paymentsResponse.ok) {
-        paymentsData = await paymentsResponse.json()
-        console.log(`✅ UserManagement: Loaded ${paymentsData.length} payments for season ${currentSeason}`)
+      let currentSeasonPayments = []
+      if (currentSeasonPaymentsResponse.ok) {
+        currentSeasonPayments = await currentSeasonPaymentsResponse.json()
+        console.log(`✅ UserManagement: Loaded ${currentSeasonPayments.length} payments for season ${currentSeason}`)
       } else {
         console.log('⚠️ No payment data available for season', currentSeason)
       }
 
+      // Load ALL payment history for user details modal
+      const allPaymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?select=*`, {
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      let allPaymentsData = []
+      if (allPaymentsResponse.ok) {
+        allPaymentsData = await allPaymentsResponse.json()
+        console.log(`✅ UserManagement: Loaded ${allPaymentsData.length} total payment records`)
+      }
+
       // Combine users with their payment information for the selected season
       const usersWithPayments = usersData.map((user: any) => {
-        const payment = paymentsData.find((p: any) => p.user_id === user.id)
+        const payment = currentSeasonPayments.find((p: any) => p.user_id === user.id)
         
         // For season filtering, use season-specific payment status
         let seasonPaymentStatus = 'No Payment'
@@ -99,7 +114,7 @@ export default function UserManagement() {
           ...user,
           payment_status: seasonPaymentStatus, // This is now season-specific
           leaguesafe_payment: payment,
-          season_payment_history: paymentsData.filter((p: any) => p.user_id === user.id) // All payments for this user
+          season_payment_history: allPaymentsData.filter((p: any) => p.user_id === user.id) // All payments for this user across all seasons
         }
       })
 
@@ -513,6 +528,7 @@ export default function UserManagement() {
         onSendPasswordReset={sendPasswordReset}
         onDeleteUser={deleteUser}
         onUpdatePaymentStatus={updatePaymentStatus}
+        currentSeason={currentSeason}
       />
     </div>
   )
