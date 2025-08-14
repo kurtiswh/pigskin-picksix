@@ -494,6 +494,20 @@ export default function AdminDashboard() {
       // Update week settings
       console.log('📊 Updating week settings...')
       console.log(`📊 Updating settings for week ${currentWeek}, season ${currentSeason}`)
+      
+      // First check if week settings exist
+      const checkResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${currentWeek}&season=eq.${currentSeason}`, {
+        method: 'GET',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      const existingSettings = await checkResponse.json()
+      console.log('📋 Existing week settings:', existingSettings)
+      
       const updateResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${currentWeek}&season=eq.${currentSeason}`, {
         method: 'PATCH',
         headers: {
@@ -513,6 +527,7 @@ export default function AdminDashboard() {
 
       const updatedSettings = await updateResponse.json()
       console.log('✅ Week settings updated:', updatedSettings)
+      console.log('🔍 Updated settings length:', updatedSettings.length)
       
       // Update local state immediately
       if (updatedSettings && updatedSettings.length > 0) {
