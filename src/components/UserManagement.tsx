@@ -257,7 +257,6 @@ export default function UserManagement() {
         entry_fee: 0.00,
         paid: 0.00,
         owes: 0.00,
-        max_payout: 0.00,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
