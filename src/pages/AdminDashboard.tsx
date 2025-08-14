@@ -402,114 +402,110 @@ export default function AdminDashboard() {
       setLoading(true)
       setError('')
 
-      console.log('💾 Starting to save games with timeout protection...')
+      console.log('💾 Starting to save games with direct API approach...')
 
-      // Add timeout to prevent infinite hanging (reduced since network tests show API works)
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Save operation timed out')), 10000)
-      )
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
 
-      try {
-        // Create week settings if doesn't exist
-        if (!weekSettings) {
-          console.log('📝 Creating new week settings...')
-          const settingsQuery = supabase
-            .from('week_settings')
-            .insert({
-              week: currentWeek,
-              season: currentSeason,
-              deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Default: 1 week from now
-              games_selected: false,
-              picks_open: false,
-              games_locked: false
-            })
-            .select()
-            .single()
-
-          const settingsResult = await Promise.race([settingsQuery, timeoutPromise])
-          if (settingsResult.error) throw settingsResult.error
-          setWeekSettings(settingsResult.data)
-          console.log('✅ Week settings created')
-        }
-
-        // Save games to database
-        console.log(`🏈 Inserting ${selectedGames.length} games...`)
-        const gamesToInsert = selectedGames.map(game => ({
+      // Create week settings if doesn't exist
+      if (!weekSettings) {
+        console.log('📝 Creating new week settings...')
+        
+        const settingsData = {
           week: currentWeek,
           season: currentSeason,
-          home_team: game.home_team,
-          away_team: game.away_team,
-          spread: game.spread || 0,
-          kickoff_time: game.start_date,
-          status: 'scheduled' as const
-        }))
-
-        const insertQuery = supabase
-          .from('games')
-          .insert(gamesToInsert)
-
-        const insertResult = await Promise.race([insertQuery, timeoutPromise])
-        if (insertResult.error) throw insertResult.error
-        console.log('✅ Games inserted successfully via standard client')
-
-        // Update week settings
-        console.log('📊 Updating week settings...')
-        const updateQuery = supabase
-          .from('week_settings')
-          .update({ games_selected: true })
-          .eq('week', currentWeek)
-          .eq('season', currentSeason)
-
-        const updateResult = await Promise.race([updateQuery, timeoutPromise])
-        if (updateResult.error) throw updateResult.error
-        console.log('✅ Week settings updated')
-
-        // Reload data with timeout
-        console.log('🔄 Reloading week data...')
-        const reloadPromise = loadWeekData()
-        await Promise.race([reloadPromise, timeoutPromise])
-
-        alert('Games saved successfully! 🏈')
-        console.log('🎉 Save operation completed successfully')
-
-      } catch (timeoutError) {
-        console.log('⏰ Standard client save timed out, trying direct API...')
-        
-        try {
-          // Fallback to direct API for saving
-          await saveGamesDirect(gamesToInsert, currentWeek, currentSeason)
-          
-          // Still need to update week settings
-          const updateQuery = supabase
-            .from('week_settings')
-            .update({ games_selected: true })
-            .eq('week', currentWeek)
-            .eq('season', currentSeason)
-
-          await Promise.race([updateQuery, timeoutPromise])
-          
-          console.log('✅ Games saved successfully via direct API')
-          alert('Games saved successfully! (via direct API) 🏈')
-          
-          // Reload data
-          await loadWeekData()
-          
-        } catch (directError) {
-          console.log('❌ Both standard client and direct API save failed')
-          setError('Save failed with both methods. Check network and database connection.')
-          
-          // Try to reload data to see current state
-          try {
-            await loadWeekData()
-          } catch (reloadError) {
-            console.log('⚠️ Failed to reload after timeout')
-          }
+          deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          games_selected: false,
+          picks_open: false,
+          games_locked: false
         }
+
+        const settingsResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings`, {
+          method: 'POST',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify(settingsData)
+        })
+
+        if (!settingsResponse.ok) {
+          const errorText = await settingsResponse.text()
+          throw new Error(`Failed to create week settings: ${settingsResponse.status} - ${errorText}`)
+        }
+
+        const newSettings = await settingsResponse.json()
+        setWeekSettings(newSettings[0])
+        console.log('✅ Week settings created')
       }
+
+      // Save games to database
+      console.log(`🏈 Inserting ${selectedGames.length} games...`)
+      const gamesToInsert = selectedGames.map(game => ({
+        week: currentWeek,
+        season: currentSeason,
+        home_team: game.home_team,
+        away_team: game.away_team,
+        spread: game.spread || 0,
+        kickoff_time: game.start_date,
+        status: 'scheduled'
+      }))
+
+      const gamesResponse = await fetch(`${supabaseUrl}/rest/v1/games`, {
+        method: 'POST',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(gamesToInsert)
+      })
+
+      if (!gamesResponse.ok) {
+        const errorText = await gamesResponse.text()
+        throw new Error(`Failed to save games: ${gamesResponse.status} - ${errorText}`)
+      }
+
+      console.log('✅ Games inserted successfully')
+
+      // Update week settings
+      console.log('📊 Updating week settings...')
+      const updateResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${currentWeek}&season=eq.${currentSeason}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ games_selected: true })
+      })
+
+      if (!updateResponse.ok) {
+        const errorText = await updateResponse.text()
+        throw new Error(`Failed to update week settings: ${updateResponse.status} - ${errorText}`)
+      }
+
+      console.log('✅ Week settings updated')
+
+      // Reload data
+      console.log('🔄 Reloading week data...')
+      await loadWeekData()
+
+      alert('Games saved successfully! 🏈')
+      console.log('🎉 Save operation completed successfully')
 
     } catch (err: any) {
       console.error('Error saving games:', err)
-      setError(`Save failed: ${err.message}. Check if database indexes are applied.`)
+      setError(`Save failed: ${err.message}`)
+      
+      // Try to reload data to see current state
+      try {
+        await loadWeekData()
+      } catch (reloadError) {
+        console.log('⚠️ Failed to reload after error')
+      }
     } finally {
       console.log('🏁 Save games operation finished')
       setLoading(false)
