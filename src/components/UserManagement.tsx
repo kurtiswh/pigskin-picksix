@@ -9,7 +9,6 @@ import { EmailService } from '@/services/emailService'
 import { ENV } from '@/lib/env'
 import LeagueSafeUpload from './LeagueSafeUpload'
 import PaymentMatcher from './PaymentMatcher'
-import UnmatchedUsersPayments from './UnmatchedUsersPayments'
 import UserDetailsModal from './UserDetailsModal'
 
 interface UserStats {
@@ -29,6 +28,7 @@ export default function UserManagement() {
   const [stats, setStats] = useState<UserStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all')
   const [error, setError] = useState('')
   const [currentSeason, setCurrentSeason] = useState(2024) // Default to 2024 where the data is
   const [matchingPayment, setMatchingPayment] = useState<LeagueSafePayment | null>(null)
@@ -81,6 +81,10 @@ export default function UserManagement() {
       if (currentSeasonPaymentsResponse.ok) {
         currentSeasonPayments = await currentSeasonPaymentsResponse.json()
         console.log(`✅ UserManagement: Loaded ${currentSeasonPayments.length} payments for season ${currentSeason}`)
+        console.log('🔍 Payment statuses breakdown:', currentSeasonPayments.reduce((acc: any, p: any) => {
+          acc[p.status] = (acc[p.status] || 0) + 1
+          return acc
+        }, {}))
       } else {
         console.log('⚠️ No payment data available for season', currentSeason)
       }
@@ -386,10 +390,17 @@ export default function UserManagement() {
     loadStats()
   }
 
-  const filteredUsers = users.filter(user =>
-    user.display_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredUsers = users.filter(user => {
+    // Search filter
+    const matchesSearch = user.display_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    // Payment status filter
+    const matchesPaymentStatus = paymentStatusFilter === 'all' || 
+      user.payment_status === paymentStatusFilter
+    
+    return matchesSearch && matchesPaymentStatus
+  })
 
   return (
     <div className="space-y-6">
@@ -465,8 +476,20 @@ export default function UserManagement() {
                 placeholder="Search users..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-64"
+                className="w-48"
               />
+              <select
+                value={paymentStatusFilter}
+                onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                className="border rounded px-3 py-2 text-sm"
+              >
+                <option value="all">All Status</option>
+                <option value="Paid">Paid</option>
+                <option value="NotPaid">Not Paid</option>
+                <option value="No Payment">No Payment</option>
+                <option value="Manual Registration">Manual Registration</option>
+                <option value="Pending">Pending</option>
+              </select>
               <Button onClick={loadUsers} variant="outline" size="sm">
                 Refresh
               </Button>
@@ -575,11 +598,6 @@ export default function UserManagement() {
         </CardContent>
       </Card>
 
-      {/* Unmatched Users and Payments */}
-      <UnmatchedUsersPayments 
-        season={currentSeason}
-        onMatchComplete={handleUploadComplete}
-      />
 
       {/* Payment Matcher Modal */}
       {matchingPayment && (
