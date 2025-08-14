@@ -269,16 +269,38 @@ export default function UserManagement() {
       
       console.log('🌐 Using direct API approach...')
       
-      const response = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments`, {
-        method: 'POST',
+      // Try UPDATE first, then INSERT if no record exists
+      const updateResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?user_id=eq.${userId}&season=eq.${currentSeason}`, {
+        method: 'PATCH',
         headers: {
           'apikey': apiKey || '',
           'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates'
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(paymentData)
+        body: JSON.stringify({
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
       })
+      
+      console.log(`🔍 Update response status: ${updateResponse.status}`)
+      
+      let response = updateResponse
+      
+      // If no rows were updated (404), try INSERT
+      if (updateResponse.status === 404) {
+        console.log('📝 No existing record found, inserting new record...')
+        response = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments`, {
+          method: 'POST',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(paymentData)
+        })
+        console.log(`🔍 Insert response status: ${response.status}`)
+      }
       
       console.log(`🔍 Direct API response status: ${response.status}`)
       
