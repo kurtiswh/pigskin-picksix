@@ -92,8 +92,14 @@ export default function AdminDashboard() {
           completed: game.status === 'completed',
           home_team: game.home_team,
           away_team: game.away_team,
-          spread: game.spread
+          spread: game.spread,
+          custom_lock_time: game.custom_lock_time // Include custom lock time from database
         }))
+        
+        console.log('📊 Loaded games with custom lock times:', cfbFormatGames.map(g => ({
+          matchup: `${g.home_team} vs ${g.away_team}`,
+          custom_lock_time: g.custom_lock_time
+        })))
 
         setSelectedGames(cfbFormatGames)
         console.log('✅ Week data loaded successfully via standard client')
@@ -117,7 +123,8 @@ export default function AdminDashboard() {
             completed: game.status === 'completed',
             home_team: game.home_team,
             away_team: game.away_team,
-            spread: game.spread
+            spread: game.spread,
+            custom_lock_time: game.custom_lock_time // Include custom lock time from database
           }))
           
           setSelectedGames(cfbFormatGames)
