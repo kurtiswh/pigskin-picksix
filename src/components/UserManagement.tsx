@@ -228,17 +228,37 @@ export default function UserManagement() {
 
   const updatePaymentStatus = async (userId: string, newStatus: string) => {
     try {
-      // Update or create payment record for current season
-      const { error: upsertError } = await supabase
-        .from('leaguesafe_payments')
-        .upsert({
+      console.log(`🔄 Updating payment status for user ${userId} to ${newStatus} for season ${currentSeason}`)
+      
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
+      // Use direct API call to avoid hanging Supabase client
+      const response = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments`, {
+        method: 'POST',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify({
           user_id: userId,
           season: currentSeason,
           status: newStatus,
           updated_at: new Date().toISOString()
         })
+      })
 
-      if (upsertError) throw upsertError
+      console.log(`🔍 Payment update response status: ${response.status}`)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('❌ Payment update failed:', errorText)
+        throw new Error(`Failed to update payment status: ${response.status}`)
+      }
+
+      console.log('✅ Payment status updated successfully')
 
       // Update selected user if it's the one being modified
       if (selectedUser?.id === userId) {
