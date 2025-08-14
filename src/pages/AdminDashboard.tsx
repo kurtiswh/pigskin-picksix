@@ -479,10 +479,17 @@ export default function AdminDashboard() {
 
       if (!gamesResponse.ok) {
         const errorText = await gamesResponse.text()
-        throw new Error(`Failed to save games: ${gamesResponse.status} - ${errorText}`)
+        
+        // Check if this is a duplicate key error (games already exist)
+        if (gamesResponse.status === 409 && errorText.includes('unique_game_week_teams')) {
+          console.log('⚠️ Games already exist in database, updating week settings...')
+          // Games already exist, just need to update week settings
+        } else {
+          throw new Error(`Failed to save games: ${gamesResponse.status} - ${errorText}`)
+        }
+      } else {
+        console.log('✅ Games inserted successfully')
       }
-
-      console.log('✅ Games inserted successfully')
 
       // Update week settings
       console.log('📊 Updating week settings...')
