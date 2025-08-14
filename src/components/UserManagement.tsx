@@ -35,9 +35,12 @@ export default function UserManagement() {
   const [selectedUser, setSelectedUser] = useState<UserWithPayment | null>(null)
 
   useEffect(() => {
-    loadUsers()
-    loadStats()
-  }, [currentSeason]) // Reload when season changes
+    // Don't reload data if a modal is open (user details or payment matching)
+    if (!selectedUser && !matchingPayment) {
+      loadUsers()
+      loadStats()
+    }
+  }, [currentSeason, selectedUser, matchingPayment]) // Reload when season changes, but not when modal is open
 
   const loadUsers = async () => {
     try {
@@ -227,44 +230,67 @@ export default function UserManagement() {
   }
 
   const updatePaymentStatus = async (userId: string, newStatus: string) => {
+    console.log('🎯 NEW VERSION 2025-08-13 - updatePaymentStatus called')
+    console.log('🚀 FUNCTION START - updatePaymentStatus called')
+    console.log('📊 Current users array length:', users.length)
+    console.log('🎯 Target userId:', userId)
+    console.log('🔄 New status:', newStatus)
+    
     try {
       console.log(`🔄 Updating payment status for user ${userId} to ${newStatus} for season ${currentSeason}`)
       
+      // Find the user to get their email and name
+      console.log('🔍 Searching for user in array...')
+      const user = users.find(u => u.id === userId)
+      if (!user) {
+        throw new Error('User not found')
+      }
+      
+      console.log('📋 User found:', user.display_name)
+
+      const paymentData = {
+        user_id: userId,
+        season: currentSeason,
+        status: newStatus,
+        leaguesafe_owner_name: user.display_name,
+        leaguesafe_email: user.email,
+        entry_fee: 0.00,
+        paid: 0.00,
+        owes: 0.00,
+        max_payout: 0.00,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      
+      console.log('📤 Payment data prepared:', paymentData)
+      
+      // Use direct API call since Supabase client is hanging
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
       
-      // Get the authenticated user's session token
-      const { data: { session } } = await supabase.auth.getSession()
-      const accessToken = session?.access_token
+      console.log('🌐 Using direct API approach...')
       
-      console.log('🔑 Using authenticated token for payment update:', !!accessToken)
-      
-      // Use direct API call with authenticated token
       const response = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments`, {
         method: 'POST',
         headers: {
           'apikey': apiKey || '',
-          'Authorization': `Bearer ${accessToken || apiKey || ''}`,
+          'Authorization': `Bearer ${apiKey || ''}`,
           'Content-Type': 'application/json',
           'Prefer': 'resolution=merge-duplicates'
         },
-        body: JSON.stringify({
-          user_id: userId,
-          season: currentSeason,
-          status: newStatus,
-          updated_at: new Date().toISOString()
-        })
+        body: JSON.stringify(paymentData)
       })
-
-      console.log(`🔍 Payment update response status: ${response.status}`)
-
+      
+      console.log(`🔍 Direct API response status: ${response.status}`)
+      
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('❌ Payment update failed:', errorText)
-        throw new Error(`Failed to update payment status: ${response.status}`)
+        console.error('❌ Direct API failed:', errorText)
+        throw new Error(`Failed to update payment status: ${response.status} - ${errorText}`)
       }
-
-      console.log('✅ Payment status updated successfully')
+      
+      const responseData = await response.text()
+      console.log('✅ Payment updated successfully via direct API:', responseData)
 
       // Update selected user if it's the one being modified
       if (selectedUser?.id === userId) {

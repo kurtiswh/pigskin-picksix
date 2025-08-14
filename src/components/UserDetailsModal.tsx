@@ -92,13 +92,36 @@ export default function UserDetailsModal({
   }
 
   const handleSavePaymentStatus = async () => {
-    if (!hasUnsavedChanges) return
+    console.log('🎯 NEW VERSION 2025-08-13 - handleSavePaymentStatus called')
+    console.log('🔄 hasUnsavedChanges:', hasUnsavedChanges)
+    console.log('🔄 selectedPaymentStatus:', selectedPaymentStatus)
+    
+    if (!hasUnsavedChanges) {
+      console.log('⚠️ No unsaved changes, skipping save')
+      return
+    }
     
     setLoading(true)
+    
+    // Add timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      console.log('⏰ Payment update timed out after 15 seconds')
+      setLoading(false)
+      alert('Payment update timed out. Please try again.')
+    }, 15000)
+    
     try {
+      console.log('🔄 Calling onUpdatePaymentStatus...')
       await onUpdatePaymentStatus(user.id, selectedPaymentStatus)
+      console.log('✅ onUpdatePaymentStatus completed successfully')
       setHasUnsavedChanges(false)
+      clearTimeout(timeoutId)
+    } catch (error) {
+      console.error('❌ Error in handleSavePaymentStatus:', error)
+      clearTimeout(timeoutId)
+      alert(`Failed to update payment status: ${error.message}`)
     } finally {
+      console.log('🏁 Setting loading to false')
       setLoading(false)
     }
   }
@@ -226,7 +249,10 @@ export default function UserDetailsModal({
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      onClick={handleSavePaymentStatus}
+                      onClick={() => {
+                        console.log('💾 SAVE BUTTON CLICKED')
+                        handleSavePaymentStatus()
+                      }}
                       disabled={loading}
                       className="bg-yellow-600 hover:bg-yellow-700"
                     >
