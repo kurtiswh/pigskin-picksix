@@ -450,8 +450,15 @@ export default function AdminDashboard() {
         away_team: game.away_team,
         spread: game.spread || 0,
         kickoff_time: game.start_date,
+        custom_lock_time: game.custom_lock_time || null,
         status: 'scheduled'
       }))
+      
+      console.log('📊 Games to insert:', gamesToInsert.map(g => ({ 
+        matchup: `${g.home_team} vs ${g.away_team}`,
+        spread: g.spread,
+        custom_lock_time: g.custom_lock_time 
+      })))
 
       const gamesResponse = await fetch(`${supabaseUrl}/rest/v1/games`, {
         method: 'POST',
@@ -472,22 +479,32 @@ export default function AdminDashboard() {
 
       // Update week settings
       console.log('📊 Updating week settings...')
+      console.log(`📊 Updating settings for week ${currentWeek}, season ${currentSeason}`)
       const updateResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${currentWeek}&season=eq.${currentSeason}`, {
         method: 'PATCH',
         headers: {
           'apikey': apiKey || '',
           'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
         },
         body: JSON.stringify({ games_selected: true })
       })
 
       if (!updateResponse.ok) {
         const errorText = await updateResponse.text()
+        console.error('❌ Week settings update failed:', errorText)
         throw new Error(`Failed to update week settings: ${updateResponse.status} - ${errorText}`)
       }
 
-      console.log('✅ Week settings updated')
+      const updatedSettings = await updateResponse.json()
+      console.log('✅ Week settings updated:', updatedSettings)
+      
+      // Update local state immediately
+      if (updatedSettings && updatedSettings.length > 0) {
+        setWeekSettings(updatedSettings[0])
+        console.log('✅ Local week settings state updated')
+      }
 
       // Reload data
       console.log('🔄 Reloading week data...')
