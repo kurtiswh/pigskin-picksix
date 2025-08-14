@@ -233,12 +233,18 @@ export default function UserManagement() {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
       
-      // Use direct API call to avoid hanging Supabase client
+      // Get the authenticated user's session token
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+      
+      console.log('🔑 Using authenticated token for payment update:', !!accessToken)
+      
+      // Use direct API call with authenticated token
       const response = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments`, {
         method: 'POST',
         headers: {
           'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
+          'Authorization': `Bearer ${accessToken || apiKey || ''}`,
           'Content-Type': 'application/json',
           'Prefer': 'resolution=merge-duplicates'
         },
