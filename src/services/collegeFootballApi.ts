@@ -54,6 +54,7 @@ export interface CFBGame {
   home_ranking?: number
   away_ranking?: number
   game_importance?: number // calculated importance score
+  custom_lock_time?: string // custom lock time set by admin
 }
 
 export interface CFBTeam {
