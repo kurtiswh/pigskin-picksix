@@ -10,7 +10,6 @@ import GameCard from '@/components/GameCard'
 import PickSummary from '@/components/PickSummary'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { NotificationScheduler } from '@/services/notificationScheduler'
 
 export default function PickSheetPage() {
   const { user, signOut } = useAuth()
@@ -512,60 +511,54 @@ export default function PickSheetPage() {
     
     try {
       setSubmitting(true)
+      console.log('📤 Submitting picks via direct API...')
       
-      // Mark all picks as submitted
-      const { error } = await supabase
-        .from('picks')
-        .update({ 
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
+      // Get auth token with timeout
+      let authToken = apiKey
+      try {
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session timeout')), 3000)
+        )
+        
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
+        authToken = session?.access_token || apiKey
+      } catch (sessionError) {
+        console.warn('⚠️ Submit session failed, using API key:', sessionError)
+        authToken = apiKey
+      }
+      
+      // Mark all picks as submitted via direct API
+      const response = await fetch(`${supabaseUrl}/rest/v1/picks?user_id=eq.${user.id}&week=eq.${currentWeek}&season=eq.${currentSeason}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
           submitted: true,
           submitted_at: new Date().toISOString()
         })
-        .eq('user_id', user.id)
-        .eq('week', currentWeek)
-        .eq('season', currentSeason)
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Failed to submit picks: ${response.status} - ${errorText}`)
+      }
       
-      if (error) throw error
+      console.log('✅ Picks submitted successfully via direct API')
       
       // Refresh picks to show submitted status
       await fetchPickSheetData()
       
-      // Handle notification workflow for pick submission
-      try {
-        // Format picks for email
-        const formattedPicks = picks.map(pick => {
-          const game = games.find(g => g.id === pick.game_id)
-          return {
-            game: game ? `${game.away_team} @ ${game.home_team}` : 'Unknown Game',
-            pick: pick.selected_team,
-            isLock: pick.is_lock,
-            lockTime: game ? new Date(game.kickoff_time).toLocaleDateString('en-US', {
-              weekday: 'short',
-              month: 'short',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: '2-digit',
-              timeZoneName: 'short'
-            }) : 'Unknown Time'
-          }
-        })
-
-        await NotificationScheduler.onPicksSubmitted(
-          user.id,
-          user.email,
-          user.display_name,
-          currentWeek,
-          currentSeason,
-          formattedPicks
-        )
-      } catch (notifyError) {
-        console.warn('Failed to process notifications:', notifyError)
-        // Don't fail the submission for notification errors
-      }
-      
       alert('Picks submitted successfully! Good luck! 🏈')
       
     } catch (err: any) {
-      console.error('Error submitting picks:', err)
+      console.error('❌ Error submitting picks:', err)
       setError(err.message)
     } finally {
       setSubmitting(false)
