@@ -65,7 +65,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     existingPickSets: ExistingPickSet[]
     selectedPickSet: 'new' | 'existing'
   } | null>(null)
-  const [userSearch, setUserSearch] = useState('')
+  const [userSearch, setUserSearch] = useState<{[key: string]: string}>>({})
 
   useEffect(() => {
     loadData()
@@ -186,9 +186,9 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
       const results: ExistingPickSet[] = []
 
-      // Check authenticated picks
+      // Check authenticated picks (only submitted ones)
       const authPicksResponse = await fetch(
-        `${supabaseUrl}/rest/v1/picks?user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&select=submitted_at`,
+        `${supabaseUrl}/rest/v1/picks?user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&submitted=eq.true&select=submitted_at`,
         {
           method: 'GET',
           headers: {
@@ -215,9 +215,9 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         }
       }
 
-      // Check other anonymous picks assigned to this user
+      // Check other anonymous picks assigned to this user that are on leaderboard
       const anonPicksResponse = await fetch(
-        `${supabaseUrl}/rest/v1/anonymous_picks?assigned_user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&select=submitted_at`,
+        `${supabaseUrl}/rest/v1/anonymous_picks?assigned_user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&show_on_leaderboard=eq.true&select=submitted_at`,
         {
           method: 'GET',
           headers: {
@@ -312,6 +312,52 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       setConflictResolution(null)
     } catch (err: any) {
       console.error('❌ Error confirming assignment:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUnassignPickSet = async (pickSet: PickSet) => {
+    try {
+      setLoading(true)
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+
+      console.log('🔄 Unassigning pick set...', { email: pickSet.email })
+
+      for (const pick of pickSet.picks) {
+        const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            assigned_user_id: null,
+            show_on_leaderboard: false
+          })
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`Failed to unassign pick: ${response.status} - ${errorText}`)
+        }
+      }
+
+      console.log('✅ Pick set unassigned successfully')
+
+      // Update local state
+      setPickSets(prev => 
+        prev.map(ps => 
+          ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
+            ? { ...ps, assignedUserId: undefined, showOnLeaderboard: false }
+            : ps
+        )
+      )
+    } catch (err: any) {
+      console.error('❌ Error unassigning pick set:', err)
       setError(err.message)
     } finally {
       setLoading(false)
@@ -472,17 +518,21 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                         <Input
                           type="text"
                           placeholder="Search for user..."
-                          value={userSearch}
-                          onChange={(e) => setUserSearch(e.target.value)}
+                          value={userSearch[`${pickSet.email}-${pickSet.submittedAt}`] || ''}
+                          onChange={(e) => setUserSearch(prev => ({
+                            ...prev,
+                            [`${pickSet.email}-${pickSet.submittedAt}`]: e.target.value
+                          }))}
                           className="w-full"
                         />
-                        {userSearch.length > 0 && (
+                        {(userSearch[`${pickSet.email}-${pickSet.submittedAt}`] || '').length > 0 && (
                           <div className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto">
                             {users
-                              .filter(user => 
-                                user.display_name.toLowerCase().includes(userSearch.toLowerCase()) ||
-                                user.email.toLowerCase().includes(userSearch.toLowerCase())
-                              )
+                              .filter(user => {
+                                const searchTerm = userSearch[`${pickSet.email}-${pickSet.submittedAt}`] || ''
+                                return user.display_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                       user.email.toLowerCase().includes(searchTerm.toLowerCase())
+                              })
                               .slice(0, 10)
                               .map(user => (
                                 <button
@@ -490,7 +540,10 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                                   className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm border-b border-gray-100 last:border-b-0"
                                   onClick={() => {
                                     handleAssignPickSet(pickSet, user.id)
-                                    setUserSearch('')
+                                    setUserSearch(prev => ({
+                                      ...prev,
+                                      [`${pickSet.email}-${pickSet.submittedAt}`]: ''
+                                    }))
                                   }}
                                 >
                                   <div className="font-medium">{user.display_name}</div>
@@ -498,10 +551,11 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                                 </button>
                               ))
                             }
-                            {users.filter(user => 
-                              user.display_name.toLowerCase().includes(userSearch.toLowerCase()) ||
-                              user.email.toLowerCase().includes(userSearch.toLowerCase())
-                            ).length === 0 && (
+                            {users.filter(user => {
+                              const searchTerm = userSearch[`${pickSet.email}-${pickSet.submittedAt}`] || ''
+                              return user.display_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                     user.email.toLowerCase().includes(searchTerm.toLowerCase())
+                            }).length === 0 && (
                               <div className="px-3 py-2 text-gray-500 text-sm">No users found</div>
                             )}
                           </div>
@@ -557,13 +611,20 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                         </div>
                       </div>
                       
-                      <div className="ml-4">
+                      <div className="ml-4 flex flex-col space-y-2">
                         <Button
                           variant={pickSet.showOnLeaderboard ? "default" : "outline"}
                           size="sm"
                           onClick={() => handleToggleLeaderboard(pickSet, !pickSet.showOnLeaderboard)}
                         >
                           {pickSet.showOnLeaderboard ? "📊 On Leaderboard" : "📊 Hidden"}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleUnassignPickSet(pickSet)}
+                        >
+                          🔄 Unassign
                         </Button>
                       </div>
                     </div>
