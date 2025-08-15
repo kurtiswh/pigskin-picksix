@@ -4,6 +4,7 @@ import { Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { getCurrentWeek } from '@/services/collegeFootballApi'
 import { getWeekDataDirect } from '@/lib/supabase-direct'
+import { ENV } from '@/lib/env'
 import { Game, Pick, WeekSettings } from '@/types'
 import GameCard from '@/components/GameCard'
 import PickSummary from '@/components/PickSummary'
@@ -129,24 +130,31 @@ export default function PickSheetPage() {
           console.log('⚠️ No games found for this week')
         }
 
-        // Fetch user's existing picks (still use regular client for this)
+        // Fetch user's existing picks using direct API
         try {
-          const { data: picksData, error: picksError } = await supabase
-            .from('picks')
-            .select('*')
-            .eq('user_id', user!.id)
-            .eq('week', currentWeek)
-            .eq('season', currentSeason)
+          console.log('📋 Loading user picks via direct API...')
+          const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+          const apiKey = ENV.SUPABASE_ANON_KEY
 
-          if (picksError) {
-            console.warn('⚠️ Failed to load user picks:', picksError)
-            setPicks([])
-          } else {
+          const picksResponse = await fetch(`${supabaseUrl}/rest/v1/picks?user_id=eq.${user!.id}&week=eq.${currentWeek}&season=eq.${currentSeason}`, {
+            method: 'GET',
+            headers: {
+              'apikey': apiKey || '',
+              'Authorization': `Bearer ${apiKey || ''}`,
+              'Content-Type': 'application/json'
+            }
+          })
+
+          if (picksResponse.ok) {
+            const picksData = await picksResponse.json()
             setPicks(picksData || [])
-            console.log('✅ Loaded user picks:', picksData?.length || 0)
+            console.log('✅ Loaded user picks via direct API:', picksData?.length || 0)
+          } else {
+            console.warn('⚠️ Failed to load picks via direct API:', picksResponse.status)
+            setPicks([])
           }
         } catch (picksError) {
-          console.warn('⚠️ Exception loading picks:', picksError)
+          console.warn('⚠️ Exception loading picks via direct API:', picksError)
           setPicks([])
         }
 
