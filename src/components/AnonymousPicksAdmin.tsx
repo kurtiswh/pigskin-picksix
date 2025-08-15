@@ -157,12 +157,6 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     // For validated emails, we need to check for existing pick sets regardless
     // to ensure only one pick set per user per week counts toward leaderboard
     
-    console.log('🔍 Checking for existing pick sets for user...', { userId, isValidated: pickSet.isValidated, email: pickSet.email })
-    
-    // Find the selected user to get more details
-    const selectedUser = users.find(u => u.id === userId)
-    console.log('👤 Selected user details:', selectedUser)
-    
     // Check for existing pick sets for this user this week
     const existingPickSets = await checkExistingPickSets(userId, selectedWeek, selectedSeason)
     
@@ -188,15 +182,12 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
 
-      console.log('🔍 Checking existing pick sets for:', { userId, week, season })
-
       const results: ExistingPickSet[] = []
 
       // Check authenticated picks (only submitted ones)
-      const authPicksUrl = `${supabaseUrl}/rest/v1/picks?user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&submitted=eq.true&select=submitted_at`
-      console.log('🔍 Auth picks query URL:', authPicksUrl)
-      
-      const authPicksResponse = await fetch(authPicksUrl, {
+      const authPicksResponse = await fetch(
+        `${supabaseUrl}/rest/v1/picks?user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&submitted=eq.true&select=submitted_at`,
+        {
         method: 'GET',
         headers: {
           'apikey': apiKey || '',
@@ -207,11 +198,9 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
       if (authPicksResponse.ok) {
         const authPicks = await authPicksResponse.json()
-        console.log('✅ Found authenticated picks:', authPicks.length, authPicks)
         if (authPicks.length > 0) {
           // Group by submitted_at to get pick sets
           const submissionTimes = [...new Set(authPicks.map(p => p.submitted_at))]
-          console.log('📅 Submission times found:', submissionTimes)
           for (const submittedAt of submissionTimes) {
             const pickCount = authPicks.filter(p => p.submitted_at === submittedAt).length
             results.push({
@@ -221,8 +210,6 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
             })
           }
         }
-      } else {
-        console.error('❌ Auth picks query failed:', authPicksResponse.status, await authPicksResponse.text())
       }
 
       // Check other anonymous picks assigned to this user that are on leaderboard
@@ -254,7 +241,6 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         }
       }
 
-      console.log('🔍 Final results for conflict detection:', results)
       return results.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
     } catch (err: any) {
       console.error('❌ Error checking existing pick sets:', err)

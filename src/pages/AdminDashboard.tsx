@@ -27,7 +27,9 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   
-  const currentSeason = new Date().getFullYear()
+  // College football season spans calendar years (e.g., 2024-2025 season is "2024")
+  // We're currently in 2025, but the football season started in 2024
+  const currentSeason = 2024
   const [currentWeek, setCurrentWeek] = useState(getCurrentWeek(currentSeason))
   const maxGames = 15
 
