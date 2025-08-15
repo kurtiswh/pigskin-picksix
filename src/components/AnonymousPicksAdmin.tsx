@@ -88,8 +88,10 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       // Find user by email
       const matchingUser = users.find(u => u.email === pickSet.email)
       if (matchingUser) {
-        console.log(`🔍 Auto-processing validated user: ${pickSet.email}`)
+        console.log(`🔍 Auto-processing validated user: ${pickSet.email} -> User ID: ${matchingUser.id}`)
         await handleAssignPickSet(pickSet, matchingUser.id, true) // true = auto mode
+      } else {
+        console.log(`⚠️ No matching user found for validated email: ${pickSet.email}`)
       }
     }
   }
@@ -190,7 +192,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     if (existingPickSets.length === 0) {
       // No conflicts - safe to assign and add to leaderboard
       if (autoMode && pickSet.isValidated) {
-        console.log(`✅ Auto-assigning validated user ${pickSet.email} - no conflicts`)
+        console.log(`✅ Auto-assigning validated user ${pickSet.email} - no conflicts found`)
         await confirmAssignment(pickSet, userId, 'new')
         // Update local state to show as auto-assigned
         setPickSets(prev => 
@@ -207,7 +209,11 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     } else {
       // Conflicts found - show conflict resolution dialog
       // This applies to both validated and unvalidated users
-      console.log('⚠️ Existing pick sets found, showing conflict resolution:', existingPickSets.length)
+      console.log(`⚠️ Conflicts found for ${pickSet.email}:`, existingPickSets.length, 'existing pick sets')
+      console.log('📋 Existing pick sets details:', existingPickSets)
+      if (autoMode && pickSet.isValidated) {
+        console.log(`🔄 Showing conflict resolution for validated user: ${pickSet.email}`)
+      }
       setConflictResolution({
         pickSet,
         assignedUserId: userId,
@@ -221,6 +227,8 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     try {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
+
+      console.log(`🔍 Checking existing pick sets for user ${userId}, week ${week}, season ${season}`)
 
       const results: ExistingPickSet[] = []
 
@@ -240,9 +248,11 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
       if (authPicksResponse.ok) {
         const authPicks = await authPicksResponse.json()
+        console.log(`📊 Found ${authPicks.length} authenticated picks for user ${userId}`)
         if (authPicks.length > 0) {
           // Group by submitted_at to get pick sets
           const submissionTimes = [...new Set(authPicks.map(p => p.submitted_at))]
+          console.log(`📅 Authenticated submission times:`, submissionTimes)
           for (const submittedAt of submissionTimes) {
             const pickCount = authPicks.filter(p => p.submitted_at === submittedAt).length
             results.push({
@@ -252,6 +262,8 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
             })
           }
         }
+      } else {
+        console.log(`❌ Failed to fetch authenticated picks: ${authPicksResponse.status}`)
       }
 
       // Check other anonymous picks assigned to this user that are on leaderboard
@@ -269,9 +281,11 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
       if (anonPicksResponse.ok) {
         const anonPicks = await anonPicksResponse.json()
+        console.log(`📊 Found ${anonPicks.length} assigned anonymous picks for user ${userId}`)
         if (anonPicks.length > 0) {
           // Group by submitted_at to get pick sets
           const submissionTimes = [...new Set(anonPicks.map(p => p.submitted_at))]
+          console.log(`📅 Anonymous submission times:`, submissionTimes)
           for (const submittedAt of submissionTimes) {
             const pickCount = anonPicks.filter(p => p.submitted_at === submittedAt).length
             results.push({
@@ -281,8 +295,11 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
             })
           }
         }
+      } else {
+        console.log(`❌ Failed to fetch anonymous picks: ${anonPicksResponse.status}`)
       }
 
+      console.log(`📋 Total conflicts found: ${results.length}`, results)
       return results.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
     } catch (err: any) {
       console.error('❌ Error checking existing pick sets:', err)
