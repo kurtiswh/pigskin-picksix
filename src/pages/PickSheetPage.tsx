@@ -199,12 +199,16 @@ export default function PickSheetPage() {
     console.log('🔍 Function start - user:', user?.id, 'picks count:', picks.length)
     
     try {
+      console.log('🔧 Step 1: Getting environment variables...')
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
+      console.log('🔧 Environment check - URL:', !!supabaseUrl, 'API Key:', !!apiKey)
       
       // Get the current session token for authenticated requests
+      console.log('🔧 Step 2: Getting auth session...')
       const { data: { session } } = await supabase.auth.getSession()
       const authToken = session?.access_token || apiKey
+      console.log('🔧 Session check - hasSession:', !!session, 'hasAccessToken:', !!session?.access_token)
       
       console.log('🔐 Auth token info:', {
         hasSession: !!session,
@@ -214,11 +218,14 @@ export default function PickSheetPage() {
         userId: user?.id
       })
       
+      console.log('🔧 Step 3: Finding existing pick...')
       const existingPick = picks.find(p => p.game_id === gameId)
+      console.log('🔍 Existing pick found:', !!existingPick, existingPick?.id)
       
       if (existingPick) {
         // Update existing pick and reset submitted status
         console.log('📝 Updating existing pick via direct API...')
+        console.log('🔧 Step 4a: Making PATCH request to update existing pick...')
         
         const response = await fetch(`${supabaseUrl}/rest/v1/picks?id=eq.${existingPick.id}`, {
           method: 'PATCH',
@@ -252,6 +259,7 @@ export default function PickSheetPage() {
       } else {
         // Create new pick
         console.log('➕ Creating new pick via direct API...')
+        console.log('🔧 Step 4b: Making POST request to create new pick...')
         console.log('🔍 User ID for pick creation:', user!.id)
         console.log('🔍 User object:', user)
         
