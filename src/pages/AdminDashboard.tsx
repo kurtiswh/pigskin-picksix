@@ -748,19 +748,39 @@ export default function AdminDashboard() {
     try {
       setLoading(true)
       setError('')
+      
+      console.log('⚙️ Updating week settings via direct API...', updates)
 
-      const { error } = await supabase
-        .from('week_settings')
-        .update(updates)
-        .eq('week', currentWeek)
-        .eq('season', currentSeason)
+      // Use direct API approach to avoid timeouts
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
 
-      if (error) throw error
+      const updateResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${currentWeek}&season=eq.${currentSeason}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(updates)
+      })
 
+      if (!updateResponse.ok) {
+        const errorText = await updateResponse.text()
+        console.error('❌ Settings update failed:', errorText)
+        throw new Error(`Failed to update settings: ${updateResponse.status} - ${errorText}`)
+      }
+
+      const updatedSettings = await updateResponse.json()
+      console.log('✅ Settings updated via direct API:', updatedSettings)
+
+      // Update local state
       setWeekSettings(prev => prev ? { ...prev, ...updates } : null)
+      console.log('✅ Local settings state updated')
 
     } catch (err: any) {
-      console.error('Error updating settings:', err)
+      console.error('❌ Error updating settings:', err)
       setError(err.message)
     } finally {
       setLoading(false)
