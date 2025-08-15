@@ -186,6 +186,51 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
       // First let's check ALL picks for this user to see what exists
       console.log('🔍 Checking ALL picks for user:', userId)
+      
+      // Also check if there are ANY picks with this email to see if there's a user ID mismatch
+      const selectedUser = users.find(u => u.id === userId)
+      if (selectedUser) {
+        console.log('👤 Selected user details:', selectedUser)
+        
+        // Let's also search for picks by any user with this email
+        const allUsersResponse = await fetch(
+          `${supabaseUrl}/rest/v1/users?email=eq.${selectedUser.email}&select=id,email,display_name`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': apiKey || '',
+              'Authorization': `Bearer ${apiKey || ''}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+        
+        if (allUsersResponse.ok) {
+          const usersWithEmail = await allUsersResponse.json()
+          console.log('👥 All users with this email:', usersWithEmail)
+          
+          // Check picks for each user ID with this email
+          for (const user of usersWithEmail) {
+            const picksResponse = await fetch(
+              `${supabaseUrl}/rest/v1/picks?user_id=eq.${user.id}&select=week,season,submitted,submitted_at,user_id`,
+              {
+                method: 'GET',
+                headers: {
+                  'apikey': apiKey || '',
+                  'Authorization': `Bearer ${apiKey || ''}`,
+                  'Content-Type': 'application/json'
+                }
+              }
+            )
+            
+            if (picksResponse.ok) {
+              const picks = await picksResponse.json()
+              console.log(`📊 Picks for user ID ${user.id} (${user.email}):`, picks)
+            }
+          }
+        }
+      }
+      
       const allPicksResponse = await fetch(
         `${supabaseUrl}/rest/v1/picks?user_id=eq.${userId}&select=week,season,submitted,submitted_at`,
         {
@@ -200,7 +245,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       
       if (allPicksResponse.ok) {
         const allPicks = await allPicksResponse.json()
-        console.log('📊 ALL picks for user:', allPicks)
+        console.log('📊 ALL picks for selected user ID:', allPicks)
       }
 
       // Check authenticated picks (only submitted ones)
