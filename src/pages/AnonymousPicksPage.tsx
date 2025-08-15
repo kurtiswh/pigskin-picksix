@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { getCurrentWeek } from '@/services/collegeFootballApi'
+import { getWeekDataDirect } from '@/lib/supabase-direct'
+import { ENV } from '@/lib/env'
 import { Game, WeekSettings } from '@/types'
 import GameCard from '@/components/GameCard'
 import { Button } from '@/components/ui/button'
@@ -35,22 +37,51 @@ export default function AnonymousPicksPage() {
 
   const validateEmail = async (emailToCheck: string) => {
     try {
-      // Check if email exists in users table or leaguesafe_payments
-      const { data: existingUsers } = await supabase
-        .from('users')
-        .select('email, leaguesafe_email')
-        .or(`email.eq.${emailToCheck},leaguesafe_email.eq.${emailToCheck}`)
-        .limit(1)
+      console.log('📧 Validating email via direct API:', emailToCheck)
+      
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
 
-      const { data: leaguesafeUsers } = await supabase
-        .from('leaguesafe_payments')
-        .select('leaguesafe_email')
-        .eq('leaguesafe_email', emailToCheck)
-        .limit(1)
+      // Check users table
+      const usersResponse = await fetch(`${supabaseUrl}/rest/v1/users?or=(email.eq.${emailToCheck},leaguesafe_email.eq.${emailToCheck})&limit=1`, {
+        method: 'GET',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
 
-      return (existingUsers && existingUsers.length > 0) || (leaguesafeUsers && leaguesafeUsers.length > 0)
+      if (usersResponse.ok) {
+        const users = await usersResponse.json()
+        if (users && users.length > 0) {
+          console.log('✅ Email found in users table')
+          return true
+        }
+      }
+
+      // Check leaguesafe_payments table
+      const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?leaguesafe_email=eq.${emailToCheck}&limit=1`, {
+        method: 'GET',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (paymentsResponse.ok) {
+        const payments = await paymentsResponse.json()
+        if (payments && payments.length > 0) {
+          console.log('✅ Email found in leaguesafe payments')
+          return true
+        }
+      }
+
+      console.log('❌ Email not found in any table')
+      return false
     } catch (error) {
-      console.error('Error validating email:', error)
+      console.error('❌ Error validating email:', error)
       return false
     }
   }
@@ -66,31 +97,59 @@ export default function AnonymousPicksPage() {
     try {
       setLoading(true)
       setError('')
+      
+      console.log('🏈 Loading anonymous picks data with direct API...')
 
-      // Fetch week settings
-      const { data: weekData, error: weekError } = await supabase
-        .from('week_settings')
-        .select('*')
-        .eq('week', currentWeek)
-        .eq('season', currentSeason)
-        .single()
+      try {
+        // Use direct API to get week data (settings + games)
+        const weekData = await getWeekDataDirect(currentWeek, currentSeason)
+        
+        console.log('📊 Direct API loaded week settings:', weekData.weekSettings)
+        console.log('📊 Direct API loaded games:', weekData.games?.length || 0)
+        
+        // Set week settings
+        if (weekData.weekSettings) {
+          setWeekSettings(weekData.weekSettings)
+        } else {
+          // Create mock settings if none exist
+          setWeekSettings({
+            id: 'mock-week',
+            week: currentWeek,
+            season: currentSeason,
+            deadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            picks_open: false, // Default to closed if no settings
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+        }
 
-      if (weekError && weekError.code !== 'PGRST116') throw weekError
-      setWeekSettings(weekData)
+        // Convert and set games
+        if (weekData.games && weekData.games.length > 0) {
+          const convertedGames: Game[] = weekData.games.map(game => ({
+            id: game.id,
+            week: game.week,
+            season: game.season,
+            away_team: game.away_team,
+            home_team: game.home_team,
+            kickoff_time: game.kickoff_time,
+            spread: game.spread,
+            custom_lock_time: game.custom_lock_time,
+            status: game.status || 'scheduled'
+          }))
+          setGames(convertedGames)
+          console.log('✅ Converted and set games for anonymous picks:', convertedGames.length)
+        } else {
+          setGames([])
+          console.log('⚠️ No games found for anonymous picks')
+        }
 
-      // Fetch games for this week
-      const { data: gamesData, error: gamesError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('week', currentWeek)
-        .eq('season', currentSeason)
-        .order('kickoff_time', { ascending: true })
-
-      if (gamesError) throw gamesError
-      setGames(gamesData || [])
+      } catch (error) {
+        console.error('❌ Direct API failed for anonymous picks:', error)
+        setError('Failed to load games data. Please try again.')
+      }
 
     } catch (err: any) {
-      console.error('Error fetching data:', err)
+      console.error('Error in fetchGamesData:', err)
       setError(err.message)
     } finally {
       setLoading(false)

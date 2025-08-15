@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { getCurrentWeek } from '@/services/collegeFootballApi'
+import { getWeekDataDirect } from '@/lib/supabase-direct'
 import { Game, Pick, WeekSettings } from '@/types'
 import GameCard from '@/components/GameCard'
 import PickSummary from '@/components/PickSummary'
@@ -82,75 +83,80 @@ export default function PickSheetPage() {
     try {
       setLoading(true)
       setError('')
-
-      // Add aggressive timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout - using mock data')), 8000)
-      )
+      
+      console.log('🏈 Loading pick sheet data with direct API...')
 
       try {
-        // Fetch week settings
-        const weekQuery = supabase
-          .from('week_settings')
-          .select('*')
-          .eq('week', currentWeek)
-          .eq('season', currentSeason)
-          .single()
-
-        const weekResult = await Promise.race([weekQuery, timeoutPromise])
+        // Use direct API to get week data (settings + games)
+        const weekData = await getWeekDataDirect(currentWeek, currentSeason)
         
-        if (weekResult.error && weekResult.error.code !== 'PGRST116') {
-          throw weekResult.error
+        console.log('📊 Direct API loaded week settings:', weekData.weekSettings)
+        console.log('📊 Direct API loaded games:', weekData.games?.length || 0)
+        
+        // Set week settings
+        if (weekData.weekSettings) {
+          setWeekSettings(weekData.weekSettings)
+        } else {
+          // Create mock settings if none exist
+          setWeekSettings({
+            id: 'mock-week',
+            week: currentWeek,
+            season: currentSeason,
+            deadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            picks_open: false, // Default to closed if no settings
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
         }
-        setWeekSettings(weekResult.data)
 
-        // Fetch games for this week
-        const gamesQuery = supabase
-          .from('games')
-          .select('*')
-          .eq('week', currentWeek)
-          .eq('season', currentSeason)
-          .order('kickoff_time', { ascending: true })
+        // Convert and set games
+        if (weekData.games && weekData.games.length > 0) {
+          const convertedGames: Game[] = weekData.games.map(game => ({
+            id: game.id,
+            week: game.week,
+            season: game.season,
+            away_team: game.away_team,
+            home_team: game.home_team,
+            kickoff_time: game.kickoff_time,
+            spread: game.spread,
+            custom_lock_time: game.custom_lock_time,
+            status: game.status || 'scheduled'
+          }))
+          setGames(convertedGames)
+          console.log('✅ Converted and set games:', convertedGames.length)
+        } else {
+          setGames([])
+          console.log('⚠️ No games found for this week')
+        }
 
-        const gamesResult = await Promise.race([gamesQuery, timeoutPromise])
-        if (gamesResult.error) throw gamesResult.error
-        setGames(gamesResult.data || [])
+        // Fetch user's existing picks (still use regular client for this)
+        try {
+          const { data: picksData, error: picksError } = await supabase
+            .from('picks')
+            .select('*')
+            .eq('user_id', user!.id)
+            .eq('week', currentWeek)
+            .eq('season', currentSeason)
 
-        // Fetch user's existing picks
-        const picksQuery = supabase
-          .from('picks')
-          .select('*')
-          .eq('user_id', user!.id)
-          .eq('week', currentWeek)
-          .eq('season', currentSeason)
+          if (picksError) {
+            console.warn('⚠️ Failed to load user picks:', picksError)
+            setPicks([])
+          } else {
+            setPicks(picksData || [])
+            console.log('✅ Loaded user picks:', picksData?.length || 0)
+          }
+        } catch (picksError) {
+          console.warn('⚠️ Exception loading picks:', picksError)
+          setPicks([])
+        }
 
-        const picksResult = await Promise.race([picksQuery, timeoutPromise])
-        if (picksResult.error) throw picksResult.error
-        setPicks(picksResult.data || [])
-
-      } catch (timeoutError) {
-        console.log('⏰ Pick sheet queries timed out, using fallback data...')
-        
-        // Set mock week settings
-        setWeekSettings({
-          id: 'mock-week',
-          week: currentWeek,
-          season: currentSeason,
-          deadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
-          picks_open: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        
-        // Set empty games array (will show "No Games Available")
-        setGames([])
-        setPicks([])
-        
-        console.log('✅ Using fallback mock data for pick sheet')
+      } catch (error) {
+        console.error('❌ Direct API failed:', error)
+        setError('Failed to load pick sheet data. Please try again.')
       }
 
     } catch (err: any) {
-      console.error('Error fetching pick sheet data:', err)
+      console.error('Error in fetchPickSheetData:', err)
       setError(err.message)
     } finally {
       setLoading(false)
