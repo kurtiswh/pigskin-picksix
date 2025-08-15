@@ -100,6 +100,10 @@ export default function GameCard({
     Math.abs(actualLockTime.getTime() - defaultLockTime.getTime()) > 60000 // More than 1 minute difference
   
   const shouldShowLockTimeIndicator = isThursdayFridayGame || isCustomLockTimeDifferent
+  
+  // Check if this game is locked (past its lock time)
+  const now = new Date()
+  const isGameLocked = now > actualLockTime
 
   const getSpreadDisplay = (team: string) => {
     if (team === game.home_team) {
@@ -110,7 +114,7 @@ export default function GameCard({
   }
 
   const handleTeamSelect = (team: string) => {
-    if (disabled) return
+    if (disabled || isGameLocked) return
     
     if (!isPicked && isMaxPicks) {
       // Show feedback that max picks reached
@@ -122,7 +126,7 @@ export default function GameCard({
   }
 
   const handleLockToggle = () => {
-    if (!isPicked || disabled) return
+    if (!isPicked || disabled || isGameLocked) return
     onToggleLock(game.id)
   }
 
@@ -130,10 +134,17 @@ export default function GameCard({
     <Card className={cn(
       "relative transition-all duration-300 hover:shadow-xl h-full",
       isPicked && "ring-2 ring-pigskin-500",
-      isLock && "ring-gold-500 bg-gradient-to-br from-gold-50 to-white"
+      isLock && "ring-gold-500 bg-gradient-to-br from-gold-50 to-white",
+      isGameLocked && "opacity-60 bg-stone-100 border-stone-300"
     )}>
       {isLock && (
         <div className="absolute -top-2 -right-2 w-8 h-8 bg-gold-500 text-pigskin-900 rounded-full flex items-center justify-center text-sm font-bold z-10">
+          🔒
+        </div>
+      )}
+      
+      {isGameLocked && (
+        <div className="absolute -top-2 -left-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center text-sm font-bold z-10">
           🔒
         </div>
       )}
@@ -163,9 +174,17 @@ export default function GameCard({
           
           {/* Lock Time Indicator */}
           {shouldShowLockTimeIndicator && (
-            <div className="bg-amber-100 border border-amber-300 text-amber-800 px-2 py-1 rounded text-xs mb-2">
+            <div className={cn(
+              "px-2 py-1 rounded text-xs mb-2",
+              isGameLocked 
+                ? "bg-red-100 border border-red-300 text-red-800"
+                : "bg-amber-100 border border-amber-300 text-amber-800"
+            )}>
               <div className="font-semibold text-center">
-                ⏰ Locks: {formatLockTime(actualLockTime.toISOString())}
+                {isGameLocked 
+                  ? "🔒 LOCKED" 
+                  : `⏰ Locks: ${formatLockTime(actualLockTime.toISOString())}`
+                }
               </div>
             </div>
           )}
@@ -178,14 +197,15 @@ export default function GameCard({
           {/* Away Team */}
           <button
             onClick={() => handleTeamSelect(game.away_team)}
-            disabled={disabled || (!isPicked && isMaxPicks)}
+            disabled={disabled || (!isPicked && isMaxPicks) || isGameLocked}
             className={cn(
               "w-full p-3 rounded-lg border-2 transition-all duration-200 text-left flex justify-between items-center",
               selectedTeam === game.away_team 
                 ? "border-pigskin-500 bg-pigskin-50 shadow-md" 
                 : "border-stone-200 hover:border-pigskin-300 hover:bg-stone-50",
-              disabled && "opacity-50 cursor-not-allowed",
-              !isPicked && isMaxPicks && "opacity-60 cursor-not-allowed"
+              (disabled || isGameLocked) && "opacity-50 cursor-not-allowed",
+              !isPicked && isMaxPicks && "opacity-60 cursor-not-allowed",
+              isGameLocked && "bg-stone-50 border-stone-300"
             )}
           >
             <div>
@@ -203,14 +223,15 @@ export default function GameCard({
           {/* Home Team */}
           <button
             onClick={() => handleTeamSelect(game.home_team)}
-            disabled={disabled || (!isPicked && isMaxPicks)}
+            disabled={disabled || (!isPicked && isMaxPicks) || isGameLocked}
             className={cn(
               "w-full p-3 rounded-lg border-2 transition-all duration-200 text-left flex justify-between items-center",
               selectedTeam === game.home_team 
                 ? "border-pigskin-500 bg-pigskin-50 shadow-md" 
                 : "border-stone-200 hover:border-pigskin-300 hover:bg-stone-50",
-              disabled && "opacity-50 cursor-not-allowed",
-              !isPicked && isMaxPicks && "opacity-60 cursor-not-allowed"
+              (disabled || isGameLocked) && "opacity-50 cursor-not-allowed",
+              !isPicked && isMaxPicks && "opacity-60 cursor-not-allowed",
+              isGameLocked && "bg-stone-50 border-stone-300"
             )}
           >
             <div>
@@ -231,12 +252,17 @@ export default function GameCard({
           <div className="mt-4 pt-3 border-t border-stone-200">
             <Button
               onClick={handleLockToggle}
-              disabled={disabled}
+              disabled={disabled || isGameLocked}
               variant={isLock ? "secondary" : "outline"}
               size="sm"
               className="w-full"
             >
-              {isLock ? "🔒 LOCK PICK" : "Set as Lock Pick"}
+              {isGameLocked 
+                ? "🔒 GAME LOCKED" 
+                : isLock 
+                ? "🔒 LOCK PICK" 
+                : "Set as Lock Pick"
+              }
             </Button>
           </div>
         )}
@@ -247,10 +273,16 @@ export default function GameCard({
             <div className="text-sm text-pigskin-600 font-medium">
               Pick: {selectedTeam} {getSpreadDisplay(selectedTeam)}
               {isLock && " (LOCK)"}
+              {isGameLocked && " - LOCKED"}
             </div>
           ) : (
             <div className="text-sm text-charcoal-400">
-              {isMaxPicks ? "Max picks reached" : "Click a team to pick"}
+              {isGameLocked 
+                ? "Game locked - no picks allowed" 
+                : isMaxPicks 
+                ? "Max picks reached" 
+                : "Click a team to pick"
+              }
             </div>
           )}
         </div>
