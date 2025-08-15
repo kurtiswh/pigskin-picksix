@@ -68,6 +68,14 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     selectedPickSet: 'new' | 'existing'
   } | null>(null)
   const [userSearch, setUserSearch] = useState<{[key: string]: string}>({})
+  const [userPickSets, setUserPickSets] = useState<{[userEmail: string]: {conflicts: ExistingPickSet[], assignedPickSet?: PickSet}}>({})
+  const [viewAllSetsDialog, setViewAllSetsDialog] = useState<{
+    userEmail: string
+    userName: string
+    userId: string
+    allSets: (ExistingPickSet | {source: 'new_anonymous', submittedAt: string, pickCount: number, pickSet: PickSet})[]
+    currentAssignment?: PickSet
+  } | null>(null)
 
   useEffect(() => {
     loadData()
@@ -189,6 +197,15 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     // Check for existing pick sets for this user this week
     const existingPickSets = await checkExistingPickSets(userId, selectedWeek, selectedSeason)
     
+    // Track pick sets for this user
+    setUserPickSets(prev => ({
+      ...prev,
+      [pickSet.email]: {
+        conflicts: existingPickSets,
+        assignedPickSet: pickSet
+      }
+    }))
+
     if (existingPickSets.length === 0) {
       // No conflicts - safe to assign and add to leaderboard
       if (autoMode && pickSet.isValidated) {
@@ -372,6 +389,33 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleViewAllSets = async (pickSet: PickSet) => {
+    const assignedUser = users.find(u => u.id === pickSet.assignedUserId)
+    if (!assignedUser) return
+
+    // Get all pick sets for this user
+    const conflicts = userPickSets[pickSet.email]?.conflicts || []
+    
+    // Combine existing pick sets with current anonymous pick set
+    const allSets = [
+      ...conflicts,
+      {
+        source: 'new_anonymous' as const,
+        submittedAt: pickSet.submittedAt,
+        pickCount: pickSet.picks.length,
+        pickSet
+      }
+    ]
+
+    setViewAllSetsDialog({
+      userEmail: pickSet.email,
+      userName: pickSet.name,
+      userId: assignedUser.id,
+      allSets,
+      currentAssignment: pickSet
+    })
   }
 
   const handleUnassignPickSet = async (pickSet: PickSet) => {
@@ -658,6 +702,9 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                             {pickSet.autoAssigned && (
                               <Badge variant="default" className="bg-green-100 text-green-800">🤖 Auto-Assigned</Badge>
                             )}
+                            {userPickSets[pickSet.email]?.conflicts.length > 0 && (
+                              <Badge variant="secondary" className="bg-orange-100 text-orange-800">⚠️ Multiple Pick Sets</Badge>
+                            )}
                             <Badge variant="outline">{pickSet.picks.length} picks</Badge>
                           </div>
                         </div>
@@ -687,6 +734,15 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                         >
                           {pickSet.showOnLeaderboard ? "📊 On Leaderboard" : "📊 Hidden"}
                         </Button>
+                        {userPickSets[pickSet.email]?.conflicts.length > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewAllSets(pickSet)}
+                          >
+                            👁️ View All Sets ({userPickSets[pickSet.email].conflicts.length + 1})
+                          </Button>
+                        )}
                         <Button
                           variant="destructive"
                           size="sm"
@@ -793,6 +849,73 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                   className="flex-1"
                 >
                   Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* View All Sets Dialog */}
+      {viewAllSetsDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="max-w-4xl mx-4 max-h-[80vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>📊 All Pick Sets for {viewAllSetsDialog.userName} ({viewAllSetsDialog.userEmail})</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="font-semibold text-blue-800 mb-2">
+                  Found {viewAllSetsDialog.allSets.length} pick sets for this user
+                </div>
+                <div className="text-blue-700 text-sm">
+                  Review all pick sets to understand which one should count toward the leaderboard.
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {viewAllSetsDialog.allSets.map((set, index) => (
+                  <div key={index} className={`border rounded p-4 ${
+                    set.source === 'new_anonymous' ? 'bg-green-50 border-green-200' : 'bg-gray-50'
+                  }`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <div className="font-medium">
+                          {set.source === 'authenticated' ? '🔐 Authenticated Picks' : 
+                           set.source === 'anonymous' ? '👤 Other Anonymous Picks' : 
+                           '🆕 Current Anonymous Picks'}
+                          {set.source === 'new_anonymous' && ' (Currently Assigned)'}
+                        </div>
+                        <div className="text-sm text-charcoal-600">
+                          {set.pickCount} picks • Submitted: {new Date(set.submittedAt).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {set.source === 'new_anonymous' && 'pickSet' in set && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {set.pickSet.picks.map(pick => (
+                          <div key={pick.id} className="text-sm bg-white p-2 rounded border">
+                            <div className="font-medium">{pick.away_team} @ {pick.home_team}</div>
+                            <div className="text-charcoal-600">
+                              Pick: <span className="font-medium">{pick.selected_team}</span>
+                              {pick.is_lock && <Badge className="ml-1 text-xs bg-gold-500">LOCK</Badge>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex space-x-3">
+                <Button
+                  onClick={() => setViewAllSetsDialog(null)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Close
                 </Button>
               </div>
             </CardContent>
