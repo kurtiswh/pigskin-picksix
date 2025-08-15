@@ -123,9 +123,9 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
       console.log('📋 Loading anonymous picks and users...')
 
-      // Load anonymous picks for the selected week/season
+      // Load anonymous picks for the selected week/season (including assignment columns)
       const picksResponse = await fetch(
-        `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&order=submitted_at.desc`,
+        `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&select=*&order=submitted_at.desc`,
         {
           method: 'GET',
           headers: {
@@ -142,6 +142,17 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
       const picksData = await picksResponse.json()
       console.log('✅ Loaded anonymous picks:', picksData.length)
+      
+      // Debug: Check if assignment columns are present
+      const samplePick = picksData[0]
+      if (samplePick) {
+        console.log('📝 Sample pick data:', {
+          id: samplePick.id,
+          email: samplePick.email,
+          assigned_user_id: samplePick.assigned_user_id,
+          show_on_leaderboard: samplePick.show_on_leaderboard
+        })
+      }
 
       // Load all users for assignment
       const usersResponse = await fetch(`${supabaseUrl}/rest/v1/users?select=id,email,display_name,is_admin&order=display_name.asc`, {
@@ -185,6 +196,16 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
 
       console.log('✅ Grouped into pick sets:', pickSetsArray.length)
+      
+      // Debug: Show assignment status of pick sets
+      pickSetsArray.forEach(ps => {
+        if (ps.assignedUserId) {
+          console.log(`📌 Pick set ${ps.email} is assigned to user ${ps.assignedUserId}, leaderboard: ${ps.showOnLeaderboard}`)
+        } else {
+          console.log(`📌 Pick set ${ps.email} is unassigned`)
+        }
+      })
+      
       setPickSets(pickSetsArray)
       setUsers(usersData)
     } catch (err: any) {
