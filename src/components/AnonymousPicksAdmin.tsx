@@ -65,6 +65,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     existingPickSets: ExistingPickSet[]
     selectedPickSet: 'new' | 'existing'
   } | null>(null)
+  const [userSearch, setUserSearch] = useState('')
 
   useEffect(() => {
     loadData()
@@ -153,20 +154,22 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
   }
 
   const handleAssignPickSet = async (pickSet: PickSet, userId: string) => {
-    // If validated email, auto-assign without conflicts
-    if (pickSet.isValidated) {
-      await confirmAssignment(pickSet, userId, 'new')
-      return
-    }
-
+    // For validated emails, we need to check for existing pick sets regardless
+    // to ensure only one pick set per user per week counts toward leaderboard
+    
+    console.log('🔍 Checking for existing pick sets for user...', { userId, isValidated: pickSet.isValidated })
+    
     // Check for existing pick sets for this user this week
     const existingPickSets = await checkExistingPickSets(userId, selectedWeek, selectedSeason)
     
     if (existingPickSets.length === 0) {
-      // No conflicts, proceed with assignment
+      // No conflicts - safe to assign and add to leaderboard
+      console.log('✅ No existing pick sets found - proceeding with assignment')
       await confirmAssignment(pickSet, userId, 'new')
     } else {
-      // Show conflict resolution dialog
+      // Conflicts found - show conflict resolution dialog
+      // This applies to both validated and unvalidated users
+      console.log('⚠️ Existing pick sets found, showing conflict resolution:', existingPickSets.length)
       setConflictResolution({
         pickSet,
         assignedUserId: userId,
@@ -257,6 +260,20 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       if (keepPickSet === 'new') {
         // Assign this anonymous pick set to the user
         console.log('👤 Assigning anonymous pick set to user...', { email: pickSet.email, userId })
+
+        // First check if the columns exist by trying a test query
+        const testResponse = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pickSet.picks[0].id}&select=id,assigned_user_id,show_on_leaderboard`, {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (!testResponse.ok && testResponse.status === 400) {
+          throw new Error('Database schema not updated. Please run the migration to add assigned_user_id and show_on_leaderboard columns to anonymous_picks table.')
+        }
 
         for (const pick of pickSet.picks) {
           const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
@@ -425,9 +442,9 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                         <div className="font-semibold text-lg">{pickSet.name} ({pickSet.email})</div>
                         <div className="flex items-center space-x-2">
                           {pickSet.isValidated ? (
-                            <Badge variant="default" className="bg-green-100 text-green-800">✅ Validated</Badge>
+                            <Badge variant="default" className="bg-green-100 text-green-800">✅ Validated User</Badge>
                           ) : (
-                            <Badge variant="secondary">⚠️ Unvalidated</Badge>
+                            <Badge variant="secondary">⚠️ Unvalidated Email</Badge>
                           )}
                           <Badge variant="outline">{pickSet.picks.length} picks</Badge>
                         </div>
@@ -451,19 +468,44 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                     </div>
                     
                     <div className="ml-4 flex flex-col space-y-2">
-                      <div className="w-48">
-                        <Select 
-                          onValueChange={(userId) => handleAssignPickSet(pickSet, userId)}
+                      <div className="w-48 relative">
+                        <Input
+                          type="text"
+                          placeholder="Search for user..."
+                          value={userSearch}
+                          onChange={(e) => setUserSearch(e.target.value)}
                           className="w-full"
-                        >
-                          <SelectValue placeholder="Assign to user" />
-                          <SelectItem value="">Select user...</SelectItem>
-                          {users.map(user => (
-                            <SelectItem key={user.id} value={user.id}>
-                              {user.display_name}
-                            </SelectItem>
-                          ))}
-                        </Select>
+                        />
+                        {userSearch.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto">
+                            {users
+                              .filter(user => 
+                                user.display_name.toLowerCase().includes(userSearch.toLowerCase()) ||
+                                user.email.toLowerCase().includes(userSearch.toLowerCase())
+                              )
+                              .slice(0, 10)
+                              .map(user => (
+                                <button
+                                  key={user.id}
+                                  className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm border-b border-gray-100 last:border-b-0"
+                                  onClick={() => {
+                                    handleAssignPickSet(pickSet, user.id)
+                                    setUserSearch('')
+                                  }}
+                                >
+                                  <div className="font-medium">{user.display_name}</div>
+                                  <div className="text-gray-500 text-xs">{user.email}</div>
+                                </button>
+                              ))
+                            }
+                            {users.filter(user => 
+                              user.display_name.toLowerCase().includes(userSearch.toLowerCase()) ||
+                              user.email.toLowerCase().includes(userSearch.toLowerCase())
+                            ).length === 0 && (
+                              <div className="px-3 py-2 text-gray-500 text-sm">No users found</div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -543,11 +585,16 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
             <CardContent className="space-y-4">
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <div className="font-semibold text-amber-800 mb-2">
-                  User already has pick sets for Week {selectedWeek}, {selectedSeason}
+                  {conflictResolution.pickSet.isValidated 
+                    ? `Validated User Conflict Detected`
+                    : `User already has pick sets for Week ${selectedWeek}, ${selectedSeason}`
+                  }
                 </div>
                 <div className="text-amber-700 text-sm">
-                  Only one pick set per user per week can count towards the leaderboard.
-                  Choose which pick set should be active:
+                  {conflictResolution.pickSet.isValidated 
+                    ? `This user already has picks in the system for this week. Since they're a validated user, you must choose which pick set should count toward the leaderboard.`
+                    : `Only one pick set per user per week can count towards the leaderboard. Choose which pick set should be active:`
+                  }
                 </div>
               </div>
 
