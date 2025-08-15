@@ -12,6 +12,7 @@ import UserManagement from '@/components/UserManagement'
 import ApiStatusWidget from '@/components/ApiStatusWidget'
 import ScoreManager from '@/components/ScoreManager'
 import AdminNotifications from '@/components/AdminNotifications'
+import AnonymousPicksAdmin from '@/components/AnonymousPicksAdmin'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -19,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth()
-  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'notifications'>('games')
+  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'anonymous' | 'notifications'>('games')
   const [cfbGames, setCfbGames] = useState<CFBGame[]>([])
   const [selectedGames, setSelectedGames] = useState<CFBGame[]>([])
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
@@ -848,6 +849,16 @@ export default function AdminDashboard() {
             User Management
           </button>
           <button
+            onClick={() => setActiveTab('anonymous')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'anonymous'
+                ? 'bg-pigskin-500 text-white'
+                : 'text-charcoal-600 hover:text-pigskin-700'
+            }`}
+          >
+            👤 Anonymous Picks
+          </button>
+          <button
             onClick={() => setActiveTab('notifications')}
             className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
               activeTab === 'notifications'
@@ -948,6 +959,16 @@ export default function AdminDashboard() {
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-pigskin-900">User Management</h2>
             <UserManagement />
+          </div>
+        )}
+
+        {activeTab === 'anonymous' && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-pigskin-900">Anonymous Picks Management</h2>
+            <AnonymousPicksAdmin 
+              currentWeek={currentWeek}
+              currentSeason={currentSeason}
+            />
           </div>
         )}
 
