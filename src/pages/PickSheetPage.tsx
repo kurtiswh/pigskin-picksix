@@ -206,16 +206,26 @@ export default function PickSheetPage() {
       
       // Get the current session token for authenticated requests
       console.log('🔧 Step 2: Getting auth session...')
-      const { data: { session } } = await supabase.auth.getSession()
-      const authToken = session?.access_token || apiKey
-      console.log('🔧 Session check - hasSession:', !!session, 'hasAccessToken:', !!session?.access_token)
+      let authToken = apiKey
+      try {
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session timeout')), 3000)
+        )
+        
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
+        authToken = session?.access_token || apiKey
+        console.log('🔧 Session check - hasSession:', !!session, 'hasAccessToken:', !!session?.access_token)
+      } catch (sessionError) {
+        console.warn('⚠️ Session retrieval failed, using API key:', sessionError)
+        authToken = apiKey
+      }
       
       console.log('🔐 Auth token info:', {
-        hasSession: !!session,
-        hasAccessToken: !!session?.access_token,
-        usingJWT: !!session?.access_token,
-        tokenType: session?.access_token ? 'JWT' : 'API_KEY',
-        userId: user?.id
+        usingJWT: authToken !== apiKey,
+        tokenType: authToken !== apiKey ? 'JWT' : 'API_KEY',
+        userId: user?.id,
+        hasToken: !!authToken
       })
       
       console.log('🔧 Step 3: Finding existing pick...')
