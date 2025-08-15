@@ -33,6 +33,7 @@ interface PickSet {
   picks: AnonymousPick[]
   assignedUserId?: string
   showOnLeaderboard: boolean
+  autoAssigned?: boolean
 }
 
 interface User {
@@ -73,37 +74,28 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     checkCurrentUser()
   }, [selectedWeek, selectedSeason])
 
-  const checkCurrentUser = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        console.log('🧑‍💼 Currently logged in user ID:', user.id)
-        console.log('🧑‍💼 Currently logged in user email:', user.email)
-        
-        // Check picks for the currently logged-in user
-        const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-        const apiKey = ENV.SUPABASE_ANON_KEY
-        
-        const picksResponse = await fetch(
-          `${supabaseUrl}/rest/v1/picks?user_id=eq.${user.id}&select=week,season,submitted,submitted_at,user_id`,
-          {
-            method: 'GET',
-            headers: {
-              'apikey': apiKey || '',
-              'Authorization': `Bearer ${apiKey || ''}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        )
-        
-        if (picksResponse.ok) {
-          const picks = await picksResponse.json()
-          console.log('🎯 Picks for CURRENTLY LOGGED IN user:', picks)
-        }
-      }
-    } catch (error) {
-      console.error('Error checking current user:', error)
+  useEffect(() => {
+    // Auto-process validated users after data loads
+    if (!loading && pickSets.length > 0 && users.length > 0) {
+      processValidatedUsers()
     }
+  }, [loading, pickSets, users])
+
+  const processValidatedUsers = async () => {
+    const validatedPickSets = pickSets.filter(ps => ps.isValidated && !ps.assignedUserId)
+    
+    for (const pickSet of validatedPickSets) {
+      // Find user by email
+      const matchingUser = users.find(u => u.email === pickSet.email)
+      if (matchingUser) {
+        console.log(`🔍 Auto-processing validated user: ${pickSet.email}`)
+        await handleAssignPickSet(pickSet, matchingUser.id, true) // true = auto mode
+      }
+    }
+  }
+
+  const checkCurrentUser = async () => {
+    // This was used for debugging - can be removed if not needed
   }
 
   const loadData = async () => {
@@ -188,7 +180,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     }
   }
 
-  const handleAssignPickSet = async (pickSet: PickSet, userId: string) => {
+  const handleAssignPickSet = async (pickSet: PickSet, userId: string, autoMode = false) => {
     // For validated emails, we need to check for existing pick sets regardless
     // to ensure only one pick set per user per week counts toward leaderboard
     
@@ -197,8 +189,21 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     
     if (existingPickSets.length === 0) {
       // No conflicts - safe to assign and add to leaderboard
-      console.log('✅ No existing pick sets found - proceeding with assignment')
-      await confirmAssignment(pickSet, userId, 'new')
+      if (autoMode && pickSet.isValidated) {
+        console.log(`✅ Auto-assigning validated user ${pickSet.email} - no conflicts`)
+        await confirmAssignment(pickSet, userId, 'new')
+        // Update local state to show as auto-assigned
+        setPickSets(prev => 
+          prev.map(ps => 
+            ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
+              ? { ...ps, assignedUserId: userId, showOnLeaderboard: true, autoAssigned: true }
+              : ps
+          )
+        )
+      } else {
+        console.log('✅ No existing pick sets found - proceeding with assignment')
+        await confirmAssignment(pickSet, userId, 'new')
+      }
     } else {
       // Conflicts found - show conflict resolution dialog
       // This applies to both validated and unvalidated users
@@ -219,69 +224,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
       const results: ExistingPickSet[] = []
 
-      // First let's check ALL picks for this user to see what exists
-      console.log('🔍 Checking ALL picks for user:', userId)
-      
-      // Also check if there are ANY picks with this email to see if there's a user ID mismatch
-      const selectedUser = users.find(u => u.id === userId)
-      if (selectedUser) {
-        console.log('👤 Selected user details:', selectedUser)
-        
-        // Let's also search for picks by any user with this email
-        const allUsersResponse = await fetch(
-          `${supabaseUrl}/rest/v1/users?email=eq.${selectedUser.email}&select=id,email,display_name`,
-          {
-            method: 'GET',
-            headers: {
-              'apikey': apiKey || '',
-              'Authorization': `Bearer ${apiKey || ''}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        )
-        
-        if (allUsersResponse.ok) {
-          const usersWithEmail = await allUsersResponse.json()
-          console.log('👥 All users with this email:', usersWithEmail)
-          
-          // Check picks for each user ID with this email
-          for (const user of usersWithEmail) {
-            const picksResponse = await fetch(
-              `${supabaseUrl}/rest/v1/picks?user_id=eq.${user.id}&select=week,season,submitted,submitted_at,user_id`,
-              {
-                method: 'GET',
-                headers: {
-                  'apikey': apiKey || '',
-                  'Authorization': `Bearer ${apiKey || ''}`,
-                  'Content-Type': 'application/json'
-                }
-              }
-            )
-            
-            if (picksResponse.ok) {
-              const picks = await picksResponse.json()
-              console.log(`📊 Picks for user ID ${user.id} (${user.email}):`, picks)
-            }
-          }
-        }
-      }
-      
-      const allPicksResponse = await fetch(
-        `${supabaseUrl}/rest/v1/picks?user_id=eq.${userId}&select=week,season,submitted,submitted_at`,
-        {
-          method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      )
-      
-      if (allPicksResponse.ok) {
-        const allPicks = await allPicksResponse.json()
-        console.log('📊 ALL picks for selected user ID:', allPicks)
-      }
+      // Check for existing pick sets
 
       // Check authenticated picks (only submitted ones)
       const authPicksResponse = await fetch(
@@ -610,53 +553,62 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                     </div>
                     
                     <div className="ml-4 flex flex-col space-y-2">
-                      <div className="w-48 relative">
-                        <Input
-                          type="text"
-                          placeholder="Search for user..."
-                          value={userSearch[`${pickSet.email}-${pickSet.submittedAt}`] || ''}
-                          onChange={(e) => setUserSearch(prev => ({
-                            ...prev,
-                            [`${pickSet.email}-${pickSet.submittedAt}`]: e.target.value
-                          }))}
-                          className="w-full"
-                        />
-                        {(userSearch[`${pickSet.email}-${pickSet.submittedAt}`] || '').length > 0 && (
-                          <div className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto">
-                            {users
-                              .filter(user => {
+                      {pickSet.isValidated ? (
+                        <div className="w-48">
+                          <div className="text-center p-3 bg-blue-50 border border-blue-200 rounded-md">
+                            <div className="text-blue-800 font-medium mb-1">✅ Validated User</div>
+                            <div className="text-blue-600 text-sm">Auto-processing conflicts...</div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-48 relative">
+                          <Input
+                            type="text"
+                            placeholder="Search for user..."
+                            value={userSearch[`${pickSet.email}-${pickSet.submittedAt}`] || ''}
+                            onChange={(e) => setUserSearch(prev => ({
+                              ...prev,
+                              [`${pickSet.email}-${pickSet.submittedAt}`]: e.target.value
+                            }))}
+                            className="w-full"
+                          />
+                          {(userSearch[`${pickSet.email}-${pickSet.submittedAt}`] || '').length > 0 && (
+                            <div className="absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto">
+                              {users
+                                .filter(user => {
+                                  const searchTerm = userSearch[`${pickSet.email}-${pickSet.submittedAt}`] || ''
+                                  return user.display_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                         user.email.toLowerCase().includes(searchTerm.toLowerCase())
+                                })
+                                .slice(0, 10)
+                                .map(user => (
+                                  <button
+                                    key={user.id}
+                                    className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm border-b border-gray-100 last:border-b-0"
+                                    onClick={() => {
+                                      handleAssignPickSet(pickSet, user.id)
+                                      setUserSearch(prev => ({
+                                        ...prev,
+                                        [`${pickSet.email}-${pickSet.submittedAt}`]: ''
+                                      }))
+                                    }}
+                                  >
+                                    <div className="font-medium">{user.display_name}</div>
+                                    <div className="text-gray-500 text-xs">{user.email}</div>
+                                  </button>
+                                ))
+                              }
+                              {users.filter(user => {
                                 const searchTerm = userSearch[`${pickSet.email}-${pickSet.submittedAt}`] || ''
                                 return user.display_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                        user.email.toLowerCase().includes(searchTerm.toLowerCase())
-                              })
-                              .slice(0, 10)
-                              .map(user => (
-                                <button
-                                  key={user.id}
-                                  className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm border-b border-gray-100 last:border-b-0"
-                                  onClick={() => {
-                                    handleAssignPickSet(pickSet, user.id)
-                                    setUserSearch(prev => ({
-                                      ...prev,
-                                      [`${pickSet.email}-${pickSet.submittedAt}`]: ''
-                                    }))
-                                  }}
-                                >
-                                  <div className="font-medium">{user.display_name}</div>
-                                  <div className="text-gray-500 text-xs">{user.email}</div>
-                                </button>
-                              ))
-                            }
-                            {users.filter(user => {
-                              const searchTerm = userSearch[`${pickSet.email}-${pickSet.submittedAt}`] || ''
-                              return user.display_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                     user.email.toLowerCase().includes(searchTerm.toLowerCase())
-                            }).length === 0 && (
-                              <div className="px-3 py-2 text-gray-500 text-sm">No users found</div>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                              }).length === 0 && (
+                                <div className="px-3 py-2 text-gray-500 text-sm">No users found</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -686,6 +638,9 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                             <Badge variant="default" className="bg-blue-100 text-blue-800">
                               👤 {assignedUser?.display_name || 'Unknown User'}
                             </Badge>
+                            {pickSet.autoAssigned && (
+                              <Badge variant="default" className="bg-green-100 text-green-800">🤖 Auto-Assigned</Badge>
+                            )}
                             <Badge variant="outline">{pickSet.picks.length} picks</Badge>
                           </div>
                         </div>
