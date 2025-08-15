@@ -37,6 +37,64 @@ export default function GameCard({
     })
   }
 
+  const formatLockTime = (lockTime: string) => {
+    return new Date(lockTime).toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    })
+  }
+
+  // Calculate the default lock time for this game
+  const calculateDefaultLockTime = (gameStartDate: string) => {
+    const gameDate = new Date(gameStartDate)
+    const gameDay = gameDate.getDay() // 0 = Sunday, 6 = Saturday
+    
+    if (gameDay === 4 || gameDay === 5) {
+      // Thursday and Friday games - lock at 6:00 PM CT on the actual game day
+      const gameDayLock = new Date(gameDate.getFullYear(), gameDate.getMonth(), gameDate.getDate())
+      gameDayLock.setUTCHours(23, 0, 0, 0) // 6:00 PM CDT = 23:00 UTC
+      return gameDayLock
+    } else {
+      // Saturday, Sunday, Monday, Tuesday games - lock at Saturday 11:00 AM CT
+      // Find the Saturday that defines this week
+      const saturdayLock = new Date(gameDate)
+      
+      if (gameDay === 6) {
+        // Saturday game - lock the same Saturday at 11:00 AM CT
+        // No date change needed
+      } else if (gameDay === 0) {
+        // Sunday game - part of the previous Saturday's week (go back 1 day to Saturday)
+        saturdayLock.setDate(saturdayLock.getDate() - 1)
+      } else if (gameDay === 1) {
+        // Monday game - part of the previous Saturday's week (go back 2 days to Saturday)
+        saturdayLock.setDate(saturdayLock.getDate() - 2)
+      } else if (gameDay === 2) {
+        // Tuesday game - part of the previous Saturday's week (go back 3 days to Saturday)
+        saturdayLock.setDate(saturdayLock.getDate() - 3)
+      } else if (gameDay === 3) {
+        // Wednesday game - part of the upcoming Saturday's week (go forward 3 days to Saturday)
+        saturdayLock.setDate(saturdayLock.getDate() + 3)
+      }
+      
+      // Set to 11:00 AM CDT = 16:00 UTC
+      saturdayLock.setUTCHours(16, 0, 0, 0)
+      return saturdayLock
+    }
+  }
+
+  // Check if this game has a custom lock time
+  const hasCustomLockTime = !!game.custom_lock_time
+  const actualLockTime = hasCustomLockTime ? new Date(game.custom_lock_time!) : calculateDefaultLockTime(game.kickoff_time)
+  const defaultLockTime = calculateDefaultLockTime(game.kickoff_time)
+  
+  // Only show custom lock time warning if it's actually different from default
+  const isCustomLockTimeDifferent = hasCustomLockTime && 
+    Math.abs(actualLockTime.getTime() - defaultLockTime.getTime()) > 60000 // More than 1 minute difference
+
   const getSpreadDisplay = (team: string) => {
     if (team === game.home_team) {
       return game.spread > 0 ? `+${game.spread}` : `${game.spread}`
@@ -96,6 +154,19 @@ export default function GameCard({
           <div className="text-xs text-charcoal-500 mb-1">
             {formatTime(game.kickoff_time)}
           </div>
+          
+          {/* Custom Lock Time Warning */}
+          {isCustomLockTimeDifferent && (
+            <div className="bg-amber-100 border border-amber-300 text-amber-800 px-2 py-1 rounded text-xs mb-2">
+              <div className="font-semibold flex items-center justify-center gap-1">
+                ⏰ Custom Lock Time
+              </div>
+              <div className="text-xs">
+                Locks: {formatLockTime(actualLockTime.toISOString())}
+              </div>
+            </div>
+          )}
+          
           <div className="yard-line mb-2"></div>
         </div>
 

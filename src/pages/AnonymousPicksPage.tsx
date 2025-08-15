@@ -416,7 +416,7 @@ export default function AnonymousPicksPage() {
                   <p className="text-green-600 text-sm mt-1">✅ Email validated - you're in our system!</p>
                 )}
                 {isValidated === false && email.trim() && (
-                  <p className="text-orange-600 text-sm mt-1">⚠️ Email not found - picks will require manual verification & won't show in the leaderboard until confirmed.</p>
+                  <p className="text-orange-600 text-sm mt-1">⚠️ Email not found - picks will require manual verification by admins and won't show in the leaderboard until reviewed and confirmed.</p>
                 )}
               </div>
             </div>
