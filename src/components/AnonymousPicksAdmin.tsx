@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { supabase } from '@/lib/supabase'
 
 interface AnonymousPick {
   id: string
@@ -69,7 +70,41 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
   useEffect(() => {
     loadData()
+    checkCurrentUser()
   }, [selectedWeek, selectedSeason])
+
+  const checkCurrentUser = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        console.log('🧑‍💼 Currently logged in user ID:', user.id)
+        console.log('🧑‍💼 Currently logged in user email:', user.email)
+        
+        // Check picks for the currently logged-in user
+        const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+        const apiKey = ENV.SUPABASE_ANON_KEY
+        
+        const picksResponse = await fetch(
+          `${supabaseUrl}/rest/v1/picks?user_id=eq.${user.id}&select=week,season,submitted,submitted_at,user_id`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': apiKey || '',
+              'Authorization': `Bearer ${apiKey || ''}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+        
+        if (picksResponse.ok) {
+          const picks = await picksResponse.json()
+          console.log('🎯 Picks for CURRENTLY LOGGED IN user:', picks)
+        }
+      }
+    } catch (error) {
+      console.error('Error checking current user:', error)
+    }
+  }
 
   const loadData = async () => {
     try {
