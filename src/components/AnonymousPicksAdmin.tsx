@@ -93,13 +93,18 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     const validatedPickSets = pickSets.filter(ps => ps.isValidated && !ps.assignedUserId)
     
     for (const pickSet of validatedPickSets) {
-      // Find user by email
-      const matchingUser = users.find(u => u.email === pickSet.email)
-      if (matchingUser) {
-        console.log(`🔍 Auto-processing validated user: ${pickSet.email} -> User ID: ${matchingUser.id}`)
-        await handleAssignPickSet(pickSet, matchingUser.id, true) // true = auto mode
-      } else {
-        console.log(`⚠️ No matching user found for validated email: ${pickSet.email}`)
+      try {
+        // Find user by email
+        const matchingUser = users.find(u => u.email === pickSet.email)
+        if (matchingUser) {
+          console.log(`🔍 Auto-processing validated user: ${pickSet.email} -> User ID: ${matchingUser.id}`)
+          await handleAssignPickSet(pickSet, matchingUser.id, true) // true = auto mode
+        } else {
+          console.log(`⚠️ No matching user found for validated email: ${pickSet.email}`)
+        }
+      } catch (error) {
+        console.error(`❌ Error auto-processing ${pickSet.email}:`, error)
+        setError(`Failed to auto-process ${pickSet.email}: ${error.message}`)
       }
     }
   }
@@ -211,11 +216,11 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       if (autoMode && pickSet.isValidated) {
         console.log(`✅ Auto-assigning validated user ${pickSet.email} - no conflicts found`)
         await confirmAssignment(pickSet, userId, 'new')
-        // Update local state to show as auto-assigned
+        // Update local state to show as auto-assigned (in addition to confirmAssignment's update)
         setPickSets(prev => 
           prev.map(ps => 
             ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
-              ? { ...ps, assignedUserId: userId, showOnLeaderboard: true, autoAssigned: true }
+              ? { ...ps, autoAssigned: true }  // Just add the auto-assigned flag
               : ps
           )
         )
@@ -348,7 +353,10 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
           throw new Error('Database schema not updated. Please run the migration to add assigned_user_id and show_on_leaderboard columns to anonymous_picks table.')
         }
 
+        console.log(`📝 Updating ${pickSet.picks.length} picks for assignment...`)
+        
         for (const pick of pickSet.picks) {
+          console.log(`🔄 Updating pick ${pick.id}...`)
           const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
             method: 'PATCH',
             headers: {
@@ -364,7 +372,10 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
           if (!response.ok) {
             const errorText = await response.text()
+            console.error(`❌ Failed to update pick ${pick.id}:`, response.status, errorText)
             throw new Error(`Failed to assign pick: ${response.status} - ${errorText}`)
+          } else {
+            console.log(`✅ Successfully updated pick ${pick.id}`)
           }
         }
 
