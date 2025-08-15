@@ -192,6 +192,10 @@ export default function PickSheetPage() {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
       
+      // Get the current session token for authenticated requests
+      const { data: { session } } = await supabase.auth.getSession()
+      const authToken = session?.access_token || apiKey
+      
       const existingPick = picks.find(p => p.game_id === gameId)
       
       if (existingPick) {
@@ -202,7 +206,7 @@ export default function PickSheetPage() {
           method: 'PATCH',
           headers: {
             'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
+            'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json',
             'Prefer': 'return=representation'
           },
@@ -225,12 +229,14 @@ export default function PickSheetPage() {
       } else {
         // Create new pick
         console.log('➕ Creating new pick via direct API...')
+        console.log('🔍 User ID for pick creation:', user!.id)
+        console.log('🔍 User object:', user)
         
         const response = await fetch(`${supabaseUrl}/rest/v1/picks`, {
           method: 'POST',
           headers: {
             'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
+            'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json',
             'Prefer': 'return=representation'
           },
@@ -279,11 +285,15 @@ export default function PickSheetPage() {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
       
+      // Get the current session token for authenticated requests
+      const { data: { session } } = await supabase.auth.getSession()
+      const authToken = session?.access_token || apiKey
+      
       await fetch(`${supabaseUrl}/rest/v1/picks?user_id=eq.${user!.id}&week=eq.${currentWeek}&season=eq.${currentSeason}`, {
         method: 'PATCH',
         headers: {
           'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ submitted: false, submitted_at: null })
@@ -322,6 +332,10 @@ export default function PickSheetPage() {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
       
+      // Get the current session token for authenticated requests
+      const { data: { session } } = await supabase.auth.getSession()
+      const authToken = session?.access_token || apiKey
+      
       const pickToLock = picks.find(p => p.game_id === gameId)
       if (!pickToLock) return
 
@@ -335,7 +349,7 @@ export default function PickSheetPage() {
           method: 'PATCH',
           headers: {
             'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
+            'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ is_lock: false })
@@ -355,7 +369,7 @@ export default function PickSheetPage() {
         method: 'PATCH',
         headers: {
           'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
           'Prefer': 'return=representation'
         },
