@@ -83,9 +83,13 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
   }, [selectedWeek, selectedSeason])
 
   useEffect(() => {
-    // Auto-process validated users after data loads
+    // Auto-process validated users after data loads (with delay to avoid race conditions)
     if (!loading && pickSets.length > 0 && users.length > 0) {
-      processValidatedUsers()
+      const timer = setTimeout(() => {
+        processValidatedUsers()
+      }, 500) // 500ms delay to ensure data is stable
+      
+      return () => clearTimeout(timer)
     }
   }, [loading, pickSets, users])
 
@@ -397,6 +401,27 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
             throw new Error(`Failed to assign pick: ${response.status} - ${errorText}`)
           } else {
             console.log(`✅ Successfully updated pick ${pick.id}`)
+          }
+        }
+
+        // Verify the assignment was saved to database
+        const verifyResponse = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pickSet.picks[0].id}&select=assigned_user_id,show_on_leaderboard`, {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        if (verifyResponse.ok) {
+          const verifyData = await verifyResponse.json()
+          console.log('🔍 Verification - pick in database:', verifyData[0])
+          if (verifyData[0]?.assigned_user_id !== userId) {
+            console.error('❌ Database verification failed - assignment not saved!')
+            throw new Error('Assignment verification failed - database not updated')
+          } else {
+            console.log('✅ Database verification successful - assignment saved')
           }
         }
 
