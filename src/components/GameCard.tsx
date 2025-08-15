@@ -86,14 +86,20 @@ export default function GameCard({
     }
   }
 
-  // Check if this game has a custom lock time
+  // Determine if we should show lock time indicator
+  const gameDate = new Date(game.kickoff_time)
+  const gameDay = gameDate.getDay() // 0 = Sunday, 6 = Saturday
+  const isThursdayFridayGame = gameDay === 4 || gameDay === 5 // Thursday or Friday
+  
   const hasCustomLockTime = !!game.custom_lock_time
   const actualLockTime = hasCustomLockTime ? new Date(game.custom_lock_time!) : calculateDefaultLockTime(game.kickoff_time)
   const defaultLockTime = calculateDefaultLockTime(game.kickoff_time)
   
-  // Only show custom lock time warning if it's actually different from default
+  // Show indicator for Thursday/Friday games OR games with custom lock times that differ from default
   const isCustomLockTimeDifferent = hasCustomLockTime && 
     Math.abs(actualLockTime.getTime() - defaultLockTime.getTime()) > 60000 // More than 1 minute difference
+  
+  const shouldShowLockTimeIndicator = isThursdayFridayGame || isCustomLockTimeDifferent
 
   const getSpreadDisplay = (team: string) => {
     if (team === game.home_team) {
@@ -155,14 +161,11 @@ export default function GameCard({
             {formatTime(game.kickoff_time)}
           </div>
           
-          {/* Custom Lock Time Warning */}
-          {isCustomLockTimeDifferent && (
+          {/* Lock Time Indicator */}
+          {shouldShowLockTimeIndicator && (
             <div className="bg-amber-100 border border-amber-300 text-amber-800 px-2 py-1 rounded text-xs mb-2">
-              <div className="font-semibold flex items-center justify-center gap-1">
-                ⏰ Custom Lock Time
-              </div>
-              <div className="text-xs">
-                Locks: {formatLockTime(actualLockTime.toISOString())}
+              <div className="font-semibold text-center">
+                ⏰ Locks: {formatLockTime(actualLockTime.toISOString())}
               </div>
             </div>
           )}
