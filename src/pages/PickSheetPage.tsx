@@ -196,6 +196,14 @@ export default function PickSheetPage() {
       const { data: { session } } = await supabase.auth.getSession()
       const authToken = session?.access_token || apiKey
       
+      console.log('🔐 Auth token info:', {
+        hasSession: !!session,
+        hasAccessToken: !!session?.access_token,
+        usingJWT: !!session?.access_token,
+        tokenType: session?.access_token ? 'JWT' : 'API_KEY',
+        userId: user?.id
+      })
+      
       const existingPick = picks.find(p => p.game_id === gameId)
       
       if (existingPick) {
@@ -219,13 +227,18 @@ export default function PickSheetPage() {
 
         if (!response.ok) {
           const errorText = await response.text()
+          console.error('❌ Failed to update pick:', response.status, errorText)
           throw new Error(`Failed to update pick: ${response.status} - ${errorText}`)
         }
 
         const data = await response.json()
-        console.log('✅ Pick updated successfully via direct API')
+        console.log('✅ Pick updated successfully via direct API:', data)
         
-        setPicks(prev => prev.map(p => p.id === existingPick.id ? data[0] : p))
+        if (data && data.length > 0) {
+          setPicks(prev => prev.map(p => p.id === existingPick.id ? data[0] : p))
+        } else {
+          console.warn('⚠️ Update response empty or invalid:', data)
+        }
       } else {
         // Create new pick
         console.log('➕ Creating new pick via direct API...')
@@ -253,13 +266,19 @@ export default function PickSheetPage() {
 
         if (!response.ok) {
           const errorText = await response.text()
+          console.error('❌ Failed to create pick:', response.status, errorText)
           throw new Error(`Failed to create pick: ${response.status} - ${errorText}`)
         }
 
         const data = await response.json()
-        console.log('✅ Pick created successfully via direct API')
+        console.log('✅ Pick created successfully via direct API:', data)
         
-        setPicks(prev => [...prev, data[0]])
+        if (data && data.length > 0) {
+          setPicks(prev => [...prev, data[0]])
+          console.log('✅ Added new pick to state:', data[0])
+        } else {
+          console.warn('⚠️ Create response empty or invalid:', data)
+        }
       }
     } catch (err: any) {
       console.error('❌ Error updating pick via direct API:', err)
