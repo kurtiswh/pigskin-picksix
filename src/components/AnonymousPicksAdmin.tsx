@@ -24,11 +24,27 @@ interface AnonymousPick {
   created_at: string
 }
 
+interface PickSet {
+  email: string
+  name: string
+  submittedAt: string
+  isValidated: boolean
+  picks: AnonymousPick[]
+  assignedUserId?: string
+  showOnLeaderboard: boolean
+}
+
 interface User {
   id: string
   email: string
   display_name: string
   is_admin: boolean
+}
+
+interface ExistingPickSet {
+  submittedAt: string
+  source: 'authenticated' | 'anonymous'
+  pickCount: number
 }
 
 interface AnonymousPicksAdminProps {
@@ -37,12 +53,18 @@ interface AnonymousPicksAdminProps {
 }
 
 export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: AnonymousPicksAdminProps) {
-  const [anonymousPicks, setAnonymousPicks] = useState<AnonymousPick[]>([])
+  const [pickSets, setPickSets] = useState<PickSet[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedWeek, setSelectedWeek] = useState(currentWeek)
   const [selectedSeason, setSelectedSeason] = useState(currentSeason)
+  const [conflictResolution, setConflictResolution] = useState<{
+    pickSet: PickSet
+    assignedUserId: string
+    existingPickSets: ExistingPickSet[]
+    selectedPickSet: 'new' | 'existing'
+  } | null>(null)
 
   useEffect(() => {
     loadData()
@@ -95,7 +117,32 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       const usersData = await usersResponse.json()
       console.log('✅ Loaded users for assignment:', usersData.length)
 
-      setAnonymousPicks(picksData)
+      // Group picks into pick sets by email + submitted_at (to handle multiple submissions from same email)
+      const pickSetMap = new Map<string, PickSet>()
+      
+      for (const pick of picksData) {
+        const key = `${pick.email}-${pick.submitted_at}`
+        
+        if (!pickSetMap.has(key)) {
+          pickSetMap.set(key, {
+            email: pick.email,
+            name: pick.name,
+            submittedAt: pick.submitted_at,
+            isValidated: pick.is_validated,
+            picks: [],
+            assignedUserId: pick.assigned_user_id,
+            showOnLeaderboard: pick.show_on_leaderboard
+          })
+        }
+        
+        pickSetMap.get(key)!.picks.push(pick)
+      }
+
+      const pickSetsArray = Array.from(pickSetMap.values())
+        .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+
+      console.log('✅ Grouped into pick sets:', pickSetsArray.length)
+      setPickSets(pickSetsArray)
       setUsers(usersData)
     } catch (err: any) {
       console.error('❌ Error loading anonymous picks admin data:', err)
@@ -105,81 +152,189 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     }
   }
 
-  const handleAssignUser = async (pickId: string, userId: string) => {
-    try {
-      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
+  const handleAssignPickSet = async (pickSet: PickSet, userId: string) => {
+    // If validated email, auto-assign without conflicts
+    if (pickSet.isValidated) {
+      await confirmAssignment(pickSet, userId, 'new')
+      return
+    }
 
-      console.log('👤 Assigning user to anonymous pick...', { pickId, userId })
-
-      const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pickId}`, {
-        method: 'PATCH',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify({
-          assigned_user_id: userId || null
-        })
+    // Check for existing pick sets for this user this week
+    const existingPickSets = await checkExistingPickSets(userId, selectedWeek, selectedSeason)
+    
+    if (existingPickSets.length === 0) {
+      // No conflicts, proceed with assignment
+      await confirmAssignment(pickSet, userId, 'new')
+    } else {
+      // Show conflict resolution dialog
+      setConflictResolution({
+        pickSet,
+        assignedUserId: userId,
+        existingPickSets,
+        selectedPickSet: 'new'
       })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Failed to assign user: ${response.status} - ${errorText}`)
-      }
-
-      const updatedData = await response.json()
-      console.log('✅ User assigned successfully')
-
-      // Update local state
-      setAnonymousPicks(prev => 
-        prev.map(pick => 
-          pick.id === pickId 
-            ? { ...pick, assigned_user_id: userId || undefined }
-            : pick
-        )
-      )
-    } catch (err: any) {
-      console.error('❌ Error assigning user:', err)
-      setError(err.message)
     }
   }
 
-  const handleToggleLeaderboard = async (pickId: string, showOnLeaderboard: boolean) => {
+  const checkExistingPickSets = async (userId: string, week: number, season: number): Promise<ExistingPickSet[]> => {
     try {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
 
-      console.log('📊 Toggling leaderboard visibility...', { pickId, showOnLeaderboard })
+      const results: ExistingPickSet[] = []
 
-      const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pickId}`, {
-        method: 'PATCH',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify({
-          show_on_leaderboard: showOnLeaderboard
-        })
-      })
+      // Check authenticated picks
+      const authPicksResponse = await fetch(
+        `${supabaseUrl}/rest/v1/picks?user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&select=submitted_at`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Failed to update leaderboard visibility: ${response.status} - ${errorText}`)
+      if (authPicksResponse.ok) {
+        const authPicks = await authPicksResponse.json()
+        if (authPicks.length > 0) {
+          // Group by submitted_at to get pick sets
+          const submissionTimes = [...new Set(authPicks.map(p => p.submitted_at))]
+          for (const submittedAt of submissionTimes) {
+            const pickCount = authPicks.filter(p => p.submitted_at === submittedAt).length
+            results.push({
+              submittedAt,
+              source: 'authenticated',
+              pickCount
+            })
+          }
+        }
       }
 
-      console.log('✅ Leaderboard visibility updated')
+      // Check other anonymous picks assigned to this user
+      const anonPicksResponse = await fetch(
+        `${supabaseUrl}/rest/v1/anonymous_picks?assigned_user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&select=submitted_at`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      if (anonPicksResponse.ok) {
+        const anonPicks = await anonPicksResponse.json()
+        if (anonPicks.length > 0) {
+          // Group by submitted_at to get pick sets
+          const submissionTimes = [...new Set(anonPicks.map(p => p.submitted_at))]
+          for (const submittedAt of submissionTimes) {
+            const pickCount = anonPicks.filter(p => p.submitted_at === submittedAt).length
+            results.push({
+              submittedAt,
+              source: 'anonymous',
+              pickCount
+            })
+          }
+        }
+      }
+
+      return results.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+    } catch (err: any) {
+      console.error('❌ Error checking existing pick sets:', err)
+      return []
+    }
+  }
+
+  const confirmAssignment = async (pickSet: PickSet, userId: string, keepPickSet: 'new' | 'existing') => {
+    try {
+      setLoading(true)
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+
+      if (keepPickSet === 'new') {
+        // Assign this anonymous pick set to the user
+        console.log('👤 Assigning anonymous pick set to user...', { email: pickSet.email, userId })
+
+        for (const pick of pickSet.picks) {
+          const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
+            method: 'PATCH',
+            headers: {
+              'apikey': apiKey || '',
+              'Authorization': `Bearer ${apiKey || ''}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              assigned_user_id: userId,
+              show_on_leaderboard: true  // Default to showing on leaderboard when assigned
+            })
+          })
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            throw new Error(`Failed to assign pick: ${response.status} - ${errorText}`)
+          }
+        }
+
+        // Update local state
+        setPickSets(prev => 
+          prev.map(ps => 
+            ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
+              ? { ...ps, assignedUserId: userId, showOnLeaderboard: true }
+              : ps
+          )
+        )
+
+        console.log('✅ Pick set assigned successfully')
+      }
+      // Note: If keepPickSet === 'existing', we just don't assign the anonymous picks
+      // The existing authenticated picks remain the active ones
+
+      setConflictResolution(null)
+    } catch (err: any) {
+      console.error('❌ Error confirming assignment:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleToggleLeaderboard = async (pickSet: PickSet, showOnLeaderboard: boolean) => {
+    try {
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+
+      console.log('📊 Toggling leaderboard visibility for pick set...', { email: pickSet.email, showOnLeaderboard })
+
+      for (const pick of pickSet.picks) {
+        const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            show_on_leaderboard: showOnLeaderboard
+          })
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`Failed to update leaderboard visibility: ${response.status} - ${errorText}`)
+        }
+      }
+
+      console.log('✅ Leaderboard visibility updated for pick set')
 
       // Update local state
-      setAnonymousPicks(prev => 
-        prev.map(pick => 
-          pick.id === pickId 
-            ? { ...pick, show_on_leaderboard: showOnLeaderboard }
-            : pick
+      setPickSets(prev => 
+        prev.map(ps => 
+          ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
+            ? { ...ps, showOnLeaderboard }
+            : ps
         )
       )
     } catch (err: any) {
@@ -188,37 +343,9 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     }
   }
 
-  const handleBulkAssign = async (email: string, userId: string) => {
-    const picksToAssign = anonymousPicks.filter(pick => 
-      pick.email === email && !pick.assigned_user_id
-    )
-
-    if (picksToAssign.length === 0) return
-
-    try {
-      setLoading(true)
-      
-      for (const pick of picksToAssign) {
-        await handleAssignUser(pick.id, userId)
-      }
-
-      console.log(`✅ Bulk assigned ${picksToAssign.length} picks to user`)
-    } catch (err: any) {
-      console.error('❌ Error in bulk assignment:', err)
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Group picks by email for easier management
-  const picksByEmail = anonymousPicks.reduce((acc, pick) => {
-    if (!acc[pick.email]) {
-      acc[pick.email] = []
-    }
-    acc[pick.email].push(pick)
-    return acc
-  }, {} as Record<string, AnonymousPick[]>)
+  // Filter pick sets based on status
+  const unassignedPickSets = pickSets.filter(ps => !ps.assignedUserId)
+  const assignedPickSets = pickSets.filter(ps => ps.assignedUserId)
 
   if (loading) {
     return (
@@ -266,7 +393,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
           </div>
           
           <div className="text-sm text-charcoal-600">
-            Found {anonymousPicks.length} anonymous picks from {Object.keys(picksByEmail).length} unique emails
+            Found {pickSets.length} pick sets • {unassignedPickSets.length} unassigned • {assignedPickSets.length} assigned
           </div>
         </CardContent>
       </Card>
@@ -282,63 +409,55 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         </Card>
       )}
 
-      {/* Anonymous Picks by Email */}
-      {Object.entries(picksByEmail).map(([email, picks]) => (
-        <Card key={email}>
+      {/* Unassigned Pick Sets */}
+      {unassignedPickSets.length > 0 && (
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <span>{email}</span>
-                <div className="flex items-center space-x-2">
-                  {picks[0]?.is_validated ? (
-                    <Badge variant="default" className="bg-green-100 text-green-800">Validated</Badge>
-                  ) : (
-                    <Badge variant="secondary">Unvalidated</Badge>
-                  )}
-                  <Badge variant="outline">{picks.length} picks</Badge>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Select onValueChange={(userId) => handleBulkAssign(email, userId)} className="w-48">
-                  <SelectValue placeholder="Bulk assign all picks" />
-                  <SelectItem value="">No assignment</SelectItem>
-                  {users.map(user => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.display_name} ({user.email})
-                    </SelectItem>
-                  ))}
-                </Select>
-              </div>
-            </CardTitle>
+            <CardTitle>🔄 Unassigned Pick Sets ({unassignedPickSets.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {picks.map(pick => (
-                <div key={pick.id} className="border rounded-lg p-4 bg-gray-50">
-                  <div className="flex items-center justify-between">
+            <div className="space-y-4">
+              {unassignedPickSets.map((pickSet, index) => (
+                <div key={`${pickSet.email}-${pickSet.submittedAt}`} className="border rounded-lg p-4 bg-yellow-50">
+                  <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="font-medium">
-                        {pick.away_team} @ {pick.home_team}
+                      <div className="flex items-center space-x-3 mb-2">
+                        <div className="font-semibold text-lg">{pickSet.name} ({pickSet.email})</div>
+                        <div className="flex items-center space-x-2">
+                          {pickSet.isValidated ? (
+                            <Badge variant="default" className="bg-green-100 text-green-800">✅ Validated</Badge>
+                          ) : (
+                            <Badge variant="secondary">⚠️ Unvalidated</Badge>
+                          )}
+                          <Badge variant="outline">{pickSet.picks.length} picks</Badge>
+                        </div>
                       </div>
-                      <div className="text-sm text-charcoal-600">
-                        Pick: <span className="font-medium">{pick.selected_team}</span>
-                        {pick.is_lock && <Badge className="ml-2 bg-gold-500">LOCK</Badge>}
+                      
+                      <div className="text-sm text-charcoal-600 mb-3">
+                        Submitted: {new Date(pickSet.submittedAt).toLocaleString()}
                       </div>
-                      <div className="text-xs text-charcoal-500 mt-1">
-                        Submitted: {new Date(pick.submitted_at).toLocaleString()}
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {pickSet.picks.map(pick => (
+                          <div key={pick.id} className="text-sm bg-white p-2 rounded border">
+                            <div className="font-medium">{pick.away_team} @ {pick.home_team}</div>
+                            <div className="text-charcoal-600">
+                              Pick: <span className="font-medium">{pick.selected_team}</span>
+                              {pick.is_lock && <Badge className="ml-1 text-xs bg-gold-500">LOCK</Badge>}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                     
-                    <div className="flex items-center space-x-3">
-                      {/* User Assignment */}
+                    <div className="ml-4 flex flex-col space-y-2">
                       <div className="w-48">
                         <Select 
-                          value={pick.assigned_user_id || ""} 
-                          onValueChange={(userId) => handleAssignUser(pick.id, userId)}
+                          onValueChange={(userId) => handleAssignPickSet(pickSet, userId)}
                           className="w-full"
                         >
                           <SelectValue placeholder="Assign to user" />
-                          <SelectItem value="">No assignment</SelectItem>
+                          <SelectItem value="">Select user...</SelectItem>
                           {users.map(user => (
                             <SelectItem key={user.id} value={user.id}>
                               {user.display_name}
@@ -346,15 +465,6 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                           ))}
                         </Select>
                       </div>
-
-                      {/* Leaderboard Toggle */}
-                      <Button
-                        variant={pick.show_on_leaderboard ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handleToggleLeaderboard(pick.id, !pick.show_on_leaderboard)}
-                      >
-                        {pick.show_on_leaderboard ? "📊 On Leaderboard" : "📊 Hidden"}
-                      </Button>
                     </div>
                   </div>
                 </div>
@@ -362,15 +472,165 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
             </div>
           </CardContent>
         </Card>
-      ))}
+      )}
 
-      {anonymousPicks.length === 0 && !loading && (
+      {/* Assigned Pick Sets */}
+      {assignedPickSets.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>✅ Assigned Pick Sets ({assignedPickSets.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {assignedPickSets.map((pickSet) => {
+                const assignedUser = users.find(u => u.id === pickSet.assignedUserId)
+                return (
+                  <div key={`${pickSet.email}-${pickSet.submittedAt}`} className="border rounded-lg p-4 bg-green-50">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <div className="font-semibold text-lg">{pickSet.name} ({pickSet.email})</div>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="default" className="bg-blue-100 text-blue-800">
+                              👤 {assignedUser?.display_name || 'Unknown User'}
+                            </Badge>
+                            <Badge variant="outline">{pickSet.picks.length} picks</Badge>
+                          </div>
+                        </div>
+                        
+                        <div className="text-sm text-charcoal-600 mb-3">
+                          Submitted: {new Date(pickSet.submittedAt).toLocaleString()}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          {pickSet.picks.map(pick => (
+                            <div key={pick.id} className="text-sm bg-white p-2 rounded border">
+                              <div className="font-medium">{pick.away_team} @ {pick.home_team}</div>
+                              <div className="text-charcoal-600">
+                                Pick: <span className="font-medium">{pick.selected_team}</span>
+                                {pick.is_lock && <Badge className="ml-1 text-xs bg-gold-500">LOCK</Badge>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="ml-4">
+                        <Button
+                          variant={pickSet.showOnLeaderboard ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleToggleLeaderboard(pickSet, !pickSet.showOnLeaderboard)}
+                        >
+                          {pickSet.showOnLeaderboard ? "📊 On Leaderboard" : "📊 Hidden"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Conflict Resolution Dialog */}
+      {conflictResolution && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="max-w-2xl mx-4">
+            <CardHeader>
+              <CardTitle>⚠️ Pick Set Conflict Detected</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="font-semibold text-amber-800 mb-2">
+                  User already has pick sets for Week {selectedWeek}, {selectedSeason}
+                </div>
+                <div className="text-amber-700 text-sm">
+                  Only one pick set per user per week can count towards the leaderboard.
+                  Choose which pick set should be active:
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="font-medium">Existing Pick Sets:</div>
+                {conflictResolution.existingPickSets.map((existing, index) => (
+                  <div key={index} className="border rounded p-3 bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">
+                          {existing.source === 'authenticated' ? '🔐 Authenticated' : '👤 Anonymous'} Pick Set
+                        </div>
+                        <div className="text-sm text-charcoal-600">
+                          {existing.pickCount} picks • {new Date(existing.submittedAt).toLocaleString()}
+                        </div>
+                      </div>
+                      <input
+                        type="radio"
+                        name="pickSetChoice"
+                        value="existing"
+                        checked={conflictResolution.selectedPickSet === 'existing'}
+                        onChange={(e) => setConflictResolution(prev => prev ? {
+                          ...prev,
+                          selectedPickSet: e.target.value as 'new' | 'existing'
+                        } : null)}
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                <div className="border rounded p-3 bg-blue-50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">🆕 New Anonymous Pick Set</div>
+                      <div className="text-sm text-charcoal-600">
+                        {conflictResolution.pickSet.picks.length} picks • {new Date(conflictResolution.pickSet.submittedAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <input
+                      type="radio"
+                      name="pickSetChoice"
+                      value="new"
+                      checked={conflictResolution.selectedPickSet === 'new'}
+                      onChange={(e) => setConflictResolution(prev => prev ? {
+                        ...prev,
+                        selectedPickSet: e.target.value as 'new' | 'existing'
+                      } : null)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <Button
+                  onClick={() => confirmAssignment(
+                    conflictResolution.pickSet,
+                    conflictResolution.assignedUserId,
+                    conflictResolution.selectedPickSet
+                  )}
+                  className="flex-1"
+                >
+                  Confirm Assignment
+                </Button>
+                <Button
+                  onClick={() => setConflictResolution(null)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {pickSets.length === 0 && !loading && (
         <Card>
           <CardContent className="p-8 text-center">
             <div className="text-4xl mb-4">📭</div>
-            <h3 className="text-lg font-semibold mb-2">No Anonymous Picks Found</h3>
+            <h3 className="text-lg font-semibold mb-2">No Anonymous Pick Sets Found</h3>
             <p className="text-charcoal-600">
-              No anonymous picks found for Week {selectedWeek}, {selectedSeason}.
+              No anonymous pick sets found for Week {selectedWeek}, {selectedSeason}.
             </p>
           </CardContent>
         </Card>
