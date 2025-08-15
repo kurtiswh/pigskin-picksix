@@ -27,6 +27,7 @@ export default function PickSheetPage() {
   const [showNavWarning, setShowNavWarning] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null)
   const [isUpdatingPick, setIsUpdatingPick] = useState(false)
+  const [isTogglingLock, setIsTogglingLock] = useState(false)
   
   const currentSeason = new Date().getFullYear()
   const currentWeek = getCurrentWeek(currentSeason) // Dynamic current week
@@ -333,8 +334,19 @@ export default function PickSheetPage() {
       const apiKey = ENV.SUPABASE_ANON_KEY
       
       // Get the current session token for authenticated requests
-      const { data: { session } } = await supabase.auth.getSession()
-      const authToken = session?.access_token || apiKey
+      let authToken = apiKey
+      try {
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session timeout')), 3000)
+        )
+        
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
+        authToken = session?.access_token || apiKey
+      } catch (sessionError) {
+        console.warn('⚠️ Edit session failed, using API key:', sessionError)
+        authToken = apiKey
+      }
       
       await fetch(`${supabaseUrl}/rest/v1/picks?user_id=eq.${user!.id}&week=eq.${currentWeek}&season=eq.${currentSeason}`, {
         method: 'PATCH',
@@ -359,7 +371,10 @@ export default function PickSheetPage() {
   }
 
   const handleToggleLock = async (gameId: string) => {
-    if (!user) return
+    if (!user || isTogglingLock) {
+      console.log('🚫 Blocking lock toggle - user:', !!user, 'isToggling:', isTogglingLock)
+      return
+    }
     
     // Check if picks have been submitted and require confirmation
     const arePicksSubmitted = picks.some(p => p.submitted)
@@ -369,7 +384,12 @@ export default function PickSheetPage() {
       return
     }
     
-    await performLockToggle(gameId)
+    setIsTogglingLock(true)
+    try {
+      await performLockToggle(gameId)
+    } finally {
+      setIsTogglingLock(false)
+    }
   }
 
   const performLockToggle = async (gameId: string) => {
@@ -380,8 +400,20 @@ export default function PickSheetPage() {
       const apiKey = ENV.SUPABASE_ANON_KEY
       
       // Get the current session token for authenticated requests
-      const { data: { session } } = await supabase.auth.getSession()
-      const authToken = session?.access_token || apiKey
+      let authToken = apiKey
+      try {
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session timeout')), 3000)
+        )
+        
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
+        authToken = session?.access_token || apiKey
+        console.log('🔐 Lock toggle - session check:', !!session, !!session?.access_token)
+      } catch (sessionError) {
+        console.warn('⚠️ Lock toggle session failed, using API key:', sessionError)
+        authToken = apiKey
+      }
       
       const pickToLock = picks.find(p => p.game_id === gameId)
       if (!pickToLock) return
