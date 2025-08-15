@@ -26,6 +26,7 @@ export default function PickSheetPage() {
   const [pendingEdit, setPendingEdit] = useState<{ gameId: string; team: string } | null>(null)
   const [showNavWarning, setShowNavWarning] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null)
+  const [isUpdatingPick, setIsUpdatingPick] = useState(false)
   
   const currentSeason = new Date().getFullYear()
   const currentWeek = getCurrentWeek(currentSeason) // Dynamic current week
@@ -172,7 +173,10 @@ export default function PickSheetPage() {
   }
 
   const handlePickTeam = async (gameId: string, team: string) => {
-    if (!user) return
+    if (!user || isUpdatingPick) {
+      console.log('🚫 Blocking pick update - user:', !!user, 'isUpdating:', isUpdatingPick)
+      return
+    }
     
     // Check if picks have been submitted and require confirmation
     const arePicksSubmitted = picks.some(p => p.submitted)
@@ -182,13 +186,19 @@ export default function PickSheetPage() {
       return
     }
     
-    await performPickUpdate(gameId, team)
+    setIsUpdatingPick(true)
+    try {
+      await performPickUpdate(gameId, team)
+    } finally {
+      setIsUpdatingPick(false)
+    }
   }
 
   const performPickUpdate = async (gameId: string, team: string) => {
+    console.log('🏈 Updating pick via direct API...', { gameId, team })
+    console.log('🔍 Function start - user:', user?.id, 'picks count:', picks.length)
+    
     try {
-      console.log('🏈 Updating pick via direct API...', { gameId, team })
-      
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
       
