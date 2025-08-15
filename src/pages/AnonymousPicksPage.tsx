@@ -185,6 +185,11 @@ export default function AnonymousPicksPage() {
     }))
   }
 
+  const handleRemovePick = (gameId: string) => {
+    console.log('🗑️ Removing anonymous pick:', gameId)
+    handlePickChange(gameId, '') // Use empty string to trigger removal
+  }
+
   const handleSubmitPicks = async () => {
     if (!email.trim() || !name.trim() || picks.length !== 6 || !picks.some(p => p.isLock)) {
       setError('Please fill out all required fields: email, name, 6 picks, and select one lock pick.')
@@ -472,6 +477,7 @@ export default function AnonymousPicksPage() {
                     } : undefined}
                     onPickTeam={handlePickChange}
                     onToggleLock={handleToggleLock}
+                    onRemovePick={handleRemovePick}
                     disabled={!isPicksOpen}
                     isMaxPicks={picks.length >= 6 && !pick}
                   />

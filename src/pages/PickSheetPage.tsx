@@ -489,19 +489,50 @@ export default function PickSheetPage() {
 
   const performPickRemoval = async (gameId: string) => {
     try {
-      const pickToRemove = picks.find(p => p.game_id === gameId)
-      if (!pickToRemove) return
-
-      const { error } = await supabase
-        .from('picks')
-        .delete()
-        .eq('id', pickToRemove.id)
-
-      if (error) throw error
+      console.log('🗑️ Removing pick via direct API...', { gameId })
       
+      const pickToRemove = picks.find(p => p.game_id === gameId)
+      if (!pickToRemove) {
+        console.log('⚠️ No pick found to remove for game:', gameId)
+        return
+      }
+
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
+      // Get auth token with timeout
+      let authToken = apiKey
+      try {
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session timeout')), 3000)
+        )
+        
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
+        authToken = session?.access_token || apiKey
+      } catch (sessionError) {
+        console.warn('⚠️ Remove session failed, using API key:', sessionError)
+        authToken = apiKey
+      }
+
+      const response = await fetch(`${supabaseUrl}/rest/v1/picks?id=eq.${pickToRemove.id}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Failed to remove pick: ${response.status} - ${errorText}`)
+      }
+      
+      console.log('✅ Pick removed successfully via direct API')
       setPicks(prev => prev.filter(p => p.id !== pickToRemove.id))
     } catch (err: any) {
-      console.error('Error removing pick:', err)
+      console.error('❌ Error removing pick via direct API:', err)
       setError(err.message)
     }
   }
