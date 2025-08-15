@@ -11,11 +11,7 @@ import WeekControls from '@/components/WeekControls'
 import UserManagement from '@/components/UserManagement'
 import ApiStatusWidget from '@/components/ApiStatusWidget'
 import ScoreManager from '@/components/ScoreManager'
-import HistoricalPicksImport from '@/components/HistoricalPicksImport'
 import AdminNotifications from '@/components/AdminNotifications'
-import EnvironmentDebugger from '@/components/EnvironmentDebugger'
-import NetworkDiagnostic from '@/components/NetworkDiagnostic'
-import SimpleConnectionTest from '@/components/SimpleConnectionTest'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -23,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth()
-  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'picks-import' | 'notifications' | 'debug'>('games')
+  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'notifications'>('games')
   const [cfbGames, setCfbGames] = useState<CFBGame[]>([])
   const [selectedGames, setSelectedGames] = useState<CFBGame[]>([])
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
@@ -133,7 +129,6 @@ export default function AdminDashboard() {
           
           setSelectedGames(cfbFormatGames)
           console.log('✅ Week data loaded successfully via direct API')
-          setError('Standard client slow - using direct API (this is normal)')
           
         } catch (directError) {
           console.log('❌ Both standard client and direct API failed')
@@ -853,16 +848,6 @@ export default function AdminDashboard() {
             User Management
           </button>
           <button
-            onClick={() => setActiveTab('picks-import')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'picks-import'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            Import Picks
-          </button>
-          <button
             onClick={() => setActiveTab('notifications')}
             className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
               activeTab === 'notifications'
@@ -871,16 +856,6 @@ export default function AdminDashboard() {
             }`}
           >
             📧 Notifications
-          </button>
-          <button
-            onClick={() => setActiveTab('debug')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'debug'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            🔧 Debug
           </button>
         </div>
 
@@ -976,13 +951,6 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {activeTab === 'picks-import' && (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-pigskin-900">Import Historical Picks</h2>
-            <HistoricalPicksImport />
-          </div>
-        )}
-
         {activeTab === 'notifications' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-pigskin-900">Email Notifications</h2>
@@ -990,17 +958,6 @@ export default function AdminDashboard() {
               currentWeek={currentWeek}
               currentSeason={currentSeason}
             />
-          </div>
-        )}
-
-        {activeTab === 'debug' && (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-pigskin-900">Environment & API Diagnostics</h2>
-            <div className="grid gap-6">
-              <SimpleConnectionTest />
-              <NetworkDiagnostic />
-              <EnvironmentDebugger />
-            </div>
           </div>
         )}
       </main>
