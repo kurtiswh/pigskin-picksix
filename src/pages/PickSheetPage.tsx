@@ -187,30 +187,55 @@ export default function PickSheetPage() {
 
   const performPickUpdate = async (gameId: string, team: string) => {
     try {
+      console.log('🏈 Updating pick via direct API...', { gameId, team })
+      
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
       const existingPick = picks.find(p => p.game_id === gameId)
       
       if (existingPick) {
         // Update existing pick and reset submitted status
-        const { data, error } = await supabase
-          .from('picks')
-          .update({ 
+        console.log('📝 Updating existing pick via direct API...')
+        
+        const response = await fetch(`${supabaseUrl}/rest/v1/picks?id=eq.${existingPick.id}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify({
             selected_team: team,
             submitted: false,
             submitted_at: null
           })
-          .eq('id', existingPick.id)
-          .select()
-          .single()
+        })
 
-        if (error) throw error
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`Failed to update pick: ${response.status} - ${errorText}`)
+        }
+
+        const data = await response.json()
+        console.log('✅ Pick updated successfully via direct API')
         
-        setPicks(prev => prev.map(p => p.id === existingPick.id ? data : p))
+        setPicks(prev => prev.map(p => p.id === existingPick.id ? data[0] : p))
       } else {
         // Create new pick
-        const { data, error } = await supabase
-          .from('picks')
-          .insert({
-            user_id: user.id,
+        console.log('➕ Creating new pick via direct API...')
+        
+        const response = await fetch(`${supabaseUrl}/rest/v1/picks`, {
+          method: 'POST',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify({
+            user_id: user!.id,
             game_id: gameId,
             week: currentWeek,
             season: currentSeason,
@@ -218,15 +243,20 @@ export default function PickSheetPage() {
             is_lock: false,
             submitted: false
           })
-          .select()
-          .single()
+        })
 
-        if (error) throw error
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`Failed to create pick: ${response.status} - ${errorText}`)
+        }
+
+        const data = await response.json()
+        console.log('✅ Pick created successfully via direct API')
         
-        setPicks(prev => [...prev, data])
+        setPicks(prev => [...prev, data[0]])
       }
     } catch (err: any) {
-      console.error('Error updating pick:', err)
+      console.error('❌ Error updating pick via direct API:', err)
       setError(err.message)
     }
   }
@@ -244,13 +274,20 @@ export default function PickSheetPage() {
         await performPickUpdate(pendingEdit.gameId, pendingEdit.team)
       }
       
-      // Reset all picks' submitted status when editing
-      await supabase
-        .from('picks')
-        .update({ submitted: false, submitted_at: null })
-        .eq('user_id', user!.id)
-        .eq('week', currentWeek)
-        .eq('season', currentSeason)
+      // Reset all picks' submitted status when editing using direct API
+      console.log('📝 Resetting all picks submitted status via direct API...')
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
+      await fetch(`${supabaseUrl}/rest/v1/picks?user_id=eq.${user!.id}&week=eq.${currentWeek}&season=eq.${currentSeason}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ submitted: false, submitted_at: null })
+      })
       
       // Refresh picks data
       await fetchPickSheetData()
@@ -280,6 +317,11 @@ export default function PickSheetPage() {
 
   const performLockToggle = async (gameId: string) => {
     try {
+      console.log('🔒 Toggling lock via direct API...', { gameId })
+      
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
       const pickToLock = picks.find(p => p.game_id === gameId)
       if (!pickToLock) return
 
@@ -287,32 +329,54 @@ export default function PickSheetPage() {
       
       // Remove lock from current lock pick if different
       if (currentLockPick && currentLockPick.id !== pickToLock.id) {
-        const { error: unlockError } = await supabase
-          .from('picks')
-          .update({ is_lock: false })
-          .eq('id', currentLockPick.id)
+        console.log('🔓 Removing lock from previous pick via direct API...')
         
-        if (unlockError) throw unlockError
+        const unlockResponse = await fetch(`${supabaseUrl}/rest/v1/picks?id=eq.${currentLockPick.id}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ is_lock: false })
+        })
+
+        if (!unlockResponse.ok) {
+          const errorText = await unlockResponse.text()
+          throw new Error(`Failed to unlock previous pick: ${unlockResponse.status} - ${errorText}`)
+        }
       }
 
       // Toggle lock on selected pick
       const newLockState = !pickToLock.is_lock
-      const { data, error } = await supabase
-        .from('picks')
-        .update({ is_lock: newLockState })
-        .eq('id', pickToLock.id)
-        .select()
-        .single()
+      console.log('🔒 Setting lock state via direct API:', newLockState)
+      
+      const lockResponse = await fetch(`${supabaseUrl}/rest/v1/picks?id=eq.${pickToLock.id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({ is_lock: newLockState })
+      })
 
-      if (error) throw error
+      if (!lockResponse.ok) {
+        const errorText = await lockResponse.text()
+        throw new Error(`Failed to toggle lock: ${lockResponse.status} - ${errorText}`)
+      }
+
+      const data = await lockResponse.json()
+      console.log('✅ Lock toggled successfully via direct API')
       
       setPicks(prev => prev.map(p => {
-        if (p.id === pickToLock.id) return data
+        if (p.id === pickToLock.id) return data[0]
         if (p.is_lock && p.id !== pickToLock.id) return { ...p, is_lock: false }
         return p
       }))
     } catch (err: any) {
-      console.error('Error toggling lock:', err)
+      console.error('❌ Error toggling lock via direct API:', err)
       setError(err.message)
     }
   }
