@@ -665,40 +665,21 @@ export default function AdminDashboard() {
           throw new Error('Cannot unsave games after deadline has passed')
         }
 
-        // Delete all games for this week
-        console.log('🗑️ Deleting games from database...')
-        const deleteQuery = supabase
-          .from('games')
-          .delete()
-          .eq('week', currentWeek)
-          .eq('season', currentSeason)
+        // Use direct API to unsave games (preserves games, only changes status)
+        console.log('🔄 Unsaving games via direct API (preserving games and deadline)...')
+        await unsaveGamesDirect(currentWeek, currentSeason)
+        console.log('✅ Games unsaved successfully (games preserved)')
 
-        const deleteResult = await Promise.race([deleteQuery, timeoutPromise])
-        if (deleteResult.error) throw deleteResult.error
-        console.log('✅ Games deleted successfully')
+        // The direct API already updated the week settings, just update local state
+        console.log('📊 Direct API already updated week settings')
 
-        // Update week settings
-        console.log('📊 Updating week settings...')
-        const updateQuery = supabase
-          .from('week_settings')
-          .update({ 
-            games_selected: false,
-            picks_open: false,
-            games_locked: false
-          })
-          .eq('week', currentWeek)
-          .eq('season', currentSeason)
-
-        const updateResult = await Promise.race([updateQuery, timeoutPromise])
-        if (updateResult.error) throw updateResult.error
-        console.log('✅ Week settings updated')
-
-        // Update local week settings state (don't reload data as it would clear selected games)
+        // Update local week settings state (preserve deadline)
         setWeekSettings(prev => prev ? { 
           ...prev, 
           games_selected: false,
           picks_open: false,
           games_locked: false
+          // deadline is preserved by not updating it
         } : null)
 
         // Sync selected games with available games to fix ID matching after unsave
@@ -713,57 +694,9 @@ export default function AdminDashboard() {
         alert('Games unsaved successfully! You can now make changes to your selection.')
         console.log('🎉 Unsave operation completed successfully - selected games preserved')
 
-      } catch (timeoutError) {
-        console.log('⏰ Standard client unsave timed out, trying direct API...')
-        
-        try {
-          // Fallback to direct API for unsaving
-          await unsaveGamesDirect(currentWeek, currentSeason)
-          
-          // Still need to update week settings
-          const updateQuery = supabase
-            .from('week_settings')
-            .update({ 
-              games_selected: false,
-              picks_open: false,
-              games_locked: false
-            })
-            .eq('week', currentWeek)
-            .eq('season', currentSeason)
-
-          await Promise.race([updateQuery, timeoutPromise])
-          
-          console.log('✅ Games unsaved successfully via direct API')
-          alert('Games unsaved successfully! (via direct API) You can now make changes to your selection.')
-          
-          // Update local week settings state (don't reload data as it would clear selected games)
-          setWeekSettings(prev => prev ? { 
-            ...prev, 
-            games_selected: false,
-            picks_open: false,
-            games_locked: false
-          } : null)
-
-          // Sync selected games with available games to fix ID matching after unsave
-          if (cfbGames.length > 0) {
-            setSelectedGames(prev => {
-              const synced = syncSelectedGamesWithAvailable(prev, cfbGames)
-              console.log(`🔄 Post-unsave sync (direct): Updated ${synced.length} selected games with correct IDs`)
-              return synced
-            })
-          }
-          
-        } catch (directError) {
-          console.log('❌ Both standard client and direct API unsave failed')
-          setError('Unsave failed with both methods. Check network and database connection.')
-          
-          // Try to reload data to see current state
-          try {
-            await loadWeekData()
-          } catch (reloadError) {
-            console.log('⚠️ Failed to reload after timeout')
-          }
-        }
+      } catch (error) {
+        console.error('❌ Unsave operation failed:', error)
+        throw error
       }
 
     } catch (err: any) {

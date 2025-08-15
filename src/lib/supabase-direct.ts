@@ -110,8 +110,9 @@ export async function getWeekDataDirect(week: number, season: number) {
 }
 
 // Helper for unsaving games directly via REST API
+// This should NOT delete games, just change the games_selected flag
 export async function unsaveGamesDirect(week: number, season: number) {
-  console.log(`🗑️ Unsaving games for week ${week} season ${season} via direct API...`)
+  console.log(`🔄 Unsaving games for week ${week} season ${season} via direct API (preserving games, just changing status)...`)
   
   if (!supabaseUrl || !supabaseKey) {
     throw new Error('Missing Supabase credentials')
@@ -121,27 +122,52 @@ export async function unsaveGamesDirect(week: number, season: number) {
   const timeoutId = setTimeout(() => controller.abort(), 20000)
   
   try {
-    // Delete games for this week/season
-    const response = await fetch(`${supabaseUrl}/rest/v1/games?week=eq.${week}&season=eq.${season}`, {
-      method: 'DELETE',
+    // Get current week settings to preserve deadline
+    const getResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${week}&season=eq.${season}`, {
+      method: 'GET',
       headers: {
         'Authorization': `Bearer ${supabaseKey}`,
         'apikey': supabaseKey,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
+        'Content-Type': 'application/json'
       },
       signal: controller.signal
     })
     
-    clearTimeout(timeoutId)
+    const existingSettings = await getResponse.json()
+    console.log('📋 Current week settings before unsave:', existingSettings)
     
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Unsave failed HTTP ${response.status}: ${errorText}`)
+    if (existingSettings && existingSettings.length > 0) {
+      // Update week settings to unsave games but preserve deadline
+      const updateResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${week}&season=eq.${season}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
+          games_selected: false,
+          picks_open: false,
+          games_locked: false
+          // Deliberately NOT updating deadline - preserve it
+        }),
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      
+      if (!updateResponse.ok) {
+        const errorText = await updateResponse.text()
+        throw new Error(`Unsave failed HTTP ${updateResponse.status}: ${errorText}`)
+      }
+      
+      const updatedSettings = await updateResponse.json()
+      console.log('✅ Games unsaved successfully via direct API (games preserved, deadline retained):', updatedSettings)
+      return updatedSettings
+    } else {
+      throw new Error('No week settings found to unsave')
     }
-    
-    console.log('✅ Games unsaved successfully via direct API')
-    return true
     
   } catch (error) {
     clearTimeout(timeoutId)
