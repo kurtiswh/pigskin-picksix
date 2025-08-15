@@ -520,6 +520,9 @@ export default function AdminDashboard() {
       console.log('📊 Updating week settings...')
       console.log(`📊 Updating settings for week ${currentWeek}, season ${currentSeason}`)
       
+      // Declare updatedSettings at the proper scope
+      let updatedSettings: any = null
+      
       // First check if week settings exist
       const checkResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${currentWeek}&season=eq.${currentSeason}`, {
         method: 'GET',
@@ -552,7 +555,7 @@ export default function AdminDashboard() {
           throw new Error(`Failed to update week settings: ${updateResponse.status} - ${errorText}`)
         }
 
-        const updatedSettings = await updateResponse.json()
+        updatedSettings = await updateResponse.json()
         console.log('✅ Week settings updated:', updatedSettings)
         console.log('🔍 Updated settings length:', updatedSettings.length)
         
@@ -562,6 +565,7 @@ export default function AdminDashboard() {
           const manualUpdate = { ...existingSettings[0], games_selected: true }
           setWeekSettings(manualUpdate)
           console.log('✅ Local state manually updated')
+          return // Exit early since we manually updated
         }
       } else {
         console.log('⚠️ No existing week settings found, this should not happen')
