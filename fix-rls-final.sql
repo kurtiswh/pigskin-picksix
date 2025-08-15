@@ -5,11 +5,13 @@ SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public' AND tab
 
 SELECT policyname, cmd, roles, qual FROM pg_policies WHERE schemaname = 'public' AND tablename = 'users';
 
--- Drop all existing problematic policies
+-- Drop all existing policies including the ones that already exist
 DROP POLICY IF EXISTS "Users can view own profile" ON public.users;
 DROP POLICY IF EXISTS "authenticated_users_select_all" ON public.users;
 DROP POLICY IF EXISTS "allow_select_users" ON public.users;
 DROP POLICY IF EXISTS "Anyone can view users" ON public.users;
+DROP POLICY IF EXISTS "authenticated_read_users" ON public.users;
+DROP POLICY IF EXISTS "anon_read_users" ON public.users;
 
 -- Create a simple policy that allows authenticated users to read all user profiles
 -- This is needed for admin functionality and the app to work

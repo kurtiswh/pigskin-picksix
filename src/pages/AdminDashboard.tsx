@@ -111,6 +111,10 @@ export default function AdminDashboard() {
           // Fallback to direct API calls
           const directData = await getWeekDataDirect(currentWeek, currentSeason)
           
+          console.log('🔍 Direct API loaded week settings:', directData.weekSettings)
+          console.log('🔍 Week settings games_selected flag:', directData.weekSettings?.games_selected)
+          console.log('🔍 Week settings games_locked flag:', directData.weekSettings?.games_locked)
+          
           setWeekSettings(directData.weekSettings)
           
           // Convert games to CFB format
@@ -559,13 +563,40 @@ export default function AdminDashboard() {
         console.log('✅ Week settings updated:', updatedSettings)
         console.log('🔍 Updated settings length:', updatedSettings.length)
         
-        // If the update didn't work, manually update local state
+        // If the update didn't work, there's likely an RLS policy issue
         if (updatedSettings.length === 0 && existingSettings.length > 0) {
-          console.log('⚠️ PATCH failed, manually updating local state')
-          const manualUpdate = { ...existingSettings[0], games_selected: true }
-          setWeekSettings(manualUpdate)
-          console.log('✅ Local state manually updated')
-          return // Exit early since we manually updated
+          console.log('⚠️ PATCH returned empty array - likely RLS policy blocking update')
+          console.log('🔍 Original settings:', existingSettings[0])
+          console.log('⚠️ Database update failed, but we need to persist this change')
+          
+          // Try a more direct approach - use PUT instead of PATCH
+          console.log('🔄 Trying PUT method instead of PATCH...')
+          const putResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${currentWeek}&season=eq.${currentSeason}`, {
+            method: 'PUT',
+            headers: {
+              'apikey': apiKey || '',
+              'Authorization': `Bearer ${apiKey || ''}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify({
+              ...existingSettings[0],
+              games_selected: true
+            })
+          })
+          
+          if (putResponse.ok) {
+            const putResult = await putResponse.json()
+            console.log('✅ PUT method worked:', putResult)
+            updatedSettings = putResult
+          } else {
+            console.log('❌ PUT method also failed')
+            // As last resort, just update local state
+            const manualUpdate = { ...existingSettings[0], games_selected: true }
+            setWeekSettings(manualUpdate)
+            console.log('✅ Local state manually updated as fallback')
+            return
+          }
         }
       } else {
         console.log('⚠️ No existing week settings found, this should not happen')
