@@ -184,6 +184,25 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
       const results: ExistingPickSet[] = []
 
+      // First let's check ALL picks for this user to see what exists
+      console.log('🔍 Checking ALL picks for user:', userId)
+      const allPicksResponse = await fetch(
+        `${supabaseUrl}/rest/v1/picks?user_id=eq.${userId}&select=week,season,submitted,submitted_at`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+      
+      if (allPicksResponse.ok) {
+        const allPicks = await allPicksResponse.json()
+        console.log('📊 ALL picks for user:', allPicks)
+      }
+
       // Check authenticated picks (only submitted ones)
       const authPicksResponse = await fetch(
         `${supabaseUrl}/rest/v1/picks?user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&submitted=eq.true&select=submitted_at`,
