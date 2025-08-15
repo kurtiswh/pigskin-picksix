@@ -440,7 +440,7 @@ export default function AnonymousPicksPage() {
                   <GameCard
                     key={game.id}
                     game={game}
-                    pick={pick ? {
+                    userPick={pick ? {
                       id: `anonymous-${game.id}`,
                       user_id: 'anonymous',
                       game_id: game.id,
@@ -452,10 +452,11 @@ export default function AnonymousPicksPage() {
                       submitted_at: null,
                       created_at: new Date().toISOString(),
                       updated_at: new Date().toISOString()
-                    } : null}
-                    onPickChange={handlePickChange}
+                    } : undefined}
+                    onPickTeam={handlePickChange}
                     onToggleLock={handleToggleLock}
-                    disabled={false}
+                    disabled={!isPicksOpen}
+                    isMaxPicks={picks.length >= 6 && !pick}
                   />
                 )
               })}
