@@ -65,7 +65,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     existingPickSets: ExistingPickSet[]
     selectedPickSet: 'new' | 'existing'
   } | null>(null)
-  const [userSearch, setUserSearch] = useState<{[key: string]: string}>>({})
+  const [userSearch, setUserSearch] = useState<{[key: string]: string}>({})
 
   useEffect(() => {
     loadData()
