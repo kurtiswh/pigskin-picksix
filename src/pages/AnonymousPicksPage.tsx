@@ -195,7 +195,7 @@ export default function AnonymousPicksPage() {
       setSubmitting(true)
       setError('')
 
-      // Store anonymous picks in a new table
+      // Store anonymous picks using direct API
       const picksToSubmit = picks.map(pick => {
         const game = games.find(g => g.id === pick.gameId)
         return {
@@ -213,12 +213,29 @@ export default function AnonymousPicksPage() {
         }
       })
 
-      const { error } = await supabase
-        .from('anonymous_picks')
-        .insert(picksToSubmit)
+      console.log('📤 Submitting anonymous picks via direct API...', picksToSubmit.length, 'picks')
+      
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
 
-      if (error) throw error
+      const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks`, {
+        method: 'POST',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(picksToSubmit)
+      })
 
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('❌ Anonymous picks submission failed:', response.status, errorText)
+        throw new Error(`Submission failed: ${response.status} - ${errorText}`)
+      }
+
+      console.log('✅ Anonymous picks submitted successfully via direct API')
       setSubmitted(true)
       
     } catch (err: any) {
@@ -399,7 +416,7 @@ export default function AnonymousPicksPage() {
                   <p className="text-green-600 text-sm mt-1">✅ Email validated - you're in our system!</p>
                 )}
                 {isValidated === false && email.trim() && (
-                  <p className="text-orange-600 text-sm mt-1">⚠️ Email not found - picks will require manual verification</p>
+                  <p className="text-orange-600 text-sm mt-1">⚠️ Email not found - picks will require manual verification & won't show in the leaderboard until confirmed.</p>
                 )}
               </div>
             </div>
