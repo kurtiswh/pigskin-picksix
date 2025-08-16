@@ -146,22 +146,35 @@ export default function LeaderboardPage() {
         setTimeout(() => reject(new Error('Query timeout')), 10000) // 10 second timeout
       )
 
-      // Skip LeagueSafe filtering for now - just get all users with picks
-      console.log('👥 Getting users with picks for leaderboard...')
+      // Get all users with picks OR assigned anonymous picks
+      console.log('👥 Getting users with picks and assigned anonymous picks...')
       
       let userIds: string[] = []
       try {
-        // Get all users who have made picks this season (much faster query)
-        const queryPromise = supabase
-          .from('picks')
-          .select('user_id')
-          .eq('season', currentSeason)
+        // Get users from both picks table and assigned anonymous picks
+        const [picksResult, anonymousResult] = await Promise.all([
+          Promise.race([
+            supabase
+              .from('picks')
+              .select('user_id')
+              .eq('season', currentSeason),
+            timeoutPromise
+          ]),
+          Promise.race([
+            supabase
+              .from('anonymous_picks')
+              .select('assigned_user_id')
+              .not('assigned_user_id', 'is', null),
+            timeoutPromise
+          ])
+        ])
         
-        const result = await Promise.race([queryPromise, timeoutPromise])
-        if (result.data) {
-          userIds = [...new Set(result.data.map(p => p.user_id))]
-          console.log(`📊 Found ${userIds.length} users with picks`)
-        }
+        const pickUserIds = picksResult.data?.map(p => p.user_id) || []
+        const anonymousUserIds = anonymousResult.data?.map(p => p.assigned_user_id).filter(Boolean) || []
+        
+        userIds = [...new Set([...pickUserIds, ...anonymousUserIds])]
+        console.log(`📊 Found ${pickUserIds.length} users with direct picks, ${anonymousUserIds.length} with assigned anonymous picks`)
+        console.log(`📊 Total unique users: ${userIds.length}`)
         
         // If no picks exist yet, include the current user
         if (userIds.length === 0 && user) {
@@ -180,9 +193,9 @@ export default function LeaderboardPage() {
         return
       }
 
-      // Get user details and picks in parallel with timeout
+      // Get user details and picks (both direct and anonymous) in parallel with timeout
       try {
-        const [usersResult, picksResult] = await Promise.all([
+        const [usersResult, picksResult, anonymousPicksResult] = await Promise.all([
           Promise.race([
             supabase
               .from('users')
@@ -204,14 +217,41 @@ export default function LeaderboardPage() {
               .eq('season', currentSeason)
               .in('user_id', userIds),
             timeoutPromise
+          ]),
+          Promise.race([
+            supabase
+              .from('anonymous_picks')
+              .select(`
+                assigned_user_id,
+                week,
+                season,
+                result,
+                points_earned,
+                is_lock
+              `)
+              .eq('season', currentSeason)
+              .in('assigned_user_id', userIds)
+              .not('assigned_user_id', 'is', null),
+            timeoutPromise
           ])
         ])
         
         if (usersResult.error) throw usersResult.error
         if (picksResult.error) throw picksResult.error
+        if (anonymousPicksResult.error) throw anonymousPicksResult.error
         
         const usersData = usersResult.data
-        const picksData = picksResult.data
+        const directPicksData = picksResult.data || []
+        const anonymousPicksData = anonymousPicksResult.data || []
+        
+        // Combine direct picks and anonymous picks, normalizing the user_id field
+        const picksData = [
+          ...directPicksData,
+          ...anonymousPicksData.map(pick => ({
+            ...pick,
+            user_id: pick.assigned_user_id
+          }))
+        ]
 
         // Calculate leaderboard entries
         const leaderboard: LeaderboardEntry[] = userIds.map(userId => {
