@@ -63,26 +63,32 @@ export default function GamesList({
         'game6': { selected_team: 'Ohio State', is_lock: false }   // Texas @ Ohio State - User picked Ohio State
       } : {}
       
-      // Games matching exactly what was selected in the admin interface based on screenshots
+      // Games matching exactly what was selected in the admin interface - sorted by kickoff time
       const allWeekGames = [
-        // The 6 games that were actually selected by users in the admin interface
-        { id: 'game1', home: 'Cincinnati', away: 'Nebraska', spread: -3.5, time: '2025-08-30T19:30:00Z', userPicked: 'game1' },
-        { id: 'game2', home: 'Clemson', away: 'LSU', spread: -7, time: '2025-08-30T15:30:00Z', userPicked: 'game2' },
-        { id: 'game3', home: 'Texas A&M', away: 'UTSA', spread: -14, time: '2025-08-30T12:00:00Z', userPicked: 'game3' },
-        { id: 'game4', home: 'Oregon', away: 'Montana State', spread: -28, time: '2025-08-30T22:30:00Z', userPicked: 'game4' },
-        { id: 'game5', home: 'Tennessee', away: 'Syracuse', spread: -6, time: '2025-08-30T19:00:00Z', userPicked: 'game5' },
-        { id: 'game6', home: 'Ohio State', away: 'Texas', spread: -4, time: '2025-08-30T20:00:00Z', userPicked: 'game6' },
+        // Saturday early games (12:00 PM ET)
+        { id: 'game3', home: 'Texas A&M', away: 'UTSA', spread: -14, time: '2025-08-30T17:00:00Z', userPicked: 'game3' },
+        { id: 'game8', home: 'Michigan', away: 'USC', spread: -3, time: '2025-08-30T17:00:00Z' },
+        { id: 'game9', home: 'Penn State', away: 'Wisconsin', spread: -6.5, time: '2025-08-30T17:00:00Z' },
         
-        // Additional games to complete the week (9 more for total of 15)
-        { id: 'game7', home: 'Alabama', away: 'Georgia', spread: -2.5, time: '2025-08-30T15:30:00Z' },
-        { id: 'game8', home: 'Michigan', away: 'USC', spread: -3, time: '2025-08-30T12:00:00Z' },
-        { id: 'game9', home: 'Penn State', away: 'Wisconsin', spread: -6.5, time: '2025-08-30T12:00:00Z' },
-        { id: 'game10', home: 'Florida', away: 'Miami', spread: -1, time: '2025-08-30T19:30:00Z' },
-        { id: 'game11', home: 'Notre Dame', away: 'Navy', spread: -17, time: '2025-08-31T12:00:00Z' },
-        { id: 'game12', home: 'Oklahoma', away: 'Auburn', spread: -4, time: '2025-08-30T15:30:00Z' },
-        { id: 'game13', home: 'Washington', away: 'UCLA', spread: -5, time: '2025-08-30T22:30:00Z' },
-        { id: 'game14', home: 'Stanford', away: 'Cal', spread: -7, time: '2025-08-30T19:00:00Z' },
-        { id: 'game15', home: 'Arizona', away: 'Utah', spread: -8, time: '2025-08-30T16:00:00Z' },
+        // Saturday afternoon games (3:30 PM ET)
+        { id: 'game2', home: 'Clemson', away: 'LSU', spread: -7, time: '2025-08-30T20:30:00Z', userPicked: 'game2' },
+        { id: 'game7', home: 'Alabama', away: 'Georgia', spread: -2.5, time: '2025-08-30T20:30:00Z' },
+        { id: 'game12', home: 'Oklahoma', away: 'Auburn', spread: -4, time: '2025-08-30T20:30:00Z' },
+        { id: 'game15', home: 'Arizona', away: 'Utah', spread: -8, time: '2025-08-30T21:00:00Z' },
+        
+        // Saturday evening games (7:00-8:00 PM ET)
+        { id: 'game5', home: 'Tennessee', away: 'Syracuse', spread: -6, time: '2025-08-31T00:00:00Z', userPicked: 'game5' },
+        { id: 'game14', home: 'Stanford', away: 'Cal', spread: -7, time: '2025-08-31T00:00:00Z' },
+        { id: 'game1', home: 'Cincinnati', away: 'Nebraska', spread: -3.5, time: '2025-08-31T00:30:00Z', userPicked: 'game1' },
+        { id: 'game10', home: 'Florida', away: 'Miami', spread: -1, time: '2025-08-31T00:30:00Z' },
+        
+        // Saturday late games (8:00-11:30 PM ET)
+        { id: 'game6', home: 'Ohio State', away: 'Texas', spread: -4, time: '2025-08-31T01:00:00Z', userPicked: 'game6' },
+        { id: 'game4', home: 'Oregon', away: 'Montana State', spread: -28, time: '2025-08-31T03:30:00Z', userPicked: 'game4' },
+        { id: 'game13', home: 'Washington', away: 'UCLA', spread: -5, time: '2025-08-31T03:30:00Z' },
+        
+        // Sunday games (12:00 PM ET)
+        { id: 'game11', home: 'Notre Dame', away: 'Navy', spread: -17, time: '2025-08-31T17:00:00Z' },
       ]
 
       const sampleGames: GameWithPicks[] = allWeekGames.map(game => {
