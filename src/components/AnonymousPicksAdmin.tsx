@@ -83,14 +83,17 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
   }, [selectedWeek, selectedSeason])
 
   useEffect(() => {
+    // Temporarily disable auto-processing to fix infinite loop
+    // TODO: Re-enable after fixing database permissions
+    console.log('⚠️ Auto-processing temporarily disabled to prevent infinite loop')
     // Auto-process validated users after data loads (with delay to avoid race conditions)
-    if (!loading && pickSets.length > 0 && users.length > 0) {
-      const timer = setTimeout(() => {
-        processValidatedUsers()
-      }, 500) // 500ms delay to ensure data is stable
-      
-      return () => clearTimeout(timer)
-    }
+    // if (!loading && pickSets.length > 0 && users.length > 0) {
+    //   const timer = setTimeout(() => {
+    //     processValidatedUsers()
+    //   }, 500) // 500ms delay to ensure data is stable
+    //   
+    //   return () => clearTimeout(timer)
+    // }
   }, [loading, pickSets, users])
 
   const processValidatedUsers = async () => {
@@ -109,6 +112,8 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       } catch (error) {
         console.error(`❌ Error auto-processing ${pickSet.email}:`, error)
         setError(`Failed to auto-process ${pickSet.email}: ${error.message}`)
+        // Stop auto-processing to prevent infinite loops
+        break
       }
     }
   }
@@ -380,13 +385,17 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
         console.log(`📝 Updating ${pickSet.picks.length} picks for assignment...`)
         
+        // Get current admin user session for proper authentication
+        const { data: { session } } = await supabase.auth.getSession()
+        const authToken = session?.access_token || apiKey
+
         for (const pick of pickSet.picks) {
           console.log(`🔄 Updating pick ${pick.id}...`)
           const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
             method: 'PATCH',
             headers: {
               'apikey': apiKey || '',
-              'Authorization': `Bearer ${apiKey || ''}`,
+              'Authorization': `Bearer ${authToken}`,
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
