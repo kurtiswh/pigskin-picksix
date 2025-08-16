@@ -80,8 +80,21 @@ export default function GamesList({
         }
         
         if (!gamesData || gamesData.length === 0) {
-          console.log('📝 No games found in database, showing empty state')
+          console.log(`📝 No games found in database for season ${season}, week ${selectedWeek}`)
+          console.log('📅 Checking what games exist in database...')
+          
+          // Check what seasons/weeks have games
+          const { data: availableGames, error: checkError } = await supabase
+            .from('games')
+            .select('season, week')
+            .limit(10)
+          
+          if (!checkError && availableGames) {
+            console.log('📊 Available games in database:', availableGames)
+          }
+          
           setGames([])
+          setLoading(false)
           return
         }
         
@@ -145,6 +158,7 @@ export default function GamesList({
       } catch (dbError) {
         console.error('❌ Database error, falling back to empty state:', dbError)
         setGames([])
+        setLoading(false)
       }
 
 
