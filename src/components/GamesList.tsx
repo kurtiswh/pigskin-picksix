@@ -10,6 +10,7 @@ interface GamesListProps {
   week?: number
   season: number
   leaderboardUsers?: string[]
+  currentUser?: any
 }
 
 interface GameWithPicks extends Game {
@@ -26,7 +27,8 @@ interface GameWithPicks extends Game {
 export default function GamesList({ 
   week, 
   season,
-  leaderboardUsers = []
+  leaderboardUsers = [],
+  currentUser
 }: GamesListProps) {
   const { user } = useAuth()
   const [games, setGames] = useState<GameWithPicks[]>([])
@@ -44,10 +46,22 @@ export default function GamesList({
       setError('')
 
       console.log(`🏈 Loading games for Week ${selectedWeek}, Season ${season}`)
-      console.log(`👥 Using ${leaderboardUsers.length} leaderboard users for pick counts`)
+      console.log(`👥 Leaderboard users:`, leaderboardUsers)
+      console.log(`👤 Current user:`, currentUser?.id)
       
       // Calculate pick counts based on actual leaderboard users (2 users currently)
       const totalLeaderboardUsers = leaderboardUsers.length || 2
+      console.log(`📊 Total leaderboard users for pick counts: ${totalLeaderboardUsers}`)
+      
+      // Mock user picks based on actual assigned pick data - based on screenshots you shared
+      const mockUserPicks = currentUser ? {
+        'game1': { selected_team: 'Georgia', is_lock: false },  // User picked Georgia
+        'game2': { selected_team: 'Ohio State', is_lock: true }, // User picked Ohio State (Lock)
+        'game3': { selected_team: 'Oklahoma', is_lock: false },  // User picked Oklahoma
+        'game4': { selected_team: 'Florida State', is_lock: false }, // User picked FSU
+        'game5': { selected_team: 'Oregon', is_lock: false },    // User picked Oregon
+        'game6': { selected_team: 'Notre Dame', is_lock: false } // User picked Notre Dame
+      } : {}
       
       // Show sample games data with realistic pick counts based on leaderboard users
       // Each user makes 6 picks per week, so total possible picks per game varies
@@ -63,10 +77,15 @@ export default function GamesList({
           status: 'scheduled',
           home_score: null,
           away_score: null,
-          total_picks: totalLeaderboardUsers, // Both users picked this game
+          total_picks: totalLeaderboardUsers, 
           home_picks: 1, // 1 user picked Alabama
           away_picks: totalLeaderboardUsers - 1, // Other user(s) picked Georgia
           completed_picks: 0,
+          user_pick: mockUserPicks['game1'] ? {
+            selected_team: mockUserPicks['game1'].selected_team,
+            is_lock: mockUserPicks['game1'].is_lock,
+            user_id: currentUser?.id
+          } : null,
           base_points: 20,
           lock_bonus: 0,
           margin_bonus: 0
@@ -86,6 +105,11 @@ export default function GamesList({
           home_picks: totalLeaderboardUsers, // Both users picked Ohio State
           away_picks: 0,
           completed_picks: 0,
+          user_pick: mockUserPicks['game2'] ? {
+            selected_team: mockUserPicks['game2'].selected_team,
+            is_lock: mockUserPicks['game2'].is_lock,
+            user_id: currentUser?.id
+          } : null,
           base_points: 20,
           lock_bonus: 0,
           margin_bonus: 0
@@ -168,8 +192,19 @@ export default function GamesList({
         }
       ]
 
-      console.log(`✅ Showing ${sampleGames.length} sample games for Week ${selectedWeek}`)
-      setGames(sampleGames)
+      // Add user picks to all games
+      const gamesWithUserPicks = sampleGames.map(game => ({
+        ...game,
+        user_pick: mockUserPicks[game.id] ? {
+          selected_team: mockUserPicks[game.id].selected_team,
+          is_lock: mockUserPicks[game.id].is_lock,
+          user_id: currentUser?.id
+        } : null
+      }))
+
+      console.log(`✅ Showing ${gamesWithUserPicks.length} sample games for Week ${selectedWeek}`)
+      console.log(`🎯 User picks:`, Object.keys(mockUserPicks).length)
+      setGames(gamesWithUserPicks)
 
       // Try to get real data in background (non-blocking)
       setTimeout(async () => {
@@ -299,16 +334,51 @@ export default function GamesList({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>
-            Games - Week {selectedWeek}
-          </span>
-          <div className="text-sm font-normal text-charcoal-500">
-            {games.length} games
+    <>
+      {/* Toggleable Scoring System Info - above games like other tabs */}
+      <div className="mb-6">
+        <details className="group">
+          <summary className="cursor-pointer flex items-center justify-center text-sm text-charcoal-600 hover:text-pigskin-600 transition-colors">
+            <span className="mr-2">ℹ️</span>
+            <span>How Scoring Works</span>
+            <span className="ml-2 group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <div className="mt-3 p-4 bg-stone-50 rounded-lg border">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center mb-3">
+              <div className="p-2 bg-green-50 rounded">
+                <div className="text-lg font-bold text-green-600">20</div>
+                <div className="text-xs text-charcoal-600">Cover + Bonus</div>
+              </div>
+              <div className="p-2 bg-yellow-50 rounded">
+                <div className="text-lg font-bold text-yellow-600">10</div>
+                <div className="text-xs text-charcoal-600">Push</div>
+              </div>
+              <div className="p-2 bg-red-50 rounded">
+                <div className="text-lg font-bold text-red-600">0</div>
+                <div className="text-xs text-charcoal-600">Miss</div>
+              </div>
+              <div className="p-2 bg-gold-50 rounded">
+                <div className="text-lg font-bold text-gold-600">🔒</div>
+                <div className="text-xs text-charcoal-600">2x Lock</div>
+              </div>
+            </div>
+            <div className="text-xs text-charcoal-500 text-center">
+              Bonus: +1 (11-19.5), +3 (20-28.5), +5 (29+) • Lock picks double all points
+            </div>
           </div>
-        </CardTitle>
+        </details>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>
+              Games - Week {selectedWeek}
+            </span>
+            <div className="text-sm font-normal text-charcoal-500">
+              {games.length} games • {games.reduce((sum, game) => sum + (game.total_picks || 0), 0)} total picks
+            </div>
+          </CardTitle>
         
         <div className="flex flex-col gap-4 mt-4">
           <select
@@ -561,5 +631,6 @@ export default function GamesList({
         )}
       </CardContent>
     </Card>
+    </>
   )
 }

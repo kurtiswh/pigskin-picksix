@@ -681,41 +681,8 @@ export default function LeaderboardPage() {
               season={currentSeason}
               week={currentWeek}
               leaderboardUsers={leaderboardData.map(entry => entry.user_id)}
+              currentUser={user}
             />
-
-            {/* Toggleable Scoring System Info - same as other tabs */}
-            <div className="mt-6">
-              <details className="group">
-                <summary className="cursor-pointer flex items-center justify-center text-sm text-charcoal-600 hover:text-pigskin-600 transition-colors">
-                  <span className="mr-2">ℹ️</span>
-                  <span>How Scoring Works</span>
-                  <span className="ml-2 group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <div className="mt-3 p-4 bg-stone-50 rounded-lg border">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center mb-3">
-                    <div className="p-2 bg-green-50 rounded">
-                      <div className="text-lg font-bold text-green-600">20</div>
-                      <div className="text-xs text-charcoal-600">Cover + Bonus</div>
-                    </div>
-                    <div className="p-2 bg-yellow-50 rounded">
-                      <div className="text-lg font-bold text-yellow-600">10</div>
-                      <div className="text-xs text-charcoal-600">Push</div>
-                    </div>
-                    <div className="p-2 bg-red-50 rounded">
-                      <div className="text-lg font-bold text-red-600">0</div>
-                      <div className="text-xs text-charcoal-600">Miss</div>
-                    </div>
-                    <div className="p-2 bg-gold-50 rounded">
-                      <div className="text-lg font-bold text-gold-600">🔒</div>
-                      <div className="text-xs text-charcoal-600">2x Lock</div>
-                    </div>
-                  </div>
-                  <div className="text-xs text-charcoal-500 text-center">
-                    Bonus: +1 (11-19.5), +3 (20-28.5), +5 (29+) • Lock picks double all points
-                  </div>
-                </div>
-              </details>
-            </div>
           </div>
         )}
       </main>
