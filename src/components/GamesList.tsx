@@ -57,12 +57,48 @@ export default function GamesList({
       try {
         console.log('📅 Fetching real games from database...')
         
-        // Create a timeout promise that rejects after 10 seconds
-        const timeoutPromise = new Promise((_, reject) => {
+        // Helper function to create timeout promises
+        const createTimeout = () => new Promise((_, reject) => {
           setTimeout(() => reject(new Error('Database query timeout after 10 seconds')), 10000)
         })
         
-        // Race the query against the timeout
+        // First test basic database connectivity with a simple query
+        console.log('🔍 Testing basic database connectivity...')
+        const testPromise = supabase
+          .from('games')
+          .select('count(*)')
+          .limit(1)
+        
+        try {
+          const testResult = await Promise.race([testPromise, createTimeout()])
+          console.log('✅ Basic database connection works:', testResult)
+        } catch (testError) {
+          console.error('❌ Basic database test failed:', testError)
+          throw new Error('Database connection failed')
+        }
+        
+        console.log('🔍 Testing simple games query...')
+        // Try a simpler query first
+        const simpleQueryPromise = supabase
+          .from('games')
+          .select('id, season, week')
+          .limit(5)
+        
+        let testGamesData
+        try {
+          const simpleResult = await Promise.race([simpleQueryPromise, createTimeout()])
+          testGamesData = simpleResult.data
+          console.log('✅ Simple games query works:', testGamesData?.length || 0, 'games found')
+          if (testGamesData && testGamesData.length > 0) {
+            console.log('📊 Sample games:', testGamesData)
+          }
+        } catch (simpleError) {
+          console.error('❌ Simple games query failed:', simpleError)
+          throw simpleError
+        }
+        
+        // Now try the full query with filters
+        console.log(`🔍 Testing filtered query for season ${season}, week ${selectedWeek}...`)
         const queryPromise = supabase
           .from('games')
           .select(`
@@ -83,7 +119,7 @@ export default function GamesList({
         
         let gamesData, gamesError
         try {
-          const result = await Promise.race([queryPromise, timeoutPromise])
+          const result = await Promise.race([queryPromise, createTimeout()])
           gamesData = result.data
           gamesError = result.error
         } catch (timeoutError) {
