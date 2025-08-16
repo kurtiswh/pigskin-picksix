@@ -53,53 +53,11 @@ export default function GamesList({
       const totalLeaderboardUsers = leaderboardUsers.length || 2
       console.log(`📊 Total leaderboard users for pick counts: ${totalLeaderboardUsers}`)
       
-      // Get real games data from database with timeout
+      // Get real games data from database
       try {
-        console.log('📅 Fetching real games from database...')
+        console.log(`📅 Fetching games for Season ${season}, Week ${selectedWeek}...`)
         
-        // Helper function to create timeout promises
-        const createTimeout = () => new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Database query timeout after 10 seconds')), 10000)
-        })
-        
-        // First test basic database connectivity with a simple query
-        console.log('🔍 Testing basic database connectivity...')
-        const testPromise = supabase
-          .from('games')
-          .select('count(*)')
-          .limit(1)
-        
-        try {
-          const testResult = await Promise.race([testPromise, createTimeout()])
-          console.log('✅ Basic database connection works:', testResult)
-        } catch (testError) {
-          console.error('❌ Basic database test failed:', testError)
-          throw new Error('Database connection failed')
-        }
-        
-        console.log('🔍 Testing simple games query...')
-        // Try a simpler query first
-        const simpleQueryPromise = supabase
-          .from('games')
-          .select('id, season, week')
-          .limit(5)
-        
-        let testGamesData
-        try {
-          const simpleResult = await Promise.race([simpleQueryPromise, createTimeout()])
-          testGamesData = simpleResult.data
-          console.log('✅ Simple games query works:', testGamesData?.length || 0, 'games found')
-          if (testGamesData && testGamesData.length > 0) {
-            console.log('📊 Sample games:', testGamesData)
-          }
-        } catch (simpleError) {
-          console.error('❌ Simple games query failed:', simpleError)
-          throw simpleError
-        }
-        
-        // Now try the full query with filters
-        console.log(`🔍 Testing filtered query for season ${season}, week ${selectedWeek}...`)
-        const queryPromise = supabase
+        const { data: gamesData, error: gamesError } = await supabase
           .from('games')
           .select(`
             id,
@@ -117,37 +75,14 @@ export default function GamesList({
           .eq('week', selectedWeek)
           .order('kickoff_time')
         
-        let gamesData, gamesError
-        try {
-          const result = await Promise.race([queryPromise, createTimeout()])
-          gamesData = result.data
-          gamesError = result.error
-        } catch (timeoutError) {
-          console.error('❌ Database query timed out:', timeoutError.message)
-          gamesError = timeoutError
-        }
-        
         if (gamesError) {
           console.error('❌ Error fetching games:', gamesError)
           throw gamesError
         }
         
         if (!gamesData || gamesData.length === 0) {
-          console.log(`📝 No games found in database for season ${season}, week ${selectedWeek}`)
-          console.log('📅 Checking what games exist in database...')
-          
-          // Check what seasons/weeks have games
-          const { data: availableGames, error: checkError } = await supabase
-            .from('games')
-            .select('season, week')
-            .limit(10)
-          
-          if (!checkError && availableGames) {
-            console.log('📊 Available games in database:', availableGames)
-          }
-          
+          console.log(`📝 No games found for Season ${season}, Week ${selectedWeek}`)
           setGames([])
-          setLoading(false)
           return
         }
         
@@ -209,9 +144,8 @@ export default function GamesList({
         setGames(processedGames)
         
       } catch (dbError) {
-        console.error('❌ Database error, falling back to empty state:', dbError)
+        console.error('❌ Error loading games:', dbError)
         setGames([])
-        setLoading(false)
       }
 
 
