@@ -174,24 +174,9 @@ export default function LeaderboardPage() {
       }
 
       if (userIds.length === 0) {
-        console.log('📝 No users with picks found, showing mock data')
-        const mockLeaderboard: LeaderboardEntry[] = [
-          {
-            user_id: user?.id || '8c5cfac4-4cd0-45d5-9ed6-2f3139ef261e',
-            display_name: user?.display_name || 'KURTIS HANNI',
-            season_record: '0-0-0',
-            lock_record: '0-0',
-            season_points: 0,
-            season_rank: 1,
-            total_picks: 0,
-            total_wins: 0,
-            total_losses: 0,
-            total_pushes: 0,
-            lock_wins: 0,
-            lock_losses: 0
-          }
-        ]
-        setLeaderboardData(mockLeaderboard)
+        console.log('📝 No users with picks found, using mock data for demo')
+        setLeaderboardData(mockLeaderboardData)
+        setLastUpdate(new Date())
         return
       }
 
@@ -274,22 +259,9 @@ export default function LeaderboardPage() {
         })
         
       } catch (queryError) {
-        console.log('⏰ Parallel queries timed out, using fallback...')
-        const mockLeaderboard: LeaderboardEntry[] = userIds.map((userId, index) => ({
-          user_id: userId,
-          display_name: userId === user?.id ? user.display_name : `Player ${index + 1}`,
-          season_record: '0-0-0',
-          lock_record: '0-0',
-          season_points: 0,
-          season_rank: index + 1,
-          total_picks: 0,
-          total_wins: 0,
-          total_losses: 0,
-          total_pushes: 0,
-          lock_wins: 0,
-          lock_losses: 0
-        }))
-        setLeaderboardData(mockLeaderboard)
+        console.log('⏰ Database queries timed out, using mock data for demo')
+        setLeaderboardData(mockLeaderboardData)
+        setLastUpdate(new Date())
         return
       }
 
@@ -668,59 +640,6 @@ export default function LeaderboardPage() {
           </button>
         </div>
 
-        {/* Scoring System Info */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg">Scoring System</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-center mb-6">
-              <div className="p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">20</div>
-                <div className="text-sm text-charcoal-600">Cover Spread</div>
-                <div className="text-xs text-charcoal-500">+ bonus points</div>
-              </div>
-              <div className="p-4 bg-yellow-50 rounded-lg">
-                <div className="text-2xl font-bold text-yellow-600">10</div>
-                <div className="text-sm text-charcoal-600">Push (Exact)</div>
-                <div className="text-xs text-charcoal-500">Team wins by spread</div>
-              </div>
-              <div className="p-4 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold text-red-600">0</div>
-                <div className="text-sm text-charcoal-600">Don't Cover</div>
-                <div className="text-xs text-charcoal-500">Miss the spread</div>
-              </div>
-              <div className="p-4 bg-gold-50 rounded-lg">
-                <div className="text-2xl font-bold text-gold-600">🔒</div>
-                <div className="text-sm text-charcoal-600">Lock Pick</div>
-                <div className="text-xs text-charcoal-500">Double bonus points</div>
-              </div>
-            </div>
-            
-            {/* Bonus Points */}
-            <div className="border-t border-stone-200 pt-4">
-              <h4 className="font-semibold text-center mb-4">Bonus Points (added to 20 base points when you cover)</h4>
-              <div className="grid md:grid-cols-3 gap-4 text-center">
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <div className="text-lg font-bold text-blue-600">+1</div>
-                  <div className="text-sm text-charcoal-600">Cover by 11-19.5</div>
-                  <div className="text-xs text-charcoal-500">21 total (22 if Lock)</div>
-                </div>
-                <div className="p-3 bg-purple-50 rounded-lg">
-                  <div className="text-lg font-bold text-purple-600">+3</div>
-                  <div className="text-sm text-charcoal-600">Cover by 20-28.5</div>
-                  <div className="text-xs text-charcoal-500">23 total (26 if Lock)</div>
-                </div>
-                <div className="p-3 bg-orange-50 rounded-lg">
-                  <div className="text-lg font-bold text-orange-600">+5</div>
-                  <div className="text-sm text-charcoal-600">Cover by 29+</div>
-                  <div className="text-xs text-charcoal-500">25 total (30 if Lock)</div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Error Display */}
         {error && (
           <Card className="border-red-200">
@@ -820,6 +739,36 @@ export default function LeaderboardPage() {
               season={currentSeason}
               week={currentWeek}
             />
+
+            {/* Compact Scoring System Info */}
+            <Card className="mt-6">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">How Scoring Works</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center mb-4">
+                  <div className="p-2 bg-green-50 rounded">
+                    <div className="text-lg font-bold text-green-600">20</div>
+                    <div className="text-xs text-charcoal-600">Cover + Bonus</div>
+                  </div>
+                  <div className="p-2 bg-yellow-50 rounded">
+                    <div className="text-lg font-bold text-yellow-600">10</div>
+                    <div className="text-xs text-charcoal-600">Push</div>
+                  </div>
+                  <div className="p-2 bg-red-50 rounded">
+                    <div className="text-lg font-bold text-red-600">0</div>
+                    <div className="text-xs text-charcoal-600">Miss</div>
+                  </div>
+                  <div className="p-2 bg-gold-50 rounded">
+                    <div className="text-lg font-bold text-gold-600">🔒</div>
+                    <div className="text-xs text-charcoal-600">2x Lock</div>
+                  </div>
+                </div>
+                <div className="text-xs text-charcoal-500 text-center">
+                  Bonus: +1 (11-19.5), +3 (20-28.5), +5 (29+) • Lock picks double all points
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </main>
