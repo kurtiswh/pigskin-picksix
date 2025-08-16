@@ -141,54 +141,67 @@ export default function LeaderboardPage() {
       }
       setError('')
 
-      // Add timeout to prevent hanging
+      // Add timeout to prevent hanging - increased to 30 seconds for slow connections
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout')), 10000) // 10 second timeout
+        setTimeout(() => reject(new Error('Query timeout')), 30000) // 30 second timeout
       )
 
       // Get all users with picks OR assigned anonymous picks
       console.log('👥 Getting users with picks and assigned anonymous picks...')
       
       let userIds: string[] = []
+      
+      // First, try to get assigned anonymous picks (most likely to have data)
+      console.log('🔍 Checking assigned anonymous picks first...')
       try {
-        // Get users from both picks table and assigned anonymous picks
-        const [picksResult, anonymousResult] = await Promise.all([
-          Promise.race([
-            supabase
-              .from('picks')
-              .select('user_id')
-              .eq('season', currentSeason),
-            timeoutPromise
-          ]),
-          Promise.race([
-            supabase
-              .from('anonymous_picks')
-              .select('assigned_user_id, season')
-              .eq('season', currentSeason)
-              .not('assigned_user_id', 'is', null),
-            timeoutPromise
-          ])
-        ])
+        const anonymousResult = await supabase
+          .from('anonymous_picks')
+          .select('assigned_user_id, season')
+          .not('assigned_user_id', 'is', null)
+          .limit(10) // Limit for faster query
         
-        const pickUserIds = picksResult.data?.map(p => p.user_id) || []
-        const anonymousUserIds = anonymousResult.data?.map(p => p.assigned_user_id).filter(Boolean) || []
-        
-        // Debug: show what seasons we found for anonymous picks
-        const anonymousSeasons = [...new Set(anonymousResult.data?.map(p => p.season) || [])]
-        console.log(`🗓️ Anonymous picks found for seasons: ${anonymousSeasons.join(', ')} (looking for ${currentSeason})`)
-        
-        userIds = [...new Set([...pickUserIds, ...anonymousUserIds])]
-        console.log(`📊 Found ${pickUserIds.length} users with direct picks, ${anonymousUserIds.length} with assigned anonymous picks`)
-        console.log(`📊 Total unique users: ${userIds.length}`)
-        
-        // If no picks exist yet, include the current user
-        if (userIds.length === 0 && user) {
-          userIds = [user.id]
+        if (anonymousResult.error) {
+          console.log('❌ Anonymous picks query error:', anonymousResult.error)
+        } else {
+          console.log('✅ Anonymous picks query successful, found:', anonymousResult.data?.length || 0)
+          
+          // Filter by current season
+          const currentSeasonPicks = anonymousResult.data?.filter(p => p.season === currentSeason) || []
+          const anonymousUserIds = currentSeasonPicks.map(p => p.assigned_user_id).filter(Boolean)
+          
+          // Debug: show all seasons found
+          const allSeasons = [...new Set(anonymousResult.data?.map(p => p.season) || [])]
+          console.log(`🗓️ Anonymous picks exist for seasons: ${allSeasons.join(', ')} (current: ${currentSeason})`)
+          console.log(`📊 Found ${anonymousUserIds.length} users with assigned anonymous picks for ${currentSeason}`)
+          
+          userIds = [...new Set(anonymousUserIds)]
         }
-        
-      } catch (timeoutError) {
-        console.log('⏰ User picks query timed out, using current user fallback...')
-        userIds = user ? [user.id] : []
+      } catch (anonymousError) {
+        console.log('⏰ Anonymous picks query failed:', anonymousError)
+      }
+      
+      // If we found users, also try to get direct picks
+      if (userIds.length > 0) {
+        console.log('🔍 Also checking for direct picks...')
+        try {
+          const picksResult = await supabase
+            .from('picks')
+            .select('user_id')
+            .eq('season', currentSeason)
+            .limit(10)
+          
+          const pickUserIds = picksResult.data?.map(p => p.user_id) || []
+          userIds = [...new Set([...userIds, ...pickUserIds])]
+          console.log(`📊 Combined total: ${userIds.length} unique users`)
+        } catch (picksError) {
+          console.log('⏰ Direct picks query failed, using anonymous picks only')
+        }
+      }
+      
+      // Fallback: include current user if no data found
+      if (userIds.length === 0 && user) {
+        console.log('📝 No picks found, including current user as fallback')
+        userIds = [user.id]
       }
 
       if (userIds.length === 0) {
@@ -214,66 +227,85 @@ export default function LeaderboardPage() {
         return
       }
 
-      // Get user details and picks (both direct and anonymous) in parallel with timeout
+      // Get user details first
+      console.log('👤 Getting user details...')
+      let usersData: any[] = []
       try {
-        const [usersResult, picksResult, anonymousPicksResult] = await Promise.all([
-          Promise.race([
-            supabase
-              .from('users')
-              .select('id, display_name')
-              .in('id', userIds),
-            timeoutPromise
-          ]),
-          Promise.race([
-            supabase
-              .from('picks')
-              .select(`
-                user_id,
-                week,
-                season,
-                result,
-                points_earned,
-                is_lock
-              `)
-              .eq('season', currentSeason)
-              .in('user_id', userIds),
-            timeoutPromise
-          ]),
-          Promise.race([
-            supabase
-              .from('anonymous_picks')
-              .select(`
-                assigned_user_id,
-                week,
-                season,
-                result,
-                points_earned,
-                is_lock
-              `)
-              .eq('season', currentSeason)
-              .in('assigned_user_id', userIds)
-              .not('assigned_user_id', 'is', null),
-            timeoutPromise
-          ])
-        ])
+        const usersResult = await supabase
+          .from('users')
+          .select('id, display_name')
+          .in('id', userIds)
         
         if (usersResult.error) throw usersResult.error
-        if (picksResult.error) throw picksResult.error
-        if (anonymousPicksResult.error) throw anonymousPicksResult.error
+        usersData = usersResult.data || []
+        console.log(`✅ Found ${usersData.length} user records`)
+      } catch (usersError) {
+        console.log('❌ Users query failed:', usersError)
+        usersData = []
+      }
+      
+      // Get picks data (anonymous picks first since they're more likely to exist)
+      console.log('🎯 Getting picks data...')
+      let picksData: any[] = []
+      
+      // Get anonymous picks
+      try {
+        const anonymousPicksResult = await supabase
+          .from('anonymous_picks')
+          .select(`
+            assigned_user_id,
+            week,
+            season,
+            result,
+            points_earned,
+            is_lock
+          `)
+          .eq('season', currentSeason)
+          .in('assigned_user_id', userIds)
+          .not('assigned_user_id', 'is', null)
         
-        const usersData = usersResult.data
-        const directPicksData = picksResult.data || []
-        const anonymousPicksData = anonymousPicksResult.data || []
-        
-        // Combine direct picks and anonymous picks, normalizing the user_id field
-        const picksData = [
-          ...directPicksData,
-          ...anonymousPicksData.map(pick => ({
+        if (anonymousPicksResult.error) {
+          console.log('❌ Anonymous picks data query error:', anonymousPicksResult.error)
+        } else {
+          const anonymousPicksData = anonymousPicksResult.data || []
+          console.log(`✅ Found ${anonymousPicksData.length} anonymous picks`)
+          
+          // Normalize anonymous picks to have user_id field
+          picksData = anonymousPicksData.map(pick => ({
             ...pick,
             user_id: pick.assigned_user_id
           }))
-        ]
-
+        }
+      } catch (anonymousPicksError) {
+        console.log('⏰ Anonymous picks data query failed:', anonymousPicksError)
+      }
+      
+      // Also try to get direct picks
+      try {
+        const directPicksResult = await supabase
+          .from('picks')
+          .select(`
+            user_id,
+            week,
+            season,
+            result,
+            points_earned,
+            is_lock
+          `)
+          .eq('season', currentSeason)
+          .in('user_id', userIds)
+        
+        if (directPicksResult.data) {
+          console.log(`✅ Found ${directPicksResult.data.length} direct picks`)
+          picksData = [...picksData, ...directPicksResult.data]
+        }
+      } catch (directPicksError) {
+        console.log('⏰ Direct picks query failed, using anonymous picks only')
+      }
+      
+      console.log(`📊 Total picks for processing: ${picksData.length}`)
+      
+      try {
         // Calculate leaderboard entries
         const leaderboard: LeaderboardEntry[] = userIds.map(userId => {
           const userData = usersData?.find(u => u.id === userId)
