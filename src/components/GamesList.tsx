@@ -63,7 +63,7 @@ export default function GamesList({
         'game6': { selected_team: 'Notre Dame', is_lock: false } // User picked Notre Dame
       } : {}
       
-      // Show full week of college football games (typically 15-20+ games per week)
+      // Show full week of college football games (15 games per week)
       const allWeekGames = [
         // Thursday games
         { id: 'game1', home: 'Alabama', away: 'Georgia', spread: -3.5, time: '2025-08-28T19:30:00Z', userPicked: 'game1' },
@@ -79,25 +79,18 @@ export default function GamesList({
         { id: 'game7', home: 'Penn State', away: 'Wisconsin', spread: -6.5, time: '2025-08-30T12:00:00Z' },
         { id: 'game8', home: 'Florida', away: 'Tennessee', spread: -3, time: '2025-08-30T12:00:00Z' },
         { id: 'game9', home: 'LSU', away: 'Auburn', spread: -4, time: '2025-08-30T12:00:00Z' },
-        { id: 'game10', home: 'Michigan State', away: 'Northwestern', spread: -9, time: '2025-08-30T12:00:00Z' },
         
         // Saturday afternoon games
-        { id: 'game11', home: 'Oklahoma State', away: 'Baylor', spread: -2, time: '2025-08-30T15:30:00Z' },
-        { id: 'game12', home: 'Kentucky', away: 'Vanderbilt', spread: -10, time: '2025-08-30T15:30:00Z' },
-        { id: 'game13', home: 'Iowa', away: 'Minnesota', spread: -1.5, time: '2025-08-30T15:30:00Z' },
-        { id: 'game14', home: 'Arizona State', away: 'Colorado', spread: -3.5, time: '2025-08-30T15:30:00Z' },
+        { id: 'game10', home: 'Oklahoma State', away: 'Baylor', spread: -2, time: '2025-08-30T15:30:00Z' },
+        { id: 'game11', home: 'Kentucky', away: 'Vanderbilt', spread: -10, time: '2025-08-30T15:30:00Z' },
+        { id: 'game12', home: 'Iowa', away: 'Minnesota', spread: -1.5, time: '2025-08-30T15:30:00Z' },
         
         // Saturday evening games
-        { id: 'game15', home: 'Washington', away: 'UCLA', spread: -5, time: '2025-08-30T19:00:00Z' },
-        { id: 'game16', home: 'Stanford', away: 'Cal', spread: -7, time: '2025-08-30T19:30:00Z' },
-        { id: 'game17', home: 'Virginia Tech', away: 'Virginia', spread: -4, time: '2025-08-30T20:00:00Z' },
+        { id: 'game13', home: 'Washington', away: 'UCLA', spread: -5, time: '2025-08-30T19:00:00Z' },
+        { id: 'game14', home: 'Stanford', away: 'Cal', spread: -7, time: '2025-08-30T19:30:00Z' },
         
         // Saturday late games
-        { id: 'game18', home: 'Arizona', away: 'Utah', spread: -8, time: '2025-08-30T22:30:00Z' },
-        { id: 'game19', home: 'Nevada', away: 'Fresno State', spread: -2.5, time: '2025-08-30T22:30:00Z' },
-        
-        // Sunday games (rare but some weeks have them)
-        { id: 'game20', home: 'Army', away: 'Air Force', spread: -3, time: '2025-08-31T15:00:00Z' },
+        { id: 'game15', home: 'Arizona', away: 'Utah', spread: -8, time: '2025-08-30T22:30:00Z' },
       ]
 
       const sampleGames: GameWithPicks[] = allWeekGames.map(game => {
