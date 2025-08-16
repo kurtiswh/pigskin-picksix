@@ -63,40 +63,59 @@ export default function GamesList({
         'game6': { selected_team: 'Ohio State', is_lock: false }   // Texas @ Ohio State - User picked Ohio State
       } : {}
       
-      // Games matching exactly what was selected in the admin interface - sorted by kickoff time
+      // Games from admin dashboard week control tab - sorted by kickoff time (Central Time)
       const allWeekGames = [
-        // Saturday early games (12:00 PM ET)
-        { id: 'game3', home: 'Texas A&M', away: 'UTSA', spread: -14, time: '2025-08-30T17:00:00Z', userPicked: 'game3' },
-        { id: 'game8', home: 'Michigan', away: 'USC', spread: -3, time: '2025-08-30T17:00:00Z' },
-        { id: 'game9', home: 'Penn State', away: 'Wisconsin', spread: -6.5, time: '2025-08-30T17:00:00Z' },
+        // Thursday games
+        { id: 'game1', home: 'Cincinnati', away: 'Nebraska', spread: -3.5, time: '2025-08-28T19:30:00-05:00', userPicked: 'game1' },
+        { id: 'game7', home: 'South Florida', away: 'Boise State', spread: 6.5, time: '2025-08-29T19:00:00-05:00' },
         
-        // Saturday afternoon games (3:30 PM ET)
-        { id: 'game2', home: 'Clemson', away: 'LSU', spread: -7, time: '2025-08-30T20:30:00Z', userPicked: 'game2' },
-        { id: 'game7', home: 'Alabama', away: 'Georgia', spread: -2.5, time: '2025-08-30T20:30:00Z' },
-        { id: 'game12', home: 'Oklahoma', away: 'Auburn', spread: -4, time: '2025-08-30T20:30:00Z' },
-        { id: 'game15', home: 'Arizona', away: 'Utah', spread: -8, time: '2025-08-30T21:00:00Z' },
+        // Friday games  
+        { id: 'game2', home: 'Clemson', away: 'LSU', spread: -7, time: '2025-08-29T19:30:00-05:00', userPicked: 'game2' },
         
-        // Saturday evening games (7:00-8:00 PM ET)
-        { id: 'game5', home: 'Tennessee', away: 'Syracuse', spread: -6, time: '2025-08-31T00:00:00Z', userPicked: 'game5' },
-        { id: 'game14', home: 'Stanford', away: 'Cal', spread: -7, time: '2025-08-31T00:00:00Z' },
-        { id: 'game1', home: 'Cincinnati', away: 'Nebraska', spread: -3.5, time: '2025-08-31T00:30:00Z', userPicked: 'game1' },
-        { id: 'game10', home: 'Florida', away: 'Miami', spread: -1, time: '2025-08-31T00:30:00Z' },
+        // Saturday early games (11:00 AM CT)
+        { id: 'game3', home: 'Texas A&M', away: 'UTSA', spread: -14, time: '2025-08-30T11:00:00-05:00', userPicked: 'game3' },
+        { id: 'game8', home: 'Penn State', away: 'Wisconsin', spread: -6.5, time: '2025-08-30T11:00:00-05:00' },
         
-        // Saturday late games (8:00-11:30 PM ET)
-        { id: 'game6', home: 'Ohio State', away: 'Texas', spread: -4, time: '2025-08-31T01:00:00Z', userPicked: 'game6' },
-        { id: 'game4', home: 'Oregon', away: 'Montana State', spread: -28, time: '2025-08-31T03:30:00Z', userPicked: 'game4' },
-        { id: 'game13', home: 'Washington', away: 'UCLA', spread: -5, time: '2025-08-31T03:30:00Z' },
+        // Saturday afternoon games (2:30 PM CT)
+        { id: 'game4', home: 'Oregon', away: 'Montana State', spread: -28, time: '2025-08-30T14:30:00-05:00', userPicked: 'game4' },
+        { id: 'game9', home: 'Alabama', away: 'Georgia', spread: -2.5, time: '2025-08-30T14:30:00-05:00' },
+        { id: 'game10', home: 'Oklahoma', away: 'Auburn', spread: -4, time: '2025-08-30T14:30:00-05:00' },
         
-        // Sunday games (12:00 PM ET)
-        { id: 'game11', home: 'Notre Dame', away: 'Navy', spread: -17, time: '2025-08-31T17:00:00Z' },
+        // Saturday evening games (6:00 PM CT)
+        { id: 'game5', home: 'Tennessee', away: 'Syracuse', spread: -6, time: '2025-08-30T18:00:00-05:00', userPicked: 'game5' },
+        { id: 'game11', home: 'Florida', away: 'Miami', spread: -1, time: '2025-08-30T18:30:00-05:00' },
+        
+        // Saturday late games (7:00-9:30 PM CT)
+        { id: 'game6', home: 'Ohio State', away: 'Texas', spread: -4, time: '2025-08-30T19:00:00-05:00', userPicked: 'game6' },
+        { id: 'game12', home: 'Washington', away: 'UCLA', spread: -5, time: '2025-08-30T21:30:00-05:00' },
+        
+        // Sunday games (11:00 AM CT)
+        { id: 'game13', home: 'Notre Dame', away: 'Navy', spread: -17, time: '2025-08-31T11:00:00-05:00' },
+        
+        // Monday games (7:00 PM CT)  
+        { id: 'game14', home: 'Stanford', away: 'Cal', spread: -7, time: '2025-09-01T19:00:00-05:00' },
+        { id: 'game15', home: 'Arizona', away: 'Utah', spread: -8, time: '2025-09-01T21:30:00-05:00' },
       ]
 
       const sampleGames: GameWithPicks[] = allWeekGames.map(game => {
-        // Random pick distribution for non-user-picked games
-        const randomSplit = Math.random()
-        const homePicks = game.userPicked ? 
-          (mockUserPicks[game.userPicked]?.selected_team === game.home ? totalLeaderboardUsers : Math.floor(totalLeaderboardUsers * randomSplit)) :
-          Math.floor(totalLeaderboardUsers * randomSplit)
+        // Only games picked by leaderboard users should have picks
+        // Each user makes 6 picks, so only 6 out of 15 games will have picks from our 2 users
+        const isPickedGame = game.userPicked !== undefined
+        const picksForThisGame = isPickedGame ? totalLeaderboardUsers : 0
+        
+        let homePicks = 0
+        let awayPicks = 0
+        
+        if (isPickedGame && picksForThisGame > 0) {
+          // For games that users actually picked, distribute picks based on selections
+          if (mockUserPicks[game.userPicked]?.selected_team === game.home) {
+            homePicks = 1 // Current user picked home team
+            awayPicks = totalLeaderboardUsers - 1 // Other user(s) picked away team
+          } else {
+            homePicks = totalLeaderboardUsers - 1 // Other user(s) picked home team  
+            awayPicks = 1 // Current user picked away team
+          }
+        }
         
         return {
           id: game.id,
@@ -109,9 +128,9 @@ export default function GamesList({
           status: 'scheduled',
           home_score: null,
           away_score: null,
-          total_picks: totalLeaderboardUsers,
+          total_picks: picksForThisGame, // Only picked games have picks
           home_picks: homePicks,
-          away_picks: totalLeaderboardUsers - homePicks,
+          away_picks: awayPicks,
           completed_picks: 0,
           base_points: 20,
           lock_bonus: 0,
@@ -404,6 +423,11 @@ export default function GamesList({
                         {game.away_picks} picks ({Math.round((game.away_picks / game.total_picks) * 100)}%)
                       </div>
                     )}
+                    {game.total_picks === 0 && (
+                      <div className="text-gray-400 mt-1 text-xs">
+                        No picks
+                      </div>
+                    )}
                   </div>
 
                   {/* Home Team */}
@@ -427,6 +451,11 @@ export default function GamesList({
                     {game.total_picks > 0 && (
                       <div className="text-blue-600 mt-1">
                         {game.home_picks} picks ({Math.round((game.home_picks / game.total_picks) * 100)}%)
+                      </div>
+                    )}
+                    {game.total_picks === 0 && (
+                      <div className="text-gray-400 mt-1 text-xs">
+                        No picks
                       </div>
                     )}
                   </div>
