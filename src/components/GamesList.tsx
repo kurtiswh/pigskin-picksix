@@ -53,44 +53,36 @@ export default function GamesList({
       const totalLeaderboardUsers = leaderboardUsers.length || 2
       console.log(`📊 Total leaderboard users for pick counts: ${totalLeaderboardUsers}`)
       
-      // Mock user picks based on actual assigned pick data - based on screenshots you shared
+      // Mock user picks based on actual assigned pick data from screenshots
       const mockUserPicks = currentUser ? {
-        'game1': { selected_team: 'Georgia', is_lock: false },  // User picked Georgia
-        'game2': { selected_team: 'Ohio State', is_lock: true }, // User picked Ohio State (Lock)
-        'game3': { selected_team: 'Oklahoma', is_lock: false },  // User picked Oklahoma
-        'game4': { selected_team: 'Florida State', is_lock: false }, // User picked FSU
-        'game5': { selected_team: 'Oregon', is_lock: false },    // User picked Oregon
-        'game6': { selected_team: 'Notre Dame', is_lock: false } // User picked Notre Dame
+        'game1': { selected_team: 'Nebraska', is_lock: false },     // Nebraska @ Cincinnati - User picked Nebraska
+        'game2': { selected_team: 'LSU', is_lock: false },         // LSU @ Clemson - User picked LSU  
+        'game3': { selected_team: 'Texas A&M', is_lock: false },   // UTSA @ Texas A&M - User picked Texas A&M
+        'game4': { selected_team: 'Montana State', is_lock: true }, // Montana State @ Oregon - User picked Montana State (LOCK)
+        'game5': { selected_team: 'Syracuse', is_lock: false },    // Syracuse @ Tennessee - User picked Syracuse
+        'game6': { selected_team: 'Ohio State', is_lock: false }   // Texas @ Ohio State - User picked Ohio State
       } : {}
       
-      // Show full week of college football games (15 games per week)
+      // Games matching exactly what was selected in the admin interface based on screenshots
       const allWeekGames = [
-        // Thursday games
-        { id: 'game1', home: 'Alabama', away: 'Georgia', spread: -3.5, time: '2025-08-28T19:30:00Z', userPicked: 'game1' },
-        { id: 'game2', home: 'Ohio State', away: 'Michigan', spread: -7, time: '2025-08-28T20:00:00Z', userPicked: 'game2' },
+        // The 6 games that were actually selected by users in the admin interface
+        { id: 'game1', home: 'Cincinnati', away: 'Nebraska', spread: -3.5, time: '2025-08-30T19:30:00Z', userPicked: 'game1' },
+        { id: 'game2', home: 'Clemson', away: 'LSU', spread: -7, time: '2025-08-30T15:30:00Z', userPicked: 'game2' },
+        { id: 'game3', home: 'Texas A&M', away: 'UTSA', spread: -14, time: '2025-08-30T12:00:00Z', userPicked: 'game3' },
+        { id: 'game4', home: 'Oregon', away: 'Montana State', spread: -28, time: '2025-08-30T22:30:00Z', userPicked: 'game4' },
+        { id: 'game5', home: 'Tennessee', away: 'Syracuse', spread: -6, time: '2025-08-30T19:00:00Z', userPicked: 'game5' },
+        { id: 'game6', home: 'Ohio State', away: 'Texas', spread: -4, time: '2025-08-30T20:00:00Z', userPicked: 'game6' },
         
-        // Friday games
-        { id: 'game3', home: 'Texas', away: 'Oklahoma', spread: -4.5, time: '2025-08-29T19:00:00Z', userPicked: 'game3' },
-        { id: 'game4', home: 'Clemson', away: 'Florida State', spread: -2.5, time: '2025-08-29T20:00:00Z', userPicked: 'game4' },
-        { id: 'game5', home: 'USC', away: 'Oregon', spread: -1, time: '2025-08-29T22:30:00Z', userPicked: 'game5' },
-        
-        // Saturday early games
-        { id: 'game6', home: 'Notre Dame', away: 'Navy', spread: -14, time: '2025-08-30T12:00:00Z', userPicked: 'game6' },
-        { id: 'game7', home: 'Penn State', away: 'Wisconsin', spread: -6.5, time: '2025-08-30T12:00:00Z' },
-        { id: 'game8', home: 'Florida', away: 'Tennessee', spread: -3, time: '2025-08-30T12:00:00Z' },
-        { id: 'game9', home: 'LSU', away: 'Auburn', spread: -4, time: '2025-08-30T12:00:00Z' },
-        
-        // Saturday afternoon games
-        { id: 'game10', home: 'Oklahoma State', away: 'Baylor', spread: -2, time: '2025-08-30T15:30:00Z' },
-        { id: 'game11', home: 'Kentucky', away: 'Vanderbilt', spread: -10, time: '2025-08-30T15:30:00Z' },
-        { id: 'game12', home: 'Iowa', away: 'Minnesota', spread: -1.5, time: '2025-08-30T15:30:00Z' },
-        
-        // Saturday evening games
-        { id: 'game13', home: 'Washington', away: 'UCLA', spread: -5, time: '2025-08-30T19:00:00Z' },
-        { id: 'game14', home: 'Stanford', away: 'Cal', spread: -7, time: '2025-08-30T19:30:00Z' },
-        
-        // Saturday late games
-        { id: 'game15', home: 'Arizona', away: 'Utah', spread: -8, time: '2025-08-30T22:30:00Z' },
+        // Additional games to complete the week (9 more for total of 15)
+        { id: 'game7', home: 'Alabama', away: 'Georgia', spread: -2.5, time: '2025-08-30T15:30:00Z' },
+        { id: 'game8', home: 'Michigan', away: 'USC', spread: -3, time: '2025-08-30T12:00:00Z' },
+        { id: 'game9', home: 'Penn State', away: 'Wisconsin', spread: -6.5, time: '2025-08-30T12:00:00Z' },
+        { id: 'game10', home: 'Florida', away: 'Miami', spread: -1, time: '2025-08-30T19:30:00Z' },
+        { id: 'game11', home: 'Notre Dame', away: 'Navy', spread: -17, time: '2025-08-31T12:00:00Z' },
+        { id: 'game12', home: 'Oklahoma', away: 'Auburn', spread: -4, time: '2025-08-30T15:30:00Z' },
+        { id: 'game13', home: 'Washington', away: 'UCLA', spread: -5, time: '2025-08-30T22:30:00Z' },
+        { id: 'game14', home: 'Stanford', away: 'Cal', spread: -7, time: '2025-08-30T19:00:00Z' },
+        { id: 'game15', home: 'Arizona', away: 'Utah', spread: -8, time: '2025-08-30T16:00:00Z' },
       ]
 
       const sampleGames: GameWithPicks[] = allWeekGames.map(game => {
