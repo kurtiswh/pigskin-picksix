@@ -163,7 +163,8 @@ export default function LeaderboardPage() {
           Promise.race([
             supabase
               .from('anonymous_picks')
-              .select('assigned_user_id')
+              .select('assigned_user_id, season')
+              .eq('season', currentSeason)
               .not('assigned_user_id', 'is', null),
             timeoutPromise
           ])
@@ -171,6 +172,10 @@ export default function LeaderboardPage() {
         
         const pickUserIds = picksResult.data?.map(p => p.user_id) || []
         const anonymousUserIds = anonymousResult.data?.map(p => p.assigned_user_id).filter(Boolean) || []
+        
+        // Debug: show what seasons we found for anonymous picks
+        const anonymousSeasons = [...new Set(anonymousResult.data?.map(p => p.season) || [])]
+        console.log(`🗓️ Anonymous picks found for seasons: ${anonymousSeasons.join(', ')} (looking for ${currentSeason})`)
         
         userIds = [...new Set([...pickUserIds, ...anonymousUserIds])]
         console.log(`📊 Found ${pickUserIds.length} users with direct picks, ${anonymousUserIds.length} with assigned anonymous picks`)
@@ -187,7 +192,23 @@ export default function LeaderboardPage() {
       }
 
       if (userIds.length === 0) {
-        console.log('📝 No users with picks found, using mock data for demo')
+        console.log(`📝 No users with picks found for season ${currentSeason}`)
+        console.log('🔍 Checking if anonymous picks exist without season filter...')
+        
+        // Try to get anonymous picks without season filter to debug
+        try {
+          const debugResult = await supabase
+            .from('anonymous_picks')
+            .select('assigned_user_id, season')
+            .not('assigned_user_id', 'is', null)
+            .limit(5)
+          
+          console.log('📋 Debug - found anonymous picks:', debugResult.data)
+        } catch (debugError) {
+          console.log('🚨 Debug query failed:', debugError)
+        }
+        
+        // For now, still show mock data but with better logging
         setLeaderboardData(mockLeaderboardData)
         setLastUpdate(new Date())
         return
@@ -679,6 +700,42 @@ export default function LeaderboardPage() {
             Games & Scoring
           </button>
         </div>
+
+        {/* Compact Scoring Info - Toggleable */}
+        {activeTab !== 'games' && (
+          <div className="mb-4">
+            <details className="group">
+              <summary className="cursor-pointer flex items-center justify-center text-sm text-charcoal-600 hover:text-pigskin-600 transition-colors">
+                <span className="mr-2">ℹ️</span>
+                <span>How Scoring Works</span>
+                <span className="ml-2 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <div className="mt-3 p-4 bg-stone-50 rounded-lg border">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center mb-3">
+                  <div className="p-2 bg-green-50 rounded">
+                    <div className="text-lg font-bold text-green-600">20</div>
+                    <div className="text-xs text-charcoal-600">Cover + Bonus</div>
+                  </div>
+                  <div className="p-2 bg-yellow-50 rounded">
+                    <div className="text-lg font-bold text-yellow-600">10</div>
+                    <div className="text-xs text-charcoal-600">Push</div>
+                  </div>
+                  <div className="p-2 bg-red-50 rounded">
+                    <div className="text-lg font-bold text-red-600">0</div>
+                    <div className="text-xs text-charcoal-600">Miss</div>
+                  </div>
+                  <div className="p-2 bg-gold-50 rounded">
+                    <div className="text-lg font-bold text-gold-600">🔒</div>
+                    <div className="text-xs text-charcoal-600">2x Lock</div>
+                  </div>
+                </div>
+                <div className="text-xs text-charcoal-500 text-center">
+                  Bonus: +1 (11-19.5), +3 (20-28.5), +5 (29+) • Lock picks double all points
+                </div>
+              </div>
+            </details>
+          </div>
+        )}
 
         {/* Error Display */}
         {error && (
