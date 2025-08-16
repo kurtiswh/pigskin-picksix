@@ -53,10 +53,17 @@ export default function GamesList({
       const totalLeaderboardUsers = leaderboardUsers.length || 2
       console.log(`📊 Total leaderboard users for pick counts: ${totalLeaderboardUsers}`)
       
-      // Get real games data from database
+      // Get real games data from database with timeout
       try {
         console.log('📅 Fetching real games from database...')
-        const { data: gamesData, error: gamesError } = await supabase
+        
+        // Create a timeout promise that rejects after 10 seconds
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Database query timeout after 10 seconds')), 10000)
+        })
+        
+        // Race the query against the timeout
+        const queryPromise = supabase
           .from('games')
           .select(`
             id,
@@ -73,6 +80,16 @@ export default function GamesList({
           .eq('season', season)
           .eq('week', selectedWeek)
           .order('kickoff_time')
+        
+        let gamesData, gamesError
+        try {
+          const result = await Promise.race([queryPromise, timeoutPromise])
+          gamesData = result.data
+          gamesError = result.error
+        } catch (timeoutError) {
+          console.error('❌ Database query timed out:', timeoutError.message)
+          gamesError = timeoutError
+        }
         
         if (gamesError) {
           console.error('❌ Error fetching games:', gamesError)
