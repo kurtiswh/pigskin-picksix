@@ -9,6 +9,7 @@ import { Game, Pick } from '@/types'
 interface GamesListProps {
   week?: number
   season: number
+  leaderboardUsers?: string[]
 }
 
 interface GameWithPicks extends Game {
@@ -24,7 +25,8 @@ interface GameWithPicks extends Game {
 
 export default function GamesList({ 
   week, 
-  season
+  season,
+  leaderboardUsers = []
 }: GamesListProps) {
   const { user } = useAuth()
   const [games, setGames] = useState<GameWithPicks[]>([])
@@ -42,9 +44,13 @@ export default function GamesList({
       setError('')
 
       console.log(`🏈 Loading games for Week ${selectedWeek}, Season ${season}`)
+      console.log(`👥 Using ${leaderboardUsers.length} leaderboard users for pick counts`)
       
-      // Show sample games data immediately to avoid database timeout issues
-      // Based on 2025 college football season
+      // Calculate pick counts based on actual leaderboard users (2 users currently)
+      const totalLeaderboardUsers = leaderboardUsers.length || 2
+      
+      // Show sample games data with realistic pick counts based on leaderboard users
+      // Each user makes 6 picks per week, so total possible picks per game varies
       const sampleGames: GameWithPicks[] = [
         {
           id: 'game1',
@@ -57,9 +63,9 @@ export default function GamesList({
           status: 'scheduled',
           home_score: null,
           away_score: null,
-          total_picks: 8,
-          home_picks: 5,
-          away_picks: 3,
+          total_picks: totalLeaderboardUsers, // Both users picked this game
+          home_picks: 1, // 1 user picked Alabama
+          away_picks: totalLeaderboardUsers - 1, // Other user(s) picked Georgia
           completed_picks: 0,
           base_points: 20,
           lock_bonus: 0,
@@ -76,9 +82,9 @@ export default function GamesList({
           status: 'scheduled',
           home_score: null,
           away_score: null,
-          total_picks: 12,
-          home_picks: 7,
-          away_picks: 5,
+          total_picks: totalLeaderboardUsers,
+          home_picks: totalLeaderboardUsers, // Both users picked Ohio State
+          away_picks: 0,
           completed_picks: 0,
           base_points: 20,
           lock_bonus: 0,
@@ -95,9 +101,9 @@ export default function GamesList({
           status: 'scheduled',
           home_score: null,
           away_score: null,
-          total_picks: 10,
-          home_picks: 4,
-          away_picks: 6,
+          total_picks: totalLeaderboardUsers,
+          home_picks: 0, // Both users picked Oklahoma
+          away_picks: totalLeaderboardUsers,
           completed_picks: 0,
           base_points: 20,
           lock_bonus: 0,
@@ -114,9 +120,9 @@ export default function GamesList({
           status: 'scheduled',
           home_score: null,
           away_score: null,
-          total_picks: 6,
-          home_picks: 3,
-          away_picks: 3,
+          total_picks: totalLeaderboardUsers,
+          home_picks: 1,
+          away_picks: totalLeaderboardUsers - 1,
           completed_picks: 0,
           base_points: 20,
           lock_bonus: 0,
@@ -133,9 +139,9 @@ export default function GamesList({
           status: 'scheduled',
           home_score: null,
           away_score: null,
-          total_picks: 14,
-          home_picks: 7,
-          away_picks: 7,
+          total_picks: totalLeaderboardUsers,
+          home_picks: Math.floor(totalLeaderboardUsers / 2),
+          away_picks: Math.ceil(totalLeaderboardUsers / 2),
           completed_picks: 0,
           base_points: 20,
           lock_bonus: 0,
@@ -152,9 +158,9 @@ export default function GamesList({
           status: 'scheduled',
           home_score: null,
           away_score: null,
-          total_picks: 4,
-          home_picks: 3,
-          away_picks: 1,
+          total_picks: totalLeaderboardUsers,
+          home_picks: totalLeaderboardUsers, // All users picked Notre Dame (heavy favorite)
+          away_picks: 0,
           completed_picks: 0,
           base_points: 20,
           lock_bonus: 0,
