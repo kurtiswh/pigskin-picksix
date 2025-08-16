@@ -63,134 +63,70 @@ export default function GamesList({
         'game6': { selected_team: 'Notre Dame', is_lock: false } // User picked Notre Dame
       } : {}
       
-      // Show sample games data with realistic pick counts based on leaderboard users
-      // Each user makes 6 picks per week, so total possible picks per game varies
-      const sampleGames: GameWithPicks[] = [
-        {
-          id: 'game1',
+      // Show full week of college football games (typically 15-20+ games per week)
+      const allWeekGames = [
+        // Thursday games
+        { id: 'game1', home: 'Alabama', away: 'Georgia', spread: -3.5, time: '2025-08-28T19:30:00Z', userPicked: 'game1' },
+        { id: 'game2', home: 'Ohio State', away: 'Michigan', spread: -7, time: '2025-08-28T20:00:00Z', userPicked: 'game2' },
+        
+        // Friday games
+        { id: 'game3', home: 'Texas', away: 'Oklahoma', spread: -4.5, time: '2025-08-29T19:00:00Z', userPicked: 'game3' },
+        { id: 'game4', home: 'Clemson', away: 'Florida State', spread: -2.5, time: '2025-08-29T20:00:00Z', userPicked: 'game4' },
+        { id: 'game5', home: 'USC', away: 'Oregon', spread: -1, time: '2025-08-29T22:30:00Z', userPicked: 'game5' },
+        
+        // Saturday early games
+        { id: 'game6', home: 'Notre Dame', away: 'Navy', spread: -14, time: '2025-08-30T12:00:00Z', userPicked: 'game6' },
+        { id: 'game7', home: 'Penn State', away: 'Wisconsin', spread: -6.5, time: '2025-08-30T12:00:00Z' },
+        { id: 'game8', home: 'Florida', away: 'Tennessee', spread: -3, time: '2025-08-30T12:00:00Z' },
+        { id: 'game9', home: 'LSU', away: 'Auburn', spread: -4, time: '2025-08-30T12:00:00Z' },
+        { id: 'game10', home: 'Michigan State', away: 'Northwestern', spread: -9, time: '2025-08-30T12:00:00Z' },
+        
+        // Saturday afternoon games
+        { id: 'game11', home: 'Oklahoma State', away: 'Baylor', spread: -2, time: '2025-08-30T15:30:00Z' },
+        { id: 'game12', home: 'Kentucky', away: 'Vanderbilt', spread: -10, time: '2025-08-30T15:30:00Z' },
+        { id: 'game13', home: 'Iowa', away: 'Minnesota', spread: -1.5, time: '2025-08-30T15:30:00Z' },
+        { id: 'game14', home: 'Arizona State', away: 'Colorado', spread: -3.5, time: '2025-08-30T15:30:00Z' },
+        
+        // Saturday evening games
+        { id: 'game15', home: 'Washington', away: 'UCLA', spread: -5, time: '2025-08-30T19:00:00Z' },
+        { id: 'game16', home: 'Stanford', away: 'Cal', spread: -7, time: '2025-08-30T19:30:00Z' },
+        { id: 'game17', home: 'Virginia Tech', away: 'Virginia', spread: -4, time: '2025-08-30T20:00:00Z' },
+        
+        // Saturday late games
+        { id: 'game18', home: 'Arizona', away: 'Utah', spread: -8, time: '2025-08-30T22:30:00Z' },
+        { id: 'game19', home: 'Nevada', away: 'Fresno State', spread: -2.5, time: '2025-08-30T22:30:00Z' },
+        
+        // Sunday games (rare but some weeks have them)
+        { id: 'game20', home: 'Army', away: 'Air Force', spread: -3, time: '2025-08-31T15:00:00Z' },
+      ]
+
+      const sampleGames: GameWithPicks[] = allWeekGames.map(game => {
+        // Random pick distribution for non-user-picked games
+        const randomSplit = Math.random()
+        const homePicks = game.userPicked ? 
+          (mockUserPicks[game.userPicked]?.selected_team === game.home ? totalLeaderboardUsers : Math.floor(totalLeaderboardUsers * randomSplit)) :
+          Math.floor(totalLeaderboardUsers * randomSplit)
+        
+        return {
+          id: game.id,
           season: 2025,
           week: selectedWeek,
-          home_team: 'Alabama',
-          away_team: 'Georgia',
-          spread: -3.5,
-          kickoff_time: '2025-08-30T19:30:00Z',
-          status: 'scheduled',
-          home_score: null,
-          away_score: null,
-          total_picks: totalLeaderboardUsers, 
-          home_picks: 1, // 1 user picked Alabama
-          away_picks: totalLeaderboardUsers - 1, // Other user(s) picked Georgia
-          completed_picks: 0,
-          user_pick: mockUserPicks['game1'] ? {
-            selected_team: mockUserPicks['game1'].selected_team,
-            is_lock: mockUserPicks['game1'].is_lock,
-            user_id: currentUser?.id
-          } : null,
-          base_points: 20,
-          lock_bonus: 0,
-          margin_bonus: 0
-        },
-        {
-          id: 'game2',
-          season: 2025,
-          week: selectedWeek,
-          home_team: 'Ohio State',
-          away_team: 'Michigan',
-          spread: -7,
-          kickoff_time: '2025-08-30T15:30:00Z',
-          status: 'scheduled',
-          home_score: null,
-          away_score: null,
-          total_picks: totalLeaderboardUsers,
-          home_picks: totalLeaderboardUsers, // Both users picked Ohio State
-          away_picks: 0,
-          completed_picks: 0,
-          user_pick: mockUserPicks['game2'] ? {
-            selected_team: mockUserPicks['game2'].selected_team,
-            is_lock: mockUserPicks['game2'].is_lock,
-            user_id: currentUser?.id
-          } : null,
-          base_points: 20,
-          lock_bonus: 0,
-          margin_bonus: 0
-        },
-        {
-          id: 'game3',
-          season: 2025,
-          week: selectedWeek,
-          home_team: 'Texas',
-          away_team: 'Oklahoma',
-          spread: -4.5,
-          kickoff_time: '2025-08-31T12:00:00Z',
+          home_team: game.home,
+          away_team: game.away,
+          spread: game.spread,
+          kickoff_time: game.time,
           status: 'scheduled',
           home_score: null,
           away_score: null,
           total_picks: totalLeaderboardUsers,
-          home_picks: 0, // Both users picked Oklahoma
-          away_picks: totalLeaderboardUsers,
-          completed_picks: 0,
-          base_points: 20,
-          lock_bonus: 0,
-          margin_bonus: 0
-        },
-        {
-          id: 'game4',
-          season: 2025,
-          week: selectedWeek,
-          home_team: 'Clemson',
-          away_team: 'Florida State',
-          spread: -2.5,
-          kickoff_time: '2025-08-31T16:00:00Z',
-          status: 'scheduled',
-          home_score: null,
-          away_score: null,
-          total_picks: totalLeaderboardUsers,
-          home_picks: 1,
-          away_picks: totalLeaderboardUsers - 1,
-          completed_picks: 0,
-          base_points: 20,
-          lock_bonus: 0,
-          margin_bonus: 0
-        },
-        {
-          id: 'game5',
-          season: 2025,
-          week: selectedWeek,
-          home_team: 'USC',
-          away_team: 'Oregon',
-          spread: -1,
-          kickoff_time: '2025-08-31T22:30:00Z',
-          status: 'scheduled',
-          home_score: null,
-          away_score: null,
-          total_picks: totalLeaderboardUsers,
-          home_picks: Math.floor(totalLeaderboardUsers / 2),
-          away_picks: Math.ceil(totalLeaderboardUsers / 2),
-          completed_picks: 0,
-          base_points: 20,
-          lock_bonus: 0,
-          margin_bonus: 0
-        },
-        {
-          id: 'game6',
-          season: 2025,
-          week: selectedWeek,
-          home_team: 'Notre Dame',
-          away_team: 'Navy',
-          spread: -14,
-          kickoff_time: '2025-09-01T12:00:00Z',
-          status: 'scheduled',
-          home_score: null,
-          away_score: null,
-          total_picks: totalLeaderboardUsers,
-          home_picks: totalLeaderboardUsers, // All users picked Notre Dame (heavy favorite)
-          away_picks: 0,
+          home_picks: homePicks,
+          away_picks: totalLeaderboardUsers - homePicks,
           completed_picks: 0,
           base_points: 20,
           lock_bonus: 0,
           margin_bonus: 0
         }
-      ]
+      })
 
       // Add user picks to all games
       const gamesWithUserPicks = sampleGames.map(game => ({
@@ -430,96 +366,50 @@ export default function GamesList({
         )}
 
         {games.length > 0 && (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {games.map((game) => (
               <div
                 key={game.id}
                 className={cn(
-                  "p-4 border rounded-lg transition-colors",
+                  "p-3 border rounded transition-colors",
                   game.status === 'completed' && "border-green-200 bg-green-50",
                   game.status === 'in_progress' && "border-yellow-200 bg-yellow-50",
                   game.status === 'scheduled' && "border-stone-200 bg-white"
                 )}
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-sm">
-                        {game.away_team} @ {game.home_team}
-                      </span>
-                      {getStatusBadge(game)}
-                    </div>
-                    {game.status === 'completed' && game.home_score !== null && game.away_score !== null ? (
-                      <div className="text-sm font-medium text-charcoal-700">
-                        Final: {game.away_team} {game.away_score} - {game.home_score} {game.home_team}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-charcoal-500">
-                        {formatTime(game.kickoff_time)}
-                      </div>
-                    )}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm">
+                      {game.away_team} @ {game.home_team}
+                    </span>
+                    {getStatusBadge(game)}
                   </div>
-                  
-                  <div className="text-right">
-                    {getPointsInfo(game)}
+                  <div className="text-xs text-charcoal-500">
+                    {formatTime(game.kickoff_time)}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-2">
                   {/* Away Team */}
                   <div className={cn(
-                    "text-center p-3 rounded border transition-all",
+                    "text-center p-2 rounded border text-xs",
                     game.user_pick?.selected_team === game.away_team 
-                      ? "bg-pigskin-50 border-pigskin-300 ring-2 ring-pigskin-200" 
+                      ? "bg-pigskin-50 border-pigskin-300 ring-1 ring-pigskin-200" 
                       : "bg-white border-stone-200"
                   )}>
-                    <div className="font-medium text-sm">{game.away_team}</div>
-                    {game.status === 'completed' && game.away_score !== null ? (
-                      <div className="mb-1">
-                        <div className="text-lg font-bold text-charcoal-700">
-                          {game.away_score}
-                        </div>
-                        <div className="text-xs text-charcoal-500">
-                          {getSpreadDisplay(game.away_team, game)}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-charcoal-500 mb-1">
-                        {getSpreadDisplay(game.away_team, game)}
-                      </div>
-                    )}
+                    <div className="font-medium">{game.away_team}</div>
+                    <div className="text-charcoal-500 mb-1">
+                      {getSpreadDisplay(game.away_team, game)}
+                    </div>
                     
-                    {/* User's pick indicator */}
                     {game.user_pick?.selected_team === game.away_team && (
-                      <div className="text-xs font-semibold text-pigskin-700 mb-1">
+                      <div className="text-pigskin-700 font-semibold">
                         YOUR PICK {game.user_pick.is_lock && "🔒"}
                       </div>
                     )}
                     
-                    {/* Points for user's pick */}
-                    {game.user_pick?.selected_team === game.away_team && game.status === 'completed' && (
-                      <div className="text-xs">
-                        {game.user_pick.result === 'win' && (
-                          <div className="text-green-600 font-medium">
-                            ✓ {game.user_pick.points_earned} pts
-                            {game.user_pick.is_lock && " (LOCK)"}
-                          </div>
-                        )}
-                        {game.user_pick.result === 'loss' && (
-                          <div className="text-red-600 font-medium">
-                            ✗ 0 pts
-                          </div>
-                        )}
-                        {game.user_pick.result === 'push' && (
-                          <div className="text-yellow-600 font-medium">
-                            ≈ 10 pts (push)
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
                     {game.total_picks > 0 && (
-                      <div className="text-xs text-blue-600 mt-1">
+                      <div className="text-blue-600 mt-1">
                         {game.away_picks} picks ({Math.round((game.away_picks / game.total_picks) * 100)}%)
                       </div>
                     )}
@@ -527,74 +417,29 @@ export default function GamesList({
 
                   {/* Home Team */}
                   <div className={cn(
-                    "text-center p-3 rounded border transition-all",
+                    "text-center p-2 rounded border text-xs",
                     game.user_pick?.selected_team === game.home_team 
-                      ? "bg-pigskin-50 border-pigskin-300 ring-2 ring-pigskin-200" 
+                      ? "bg-pigskin-50 border-pigskin-300 ring-1 ring-pigskin-200" 
                       : "bg-white border-stone-200"
                   )}>
-                    <div className="font-medium text-sm">{game.home_team}</div>
-                    {game.status === 'completed' && game.home_score !== null ? (
-                      <div className="mb-1">
-                        <div className="text-lg font-bold text-charcoal-700">
-                          {game.home_score}
-                        </div>
-                        <div className="text-xs text-charcoal-500">
-                          {getSpreadDisplay(game.home_team, game)}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-charcoal-500 mb-1">
-                        {getSpreadDisplay(game.home_team, game)}
-                      </div>
-                    )}
+                    <div className="font-medium">{game.home_team}</div>
+                    <div className="text-charcoal-500 mb-1">
+                      {getSpreadDisplay(game.home_team, game)}
+                    </div>
                     
-                    {/* User's pick indicator */}
                     {game.user_pick?.selected_team === game.home_team && (
-                      <div className="text-xs font-semibold text-pigskin-700 mb-1">
+                      <div className="text-pigskin-700 font-semibold">
                         YOUR PICK {game.user_pick.is_lock && "🔒"}
                       </div>
                     )}
                     
-                    {/* Points for user's pick */}
-                    {game.user_pick?.selected_team === game.home_team && game.status === 'completed' && (
-                      <div className="text-xs">
-                        {game.user_pick.result === 'win' && (
-                          <div className="text-green-600 font-medium">
-                            ✓ {game.user_pick.points_earned} pts
-                            {game.user_pick.is_lock && " (LOCK)"}
-                          </div>
-                        )}
-                        {game.user_pick.result === 'loss' && (
-                          <div className="text-red-600 font-medium">
-                            ✗ 0 pts
-                          </div>
-                        )}
-                        {game.user_pick.result === 'push' && (
-                          <div className="text-xs text-yellow-600 font-medium">
-                            ≈ 10 pts (push)
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
                     {game.total_picks > 0 && (
-                      <div className="text-xs text-blue-600 mt-1">
+                      <div className="text-blue-600 mt-1">
                         {game.home_picks} picks ({Math.round((game.home_picks / game.total_picks) * 100)}%)
                       </div>
                     )}
                   </div>
                 </div>
-
-                {game.total_picks > 0 && (
-                  <div className="mt-3 pt-3 border-t border-stone-200 text-center">
-                    <div className="text-xs text-charcoal-500">
-                      Total picks: {game.total_picks}
-                      {game.completed_picks > 0 && (
-                        <span> • Scored: {game.completed_picks}</span>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
             ))}
           </div>
