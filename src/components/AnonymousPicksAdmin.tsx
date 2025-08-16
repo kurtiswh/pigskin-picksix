@@ -34,6 +34,7 @@ interface PickSet {
   assignedUserId?: string
   showOnLeaderboard: boolean
   autoAssigned?: boolean
+  hasConflicts?: boolean
 }
 
 interface User {
@@ -83,21 +84,24 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
   }, [selectedWeek, selectedSeason])
 
   useEffect(() => {
-    // Temporarily disable auto-processing to fix infinite loop
-    // TODO: Re-enable after fixing database permissions
-    console.log('⚠️ Auto-processing temporarily disabled to prevent infinite loop')
-    // Auto-process validated users after data loads (with delay to avoid race conditions)
-    // if (!loading && pickSets.length > 0 && users.length > 0) {
-    //   const timer = setTimeout(() => {
-    //     processValidatedUsers()
-    //   }, 500) // 500ms delay to ensure data is stable
-    //   
-    //   return () => clearTimeout(timer)
-    // }
-  }, [loading, pickSets, users])
+    // Auto-process validated users after initial data loads (with delay to avoid race conditions)
+    if (!loading && pickSets.length > 0 && users.length > 0) {
+      // Only auto-process unassigned validated pick sets to prevent infinite loop
+      const unassignedValidatedPickSets = pickSets.filter(ps => ps.isValidated && !ps.assignedUserId && !ps.autoAssigned)
+      
+      if (unassignedValidatedPickSets.length > 0) {
+        console.log(`🔄 Auto-processing ${unassignedValidatedPickSets.length} validated users`)
+        const timer = setTimeout(() => {
+          processValidatedUsers()
+        }, 500) // 500ms delay to ensure data is stable
+        
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [loading, pickSets.length, users.length]) // Only trigger on length changes, not content changes
 
   const processValidatedUsers = async () => {
-    const validatedPickSets = pickSets.filter(ps => ps.isValidated && !ps.assignedUserId)
+    const validatedPickSets = pickSets.filter(ps => ps.isValidated && !ps.assignedUserId && !ps.autoAssigned)
     
     for (const pickSet of validatedPickSets) {
       try {
@@ -259,19 +263,29 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         await confirmAssignment(pickSet, userId, 'new')
       }
     } else {
-      // Conflicts found - show conflict resolution dialog
-      // This applies to both validated and unvalidated users
+      // Conflicts found
       console.log(`⚠️ Conflicts found for ${pickSet.email}:`, existingPickSets.length, 'existing pick sets')
       console.log('📋 Existing pick sets details:', existingPickSets)
+      
       if (autoMode && pickSet.isValidated) {
-        console.log(`🔄 Showing conflict resolution for validated user: ${pickSet.email}`)
+        // For auto-mode validated users, just mark the pick set to show conflicts without opening dialog
+        console.log(`🔄 Auto-mode: Marking validated user ${pickSet.email} with conflicts for manual review`)
+        setPickSets(prev => 
+          prev.map(ps => 
+            ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
+              ? { ...ps, autoAssigned: false, hasConflicts: true }  // Mark as having conflicts
+              : ps
+          )
+        )
+      } else {
+        // For manual mode, show conflict resolution dialog
+        setConflictResolution({
+          pickSet,
+          assignedUserId: userId,
+          existingPickSets,
+          selectedPickSet: 'new'
+        })
       }
-      setConflictResolution({
-        pickSet,
-        assignedUserId: userId,
-        existingPickSets,
-        selectedPickSet: 'new'
-      })
     }
   }
 
@@ -665,10 +679,33 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                     <div className="ml-4 flex flex-col space-y-2">
                       {pickSet.isValidated ? (
                         <div className="w-48">
-                          <div className="text-center p-3 bg-blue-50 border border-blue-200 rounded-md">
-                            <div className="text-blue-800 font-medium mb-1">✅ Validated User</div>
-                            <div className="text-blue-600 text-sm">Auto-processing conflicts...</div>
-                          </div>
+                          {pickSet.hasConflicts ? (
+                            <div className="text-center p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                              <div className="text-yellow-800 font-medium mb-1">⚠️ Conflicts Found</div>
+                              <div className="text-yellow-600 text-sm">Manual review required</div>
+                              <Button
+                                onClick={() => {
+                                  const user = users.find(u => u.email === pickSet.email)
+                                  if (user) handleAssignPickSet(pickSet, user.id, false)
+                                }}
+                                variant="outline"
+                                size="sm"
+                                className="mt-2 text-xs"
+                              >
+                                Resolve Conflicts
+                              </Button>
+                            </div>
+                          ) : pickSet.autoAssigned ? (
+                            <div className="text-center p-3 bg-green-50 border border-green-200 rounded-md">
+                              <div className="text-green-800 font-medium mb-1">✅ Auto-Assigned</div>
+                              <div className="text-green-600 text-sm">No conflicts found</div>
+                            </div>
+                          ) : (
+                            <div className="text-center p-3 bg-blue-50 border border-blue-200 rounded-md">
+                              <div className="text-blue-800 font-medium mb-1">✅ Validated User</div>
+                              <div className="text-blue-600 text-sm">Processing...</div>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="w-48 relative">
