@@ -88,26 +88,43 @@ export default function GamesList({
         
         console.log(`✅ Found ${gamesData.length} games from database`)
         
-        // Get picks data for these games from leaderboard users
-        const gameIds = gamesData.map(g => g.id)
-        const { data: picksData, error: picksError } = await supabase
-          .from('picks')
-          .select(`
-            game_id,
-            user_id,
-            selected_team,
-            is_lock,
-            points_earned,
-            result
-          `)
-          .in('game_id', gameIds)
-          .in('user_id', leaderboardUsers)
+        // Get picks data for these games from leaderboard users with timeout
+        console.log('📊 Fetching picks data...')
+        let picksData = null
         
-        if (picksError) {
-          console.error('❌ Error fetching picks:', picksError)
+        try {
+          const gameIds = gamesData.map(g => g.id)
+          
+          // Add timeout to picks query since it might be hanging
+          const picksPromise = supabase
+            .from('picks')
+            .select(`
+              game_id,
+              user_id,
+              selected_team,
+              is_lock,
+              points_earned,
+              result
+            `)
+            .in('game_id', gameIds)
+            .in('user_id', leaderboardUsers)
+          
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Picks query timeout')), 5000)
+          })
+          
+          const { data: fetchedPicks, error: picksError } = await Promise.race([picksPromise, timeoutPromise])
+          
+          if (picksError) {
+            console.error('❌ Error fetching picks:', picksError)
+          } else {
+            picksData = fetchedPicks
+            console.log(`✅ Found ${picksData?.length || 0} picks from leaderboard users`)
+          }
+        } catch (picksTimeout) {
+          console.warn('⚠️ Picks query timed out, continuing without pick data:', picksTimeout.message)
+          picksData = []
         }
-        
-        console.log(`📊 Found ${picksData?.length || 0} picks from leaderboard users`)
         
         // Process games with real pick data
         const processedGames: GameWithPicks[] = gamesData.map(game => {
