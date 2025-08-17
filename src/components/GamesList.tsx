@@ -1,37 +1,30 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/hooks/useAuth'
-import { Game, Pick } from '@/types'
+
+interface Game {
+  id: string
+  home_team: string
+  away_team: string
+  spread: number
+  kickoff_time: string
+  status: string
+  home_score: number | null
+  away_score: number | null
+  week: number
+  season: number
+  base_points?: number
+  margin_bonus?: number
+}
 
 interface GamesListProps {
   week?: number
   season: number
-  leaderboardUsers?: string[]
-  currentUser?: any
 }
 
-interface GameWithPicks extends Game {
-  total_picks?: number
-  home_picks?: number
-  away_picks?: number
-  completed_picks?: number
-  user_pick?: Pick
-  base_points?: number
-  lock_bonus?: number
-  margin_bonus?: number
-}
-
-export default function GamesList({ 
-  week, 
-  season,
-  leaderboardUsers = [],
-  currentUser
-}: GamesListProps) {
-  const { user } = useAuth()
-  const [games, setGames] = useState<GameWithPicks[]>([])
+export default function GamesList({ week, season }: GamesListProps) {
+  const [games, setGames] = useState<Game[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedWeek, setSelectedWeek] = useState(week || 1)
@@ -45,98 +38,17 @@ export default function GamesList({
       setLoading(true)
       setError('')
 
-      console.log(`🏈 Loading games for Week ${selectedWeek}, Season ${season}`)
-      console.log(`👥 Leaderboard users:`, leaderboardUsers)
-      console.log(`👤 Current user:`, currentUser?.id)
-      
-      // Calculate pick counts based on actual leaderboard users
-      const totalLeaderboardUsers = leaderboardUsers.length || 2
-      console.log(`📊 Total leaderboard users for pick counts: ${totalLeaderboardUsers}`)
-      
-      // Use same pattern as leaderboard - immediate display then background fetch
-      console.log(`📅 Loading games for Season ${season}, Week ${selectedWeek}...`)
-      
-      // Show loading immediately
-      setLoading(true)
-      setGames([])
-      
-      // Direct database query from games table
-      const loadGames = async () => {
-        try {
-          console.log(`📅 Loading games from database for Season ${season}, Week ${selectedWeek}...`)
-          
-          const { data: gamesData, error } = await supabase
-            .from('games')
-            .select(`
-              id,
-              home_team,
-              away_team,
-              spread,
-              kickoff_time,
-              status,
-              home_score,
-              away_score,
-              week,
-              season
-            `)
-            .eq('season', season)
-            .eq('week', selectedWeek)
-            .order('kickoff_time')
-          
-          if (error) {
-            console.error('❌ Error fetching games:', error)
-            setError(`Failed to load games: ${error.message}`)
-            setGames([])
-            return
-          }
-          
-          if (!gamesData || gamesData.length === 0) {
-            console.log('📝 No games found for this season/week')
-            setGames([])
-            return
-          }
-          
-          console.log(`✅ Found ${gamesData.length} games from database`)
-          
-          // Process games with real data, no pick counts for now
-          const processedGames: GameWithPicks[] = gamesData.map(game => ({
-            id: game.id,
-            season: game.season,
-            week: game.week,
-            home_team: game.home_team,
-            away_team: game.away_team,
-            spread: game.spread,
-            kickoff_time: game.kickoff_time,
-            status: game.status,
-            home_score: game.home_score,
-            away_score: game.away_score,
-            total_picks: 0, // Skip pick counts for now
-            home_picks: 0,
-            away_picks: 0,
-            completed_picks: 0,
-            user_pick: null,
-            base_points: 20,
-            lock_bonus: 0,
-            margin_bonus: 0
-          }))
-          
-          console.log(`✅ Processed ${processedGames.length} games successfully`)
-          setGames(processedGames)
-          
-        } catch (error: any) {
-          console.error('❌ Database error:', error)
-          setError(`Database error: ${error.message}`)
-          setGames([])
-        } finally {
-          setLoading(false)
-        }
-      }
-      
-      loadGames()
+      const { data, error } = await supabase
+        .from('games')
+        .select('*')
+        .eq('season', season)
+        .eq('week', selectedWeek)
+        .order('kickoff_time')
 
+      if (error) throw error
 
+      setGames(data || [])
     } catch (err: any) {
-      console.error('Error loading games:', err)
       setError(err.message)
     } finally {
       setLoading(false)
@@ -151,75 +63,6 @@ export default function GamesList({
     }
   }
 
-  const getStatusBadge = (game: GameWithPicks) => {
-    switch (game.status) {
-      case 'completed':
-        return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            ✓ Scored
-          </span>
-        )
-      case 'in_progress':
-        return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-            ⏱ Live
-          </span>
-        )
-      default:
-        return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-            📅 Scheduled
-          </span>
-        )
-    }
-  }
-
-  const getPointsInfo = (game: GameWithPicks) => {
-    if (game.status === 'scheduled') {
-      return (
-        <div className="text-sm text-charcoal-500">
-          <div>Potential: 20-30 pts</div>
-          <div className="text-xs">Base + bonuses</div>
-        </div>
-      )
-    }
-
-    if (game.status === 'in_progress') {
-      return (
-        <div className="text-sm text-yellow-600">
-          <div className="font-medium">Live Game</div>
-          <div className="text-xs">Scoring in progress</div>
-        </div>
-      )
-    }
-
-    // Completed game - show actual point breakdown
-    const totalBase = game.base_points || 0
-    const totalWithBonus = totalBase + (game.margin_bonus || 0)
-    const totalWithLock = totalWithBonus + (game.lock_bonus || 0)
-
-    return (
-      <div className="text-sm">
-        <div className="font-medium text-green-600">
-          {totalBase} base pts
-        </div>
-        {game.margin_bonus > 0 && (
-          <div className="text-xs text-blue-600">
-            +{game.margin_bonus} margin bonus
-          </div>
-        )}
-        {game.lock_bonus > 0 && (
-          <div className="text-xs text-gold-600">
-            +{game.lock_bonus} lock bonus
-          </div>
-        )}
-        <div className="text-xs text-charcoal-500 mt-1">
-          Max: {totalWithLock} pts (with lock)
-        </div>
-      </div>
-    )
-  }
-
   const formatTime = (kickoffTime: string) => {
     return new Date(kickoffTime).toLocaleDateString('en-US', {
       weekday: 'short',
@@ -227,7 +70,7 @@ export default function GamesList({
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
-      timeZone: 'America/Chicago' // Central Time zone to match admin area
+      timeZone: 'America/Chicago'
     })
   }
 
@@ -242,54 +85,28 @@ export default function GamesList({
     )
   }
 
-  return (
-    <>
-      {/* Toggleable Scoring System Info - above games like other tabs */}
-      <div className="mb-6">
-        <details className="group">
-          <summary className="cursor-pointer flex items-center justify-center text-sm text-charcoal-600 hover:text-pigskin-600 transition-colors">
-            <span className="mr-2">ℹ️</span>
-            <span>How Scoring Works</span>
-            <span className="ml-2 group-open:rotate-180 transition-transform">▼</span>
-          </summary>
-          <div className="mt-3 p-4 bg-stone-50 rounded-lg border">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center mb-3">
-              <div className="p-2 bg-green-50 rounded">
-                <div className="text-lg font-bold text-green-600">20</div>
-                <div className="text-xs text-charcoal-600">Cover + Bonus</div>
-              </div>
-              <div className="p-2 bg-yellow-50 rounded">
-                <div className="text-lg font-bold text-yellow-600">10</div>
-                <div className="text-xs text-charcoal-600">Push</div>
-              </div>
-              <div className="p-2 bg-red-50 rounded">
-                <div className="text-lg font-bold text-red-600">0</div>
-                <div className="text-xs text-charcoal-600">Miss</div>
-              </div>
-              <div className="p-2 bg-gold-50 rounded">
-                <div className="text-lg font-bold text-gold-600">🔒</div>
-                <div className="text-xs text-charcoal-600">2x Lock</div>
-              </div>
-            </div>
-            <div className="text-xs text-charcoal-500 text-center">
-              Bonus: +1 (11-19.5), +3 (20-28.5), +5 (29+) • Lock picks double all points
-            </div>
-          </div>
-        </details>
-      </div>
-
+  if (error) {
+    return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>
-              Games - Week {selectedWeek}
-            </span>
-            <div className="text-sm font-normal text-charcoal-500">
-              {games.length} games • {games.reduce((sum, game) => sum + (game.total_picks || 0), 0)} total picks
-            </div>
-          </CardTitle>
+        <CardContent className="p-8 text-center">
+          <div className="text-red-500 text-2xl mb-2">⚠️</div>
+          <div className="text-red-500">{error}</div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Games - Week {selectedWeek}</span>
+          <div className="text-sm font-normal text-charcoal-500">
+            {games.length} games
+          </div>
+        </CardTitle>
         
-        <div className="flex flex-col gap-4 mt-4">
+        <div className="flex items-center gap-4">
           <select
             value={selectedWeek}
             onChange={(e) => setSelectedWeek(parseInt(e.target.value))}
@@ -301,34 +118,11 @@ export default function GamesList({
               </option>
             ))}
           </select>
-          
-          {/* Status Legend */}
-          <div className="flex flex-wrap gap-4 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded border-2 border-green-200 bg-green-50"></div>
-              <span className="text-charcoal-600">Scored (completed games)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded border-2 border-yellow-200 bg-yellow-50"></div>
-              <span className="text-charcoal-600">Live (in progress)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded border-2 border-stone-200 bg-white"></div>
-              <span className="text-charcoal-600">Scheduled (upcoming)</span>
-            </div>
-          </div>
         </div>
       </CardHeader>
       
       <CardContent>
-        {error && (
-          <div className="text-center py-4 text-red-500">
-            <div className="text-2xl mb-2">⚠️</div>
-            <div>{error}</div>
-          </div>
-        )}
-
-        {games.length === 0 && !error && (
+        {games.length === 0 ? (
           <div className="text-center py-8 text-charcoal-500">
             <div className="text-4xl mb-4">🏈</div>
             <div>No games found</div>
@@ -336,129 +130,42 @@ export default function GamesList({
               No games scheduled for Week {selectedWeek}
             </div>
           </div>
-        )}
-
-        {games.length > 0 && (
-          <div className="space-y-2">
+        ) : (
+          <div className="space-y-4">
             {games.map((game) => (
               <div
                 key={game.id}
-                className={cn(
-                  "p-3 border rounded transition-colors",
-                  game.status === 'completed' && "border-green-200 bg-green-50",
-                  game.status === 'in_progress' && "border-yellow-200 bg-yellow-50",
-                  game.status === 'scheduled' && "border-stone-200 bg-white"
-                )}
+                className="p-4 border rounded-lg bg-white"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm">
-                      {game.away_team} @ {game.home_team}
-                    </span>
-                    {getStatusBadge(game)}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="font-medium">
+                    {game.away_team} @ {game.home_team}
                   </div>
-                  <div className="text-xs text-charcoal-500">
+                  <div className="text-sm text-charcoal-500">
                     {formatTime(game.kickoff_time)}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Away Team */}
-                  <div className={cn(
-                    "text-center p-2 rounded border text-xs",
-                    game.user_pick?.selected_team === game.away_team 
-                      ? "bg-pigskin-50 border-pigskin-300 ring-1 ring-pigskin-200" 
-                      : "bg-white border-stone-200"
-                  )}>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-3 border rounded">
                     <div className="font-medium">{game.away_team}</div>
-                    <div className="text-charcoal-500 mb-1">
+                    <div className="text-sm text-charcoal-500">
                       {getSpreadDisplay(game.away_team, game)}
                     </div>
-                    
-                    {game.user_pick?.selected_team === game.away_team && (
-                      <div className="text-pigskin-700 font-semibold">
-                        YOUR PICK {game.user_pick.is_lock && "🔒"}
-                      </div>
-                    )}
-                    
-                    {game.total_picks > 0 && (
-                      <div className="text-blue-600 mt-1">
-                        {game.away_picks} picks ({Math.round((game.away_picks / game.total_picks) * 100)}%)
-                      </div>
-                    )}
-                    {game.total_picks === 0 && (
-                      <div className="text-gray-400 mt-1 text-xs">
-                        No picks
-                      </div>
-                    )}
                   </div>
 
-                  {/* Home Team */}
-                  <div className={cn(
-                    "text-center p-2 rounded border text-xs",
-                    game.user_pick?.selected_team === game.home_team 
-                      ? "bg-pigskin-50 border-pigskin-300 ring-1 ring-pigskin-200" 
-                      : "bg-white border-stone-200"
-                  )}>
+                  <div className="text-center p-3 border rounded">
                     <div className="font-medium">{game.home_team}</div>
-                    <div className="text-charcoal-500 mb-1">
+                    <div className="text-sm text-charcoal-500">
                       {getSpreadDisplay(game.home_team, game)}
                     </div>
-                    
-                    {game.user_pick?.selected_team === game.home_team && (
-                      <div className="text-pigskin-700 font-semibold">
-                        YOUR PICK {game.user_pick.is_lock && "🔒"}
-                      </div>
-                    )}
-                    
-                    {game.total_picks > 0 && (
-                      <div className="text-blue-600 mt-1">
-                        {game.home_picks} picks ({Math.round((game.home_picks / game.total_picks) * 100)}%)
-                      </div>
-                    )}
-                    {game.total_picks === 0 && (
-                      <div className="text-gray-400 mt-1 text-xs">
-                        No picks
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
             ))}
           </div>
         )}
-
-        {/* Summary Stats */}
-        {games.length > 0 && (
-          <div className="mt-6 pt-4 border-t border-stone-200 grid md:grid-cols-4 gap-4 text-center">
-            <div>
-              <div className="text-2xl font-bold text-pigskin-600">
-                {games.reduce((sum, game) => sum + (game.total_picks || 0), 0)}
-              </div>
-              <div className="text-xs text-charcoal-500">Total Picks</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-green-600">
-                {games.filter(g => g.status === 'completed').length}
-              </div>
-              <div className="text-xs text-charcoal-500">Games Scored</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-yellow-600">
-                {games.filter(g => g.status === 'in_progress').length}
-              </div>
-              <div className="text-xs text-charcoal-500">Games Live</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-blue-600">
-                {games.filter(g => g.status === 'scheduled').length}
-              </div>
-              <div className="text-xs text-charcoal-500">Games Upcoming</div>
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
-    </>
   )
 }
