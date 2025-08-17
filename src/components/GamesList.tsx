@@ -57,13 +57,27 @@ export default function GamesList({
       try {
         console.log(`📅 Fetching real games from database for Season ${season}, Week ${selectedWeek}...`)
         
-        // Start with minimal query
-        const { data: gamesData, error: gamesError } = await supabase
+        // Start with minimal query with timeout
+        const gamesPromise = supabase
           .from('games')
           .select('id, home_team, away_team, spread, kickoff_time, status, week, season')
           .eq('season', season)
           .eq('week', selectedWeek)
           .order('kickoff_time')
+        
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Games query timeout')), 5000)
+        })
+        
+        let gamesData, gamesError
+        try {
+          const result = await Promise.race([gamesPromise, timeoutPromise])
+          gamesData = result.data
+          gamesError = result.error
+        } catch (timeoutError) {
+          console.error('❌ Games query timed out after 5 seconds:', timeoutError.message)
+          throw timeoutError
+        }
         
         if (gamesError) {
           console.error('❌ Error fetching games:', gamesError)
