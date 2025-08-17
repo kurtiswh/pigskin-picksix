@@ -57,6 +57,11 @@ export default function GamesList({
       try {
         console.log(`📅 Fetching real games from database for Season ${season}, Week ${selectedWeek}...`)
         
+        // Debug environment variables
+        console.log('🔧 Environment check:')
+        console.log('- Supabase URL:', supabase.supabaseUrl)
+        console.log('- Anon Key (first 20 chars):', supabase.supabaseKey?.substring(0, 20) + '...')
+        
         // First test absolute basic connectivity
         console.log('🔍 Testing basic Supabase connectivity...')
         const pingPromise = supabase
