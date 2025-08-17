@@ -680,8 +680,6 @@ export default function LeaderboardPage() {
             <GamesList 
               season={currentSeason}
               week={currentWeek}
-              leaderboardUsers={leaderboardData.map(entry => entry.user_id)}
-              currentUser={user}
             />
           </div>
         )}
