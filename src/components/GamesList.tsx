@@ -62,11 +62,11 @@ export default function GamesList({
         console.log('- Supabase URL:', supabase.supabaseUrl)
         console.log('- Anon Key (first 20 chars):', supabase.supabaseKey?.substring(0, 20) + '...')
         
-        // First test absolute basic connectivity
-        console.log('🔍 Testing basic Supabase connectivity...')
-        const pingPromise = supabase
-          .from('games')
-          .select('count(*)')
+        // First test with a table we know works (since leaderboard loads)
+        console.log('🔍 Testing with anonymous_picks table (known to work)...')
+        const testPromise = supabase
+          .from('anonymous_picks')
+          .select('id')
           .limit(1)
         
         const pingTimeout = new Promise((_, reject) => {
@@ -74,11 +74,26 @@ export default function GamesList({
         })
         
         try {
-          const pingResult = await Promise.race([pingPromise, pingTimeout])
-          console.log('✅ Basic Supabase connection works:', pingResult)
-        } catch (pingError) {
-          console.error('❌ Basic Supabase connectivity failed:', pingError.message)
-          throw new Error(`Database connectivity issue: ${pingError.message}`)
+          const testResult = await Promise.race([testPromise, pingTimeout])
+          console.log('✅ Test table access works:', testResult)
+        } catch (testError) {
+          console.error('❌ Test table access failed:', testError.message)
+          throw new Error(`Database connectivity issue: ${testError.message}`)
+        }
+        
+        // Now test games table specifically
+        console.log('🔍 Now testing games table specifically...')
+        const gamesTestPromise = supabase
+          .from('games')
+          .select('count(*)')
+          .limit(1)
+        
+        try {
+          const gamesTestResult = await Promise.race([gamesTestPromise, pingTimeout])
+          console.log('✅ Games table access works:', gamesTestResult)
+        } catch (gamesTestError) {
+          console.error('❌ Games table access failed:', gamesTestError.message)
+          throw new Error(`Games table access issue: ${gamesTestError.message}`)
         }
         
         // If basic connectivity works, try the games query
