@@ -38,6 +38,8 @@ export default function GamesList({ week, season }: GamesListProps) {
       setLoading(true)
       setError('')
 
+      console.log(`🔄 Loading games for Season ${season}, Week ${selectedWeek}`)
+
       const { data, error } = await supabase
         .from('games')
         .select('*')
@@ -45,10 +47,14 @@ export default function GamesList({ week, season }: GamesListProps) {
         .eq('week', selectedWeek)
         .order('kickoff_time')
 
+      console.log(`📊 Query result: ${data?.length || 0} games, error:`, error)
+
       if (error) throw error
 
       setGames(data || [])
+      console.log(`✅ Successfully loaded ${data?.length || 0} games`)
     } catch (err: any) {
+      console.error('❌ Error loading games:', err)
       setError(err.message)
     } finally {
       setLoading(false)
