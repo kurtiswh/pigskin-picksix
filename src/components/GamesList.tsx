@@ -66,14 +66,29 @@ export default function GamesList({
           console.log('🔄 Attempting background games fetch...')
           console.log(`🔍 Query: season=${season}, week=${selectedWeek}`)
           
-          // Simple query like leaderboard does
-          const { data: gamesData, error } = await supabase
+          // Add timeout to background query too
+          const queryPromise = supabase
             .from('games')
             .select('id, home_team, away_team, spread, kickoff_time, status, week, season')
             .eq('season', season)
             .eq('week', selectedWeek)
             .order('kickoff_time')
             .limit(20)
+          
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Background query timeout')), 8000)
+          })
+          
+          let gamesData, error
+          try {
+            const result = await Promise.race([queryPromise, timeoutPromise])
+            gamesData = result.data
+            error = result.error
+          } catch (timeoutError) {
+            console.log('🚨 Background query timed out:', timeoutError.message)
+            error = timeoutError
+            gamesData = null
+          }
           
           console.log('📊 Query completed - Data:', gamesData?.length || 0, 'Error:', error)
           
