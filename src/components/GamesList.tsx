@@ -64,6 +64,7 @@ export default function GamesList({
       setTimeout(async () => {
         try {
           console.log('🔄 Attempting background games fetch...')
+          console.log(`🔍 Query: season=${season}, week=${selectedWeek}`)
           
           // Simple query like leaderboard does
           const { data: gamesData, error } = await supabase
@@ -73,6 +74,8 @@ export default function GamesList({
             .eq('week', selectedWeek)
             .order('kickoff_time')
             .limit(20)
+          
+          console.log('📊 Query completed - Data:', gamesData?.length || 0, 'Error:', error)
           
           if (error) {
             console.log('Background games query failed:', error)
