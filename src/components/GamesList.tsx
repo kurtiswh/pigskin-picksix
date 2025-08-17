@@ -53,100 +53,63 @@ export default function GamesList({
       const totalLeaderboardUsers = leaderboardUsers.length || 2
       console.log(`📊 Total leaderboard users for pick counts: ${totalLeaderboardUsers}`)
       
-      // Use working mock data approach - database queries are timing out
-      console.log(`📅 Loading games for Season ${season}, Week ${selectedWeek}...`)
-      
-      // Mock user picks based on actual assigned pick data
-      const mockUserPicks = currentUser ? {
-        'game1': { selected_team: 'Nebraska', is_lock: false },     
-        'game2': { selected_team: 'LSU', is_lock: false },         
-        'game3': { selected_team: 'Texas A&M', is_lock: false },   
-        'game4': { selected_team: 'Montana State', is_lock: true }, 
-        'game5': { selected_team: 'Syracuse', is_lock: false },    
-        'game6': { selected_team: 'Ohio State', is_lock: false }   
-      } : {}
-      
-      // Season 2025 Week 1 games - 15 games sorted by kickoff time (Central Time)
-      const weekGames = [
-        // Thursday games
-        { id: 'game1', home: 'Cincinnati', away: 'Nebraska', spread: -3.5, time: '2025-08-28T19:30:00-05:00', userPicked: 'game1' },
-        { id: 'game7', home: 'South Florida', away: 'Boise State', spread: 6.5, time: '2025-08-29T19:00:00-05:00' },
+      // Get real games data from database - simplified approach
+      try {
+        console.log(`📅 Fetching real games from database for Season ${season}, Week ${selectedWeek}...`)
         
-        // Friday games  
-        { id: 'game2', home: 'Clemson', away: 'LSU', spread: -7, time: '2025-08-29T19:30:00-05:00', userPicked: 'game2' },
+        // Start with minimal query
+        const { data: gamesData, error: gamesError } = await supabase
+          .from('games')
+          .select('id, home_team, away_team, spread, kickoff_time, status, week, season')
+          .eq('season', season)
+          .eq('week', selectedWeek)
+          .order('kickoff_time')
         
-        // Saturday early games (11:00 AM CT)
-        { id: 'game3', home: 'Texas A&M', away: 'UTSA', spread: -14, time: '2025-08-30T11:00:00-05:00', userPicked: 'game3' },
-        { id: 'game8', home: 'Penn State', away: 'Wisconsin', spread: -6.5, time: '2025-08-30T11:00:00-05:00' },
-        
-        // Saturday afternoon games (2:30 PM CT)
-        { id: 'game4', home: 'Oregon', away: 'Montana State', spread: -28, time: '2025-08-30T14:30:00-05:00', userPicked: 'game4' },
-        { id: 'game9', home: 'Alabama', away: 'Georgia', spread: -2.5, time: '2025-08-30T14:30:00-05:00' },
-        { id: 'game10', home: 'Oklahoma', away: 'Auburn', spread: -4, time: '2025-08-30T14:30:00-05:00' },
-        
-        // Saturday evening games (6:00 PM CT)
-        { id: 'game5', home: 'Tennessee', away: 'Syracuse', spread: -6, time: '2025-08-30T18:00:00-05:00', userPicked: 'game5' },
-        { id: 'game11', home: 'Florida', away: 'Miami', spread: -1, time: '2025-08-30T18:30:00-05:00' },
-        
-        // Saturday late games (7:00-9:30 PM CT)
-        { id: 'game6', home: 'Ohio State', away: 'Texas', spread: -4, time: '2025-08-30T19:00:00-05:00', userPicked: 'game6' },
-        { id: 'game12', home: 'Washington', away: 'UCLA', spread: -5, time: '2025-08-30T21:30:00-05:00' },
-        
-        // Sunday games (11:00 AM CT)
-        { id: 'game13', home: 'Notre Dame', away: 'Navy', spread: -17, time: '2025-08-31T11:00:00-05:00' },
-        
-        // Monday games (7:00 PM CT)  
-        { id: 'game14', home: 'Stanford', away: 'Cal', spread: -7, time: '2025-09-01T19:00:00-05:00' },
-        { id: 'game15', home: 'Arizona', away: 'Utah', spread: -8, time: '2025-09-01T21:30:00-05:00' },
-      ]
-
-      const processedGames: GameWithPicks[] = weekGames.map(game => {
-        // Only games picked by leaderboard users should have picks (6 out of 15 games)
-        const isPickedGame = game.userPicked !== undefined
-        const picksForThisGame = isPickedGame ? totalLeaderboardUsers : 0
-        
-        let homePicks = 0
-        let awayPicks = 0
-        
-        if (isPickedGame && picksForThisGame > 0) {
-          // Distribute picks based on user selections
-          if (mockUserPicks[game.userPicked]?.selected_team === game.home) {
-            homePicks = 1 
-            awayPicks = totalLeaderboardUsers - 1 
-          } else {
-            homePicks = totalLeaderboardUsers - 1 
-            awayPicks = 1 
-          }
+        if (gamesError) {
+          console.error('❌ Error fetching games:', gamesError)
+          throw gamesError
         }
         
-        return {
+        if (!gamesData || gamesData.length === 0) {
+          console.log(`📝 No games found for Season ${season}, Week ${selectedWeek}`)
+          setGames([])
+          return
+        }
+        
+        console.log(`✅ Found ${gamesData.length} real games from database`)
+        
+        // Skip picks query for now to test if games load
+        console.log('📊 Processing games without picks data for testing...')
+        
+        const processedGames: GameWithPicks[] = gamesData.map(game => ({
           id: game.id,
-          season: season,
-          week: selectedWeek,
-          home_team: game.home,
-          away_team: game.away,
+          season: game.season,
+          week: game.week,
+          home_team: game.home_team,
+          away_team: game.away_team,
           spread: game.spread,
-          kickoff_time: game.time,
-          status: 'scheduled',
+          kickoff_time: game.kickoff_time,
+          status: game.status || 'scheduled',
           home_score: null,
           away_score: null,
-          total_picks: picksForThisGame,
-          home_picks: homePicks,
-          away_picks: awayPicks,
+          total_picks: 0, // No pick counts for now
+          home_picks: 0,
+          away_picks: 0,
           completed_picks: 0,
-          user_pick: mockUserPicks[game.id] ? {
-            selected_team: mockUserPicks[game.id].selected_team,
-            is_lock: mockUserPicks[game.id].is_lock,
-            user_id: currentUser?.id
-          } : null,
+          user_pick: null,
           base_points: 20,
           lock_bonus: 0,
           margin_bonus: 0
-        }
-      })
-
-      console.log(`✅ Loaded ${processedGames.length} games for Week ${selectedWeek}`)
-      setGames(processedGames)
+        }))
+        
+        console.log(`✅ Processed ${processedGames.length} real games`)
+        setGames(processedGames)
+        
+      } catch (dbError) {
+        console.error('❌ Database error:', dbError)
+        setError(`Database error: ${dbError.message}`)
+        setGames([])
+      }
 
 
     } catch (err: any) {
