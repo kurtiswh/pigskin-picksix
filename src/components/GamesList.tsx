@@ -66,7 +66,27 @@ export default function GamesList({
           console.log('🔄 Attempting background games fetch...')
           console.log(`🔍 Query: season=${season}, week=${selectedWeek}`)
           
-          // Add timeout to background query too
+          // Try the absolute simplest games query possible
+          console.log('🔬 Testing simplest games query...')
+          const simplePromise = supabase
+            .from('games')
+            .select('id')
+            .limit(1)
+          
+          const simpleTimeout = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Simple query timeout')), 3000)
+          })
+          
+          try {
+            const simpleResult = await Promise.race([simplePromise, simpleTimeout])
+            console.log('✅ Simple games query works:', simpleResult.data?.length || 0)
+          } catch (simpleError) {
+            console.log('❌ Even simple games query fails:', simpleError.message)
+            // Try a completely different approach - use SQL function or view
+            throw simpleError
+          }
+          
+          // If simple query works, try the full query
           const queryPromise = supabase
             .from('games')
             .select('id, home_team, away_team, spread, kickoff_time, status, week, season')
