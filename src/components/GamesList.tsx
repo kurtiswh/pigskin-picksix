@@ -66,34 +66,13 @@ export default function GamesList({
           console.log('🔄 Attempting background games fetch...')
           console.log(`🔍 Query: season=${season}, week=${selectedWeek}`)
           
-          // Try the absolute simplest games query possible
-          console.log('🔬 Testing simplest games query...')
-          const simplePromise = supabase
-            .from('games')
-            .select('id')
-            .limit(1)
-          
-          const simpleTimeout = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Simple query timeout')), 3000)
-          })
-          
-          try {
-            const simpleResult = await Promise.race([simplePromise, simpleTimeout])
-            console.log('✅ Simple games query works:', simpleResult.data?.length || 0)
-          } catch (simpleError) {
-            console.log('❌ Even simple games query fails:', simpleError.message)
-            // Try a completely different approach - use SQL function or view
-            throw simpleError
-          }
-          
-          // If simple query works, try the full query
-          const queryPromise = supabase
-            .from('games')
-            .select('id, home_team, away_team, spread, kickoff_time, status, week, season')
-            .eq('season', season)
-            .eq('week', selectedWeek)
-            .order('kickoff_time')
-            .limit(20)
+          // Use database function as workaround for games table access issues
+          console.log('🔧 Using database function to get games...')
+          const functionPromise = supabase
+            .rpc('get_games_for_week', { 
+              p_season: season, 
+              p_week: selectedWeek 
+            })
           
           const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error('Background query timeout')), 8000)
@@ -101,11 +80,11 @@ export default function GamesList({
           
           let gamesData, error
           try {
-            const result = await Promise.race([queryPromise, timeoutPromise])
+            const result = await Promise.race([functionPromise, timeoutPromise])
             gamesData = result.data
             error = result.error
           } catch (timeoutError) {
-            console.log('🚨 Background query timed out:', timeoutError.message)
+            console.log('🚨 Function call timed out:', timeoutError.message)
             error = timeoutError
             gamesData = null
           }
