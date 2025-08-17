@@ -60,62 +60,79 @@ export default function GamesList({
       setLoading(true)
       setGames([])
       
-      // Use static data as workaround for database timeout issues
-      setTimeout(async () => {
+      // Direct database query from games table
+      const loadGames = async () => {
         try {
-          console.log('🔄 Loading games from static data file...')
-          console.log(`🔍 Season=${season}, Week=${selectedWeek}`)
+          console.log(`📅 Loading games from database for Season ${season}, Week ${selectedWeek}...`)
           
-          // Import static games data 
-          const gamesData = await import('../data/games-2025-week1.json').then(module => module.default)
-          const error = null
-          
-          console.log('📊 Query completed - Data:', gamesData?.length || 0, 'Error:', error)
+          const { data: gamesData, error } = await supabase
+            .from('games')
+            .select(`
+              id,
+              home_team,
+              away_team,
+              spread,
+              kickoff_time,
+              status,
+              home_score,
+              away_score,
+              week,
+              season
+            `)
+            .eq('season', season)
+            .eq('week', selectedWeek)
+            .order('kickoff_time')
           
           if (error) {
-            console.log('Background games query failed:', error)
+            console.error('❌ Error fetching games:', error)
             setError(`Failed to load games: ${error.message}`)
             setGames([])
-          } else {
-            console.log('Background games data found:', gamesData?.length || 0, 'games')
-            
-            if (gamesData && gamesData.length > 0) {
-              const processedGames: GameWithPicks[] = gamesData.map(game => ({
-                id: game.id,
-                season: game.season,
-                week: game.week,
-                home_team: game.home_team,
-                away_team: game.away_team,
-                spread: game.spread,
-                kickoff_time: game.kickoff_time,
-                status: game.status || 'scheduled',
-                home_score: null,
-                away_score: null,
-                total_picks: 0, // Will add picks later
-                home_picks: 0,
-                away_picks: 0,
-                completed_picks: 0,
-                user_pick: null,
-                base_points: 20,
-                lock_bonus: 0,
-                margin_bonus: 0
-              }))
-              
-              console.log(`✅ Loaded ${processedGames.length} real games successfully`)
-              setGames(processedGames)
-            } else {
-              console.log('📝 No games found for this week')
-              setGames([])
-            }
+            return
           }
-        } catch (bgError) {
-          console.log('Background games fetch failed:', bgError)
-          setError(`Database connection failed: ${bgError.message}`)
+          
+          if (!gamesData || gamesData.length === 0) {
+            console.log('📝 No games found for this season/week')
+            setGames([])
+            return
+          }
+          
+          console.log(`✅ Found ${gamesData.length} games from database`)
+          
+          // Process games with real data, no pick counts for now
+          const processedGames: GameWithPicks[] = gamesData.map(game => ({
+            id: game.id,
+            season: game.season,
+            week: game.week,
+            home_team: game.home_team,
+            away_team: game.away_team,
+            spread: game.spread,
+            kickoff_time: game.kickoff_time,
+            status: game.status,
+            home_score: game.home_score,
+            away_score: game.away_score,
+            total_picks: 0, // Skip pick counts for now
+            home_picks: 0,
+            away_picks: 0,
+            completed_picks: 0,
+            user_pick: null,
+            base_points: 20,
+            lock_bonus: 0,
+            margin_bonus: 0
+          }))
+          
+          console.log(`✅ Processed ${processedGames.length} games successfully`)
+          setGames(processedGames)
+          
+        } catch (error: any) {
+          console.error('❌ Database error:', error)
+          setError(`Database error: ${error.message}`)
           setGames([])
         } finally {
           setLoading(false)
         }
-      }, 100) // Very short delay like leaderboard
+      }
+      
+      loadGames()
 
 
     } catch (err: any) {

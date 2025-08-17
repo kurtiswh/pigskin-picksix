@@ -140,6 +140,17 @@ Building a mobile-first web platform for college football pick 'em contests with
 - [ ] **Email monitoring setup** - Track delivery rates and bounces
 - [ ] **System monitoring** - Error tracking, analytics, uptime monitoring
 
+## KURTIS'S Checklist 🚀
+- [ ] Update menu bar so that menu is consistent across everything. 
+- [ ] Make the whole website more mobile-friendly. 
+- [ ] Add a blog. 
+- [ ] Update notification settings. 
+- [ ] Double-check registration flow. 
+- [ ] Make it to where admin can view all pics. 
+- [ ] Make it so the full leaderboard can be viewed on a week-by-week basis, meaning weeks 1-5 show the standings as of that week. 
+- [ ] On the leaderboard, add a previous week rank column. We'll likely need to save or commit results each week and have a table that has that week's rank for each person. 
+
+
 ## Notes & Decisions 📝
 
 ### Architecture Decisions
