@@ -12,7 +12,7 @@ RETURNS TABLE (
     away_team text,
     spread numeric,
     kickoff_time timestamptz,
-    status text,
+    status game_status,
     week integer,
     season integer,
     home_score integer,
