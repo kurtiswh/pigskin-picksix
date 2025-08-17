@@ -57,7 +57,27 @@ export default function GamesList({
       try {
         console.log(`📅 Fetching real games from database for Season ${season}, Week ${selectedWeek}...`)
         
-        // Start with minimal query with timeout
+        // First test absolute basic connectivity
+        console.log('🔍 Testing basic Supabase connectivity...')
+        const pingPromise = supabase
+          .from('games')
+          .select('count(*)')
+          .limit(1)
+        
+        const pingTimeout = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Ping timeout')), 3000)
+        })
+        
+        try {
+          const pingResult = await Promise.race([pingPromise, pingTimeout])
+          console.log('✅ Basic Supabase connection works:', pingResult)
+        } catch (pingError) {
+          console.error('❌ Basic Supabase connectivity failed:', pingError.message)
+          throw new Error(`Database connectivity issue: ${pingError.message}`)
+        }
+        
+        // If basic connectivity works, try the games query
+        console.log('🔍 Testing games query...')
         const gamesPromise = supabase
           .from('games')
           .select('id, home_team, away_team, spread, kickoff_time, status, week, season')
