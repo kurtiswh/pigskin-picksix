@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (data.session?.user) {
             console.log('✅ [INIT] Email confirmation successful')
             // Don't clear the URL immediately - let LoginPage show success message first
-            await fetchUserProfile(data.session.user.id)
+            await fetchUserProfile(data.session.user.id, data.session.user.email)
             return
           }
         }
@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (data.session?.user) {
             console.log(`✅ [INIT] ${type} authentication successful`)
             // Don't clear the URL hash immediately - let LoginPage show success message first
-            await fetchUserProfile(data.session.user.id)
+            await fetchUserProfile(data.session.user.id, data.session.user.email)
             return
           }
         }
@@ -167,7 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (session?.user) {
           console.log('🚀 [INIT] Step 3: Found session user, calling fetchUserProfile')
-          await fetchUserProfile(session.user.id)
+          await fetchUserProfile(session.user.id, session.user.email)
         } else {
           console.log('🚀 [INIT] Step 3: No session user found, setting loading to false')
           setLoading(false)
@@ -191,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (session?.user) {
         console.log('🔄 [AUTH-CHANGE] Calling fetchUserProfile - this may cause pinwheel')
-        await fetchUserProfile(session.user.id)
+        await fetchUserProfile(session.user.id, session.user.email)
         console.log('🔄 [AUTH-CHANGE] fetchUserProfile completed')
       } else {
         console.log('🔄 [AUTH-CHANGE] No session user, setting user to null')
@@ -307,21 +307,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const fetchUserProfile = async (userId: string) => {
+  const fetchUserProfile = async (userId: string, userEmail?: string) => {
     console.log('👤 [FETCH-PROFILE] Starting fetchUserProfile for ID:', userId)
+    console.log('👤 [FETCH-PROFILE] User email provided:', userEmail)
     console.log('👤 [FETCH-PROFILE] This function may be causing the pinwheel if it hangs')
     
     try {
       console.log('🔄 Using direct API approach only (bypassing hanging Supabase client)...')
       
-      // First, get the authenticated user's email from the session
-      let userEmail: string | undefined
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        userEmail = user?.email
-        console.log('📧 Authenticated user email:', userEmail)
-      } catch (authError) {
-        console.warn('⚠️ Could not get authenticated user email:', authError)
+      // Skip the hanging getUser() call if we already have the email
+      if (!userEmail) {
+        console.log('⚠️ No email provided, skipping getUser() to avoid timeout...')
       }
       
       // Check if user with this exact ID exists in database
@@ -774,7 +770,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user?.id) {
-      await fetchUserProfile(session.user.id)
+      await fetchUserProfile(session.user.id, session.user.email)
     }
   }
 
