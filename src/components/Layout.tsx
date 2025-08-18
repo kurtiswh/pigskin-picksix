@@ -16,11 +16,18 @@ export default function Layout({ children }: LayoutProps) {
     return location.pathname === path || location.pathname.startsWith(path + '/')
   }
 
+  const [signingOut, setSigningOut] = useState(false)
+
   const handleSignOut = async () => {
+    if (signingOut) return // Prevent double-clicks
+    
     try {
+      setSigningOut(true)
+      console.log('🚪 Layout: Starting sign out...')
       await signOut()
     } catch (error) {
       console.error('Sign out error:', error)
+      setSigningOut(false)
     }
   }
 
@@ -127,9 +134,10 @@ export default function Layout({ children }: LayoutProps) {
                     variant="outline" 
                     size="sm" 
                     onClick={handleSignOut}
+                    disabled={signingOut}
                     className="hidden sm:block border-white text-white hover:bg-white hover:text-pigskin-500"
                   >
-                    Sign Out
+                    {signingOut ? 'Signing Out...' : 'Sign Out'}
                   </Button>
                 </>
               ) : (
@@ -256,9 +264,10 @@ export default function Layout({ children }: LayoutProps) {
                           handleSignOut()
                           setMobileMenuOpen(false)
                         }}
+                        disabled={signingOut}
                         className="border-white text-white hover:bg-white hover:text-pigskin-500"
                       >
-                        Sign Out
+                        {signingOut ? 'Signing Out...' : 'Sign Out'}
                       </Button>
                     </>
                   ) : (
