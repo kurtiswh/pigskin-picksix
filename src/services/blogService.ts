@@ -286,7 +286,40 @@ export class BlogService {
         throw new Error(`Blog posts table is not accessible: ${testError}. Please ensure the database migration has been applied.`)
       }
 
-      // Insert with timeout
+      // Try a simpler insert first to test RLS
+      console.log('Attempting simplified insert...')
+      const simpleInsertPromise = supabase
+        .from('blog_posts')
+        .insert({
+          title: insertData.title,
+          content: insertData.content,
+          author_id: insertData.author_id,
+          season: insertData.season,
+          week: insertData.week,
+          is_published: false,
+          slug: insertData.slug
+        })
+
+      const simpleTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Simple insert timeout after 10 seconds')), 10000)
+      )
+
+      let simpleResult
+      try {
+        simpleResult = await Promise.race([simpleInsertPromise, simpleTimeoutPromise]) as any
+        console.log('Simple insert result:', simpleResult)
+        
+        if (simpleResult.error) {
+          console.error('Simple insert failed:', simpleResult.error)
+          throw new Error(`RLS Policy Issue: ${simpleResult.error.message}. Code: ${simpleResult.error.code}`)
+        }
+      } catch (simpleError) {
+        console.error('Simple insert error:', simpleError)
+        throw new Error(`Database access blocked: ${simpleError}. This is likely an RLS (Row Level Security) policy issue.`)
+      }
+
+      // If simple insert worked, do full insert with select
+      console.log('Simple insert succeeded, doing full insert...')
       const insertPromise = supabase
         .from('blog_posts')
         .insert(insertData)
