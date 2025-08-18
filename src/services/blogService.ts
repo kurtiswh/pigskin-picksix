@@ -4,53 +4,94 @@ import { BlogPost, BlogPostCreate, BlogPostUpdate, SeasonWeekFilter } from '@/ty
 export class BlogService {
   // Get published blog posts with optional season/week filter
   static async getPosts(filter?: SeasonWeekFilter, limit = 10, offset = 0): Promise<BlogPost[]> {
-    let query = supabase
-      .from('blog_posts')
-      .select(`
-        id,
-        title,
-        content,
-        excerpt,
-        author_id,
-        season,
-        week,
-        is_published,
-        featured_image_url,
-        slug,
-        created_at,
-        updated_at,
-        author:users!blog_posts_author_id_fkey(
+    console.log('BlogService.getPosts called with filter:', filter)
+    
+    try {
+      let query = supabase
+        .from('blog_posts')
+        .select(`
           id,
-          display_name,
-          email
-        )
-      `)
-      .eq('is_published', true)
-      .order('created_at', { ascending: false })
+          title,
+          content,
+          excerpt,
+          author_id,
+          season,
+          week,
+          is_published,
+          featured_image_url,
+          slug,
+          created_at,
+          updated_at,
+          author:users!blog_posts_author_id_fkey(
+            id,
+            display_name,
+            email
+          )
+        `)
+        .eq('is_published', true)
+        .order('created_at', { ascending: false })
 
-    if (filter) {
-      query = query.eq('season', filter.season)
-      if (filter.week !== undefined) {
-        if (filter.week === null) {
-          query = query.is('week', null) // Pre-season posts
-        } else {
-          query = query.eq('week', filter.week)
+      if (filter) {
+        query = query.eq('season', filter.season)
+        if (filter.week !== undefined) {
+          if (filter.week === null) {
+            query = query.is('week', null) // Pre-season posts
+          } else {
+            query = query.eq('week', filter.week)
+          }
         }
       }
-    }
 
-    if (limit) {
-      query = query.range(offset, offset + limit - 1)
-    }
+      if (limit) {
+        query = query.range(offset, offset + limit - 1)
+      }
 
-    const { data, error } = await query
+      console.log('Executing blog posts query...')
+      const { data, error } = await query
 
-    if (error) {
-      console.error('Error fetching blog posts:', error)
+      if (error) {
+        console.error('Error fetching blog posts:', error)
+        
+        // If RLS is blocking, try a simpler query without joins
+        console.log('Trying simpler query without author join...')
+        let simpleQuery = supabase
+          .from('blog_posts')
+          .select('*')
+          .eq('is_published', true)
+          .order('created_at', { ascending: false })
+
+        if (filter) {
+          simpleQuery = simpleQuery.eq('season', filter.season)
+          if (filter.week !== undefined) {
+            if (filter.week === null) {
+              simpleQuery = simpleQuery.is('week', null)
+            } else {
+              simpleQuery = simpleQuery.eq('week', filter.week)
+            }
+          }
+        }
+
+        if (limit) {
+          simpleQuery = simpleQuery.range(offset, offset + limit - 1)
+        }
+
+        const { data: simpleData, error: simpleError } = await simpleQuery
+
+        if (simpleError) {
+          console.error('Simple query also failed:', simpleError)
+          throw simpleError
+        }
+
+        console.log('Simple query succeeded, got', simpleData?.length, 'posts')
+        return simpleData || []
+      }
+
+      console.log('Query succeeded, got', data?.length, 'posts')
+      return data || []
+    } catch (error) {
+      console.error('BlogService.getPosts failed:', error)
       throw error
     }
-
-    return data || []
   }
 
   // Get all posts for admin (including unpublished)
@@ -174,13 +215,29 @@ export class BlogService {
 
   // Create new blog post
   static async createPost(post: BlogPostCreate): Promise<BlogPost> {
+    console.log('BlogService.createPost called with:', post)
+    
     try {
-      // Try to use database function first
-      const { data: slugData, error: slugError } = await supabase
-        .rpc('generate_blog_slug', { title: post.title })
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        throw new Error('User not authenticated')
+      }
+      
+      console.log('Current user:', user.id)
 
-      let slug = slugData
-      if (slugError) {
+      // Try to use database function first
+      let slug: string
+      try {
+        const { data: slugData, error: slugError } = await supabase
+          .rpc('generate_blog_slug', { title: post.title })
+
+        if (slugError) {
+          throw slugError
+        }
+        slug = slugData
+        console.log('Generated slug via database function:', slug)
+      } catch (slugError) {
         console.warn('Database slug function not available, using client-side generation:', slugError)
         // Fallback to client-side slug generation
         slug = this.generateSlug(post.title)
@@ -195,15 +252,20 @@ export class BlogService {
           const counter = existing.length
           slug = `${slug}-${counter}`
         }
+        console.log('Generated slug client-side:', slug)
       }
+
+      const insertData = {
+        ...post,
+        slug,
+        author_id: user.id
+      }
+      
+      console.log('Inserting blog post:', insertData)
 
       const { data, error } = await supabase
         .from('blog_posts')
-        .insert({
-          ...post,
-          slug,
-          author_id: (await supabase.auth.getUser()).data.user?.id
-        })
+        .insert(insertData)
         .select(`
           id,
           title,
@@ -225,6 +287,7 @@ export class BlogService {
         throw error
       }
 
+      console.log('Blog post created successfully:', data)
       return data
     } catch (error) {
       console.error('Failed to create blog post:', error)
