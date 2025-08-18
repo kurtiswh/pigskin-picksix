@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { BlogPost, SeasonWeekFilter } from '@/types'
 import { DirectBlogService } from '@/services/directBlogService'
+import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import Layout from '@/components/Layout'
 
 export default function BlogPage() {
+  const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [posts, setPosts] = useState<BlogPost[]>([])
   const [loading, setLoading] = useState(true)
@@ -15,6 +17,7 @@ export default function BlogPage() {
   const [weeks, setWeeks] = useState<(number | null)[]>([])
   const [selectedSeason, setSelectedSeason] = useState<number>()
   const [selectedWeek, setSelectedWeek] = useState<number | null | undefined>()
+  const [showAllPosts, setShowAllPosts] = useState(false) // Admin toggle for unpublished posts
 
   // Initialize filters from URL params
   useEffect(() => {
@@ -79,7 +82,30 @@ export default function BlogPage() {
             }
           : undefined
 
-        const blogPosts = await DirectBlogService.getPosts(filter?.season, filter?.week, 20)
+        let blogPosts
+        if (showAllPosts && user?.is_admin) {
+          // Admin view: show all posts including unpublished
+          console.log('BlogPage: Loading all posts for admin...')
+          blogPosts = await DirectBlogService.getAllPosts(50)
+          // Apply client-side filtering for admin view
+          if (filter?.season) {
+            blogPosts = blogPosts.filter(post => post.season === filter.season)
+          }
+          if (filter?.week !== undefined) {
+            if (filter.week === null) {
+              blogPosts = blogPosts.filter(post => post.week === null)
+            } else {
+              blogPosts = blogPosts.filter(post => post.week === filter.week)
+            }
+          }
+        } else {
+          // Public view: only published posts
+          console.log('BlogPage: Loading published posts...')
+          blogPosts = await DirectBlogService.getPosts(filter?.season, filter?.week, 20)
+        }
+        
+        console.log('BlogPage: Loaded posts:', blogPosts.length, 'posts')
+        console.log('BlogPage: First post:', blogPosts[0])
         setPosts(blogPosts)
       } catch (error) {
         console.error('Failed to load blog posts:', error)
@@ -89,7 +115,7 @@ export default function BlogPage() {
     }
 
     loadPosts()
-  }, [selectedSeason, selectedWeek])
+  }, [selectedSeason, selectedWeek, showAllPosts])
 
   const handleSeasonChange = (season: string) => {
     const newSeason = parseInt(season)
@@ -147,6 +173,18 @@ export default function BlogPage() {
               Analysis, insights, and commentary on college football pick 'em
             </p>
           </div>
+          
+          {/* Admin-only Create New Post button */}
+          {user?.is_admin && (
+            <Link to="/admin/blog/new">
+              <Button className="bg-pigskin-500 hover:bg-pigskin-600">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Create New Post
+              </Button>
+            </Link>
+          )}
         </div>
 
         {/* Filters */}
@@ -213,6 +251,22 @@ export default function BlogPage() {
                   Clear Filters
                 </Button>
               )}
+
+              {/* Admin toggle for showing all posts */}
+              {user?.is_admin && (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="show-all-posts"
+                    checked={showAllPosts}
+                    onChange={(e) => setShowAllPosts(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <label htmlFor="show-all-posts" className="text-sm text-charcoal-700 cursor-pointer">
+                    Show unpublished posts
+                  </label>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -240,7 +294,7 @@ export default function BlogPage() {
               </Card>
             ) : (
               posts.map((post) => (
-                <Card key={post.id} className="hover:shadow-lg transition-shadow">
+                <Card key={post.id} className={`hover:shadow-lg transition-shadow ${!post.is_published ? 'border-orange-300 bg-orange-50' : ''}`}>
                   <CardContent className="p-6">
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-2 text-sm text-charcoal-500">
@@ -249,6 +303,12 @@ export default function BlogPage() {
                         <span>{getWeekLabel(post.week)}</span>
                         <span>•</span>
                         <span>{formatDate(post.created_at)}</span>
+                        {!post.is_published && (
+                          <>
+                            <span>•</span>
+                            <span className="text-orange-600 font-medium">DRAFT</span>
+                          </>
+                        )}
                       </div>
                       {post.author && (
                         <div className="text-sm text-charcoal-500">
@@ -272,25 +332,39 @@ export default function BlogPage() {
                       </p>
                     )}
 
-                    <Link
-                      to={`/blog/${post.slug}`}
-                      className="inline-flex items-center text-pigskin-600 hover:text-pigskin-700 font-medium transition-colors"
-                    >
-                      Read more
-                      <svg
-                        className="w-4 h-4 ml-1"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                    <div className="flex items-center justify-between">
+                      <Link
+                        to={`/blog/${post.slug}`}
+                        className="inline-flex items-center text-pigskin-600 hover:text-pigskin-700 font-medium transition-colors"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    </Link>
+                        Read more
+                        <svg
+                          className="w-4 h-4 ml-1"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 5l7 7-7 7"
+                          />
+                        </svg>
+                      </Link>
+
+                      {/* Admin-only edit button */}
+                      {user?.is_admin && (
+                        <Link to={`/admin/blog/${post.id}`}>
+                          <Button variant="outline" size="sm">
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Edit
+                          </Button>
+                        </Link>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))
