@@ -403,32 +403,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const setupExistingUser = async (email: string, password: string) => {
-    console.log('🔧 Setting up existing user account for:', email)
+    console.log('🔧 [SETUP] Starting setupExistingUser for:', email)
     
     try {
       // First, check if user exists in database
+      console.log('🔧 [SETUP] Step 1: Checking if user exists in database...')
       const { data: existingUser, error: userError } = await supabase
         .from('users')
         .select('*')
         .or(`email.eq.${email},leaguesafe_email.eq.${email}`)
         .single()
       
+      console.log('🔧 [SETUP] Database query result:', {
+        userFound: !!existingUser,
+        error: userError ? userError.message : 'None',
+        errorCode: userError?.code
+      })
+      
       if (userError && userError.code !== 'PGRST116') {
-        console.error('❌ Error checking existing user:', userError)
+        console.error('❌ [SETUP] Error checking existing user:', userError)
         throw new Error('Error checking user account. Please contact support.')
       }
       
       if (!existingUser) {
+        console.error('❌ [SETUP] No existing user found with email:', email)
         throw new Error('No existing account found with this email. Please contact support or create a new account.')
       }
       
-      console.log('✅ Found existing user:', existingUser.display_name, 'ID:', existingUser.id)
+      console.log('✅ [SETUP] Found existing user:', existingUser.display_name, 'ID:', existingUser.id)
       
       // Try a different approach: temporarily disable RLS and create auth manually
-      console.log('🔄 Attempting to create auth account with custom approach...')
+      console.log('🔧 [SETUP] Step 2: Creating auth account for existing user...')
       
       // Try regular signup (trigger should be disabled now)
-      console.log('📧 Step 1: Attempting regular auth signup')
+      console.log('🔧 [SETUP] Step 2a: Attempting auth signup with skip_user_creation flag')
       
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email,
@@ -443,13 +451,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       })
       
-      console.log('🔐 Auth signup result:', { 
+      console.log('🔧 [SETUP] Auth signup result:', { 
         user: authData?.user ? `Created (${authData.user.id})` : 'None',
+        session: authData?.session ? 'Created' : 'None',
         error: authError ? authError.message : 'None'
       })
       
       if (authError) {
-        console.error('❌ Auth signup failed:', authError)
+        console.error('❌ [SETUP] Auth signup failed:', authError)
+        console.error('❌ [SETUP] Full auth error:', JSON.stringify(authError, null, 2))
         throw new Error(`Failed to create auth account: ${authError.message}`)
       }
       
@@ -480,21 +490,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         console.log('✅ New user record created with auth ID')
         
+        // TEMPORARILY SKIP payment linking to isolate the issue
+        console.log('🔗 [SETUP] Step 3: TEMPORARILY SKIPPING payment linking to test setup isolation')
+        /*
         // Link LeagueSafe payments to this new user (non-blocking)
-        console.log('🔗 Step 3: Starting LeagueSafe payment linking (non-blocking)...')
+        console.log('🔗 [SETUP] Step 3: Starting LeagueSafe payment linking (non-blocking)...')
         linkLeagueSafePayments(authData.user.id, email)
           .then(paymentResult => {
             if (paymentResult.success) {
-              console.log(`✅ Successfully linked ${paymentResult.paymentsLinked} LeagueSafe payments`)
+              console.log(`✅ [SETUP] Successfully linked ${paymentResult.paymentsLinked} LeagueSafe payments`)
             } else {
-              console.warn('⚠️ Failed to link LeagueSafe payments:', paymentResult.error)
+              console.warn('⚠️ [SETUP] Failed to link LeagueSafe payments:', paymentResult.error)
             }
           })
           .catch(error => {
-            console.error('💥 Exception in background payment linking:', error)
+            console.error('💥 [SETUP] Exception in background payment linking:', error)
           })
         
-        console.log('🔗 Payment linking started in background, continuing with account setup...')
+        console.log('🔗 [SETUP] Payment linking started in background, continuing with account setup...')
+        */
         
         // Now delete the old user record (after creating new one to avoid foreign key issues)
         console.log('🗑️ Step 4: Cleaning up old user record...')
@@ -530,9 +544,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signUp = async (email: string, password: string, displayName: string) => {
-    console.log('🔐 SignUp attempt:', { email, displayName })
+    console.log('🔐 [SIGNUP] Starting signUp attempt:', { email, displayName })
     
     try {
+      console.log('🔐 [SIGNUP] Step 1: Calling supabase.auth.signUp...')
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -543,40 +558,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       })
       
-      console.log('🔐 SignUp response:', { 
-        user: data?.user ? 'Created' : 'None', 
+      console.log('🔐 [SIGNUP] Step 2: Got response from Supabase auth')
+      console.log('🔐 [SIGNUP] Response details:', { 
+        user: data?.user ? `Created (${data.user.id})` : 'None', 
         session: data?.session ? 'Created' : 'None',
         error: error ? error.message : 'None' 
       })
       
       if (error) {
-        console.error('❌ SignUp error details:', error)
+        console.error('❌ [SIGNUP] SignUp error details:', error)
+        console.error('❌ [SIGNUP] Full error object:', JSON.stringify(error, null, 2))
         throw new Error(`Failed to create account: ${error.message}`)
       }
       
-      console.log('✅ SignUp successful!')
+      console.log('✅ [SIGNUP] Step 3: SignUp successful, user created!')
       
+      // TEMPORARILY SKIP payment linking to isolate the issue
+      console.log('🔗 [SIGNUP] Step 4: TEMPORARILY SKIPPING payment linking to test signup isolation')
+      /*
       // Link LeagueSafe payments if the user was created successfully (non-blocking)
       if (data?.user?.id) {
-        console.log('🔗 Starting LeagueSafe payment linking for new user (non-blocking)...')
+        console.log('🔗 [SIGNUP] Starting LeagueSafe payment linking for new user (non-blocking)...')
         linkLeagueSafePayments(data.user.id, email)
           .then(paymentResult => {
             if (paymentResult.success) {
-              console.log(`✅ Successfully linked ${paymentResult.paymentsLinked} LeagueSafe payments`)
+              console.log(`✅ [SIGNUP] Successfully linked ${paymentResult.paymentsLinked} LeagueSafe payments`)
             } else {
-              console.warn('⚠️ Failed to link LeagueSafe payments:', paymentResult.error)
+              console.warn('⚠️ [SIGNUP] Failed to link LeagueSafe payments:', paymentResult.error)
             }
           })
           .catch(error => {
-            console.error('💥 Exception in background payment linking:', error)
+            console.error('💥 [SIGNUP] Exception in background payment linking:', error)
           })
         
-        console.log('🔗 Payment linking started in background, continuing with signup...')
+        console.log('🔗 [SIGNUP] Payment linking started in background, continuing with signup...')
       }
+      */
       
+      console.log('🔐 [SIGNUP] Step 5: Returning signup data')
       return data
     } catch (err) {
-      console.error('💥 SignUp exception:', err)
+      console.error('💥 [SIGNUP] SignUp exception:', err)
       throw err
     }
   }
