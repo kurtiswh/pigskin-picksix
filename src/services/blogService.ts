@@ -213,9 +213,32 @@ export class BlogService {
       .replace(/^-|-$/g, '') || 'blog-post'
   }
 
+  // Test Supabase connection
+  static async testConnection(): Promise<boolean> {
+    try {
+      console.log('Testing Supabase connection...')
+      const { data, error } = await supabase.from('users').select('count').limit(1)
+      if (error) {
+        console.error('Connection test failed:', error)
+        return false
+      }
+      console.log('Connection test successful')
+      return true
+    } catch (error) {
+      console.error('Connection test error:', error)
+      return false
+    }
+  }
+
   // Create new blog post
   static async createPost(post: BlogPostCreate, authorId?: string): Promise<BlogPost> {
     console.log('BlogService.createPost called with:', post)
+    
+    // Test connection first
+    const connected = await this.testConnection()
+    if (!connected) {
+      throw new Error('Supabase connection failed - check your database configuration')
+    }
     
     try {
       // Get user ID - either passed in or from auth
