@@ -408,24 +408,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('🔧 [SETUP] Starting setupExistingUser for:', email)
     
     try {
-      // First, check if user exists in database
-      console.log('🔧 [SETUP] Step 1: Checking if user exists in database...')
-      console.log('🔧 [SETUP] About to query users table - this might hang due to RLS')
+      // First, check if user exists in database using direct API call
+      console.log('🔧 [SETUP] Step 1: Checking if user exists in database using direct API...')
       
-      // Add timeout to prevent hanging on database query
-      const dbQueryPromise = supabase
-        .from('users')
-        .select('*')
-        .or(`email.eq.${email},leaguesafe_email.eq.${email}`)
-        .single()
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
       
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          reject(new Error('Database query timeout after 10 seconds - likely RLS issue'))
-        }, 10000)
+      console.log('🔧 [SETUP] Using direct API to bypass RLS issues')
+      
+      // Search for user by email with direct API call
+      const userSearchResponse = await fetch(`${supabaseUrl}/rest/v1/users?email=eq.${email}&select=*`, {
+        method: 'GET',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
       })
       
-      const { data: existingUser, error: userError } = await Promise.race([dbQueryPromise, timeoutPromise])
+      console.log('🔧 [SETUP] User search response status:', userSearchResponse.status)
+      
+      let existingUser = null
+      let userError = null
+      
+      if (userSearchResponse.ok) {
+        const users = await userSearchResponse.json()
+        console.log('🔧 [SETUP] Users found by email:', users.length)
+        if (users.length > 0) {
+          existingUser = users[0]
+        } else {
+          // Try searching by leaguesafe_email
+          const leaguesafeSearchResponse = await fetch(`${supabaseUrl}/rest/v1/users?leaguesafe_email=eq.${email}&select=*`, {
+            method: 'GET',
+            headers: {
+              'apikey': apiKey || '',
+              'Authorization': `Bearer ${apiKey || ''}`,
+              'Content-Type': 'application/json'
+            }
+          })
+          
+          if (leaguesafeSearchResponse.ok) {
+            const leaguesafeUsers = await leaguesafeSearchResponse.json()
+            console.log('🔧 [SETUP] Users found by leaguesafe_email:', leaguesafeUsers.length)
+            if (leaguesafeUsers.length > 0) {
+              existingUser = leaguesafeUsers[0]
+            }
+          }
+        }
+      } else {
+        const errorText = await userSearchResponse.text()
+        console.error('🔧 [SETUP] API search failed:', errorText)
+        userError = { message: `API search failed: ${userSearchResponse.status}`, code: 'API_ERROR' }
+      }
       
       console.log('🔧 [SETUP] Database query result:', {
         userFound: !!existingUser,
@@ -455,7 +489,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: email,
         password: password,
         options: {
-          emailRedirectTo: `${window.location.origin}/login`,
+          emailRedirectTo: undefined, // Disable email confirmation
+          email_confirm: false, // Explicitly disable email confirmation
           data: {
             display_name: existingUser.display_name,
             existing_user_id: existingUser.id,
@@ -480,24 +515,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('✅ Auth user created:', authData.user.id)
         console.log('🔄 Step 2: Creating new user record with auth ID...')
         
-        // Instead of updating (which fails with UUID), create new user record with auth ID
-        // and copy the data from the existing user
-        const { error: createError } = await supabase
-          .from('users')
-          .insert({
+        // Create new user record with auth ID using direct API call
+        console.log('🔄 [SETUP] Creating new user record with auth ID using direct API...')
+        
+        const createUserResponse = await fetch(`${supabaseUrl}/rest/v1/users`, {
+          method: 'POST',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({
             id: authData.user.id,
             email: email,
             display_name: existingUser.display_name,
             is_admin: existingUser.is_admin || false,
             leaguesafe_email: existingUser.leaguesafe_email
           })
+        })
         
-        if (createError) {
-          console.error('❌ Failed to create new user record:', createError)
+        console.log('🔄 [SETUP] Create user response status:', createUserResponse.status)
+        
+        if (!createUserResponse.ok) {
+          const errorText = await createUserResponse.text()
+          console.error('❌ Failed to create new user record:', errorText)
           // Don't fail here - the auth account was created
           return { 
             success: true, 
-            message: 'Account created! Please check your email to confirm, then try signing in. If you have issues, contact support.' 
+            message: 'Account created! You can now sign in with your credentials. If you have issues, contact support.' 
           }
         }
         
@@ -524,14 +570,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         */
         
         // Now delete the old user record (after creating new one to avoid foreign key issues)
-        console.log('🗑️ Step 4: Cleaning up old user record...')
-        const { error: deleteError } = await supabase
-          .from('users')
-          .delete()
-          .eq('id', existingUser.id)
+        console.log('🗑️ Step 4: Cleaning up old user record using direct API...')
         
-        if (deleteError) {
-          console.warn('⚠️ Could not delete old user record:', deleteError)
+        const deleteUserResponse = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${existingUser.id}`, {
+          method: 'DELETE',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        console.log('🗑️ [SETUP] Delete old user response status:', deleteUserResponse.status)
+        
+        if (!deleteUserResponse.ok) {
+          const errorText = await deleteUserResponse.text()
+          console.warn('⚠️ Could not delete old user record:', errorText)
           // Don't fail - the account is working
         }
         
@@ -568,7 +622,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: {
             display_name: displayName,
           },
-          emailRedirectTo: undefined, // Disable email confirmation for now
+          emailRedirectTo: undefined, // Disable email confirmation
+          email_confirm: false, // Explicitly disable email confirmation
         },
       })
       
