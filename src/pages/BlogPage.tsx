@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { BlogPost, SeasonWeekFilter } from '@/types'
-import { BlogService } from '@/services/blogService'
+import { DirectBlogService } from '@/services/directBlogService'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -33,12 +33,14 @@ export default function BlogPage() {
   useEffect(() => {
     const loadSeasons = async () => {
       try {
-        const availableSeasons = await BlogService.getAvailableSeasons()
-        setSeasons(availableSeasons)
+        // For now, set default seasons - can be enhanced later
+        const currentYear = new Date().getFullYear()
+        const defaultSeasons = [currentYear, currentYear - 1, currentYear - 2]
+        setSeasons(defaultSeasons)
 
         // Set default season if none selected
-        if (!selectedSeason && availableSeasons.length > 0) {
-          setSelectedSeason(availableSeasons[0])
+        if (!selectedSeason) {
+          setSelectedSeason(currentYear)
         }
       } catch (error) {
         console.error('Failed to load seasons:', error)
@@ -54,8 +56,9 @@ export default function BlogPage() {
 
     const loadWeeks = async () => {
       try {
-        const availableWeeks = await BlogService.getAvailableWeeks(selectedSeason)
-        setWeeks(availableWeeks)
+        // For now, set default weeks 1-14 plus preseason
+        const defaultWeeks = [null, ...Array.from({length: 14}, (_, i) => i + 1)]
+        setWeeks(defaultWeeks)
       } catch (error) {
         console.error('Failed to load weeks:', error)
       }
@@ -76,7 +79,7 @@ export default function BlogPage() {
             }
           : undefined
 
-        const blogPosts = await BlogService.getPosts(filter, 20)
+        const blogPosts = await DirectBlogService.getPosts(filter?.season, filter?.week, 20)
         setPosts(blogPosts)
       } catch (error) {
         console.error('Failed to load blog posts:', error)

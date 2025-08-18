@@ -439,14 +439,15 @@ export default function LeaderboardPage() {
                 </select>
               </div>
 
-              {/* Live Controls */}
-              <div className="flex items-center space-x-2">
+              {/* Live Controls - Desktop */}
+              <div className="hidden md:flex items-center space-x-2">
                 <Button
                   variant="outline"
                   size="sm"
                   className="border-white text-white hover:bg-white hover:text-pigskin-500"
-                  onClick={() => loadLeaderboard()}
+                  onClick={() => window.location.reload()}
                   disabled={loading}
+                  title="Refresh page to get latest data"
                 >
                   🔄 Refresh
                 </Button>
@@ -458,6 +459,20 @@ export default function LeaderboardPage() {
                   title={`Auto-refresh every 5 minutes when games are live`}
                 >
                   {autoRefresh ? '⏸️' : '▶️'} Auto (5min)
+                </Button>
+              </div>
+
+              {/* Live Controls - Mobile */}
+              <div className="flex md:hidden items-center space-x-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-white text-white hover:bg-white hover:text-pigskin-500 px-2"
+                  onClick={() => window.location.reload()}
+                  disabled={loading}
+                  title="Refresh page"
+                >
+                  🔄
                 </Button>
               </div>
 
