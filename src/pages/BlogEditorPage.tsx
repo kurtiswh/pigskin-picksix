@@ -59,10 +59,11 @@ export default function BlogEditorPage() {
     if (!postId) return
 
     try {
-      // For now, skip loading existing post to avoid timeout issues
-      // TODO: Implement getPostById in DirectBlogService if needed
-      console.log('Skipping post load for editing - create new DirectBlogService.getPostById if needed')
+      console.log('BlogEditorPage: Loading post for editing, ID:', postId)
+      const blogPost = await DirectBlogService.getPostById(postId)
+      
       if (blogPost) {
+        console.log('BlogEditorPage: Successfully loaded post:', blogPost.title)
         setPost(blogPost)
         setTitle(blogPost.title)
         setContent(blogPost.content)
@@ -72,13 +73,14 @@ export default function BlogEditorPage() {
         setIsPublished(blogPost.is_published)
         setFeaturedImageUrl(blogPost.featured_image_url || '')
       } else {
+        console.error('BlogEditorPage: Post not found with ID:', postId)
         alert('Blog post not found')
-        navigate('/admin/blog')
+        navigate('/blog')
       }
     } catch (error) {
-      console.error('Failed to load post:', error)
-      alert('Failed to load blog post')
-      navigate('/admin/blog')
+      console.error('BlogEditorPage: Failed to load post:', error)
+      alert('Error loading blog post')
+      navigate('/blog')
     } finally {
       setLoading(false)
     }

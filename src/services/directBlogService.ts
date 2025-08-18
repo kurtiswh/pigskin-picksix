@@ -193,6 +193,30 @@ export class DirectBlogService {
     }
   }
 
+  // Get single post by ID  
+  static async getPostById(id: string): Promise<BlogPost | null> {
+    console.log('DirectBlogService.getPostById called with ID:', id)
+    
+    try {
+      const response = await this.fetchWithTimeout(
+        `${this.SUPABASE_URL}/rest/v1/blog_posts?id=eq.${id}&limit=1`
+      )
+      
+      const data = await response.json()
+      
+      if (data && data.length > 0) {
+        console.log('✅ Found post with ID:', id)
+        return data[0]
+      } else {
+        console.log('❌ No post found with ID:', id)
+        return null
+      }
+    } catch (error) {
+      console.error('DirectBlogService.getPostById failed:', error)
+      throw error
+    }
+  }
+
   // Get single post by slug
   static async getPostBySlug(slug: string): Promise<BlogPost | null> {
     console.log('DirectBlogService.getPostBySlug called with slug:', slug)
