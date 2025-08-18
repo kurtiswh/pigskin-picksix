@@ -51,6 +51,7 @@ export default function LoginPage() {
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log('📝 [FORM] Form submitted - mode:', { isFirstTime, isSignUp, email })
     e.preventDefault()
     setLoading(true)
     setError('')
@@ -58,15 +59,20 @@ export default function LoginPage() {
 
     try {
       if (isFirstTime) {
+        console.log('📝 [FORM] Calling setupExistingUser...')
         const result = await setupExistingUser(email, password)
         if (result.success) {
           alert(result.message || 'Setup email sent! Please check your email to complete account setup.')
         }
       } else if (isSignUp) {
+        console.log('📝 [FORM] Processing signup...')
         if (!displayName.trim()) {
           throw new Error('Display name is required')
         }
         
+        console.log('📝 [FORM] TEMPORARILY SKIPPING user existence check due to RLS issues')
+        // TEMPORARILY SKIP the user existence check that's hanging
+        /*
         // Check if user already exists before attempting signup
         const userExists = await checkForExistingUser(email)
         if (userExists) {
@@ -80,14 +86,18 @@ export default function LoginPage() {
           setError('Good news! We found your email in our system. The form has been switched to "First Time Setup" mode. Please create a password to access your existing account.')
           return
         }
+        */
         
+        console.log('📝 [FORM] Calling signUp function...')
         await signUp(email, password, displayName)
         alert('Check your email for the confirmation link!')
       } else {
+        console.log('📝 [FORM] Calling signIn...')
         await signIn(email, password)
         navigate('/')
       }
     } catch (err: any) {
+      console.error('📝 [FORM] Form submission error:', err)
       setError(err.message)
     } finally {
       setLoading(false)

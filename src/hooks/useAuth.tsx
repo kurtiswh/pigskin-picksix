@@ -410,11 +410,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // First, check if user exists in database
       console.log('🔧 [SETUP] Step 1: Checking if user exists in database...')
-      const { data: existingUser, error: userError } = await supabase
+      console.log('🔧 [SETUP] About to query users table - this might hang due to RLS')
+      
+      // Add timeout to prevent hanging on database query
+      const dbQueryPromise = supabase
         .from('users')
         .select('*')
         .or(`email.eq.${email},leaguesafe_email.eq.${email}`)
         .single()
+      
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Database query timeout after 10 seconds - likely RLS issue'))
+        }, 10000)
+      })
+      
+      const { data: existingUser, error: userError } = await Promise.race([dbQueryPromise, timeoutPromise])
       
       console.log('🔧 [SETUP] Database query result:', {
         userFound: !!existingUser,
