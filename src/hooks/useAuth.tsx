@@ -568,6 +568,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: {
             display_name: displayName,
           },
+          emailRedirectTo: undefined, // Disable email confirmation for now
         },
       })
       
