@@ -271,28 +271,74 @@ export class BlogService {
       }
       
       console.log('Inserting blog post:', insertData)
+      console.log('Content length:', insertData.content.length, 'characters')
 
-      // Direct insert without any testing - we know the table exists
-      console.log('Attempting direct insert...')
+      // Try a minimal insert first to test if it's a content size issue
+      console.log('Attempting minimal test insert...')
       
-      const { data, error } = await supabase
+      const minimalData = {
+        title: insertData.title.substring(0, 50), // Truncate title
+        content: '<p>Test content</p>', // Minimal content
+        author_id: insertData.author_id,
+        season: insertData.season,
+        week: insertData.week,
+        is_published: false,
+        slug: insertData.slug + '-test'
+      }
+
+      const minimalPromise = supabase
         .from('blog_posts')
-        .insert(insertData)
-        .select(`
-          id,
-          title,
-          content,
-          excerpt,
-          author_id,
-          season,
-          week,
-          is_published,
-          featured_image_url,
-          slug,
-          created_at,
-          updated_at
-        `)
-        .single()
+        .insert(minimalData)
+
+      const minimalTimeout = new Promise((_, reject) => {
+        setTimeout(() => {
+          console.error('Minimal insert timed out after 5 seconds')
+          reject(new Error('Minimal insert timeout'))
+        }, 5000)
+      })
+
+      try {
+        const minimalResult = await Promise.race([minimalPromise, minimalTimeout])
+        console.log('Minimal insert succeeded:', minimalResult)
+        
+        // If minimal worked, try full insert
+        console.log('Minimal worked, attempting full insert...')
+        
+        const insertPromise = supabase
+          .from('blog_posts')
+          .insert(insertData)
+          .select(`
+            id,
+            title,
+            content,
+            excerpt,
+            author_id,
+            season,
+            week,
+            is_published,
+            featured_image_url,
+            slug,
+            created_at,
+            updated_at
+          `)
+          .single()
+
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => {
+            console.error('Full insert operation timed out after 15 seconds')
+            reject(new Error('Full insert operation timed out after 15 seconds'))
+          }, 15000)
+        })
+
+        result = await Promise.race([insertPromise, timeoutPromise])
+        console.log('Full insert completed, checking result...')
+        
+      } catch (minimalError) {
+        console.error('Even minimal insert failed:', minimalError)
+        throw new Error(`Basic database connection failed: ${minimalError}`)
+      }
+
+      const { data, error } = result as any
 
       if (error) {
         console.error('Error creating blog post:', error)
