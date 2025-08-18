@@ -25,6 +25,32 @@ export default function LoginPage() {
     }
   }, [user, navigate])
 
+  // Check for email confirmation success
+  useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.substring(1))
+    const type = hashParams.get('type')
+    const accessToken = hashParams.get('access_token')
+    
+    // Check if this is an email confirmation callback
+    if (type === 'signup' && accessToken) {
+      console.log('✅ Email confirmation detected')
+      setIsPositiveMessage(true)
+      setError('✅ Email confirmed successfully! You are now signed in.')
+      // Clear the URL hash after a short delay
+      setTimeout(() => {
+        window.history.replaceState({}, document.title, window.location.pathname)
+      }, 2000)
+    } else if (type === 'magiclink' && accessToken) {
+      console.log('✅ Magic link login detected')
+      setIsPositiveMessage(true)
+      setError('✅ Magic link authentication successful! You are now signed in.')
+      // Clear the URL hash after a short delay
+      setTimeout(() => {
+        window.history.replaceState({}, document.title, window.location.pathname)
+      }, 2000)
+    }
+  }, [])
+
   const checkForExistingUser = async (email: string) => {
     try {
       const { supabase } = await import('@/lib/supabase')
@@ -90,7 +116,8 @@ export default function LoginPage() {
         
         console.log('📝 [FORM] Calling signUp function...')
         await signUp(email, password, displayName)
-        alert('Check your email for the confirmation link!')
+        setIsPositiveMessage(true)
+        setError('✅ Account created! Please check your email for a confirmation link to complete setup.')
       } else {
         console.log('📝 [FORM] Calling signIn...')
         await signIn(email, password)

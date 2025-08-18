@@ -44,9 +44,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         console.log('🚀 [INIT] Magic link check - type:', type, 'hasTokens:', !!(accessToken && refreshToken))
         
-        // Handle magic link callback
-        if (type === 'magiclink' && accessToken && refreshToken) {
-          console.log('🔮 [INIT] Processing magic link callback')
+        // Handle magic link or email confirmation callback
+        if ((type === 'magiclink' || type === 'signup') && accessToken && refreshToken) {
+          console.log(`🔮 [INIT] Processing ${type} callback`)
           
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
@@ -54,15 +54,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           })
           
           if (error) {
-            console.error('❌ [INIT] Magic link session error:', error.message)
+            console.error(`❌ [INIT] ${type} session error:`, error.message)
             setLoading(false)
             return
           }
           
           if (data.session?.user) {
-            console.log('✅ [INIT] Magic link authentication successful')
-            // Clear the URL hash
-            window.history.replaceState({}, document.title, window.location.pathname)
+            console.log(`✅ [INIT] ${type} authentication successful`)
+            // Don't clear the URL hash immediately - let LoginPage show success message first
             await fetchUserProfile(data.session.user.id)
             return
           }
