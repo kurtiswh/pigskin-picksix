@@ -76,10 +76,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Auth state change:', event)
+      console.log('🔄 [AUTH-CHANGE] Auth state change event:', event)
+      console.log('🔄 [AUTH-CHANGE] Session user:', session?.user ? `ID: ${session.user.id}` : 'None')
+      
       if (session?.user) {
+        console.log('🔄 [AUTH-CHANGE] Calling fetchUserProfile - this may cause pinwheel')
         await fetchUserProfile(session.user.id)
+        console.log('🔄 [AUTH-CHANGE] fetchUserProfile completed')
       } else {
+        console.log('🔄 [AUTH-CHANGE] No session user, setting user to null')
         setUser(null)
         setLoading(false)
       }
@@ -89,70 +94,105 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const linkLeagueSafePayments = async (userId: string, userEmail: string) => {
-    console.log('💰 Linking LeagueSafe payments for user:', userEmail)
+    console.log('💰 [PAYMENT-LINK] Starting payment linking for user:', userEmail)
     
     try {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
       
+      console.log('💰 [PAYMENT-LINK] Using URL:', supabaseUrl)
+      console.log('💰 [PAYMENT-LINK] API Key available:', !!apiKey)
+      
+      // Add timeout to prevent hanging
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        console.log('💰 [PAYMENT-LINK] Request timeout - aborting')
+        controller.abort()
+      }, 10000) // 10 second timeout
+      
       // Search for LeagueSafe payments with matching email
-      console.log('🔍 Searching for LeagueSafe payments with email:', userEmail)
+      console.log('💰 [PAYMENT-LINK] Searching for LeagueSafe payments with email:', userEmail)
       const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?leaguesafe_email=eq.${userEmail}&is_matched=eq.false&select=*`, {
         method: 'GET',
         headers: {
           'apikey': apiKey || '',
           'Authorization': `Bearer ${apiKey || ''}`,
           'Content-Type': 'application/json'
-        }
+        },
+        signal: controller.signal
       })
+      
+      clearTimeout(timeoutId)
+      console.log('💰 [PAYMENT-LINK] Search response status:', paymentsResponse.status)
 
       if (paymentsResponse.ok) {
         const payments = await paymentsResponse.json()
-        console.log(`📊 Found ${payments.length} unmatched LeagueSafe payments for ${userEmail}`)
+        console.log(`💰 [PAYMENT-LINK] Found ${payments.length} unmatched LeagueSafe payments for ${userEmail}`)
 
         if (payments.length > 0) {
           // Update each payment to link to this user
           for (const payment of payments) {
-            console.log(`🔗 Linking payment ID ${payment.id} (Season ${payment.season}) to user ${userId}`)
+            console.log(`💰 [PAYMENT-LINK] Linking payment ID ${payment.id} (Season ${payment.season}) to user ${userId}`)
             
-            const updateResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?id=eq.${payment.id}`, {
-              method: 'PATCH',
-              headers: {
-                'apikey': apiKey || '',
-                'Authorization': `Bearer ${apiKey || ''}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=minimal'
-              },
-              body: JSON.stringify({
-                user_id: userId,
-                is_matched: true
+            const updateController = new AbortController()
+            const updateTimeoutId = setTimeout(() => {
+              console.log('💰 [PAYMENT-LINK] Update timeout - aborting')
+              updateController.abort()
+            }, 5000) // 5 second timeout per update
+            
+            try {
+              const updateResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?id=eq.${payment.id}`, {
+                method: 'PATCH',
+                headers: {
+                  'apikey': apiKey || '',
+                  'Authorization': `Bearer ${apiKey || ''}`,
+                  'Content-Type': 'application/json',
+                  'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify({
+                  user_id: userId,
+                  is_matched: true
+                }),
+                signal: updateController.signal
               })
-            })
 
-            if (updateResponse.ok) {
-              console.log(`✅ Successfully linked payment for season ${payment.season}`)
-            } else {
-              console.error(`❌ Failed to link payment for season ${payment.season}:`, updateResponse.status)
+              clearTimeout(updateTimeoutId)
+              console.log(`💰 [PAYMENT-LINK] Update response status for season ${payment.season}:`, updateResponse.status)
+
+              if (updateResponse.ok) {
+                console.log(`💰 [PAYMENT-LINK] ✅ Successfully linked payment for season ${payment.season}`)
+              } else {
+                console.error(`💰 [PAYMENT-LINK] ❌ Failed to link payment for season ${payment.season}:`, updateResponse.status)
+                const errorText = await updateResponse.text()
+                console.error(`💰 [PAYMENT-LINK] Error details:`, errorText)
+              }
+            } catch (updateError) {
+              clearTimeout(updateTimeoutId)
+              console.error(`💰 [PAYMENT-LINK] Exception updating payment for season ${payment.season}:`, updateError)
             }
           }
           
+          console.log('💰 [PAYMENT-LINK] Completed payment linking process')
           return { success: true, paymentsLinked: payments.length }
         } else {
-          console.log('ℹ️ No unmatched LeagueSafe payments found for this email')
+          console.log('💰 [PAYMENT-LINK] ℹ️ No unmatched LeagueSafe payments found for this email')
           return { success: true, paymentsLinked: 0 }
         }
       } else {
-        console.error('❌ Failed to search LeagueSafe payments:', paymentsResponse.status)
+        console.error('💰 [PAYMENT-LINK] ❌ Failed to search LeagueSafe payments:', paymentsResponse.status)
+        const errorText = await paymentsResponse.text()
+        console.error('💰 [PAYMENT-LINK] Error details:', errorText)
         return { success: false, error: 'Failed to search for LeagueSafe payments' }
       }
     } catch (error) {
-      console.error('💥 Exception in linkLeagueSafePayments:', error)
+      console.error('💰 [PAYMENT-LINK] 💥 Exception in linkLeagueSafePayments:', error)
       return { success: false, error: 'Exception while linking LeagueSafe payments' }
     }
   }
 
   const fetchUserProfile = async (userId: string) => {
-    console.log('👤 Fetching user profile from database for ID:', userId)
+    console.log('👤 [FETCH-PROFILE] Starting fetchUserProfile for ID:', userId)
+    console.log('👤 [FETCH-PROFILE] This function may be causing the pinwheel if it hangs')
     
     try {
       console.log('🔄 Using direct API approach only (bypassing hanging Supabase client)...')
@@ -243,20 +283,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
-    console.log('🔐 Signing in:', email)
+    console.log('🔐 [SIGNIN] Starting sign in for:', email)
     
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    
-    if (error) {
-      console.error('❌ Sign in error:', error.message)
-      throw error
+    try {
+      console.log('🔐 [SIGNIN] Calling supabase.auth.signInWithPassword...')
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      
+      console.log('🔐 [SIGNIN] Got response from Supabase auth')
+      console.log('🔐 [SIGNIN] Error:', error ? error.message : 'None')
+      console.log('🔐 [SIGNIN] User:', data?.user ? `ID: ${data.user.id}` : 'None')
+      console.log('🔐 [SIGNIN] Session:', data?.session ? 'Present' : 'None')
+      
+      if (error) {
+        console.error('🔐 [SIGNIN] ❌ Sign in error:', error.message)
+        throw error
+      }
+      
+      console.log('🔐 [SIGNIN] ✅ Sign in successful, returning data')
+      return data
+    } catch (err) {
+      console.error('🔐 [SIGNIN] 💥 Exception in signIn:', err)
+      throw err
     }
-    
-    console.log('✅ Sign in successful')
-    return data
   }
 
   const setupExistingUser = async (email: string, password: string) => {
@@ -337,16 +388,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         console.log('✅ New user record created with auth ID')
         
-        // Link LeagueSafe payments to this new user
-        console.log('🔗 Step 3: Linking LeagueSafe payments...')
-        const paymentResult = await linkLeagueSafePayments(authData.user.id, email)
+        // Link LeagueSafe payments to this new user (non-blocking)
+        console.log('🔗 Step 3: Starting LeagueSafe payment linking (non-blocking)...')
+        linkLeagueSafePayments(authData.user.id, email)
+          .then(paymentResult => {
+            if (paymentResult.success) {
+              console.log(`✅ Successfully linked ${paymentResult.paymentsLinked} LeagueSafe payments`)
+            } else {
+              console.warn('⚠️ Failed to link LeagueSafe payments:', paymentResult.error)
+            }
+          })
+          .catch(error => {
+            console.error('💥 Exception in background payment linking:', error)
+          })
         
-        if (paymentResult.success) {
-          console.log(`✅ Successfully linked ${paymentResult.paymentsLinked} LeagueSafe payments`)
-        } else {
-          console.warn('⚠️ Failed to link LeagueSafe payments:', paymentResult.error)
-          // Don't fail the account creation - payments can be linked manually later
-        }
+        console.log('🔗 Payment linking started in background, continuing with account setup...')
         
         // Now delete the old user record (after creating new one to avoid foreign key issues)
         console.log('🗑️ Step 4: Cleaning up old user record...')
@@ -408,17 +464,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       console.log('✅ SignUp successful!')
       
-      // Link LeagueSafe payments if the user was created successfully
+      // Link LeagueSafe payments if the user was created successfully (non-blocking)
       if (data?.user?.id) {
-        console.log('🔗 Linking LeagueSafe payments for new user...')
-        const paymentResult = await linkLeagueSafePayments(data.user.id, email)
+        console.log('🔗 Starting LeagueSafe payment linking for new user (non-blocking)...')
+        linkLeagueSafePayments(data.user.id, email)
+          .then(paymentResult => {
+            if (paymentResult.success) {
+              console.log(`✅ Successfully linked ${paymentResult.paymentsLinked} LeagueSafe payments`)
+            } else {
+              console.warn('⚠️ Failed to link LeagueSafe payments:', paymentResult.error)
+            }
+          })
+          .catch(error => {
+            console.error('💥 Exception in background payment linking:', error)
+          })
         
-        if (paymentResult.success) {
-          console.log(`✅ Successfully linked ${paymentResult.paymentsLinked} LeagueSafe payments`)
-        } else {
-          console.warn('⚠️ Failed to link LeagueSafe payments:', paymentResult.error)
-          // Don't fail the account creation - payments can be linked manually later
-        }
+        console.log('🔗 Payment linking started in background, continuing with signup...')
       }
       
       return data
