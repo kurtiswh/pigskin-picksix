@@ -36,14 +36,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('🚀 [STARTUP] initializeAuth function starting')
       try {
         // First, check for magic link tokens in URL
+        console.log('🚀 [INIT] Step 1: Checking for magic link tokens in URL')
         const hashParams = new URLSearchParams(window.location.hash.substring(1))
         const accessToken = hashParams.get('access_token')
         const refreshToken = hashParams.get('refresh_token')
         const type = hashParams.get('type')
         
+        console.log('🚀 [INIT] Magic link check - type:', type, 'hasTokens:', !!(accessToken && refreshToken))
+        
         // Handle magic link callback
         if (type === 'magiclink' && accessToken && refreshToken) {
-          console.log('🔮 Processing magic link callback')
+          console.log('🔮 [INIT] Processing magic link callback')
           
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
@@ -51,13 +54,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           })
           
           if (error) {
-            console.error('❌ Magic link session error:', error.message)
+            console.error('❌ [INIT] Magic link session error:', error.message)
             setLoading(false)
             return
           }
           
           if (data.session?.user) {
-            console.log('✅ Magic link authentication successful')
+            console.log('✅ [INIT] Magic link authentication successful')
             // Clear the URL hash
             window.history.replaceState({}, document.title, window.location.pathname)
             await fetchUserProfile(data.session.user.id)
@@ -66,21 +69,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         // Get current session if no magic link
-        const { data: { session } } = await supabase.auth.getSession()
-        console.log('🔍 Current session user:', session?.user?.id, session?.user?.email)
+        console.log('🚀 [INIT] Step 2: Getting current session - THIS MIGHT HANG')
+        console.log('🚀 [INIT] About to call supabase.auth.getSession() with 10 second timeout')
+        
+        // Add timeout to prevent infinite hanging
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('getSession() timeout after 10 seconds'))
+          }, 10000)
+        })
+        
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise])
+        
+        console.log('🚀 [INIT] ✅ getSession() completed successfully!')
+        console.log('🔍 [INIT] Current session user:', session?.user?.id, session?.user?.email)
+        
         if (session?.user) {
+          console.log('🚀 [INIT] Step 3: Found session user, calling fetchUserProfile')
           await fetchUserProfile(session.user.id)
         } else {
+          console.log('🚀 [INIT] Step 3: No session user found, setting loading to false')
           setLoading(false)
         }
       } catch (error) {
-        console.error('❌ Auth initialization error:', error)
+        console.error('❌ [INIT] Auth initialization error:', error)
         setLoading(false)
       }
     }
 
-    initializeAuth()
-
+    console.log('🚀 [INIT] Step 4: Setting up auth state change listener')
+    
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔄 [AUTH-CHANGE] Auth state change event:', event)
@@ -97,7 +116,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })
 
-    return () => subscription.unsubscribe()
+    console.log('🚀 [INIT] Step 5: Auth state listener set up, calling initializeAuth()')
+    
+    initializeAuth()
+
+    return () => {
+      console.log('🚀 [CLEANUP] Unsubscribing from auth state changes')
+      subscription.unsubscribe()
+    }
   }, [])
 
   const linkLeagueSafePayments = async (userId: string, userEmail: string) => {
