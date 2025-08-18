@@ -35,18 +35,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initializeAuth = async () => {
       console.log('🚀 [STARTUP] initializeAuth function starting')
       try {
-        // First, check for magic link tokens in URL
-        console.log('🚀 [INIT] Step 1: Checking for magic link tokens in URL')
+        // First, check for auth tokens in URL (both query params and hash)
+        console.log('🚀 [INIT] Step 1: Checking for auth tokens in URL')
+        
+        // Check query parameters for email confirmation (?code=)
+        const urlParams = new URLSearchParams(window.location.search)
+        const confirmationCode = urlParams.get('code')
+        
+        // Check hash parameters for magic links (#access_token=)
         const hashParams = new URLSearchParams(window.location.hash.substring(1))
         const accessToken = hashParams.get('access_token')
         const refreshToken = hashParams.get('refresh_token')
         const type = hashParams.get('type')
         
-        console.log('🚀 [INIT] Magic link check - type:', type, 'hasTokens:', !!(accessToken && refreshToken))
+        console.log('🚀 [INIT] Auth token check:', { 
+          hasConfirmationCode: !!confirmationCode,
+          hashType: type, 
+          hasHashTokens: !!(accessToken && refreshToken) 
+        })
         
-        // Handle magic link or email confirmation callback
+        // Handle email confirmation callback (?code=)
+        if (confirmationCode) {
+          console.log('🔮 [INIT] Processing email confirmation code')
+          
+          const { data, error } = await supabase.auth.exchangeCodeForSession(confirmationCode)
+          
+          if (error) {
+            console.error('❌ [INIT] Email confirmation error:', error.message)
+            setLoading(false)
+            return
+          }
+          
+          if (data.session?.user) {
+            console.log('✅ [INIT] Email confirmation successful')
+            // Don't clear the URL immediately - let LoginPage show success message first
+            await fetchUserProfile(data.session.user.id)
+            return
+          }
+        }
+        
+        // Handle magic link or hash-based auth callback (#access_token=)
         if ((type === 'magiclink' || type === 'signup') && accessToken && refreshToken) {
-          console.log(`🔮 [INIT] Processing ${type} callback`)
+          console.log(`🔮 [INIT] Processing ${type} hash callback`)
           
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,

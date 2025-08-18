@@ -27,19 +27,40 @@ export default function LoginPage() {
 
   // Check for email confirmation success
   useEffect(() => {
+    // Check URL query parameters (for email confirmation links with ?code=)
+    const urlParams = new URLSearchParams(window.location.search)
+    const code = urlParams.get('code')
+    
+    // Check URL hash parameters (for magic links with #access_token=)
     const hashParams = new URLSearchParams(window.location.hash.substring(1))
     const type = hashParams.get('type')
     const accessToken = hashParams.get('access_token')
     
-    // Check if this is an email confirmation callback
-    if (type === 'signup' && accessToken) {
-      console.log('✅ Email confirmation detected')
+    console.log('🔍 [CONFIRMATION] Checking for auth callback:', { 
+      hasCode: !!code, 
+      hashType: type, 
+      hasAccessToken: !!accessToken 
+    })
+    
+    // Check if this is an email confirmation callback (query parameter)
+    if (code) {
+      console.log('✅ Email confirmation code detected in URL')
+      setIsPositiveMessage(true)
+      setError('✅ Email confirmed successfully! You are now signed in.')
+      // Clear the URL parameters after a short delay
+      setTimeout(() => {
+        window.history.replaceState({}, document.title, window.location.pathname)
+      }, 3000)
+    }
+    // Check if this is a hash-based auth callback (magic links)
+    else if (type === 'signup' && accessToken) {
+      console.log('✅ Email confirmation detected in hash')
       setIsPositiveMessage(true)
       setError('✅ Email confirmed successfully! You are now signed in.')
       // Clear the URL hash after a short delay
       setTimeout(() => {
         window.history.replaceState({}, document.title, window.location.pathname)
-      }, 2000)
+      }, 3000)
     } else if (type === 'magiclink' && accessToken) {
       console.log('✅ Magic link login detected')
       setIsPositiveMessage(true)
@@ -47,7 +68,7 @@ export default function LoginPage() {
       // Clear the URL hash after a short delay
       setTimeout(() => {
         window.history.replaceState({}, document.title, window.location.pathname)
-      }, 2000)
+      }, 3000)
     }
   }, [])
 
