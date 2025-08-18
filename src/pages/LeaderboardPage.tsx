@@ -7,6 +7,7 @@ import LeaderboardTable from '@/components/LeaderboardTable'
 import GamesList from '@/components/GamesList'
 import { supabase } from '@/lib/supabase'
 import { getCurrentWeek } from '@/services/collegeFootballApi'
+import Layout from '@/components/Layout'
 
 interface LeaderboardEntry {
   user_id: string
@@ -398,20 +399,15 @@ export default function LeaderboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      {/* Header */}
-      <header className="bg-pigskin-500 text-white shadow-lg">
-        <div className="container mx-auto px-4 py-4">
+    <Layout>
+      {/* Page Header */}
+      <div className="bg-pigskin-500 text-white py-6">
+        <div className="container mx-auto px-4">
           <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gold-500 rounded-full flex items-center justify-center football-laces">
-                <span className="text-pigskin-900 font-bold">P6</span>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold">Leaderboard</h1>
-                <p className="text-pigskin-100 text-sm">Season {currentSeason} • Week {currentWeek}</p>
-              </div>
-            </Link>
+            <div>
+              <h1 className="text-2xl font-bold">Leaderboard</h1>
+              <p className="text-pigskin-100">Season {currentSeason} • Week {currentWeek}</p>
+            </div>
             <div className="flex items-center space-x-4">
               {/* Live Status Indicator */}
               <div className="flex items-center space-x-2">
@@ -465,32 +461,10 @@ export default function LeaderboardPage() {
                 </Button>
               </div>
 
-              {user && (
-                <>
-                  <span className="text-pigskin-100">Hi, {user.display_name}!</span>
-                  <Link to="/profile">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="border-white text-white hover:bg-white hover:text-pigskin-500"
-                    >
-                      Profile
-                    </Button>
-                  </Link>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="border-white text-white hover:bg-white hover:text-pigskin-500"
-                    onClick={signOut}
-                  >
-                    Sign Out
-                  </Button>
-                </>
-              )}
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
       <main className="container mx-auto px-4 py-8">
         {/* Update Notification */}
@@ -684,6 +658,6 @@ export default function LeaderboardPage() {
           </div>
         )}
       </main>
-    </div>
+    </Layout>
   )
 }

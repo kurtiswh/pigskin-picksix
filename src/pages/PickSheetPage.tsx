@@ -10,6 +10,7 @@ import GameCard from '@/components/GameCard'
 import PickSummary from '@/components/PickSummary'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import Layout from '@/components/Layout'
 
 export default function PickSheetPage() {
   const { user, signOut } = useAuth()
@@ -606,45 +607,16 @@ export default function PickSheetPage() {
   const submittedAt = picks.find(p => p.submitted)?.submitted_at
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      {/* Header */}
-      <header className="bg-pigskin-500 text-white shadow-lg">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <button 
-              onClick={() => handleNavigation("/")}
-              className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
-            >
-              <div className="w-10 h-10 bg-gold-500 rounded-full flex items-center justify-center football-laces">
-                <span className="text-pigskin-900 font-bold">P6</span>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold">Week {currentWeek} Pick Sheet</h1>
-                <p className="text-pigskin-100 text-sm">Choose 6 games, set 1 Lock</p>
-              </div>
-            </button>
-            <div className="flex items-center space-x-4">
-              <span className="text-pigskin-100">Hi, {user.display_name}!</span>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="border-white text-white hover:bg-white hover:text-pigskin-500"
-                onClick={() => handleNavigation("/profile")}
-              >
-                Profile
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="border-white text-white hover:bg-white hover:text-pigskin-500"
-                onClick={signOut}
-              >
-                Sign Out
-              </Button>
-            </div>
+    <Layout>
+      {/* Page Header */}
+      <div className="bg-pigskin-500 text-white py-6">
+        <div className="container mx-auto px-4">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">Week {currentWeek} Pick Sheet</h1>
+            <p className="text-pigskin-100">Choose 6 games, set 1 Lock</p>
           </div>
         </div>
-      </header>
+      </div>
 
       <main className="container mx-auto px-4 py-8">
         {loading ? (
@@ -863,6 +835,6 @@ export default function PickSheetPage() {
           </Card>
         </div>
       )}
-    </div>
+    </Layout>
   )
 }
