@@ -10,6 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import Layout from '@/components/Layout'
+import ReactQuill from 'react-quill'
+import 'react-quill/dist/quill.snow.css'
+import '@/styles/quill-content.css'
 
 export default function BlogEditorPage() {
   const { user } = useAuth()
@@ -87,6 +90,8 @@ export default function BlogEditorPage() {
 
     setSaving(true)
     try {
+      console.log('Saving blog post...', { title, content: content.substring(0, 100) + '...', season, week })
+      
       const postData = {
         title: title.trim(),
         content: content.trim(),
@@ -97,18 +102,22 @@ export default function BlogEditorPage() {
         featured_image_url: featuredImageUrl.trim() || undefined
       }
 
+      let result
       if (isEditing && postId) {
         // Update existing post
-        await BlogService.updatePost(postId, postData as BlogPostUpdate)
+        console.log('Updating post:', postId)
+        result = await BlogService.updatePost(postId, postData as BlogPostUpdate)
       } else {
         // Create new post
-        await BlogService.createPost(postData as BlogPostCreate)
+        console.log('Creating new post')
+        result = await BlogService.createPost(postData as BlogPostCreate)
       }
-
+      
+      console.log('Save successful:', result)
       navigate('/admin/blog')
     } catch (error) {
       console.error('Failed to save post:', error)
-      alert('Failed to save blog post. Please try again.')
+      alert(`Failed to save blog post: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`)
     } finally {
       setSaving(false)
     }
@@ -116,8 +125,10 @@ export default function BlogEditorPage() {
 
   const generateExcerpt = () => {
     if (content.trim()) {
-      // Simple excerpt generation - take first 150 chars of content, excluding markdown
-      const plainText = content.replace(/[#*`_\[\]]/g, '').trim()
+      // Strip HTML tags and get plain text
+      const tempDiv = document.createElement('div')
+      tempDiv.innerHTML = content
+      const plainText = tempDiv.textContent || tempDiv.innerText || ''
       const excerpt = plainText.substring(0, 150) + (plainText.length > 150 ? '...' : '')
       setExcerpt(excerpt)
     }
@@ -187,17 +198,33 @@ export default function BlogEditorPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-charcoal-700 mb-1">
-                    Content * (Markdown supported)
+                    Content *
                   </label>
-                  <Textarea
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder="Write your blog post content here... You can use Markdown formatting."
-                    rows={20}
-                    className="font-mono text-sm"
-                  />
+                  <div className="bg-white border border-gray-300 rounded-md">
+                    <ReactQuill
+                      value={content}
+                      onChange={setContent}
+                      placeholder="Write your blog post content here..."
+                      style={{ minHeight: '400px' }}
+                      modules={{
+                        toolbar: [
+                          [{ 'header': [1, 2, 3, false] }],
+                          ['bold', 'italic', 'underline', 'strike'],
+                          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                          ['blockquote', 'code-block'],
+                          ['link', 'image'],
+                          ['clean']
+                        ]
+                      }}
+                      formats={[
+                        'header', 'bold', 'italic', 'underline', 'strike',
+                        'list', 'bullet', 'blockquote', 'code-block',
+                        'link', 'image'
+                      ]}
+                    />
+                  </div>
                   <div className="text-xs text-charcoal-500 mt-1">
-                    Supports Markdown: **bold**, *italic*, # headers, - lists, etc.
+                    Rich text editor with formatting options
                   </div>
                 </div>
 

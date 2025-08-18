@@ -1,0 +1,98 @@
+/* Styles for rendered Quill content */
+.ql-editor {
+  font-family: inherit;
+  line-height: 1.6;
+}
+
+.ql-editor h1 {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  color: #1f2937;
+}
+
+.ql-editor h1:first-child {
+  margin-top: 0;
+}
+
+.ql-editor h2 {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: #1f2937;
+}
+
+.ql-editor h3 {
+  font-size: 1.25rem;
+  font-weight: bold;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: #1f2937;
+}
+
+.ql-editor p {
+  margin-bottom: 1rem;
+  color: #374151;
+  line-height: 1.7;
+}
+
+.ql-editor ul, .ql-editor ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.ql-editor ul li, .ql-editor ol li {
+  margin-bottom: 0.25rem;
+  color: #374151;
+}
+
+.ql-editor blockquote {
+  border-left: 4px solid #8B4513;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #4b5563;
+}
+
+.ql-editor a {
+  color: #8B4513;
+  text-decoration: underline;
+}
+
+.ql-editor a:hover {
+  color: #654321;
+}
+
+.ql-editor strong {
+  font-weight: bold;
+}
+
+.ql-editor em {
+  font-style: italic;
+}
+
+.ql-editor code {
+  background-color: #f3f4f6;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.875rem;
+}
+
+.ql-editor pre {
+  background-color: #f3f4f6;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.875rem;
+}
+
+.ql-editor img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}

@@ -5,7 +5,7 @@ import { BlogService } from '@/services/blogService'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import Layout from '@/components/Layout'
-import ReactMarkdown from 'react-markdown'
+import '@/styles/quill-content.css'
 
 export default function BlogPostPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -135,64 +135,13 @@ export default function BlogPostPage() {
           {/* Post Content */}
           <Card>
             <CardContent className="p-6 md:p-8">
-              <div className="prose prose-lg prose-charcoal max-w-none">
-                <ReactMarkdown
-                  components={{
-                    h1: ({ children }) => (
-                      <h1 className="text-2xl md:text-3xl font-bold text-charcoal-900 mb-4 mt-8 first:mt-0">
-                        {children}
-                      </h1>
-                    ),
-                    h2: ({ children }) => (
-                      <h2 className="text-xl md:text-2xl font-bold text-charcoal-900 mb-3 mt-6">
-                        {children}
-                      </h2>
-                    ),
-                    h3: ({ children }) => (
-                      <h3 className="text-lg md:text-xl font-bold text-charcoal-900 mb-2 mt-4">
-                        {children}
-                      </h3>
-                    ),
-                    p: ({ children }) => (
-                      <p className="text-charcoal-700 leading-relaxed mb-4">
-                        {children}
-                      </p>
-                    ),
-                    ul: ({ children }) => (
-                      <ul className="list-disc list-inside mb-4 space-y-1 text-charcoal-700">
-                        {children}
-                      </ul>
-                    ),
-                    ol: ({ children }) => (
-                      <ol className="list-decimal list-inside mb-4 space-y-1 text-charcoal-700">
-                        {children}
-                      </ol>
-                    ),
-                    blockquote: ({ children }) => (
-                      <blockquote className="border-l-4 border-pigskin-500 pl-4 my-4 italic text-charcoal-600">
-                        {children}
-                      </blockquote>
-                    ),
-                    code: ({ children }) => (
-                      <code className="bg-stone-100 px-1 py-0.5 rounded text-sm font-mono">
-                        {children}
-                      </code>
-                    ),
-                    a: ({ href, children }) => (
-                      <a
-                        href={href}
-                        className="text-pigskin-600 hover:text-pigskin-700 underline"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {children}
-                      </a>
-                    ),
-                  }}
-                >
-                  {post.content}
-                </ReactMarkdown>
-              </div>
+              <div 
+                className="prose prose-lg prose-charcoal max-w-none"
+                dangerouslySetInnerHTML={{ __html: post.content }}
+                style={{
+                  // Custom styles for Quill HTML content
+                }}
+              />
             </CardContent>
           </Card>
 
