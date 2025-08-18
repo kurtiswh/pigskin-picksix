@@ -6,12 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 
 export default function UserProfile() {
   const { user, refreshUser } = useAuth()
-  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'stats'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'stats'>('profile')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -20,13 +19,6 @@ export default function UserProfile() {
   
   // Form state
   const [displayName, setDisplayName] = useState('')
-  const [preferences, setPreferences] = useState<UserPreferences>({
-    email_notifications: true,
-    pick_reminders: true,
-    weekly_results: true,
-    deadline_alerts: true,
-    compact_view: false
-  })
 
   useEffect(() => {
     if (user) {
@@ -74,7 +66,6 @@ export default function UserProfile() {
     
     setUserProfile(fallbackProfile)
     setDisplayName(fallbackProfile.display_name)
-    setPreferences(fallbackProfile.preferences)
     setLoading(false)
     console.log('✅ Profile loaded with bypass data')
   }
@@ -130,7 +121,6 @@ export default function UserProfile() {
       try {
         const updates = {
           display_name: displayName.trim(),
-          preferences: preferences,
           updated_at: new Date().toISOString()
         }
 
@@ -167,12 +157,6 @@ export default function UserProfile() {
     }
   }
 
-  const handlePreferenceChange = (key: keyof UserPreferences, value: boolean) => {
-    setPreferences(prev => ({
-      ...prev,
-      [key]: value
-    }))
-  }
 
   if (!user) {
     return (
@@ -224,16 +208,6 @@ export default function UserProfile() {
           }`}
         >
           Profile Info
-        </button>
-        <button
-          onClick={() => setActiveTab('preferences')}
-          className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-            activeTab === 'preferences'
-              ? 'bg-pigskin-500 text-white'
-              : 'text-charcoal-600 hover:text-pigskin-700'
-          }`}
-        >
-          Preferences
         </button>
         <button
           onClick={() => setActiveTab('stats')}
@@ -319,87 +293,6 @@ export default function UserProfile() {
         </Card>
       )}
 
-      {activeTab === 'preferences' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Notification Preferences</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Email Notifications</Label>
-                  <p className="text-sm text-charcoal-500">Receive general email notifications</p>
-                </div>
-                <Switch
-                  checked={preferences.email_notifications}
-                  onCheckedChange={(checked) => handlePreferenceChange('email_notifications', checked)}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Pick Reminders</Label>
-                  <p className="text-sm text-charcoal-500">Get reminded when picks are due</p>
-                </div>
-                <Switch
-                  checked={preferences.pick_reminders}
-                  onCheckedChange={(checked) => handlePreferenceChange('pick_reminders', checked)}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Weekly Results</Label>
-                  <p className="text-sm text-charcoal-500">Receive weekly scoring summaries</p>
-                </div>
-                <Switch
-                  checked={preferences.weekly_results}
-                  onCheckedChange={(checked) => handlePreferenceChange('weekly_results', checked)}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Deadline Alerts</Label>
-                  <p className="text-sm text-charcoal-500">Get alerts before pick deadlines</p>
-                </div>
-                <Switch
-                  checked={preferences.deadline_alerts}
-                  onCheckedChange={(checked) => handlePreferenceChange('deadline_alerts', checked)}
-                />
-              </div>
-            </div>
-
-            <Separator />
-
-            <div>
-              <h3 className="font-semibold mb-4">Display Preferences</h3>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Compact View</Label>
-                  <p className="text-sm text-charcoal-500">Use a more compact layout</p>
-                </div>
-                <Switch
-                  checked={preferences.compact_view}
-                  onCheckedChange={(checked) => handlePreferenceChange('compact_view', checked)}
-                />
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="flex justify-end">
-              <Button 
-                onClick={handleSaveProfile} 
-                disabled={saving}
-              >
-                {saving ? 'Saving...' : 'Save Preferences'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {activeTab === 'stats' && userProfile?.stats && (
         <Card>

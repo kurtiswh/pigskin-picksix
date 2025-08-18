@@ -1,12 +1,10 @@
 import { useAuth } from '@/hooks/useAuth'
-import { Navigate, Link } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
+import { Navigate } from 'react-router-dom'
 import UserProfile from '@/components/UserProfile'
-import AuthDebugger from '@/components/AuthDebugger'
 import Layout from '@/components/Layout'
 
 export default function ProfilePage() {
-  const { user, signOut } = useAuth()
+  const { user } = useAuth()
 
   if (!user) {
     return <Navigate to="/login" replace />
@@ -26,7 +24,6 @@ export default function ProfilePage() {
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <UserProfile />
-        <AuthDebugger />
       </main>
     </Layout>
   )
