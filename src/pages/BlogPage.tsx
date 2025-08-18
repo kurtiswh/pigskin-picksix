@@ -41,10 +41,8 @@ export default function BlogPage() {
         const defaultSeasons = [currentYear, currentYear - 1, currentYear - 2]
         setSeasons(defaultSeasons)
 
-        // Set default season if none selected
-        if (!selectedSeason) {
-          setSelectedSeason(currentYear)
-        }
+        // Don't auto-select a season - let users choose to filter
+        // This prevents filtering on page load
       } catch (error) {
         console.error('Failed to load seasons:', error)
       }
@@ -100,8 +98,17 @@ export default function BlogPage() {
           }
         } else {
           // Public view: only published posts
-          console.log('BlogPage: Loading published posts...')
-          blogPosts = await DirectBlogService.getPosts(filter?.season, filter?.week, 20)
+          console.log('BlogPage: Loading published posts with filter:', filter)
+          console.log('BlogPage: Using API parameters - season:', filter?.season, 'week:', filter?.week)
+          
+          // If no filters are selected, load all published posts
+          if (!filter || (!filter.season && filter.week === undefined)) {
+            console.log('BlogPage: No filters - loading all published posts')
+            blogPosts = await DirectBlogService.getPosts(undefined, undefined, 20)
+          } else {
+            console.log('BlogPage: Applying filters - season:', filter.season, 'week:', filter.week)
+            blogPosts = await DirectBlogService.getPosts(filter.season, filter.week, 20)
+          }
         }
         
         console.log('BlogPage: Loaded posts:', blogPosts.length, 'posts')

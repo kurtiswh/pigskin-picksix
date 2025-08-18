@@ -66,8 +66,11 @@ export class DirectBlogService {
     try {
       let url = `${this.SUPABASE_URL}/rest/v1/blog_posts?is_published=eq.true&order=created_at.desc`
       
-      if (season !== undefined) {
+      // Only apply season filter if specifically provided
+      if (season !== undefined && season !== null) {
         url += `&season=eq.${season}`
+        
+        // Only apply week filter if season is filtered and week is specified
         if (week !== undefined) {
           if (week === null) {
             url += `&week=is.null`
