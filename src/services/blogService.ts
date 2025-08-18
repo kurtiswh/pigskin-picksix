@@ -272,6 +272,20 @@ export class BlogService {
       
       console.log('Inserting blog post:', insertData)
 
+      // First, test if the table exists with a simple query
+      try {
+        console.log('Testing table access...')
+        const testPromise = supabase.from('blog_posts').select('count').limit(1)
+        const testTimeout = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Table test timeout')), 5000)
+        )
+        await Promise.race([testPromise, testTimeout])
+        console.log('Table access confirmed')
+      } catch (testError) {
+        console.error('Table access failed:', testError)
+        throw new Error(`Blog posts table is not accessible: ${testError}. Please ensure the database migration has been applied.`)
+      }
+
       // Insert with timeout
       const insertPromise = supabase
         .from('blog_posts')
