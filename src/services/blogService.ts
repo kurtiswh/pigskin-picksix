@@ -272,55 +272,10 @@ export class BlogService {
       
       console.log('Inserting blog post:', insertData)
 
-      // First, test if the table exists with a simple query
-      try {
-        console.log('Testing table access...')
-        const testPromise = supabase.from('blog_posts').select('count').limit(1)
-        const testTimeout = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Table test timeout')), 5000)
-        )
-        await Promise.race([testPromise, testTimeout])
-        console.log('Table access confirmed')
-      } catch (testError) {
-        console.error('Table access failed:', testError)
-        throw new Error(`Blog posts table is not accessible: ${testError}. Please ensure the database migration has been applied.`)
-      }
-
-      // Try a simpler insert first to test RLS
-      console.log('Attempting simplified insert...')
-      const simpleInsertPromise = supabase
-        .from('blog_posts')
-        .insert({
-          title: insertData.title,
-          content: insertData.content,
-          author_id: insertData.author_id,
-          season: insertData.season,
-          week: insertData.week,
-          is_published: false,
-          slug: insertData.slug
-        })
-
-      const simpleTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Simple insert timeout after 10 seconds')), 10000)
-      )
-
-      let simpleResult
-      try {
-        simpleResult = await Promise.race([simpleInsertPromise, simpleTimeoutPromise]) as any
-        console.log('Simple insert result:', simpleResult)
-        
-        if (simpleResult.error) {
-          console.error('Simple insert failed:', simpleResult.error)
-          throw new Error(`RLS Policy Issue: ${simpleResult.error.message}. Code: ${simpleResult.error.code}`)
-        }
-      } catch (simpleError) {
-        console.error('Simple insert error:', simpleError)
-        throw new Error(`Database access blocked: ${simpleError}. This is likely an RLS (Row Level Security) policy issue.`)
-      }
-
-      // If simple insert worked, do full insert with select
-      console.log('Simple insert succeeded, doing full insert...')
-      const insertPromise = supabase
+      // Direct insert without any testing - we know the table exists
+      console.log('Attempting direct insert...')
+      
+      const { data, error } = await supabase
         .from('blog_posts')
         .insert(insertData)
         .select(`
@@ -339,15 +294,15 @@ export class BlogService {
         `)
         .single()
 
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Insert operation timeout after 15 seconds')), 15000)
-      )
-
-      const { data, error } = await Promise.race([insertPromise, timeoutPromise]) as any
-
       if (error) {
         console.error('Error creating blog post:', error)
-        throw error
+        console.error('Error details:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        })
+        throw new Error(`Database error: ${error.message} (Code: ${error.code})`)
       }
 
       console.log('Blog post created successfully:', data)
