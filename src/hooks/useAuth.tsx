@@ -87,10 +87,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             signal: AbortSignal.timeout(5000) // 5 second timeout for connectivity test
           })
           console.log('🔧 [INIT] Network test response status:', pingResponse.status)
+          
+          if (!pingResponse.ok) {
+            const errorText = await pingResponse.text()
+            console.error('🔧 [INIT] Network test error response:', errorText)
+          }
         } catch (networkError) {
           console.error('🔧 [INIT] ❌ Network connectivity test failed:', networkError)
         }
         
+        // Test auth endpoint specifically
+        try {
+          console.log('🔧 [INIT] Testing auth endpoint specifically...')
+          const authTestResponse = await fetch(`${ENV.SUPABASE_URL}/auth/v1/user`, {
+            method: 'GET',
+            headers: {
+              'apikey': ENV.SUPABASE_ANON_KEY || '',
+              'Authorization': `Bearer ${ENV.SUPABASE_ANON_KEY || ''}`,
+            },
+            signal: AbortSignal.timeout(5000)
+          })
+          console.log('🔧 [INIT] Auth endpoint test status:', authTestResponse.status)
+          
+          if (!authTestResponse.ok) {
+            const authErrorText = await authTestResponse.text()
+            console.error('🔧 [INIT] Auth endpoint error response:', authErrorText)
+          }
+        } catch (authError) {
+          console.error('🔧 [INIT] ❌ Auth endpoint test failed:', authError)
+        }
+        
+        // TEMPORARY: Skip getSession() call due to hanging issue
+        console.log('🚀 [INIT] TEMPORARY: Skipping getSession() call due to hanging issue')
+        console.log('🚀 [INIT] Setting loading to false so login form appears')
+        setLoading(false)
+        
+        // TODO: Uncomment this when getSession issue is resolved
+        /*
         console.log('🚀 [INIT] About to call supabase.auth.getSession() with 10 second timeout')
         
         // Add timeout to prevent infinite hanging
@@ -113,6 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('🚀 [INIT] Step 3: No session user found, setting loading to false')
           setLoading(false)
         }
+        */
       } catch (error) {
         console.error('❌ [INIT] Auth initialization error:', error)
         console.log('🔄 [INIT] Attempting fallback initialization without getSession()')
