@@ -254,33 +254,30 @@ export class BlogService {
         console.log('Using provided user ID:', userId)
       }
 
-      // Try to use database function first
-      let slug: string
+      // Generate slug client-side (skip database function for now)
+      console.log('Generating slug for title:', post.title)
+      let slug = this.generateSlug(post.title)
+      console.log('Base slug generated:', slug)
+      
+      // Check for duplicates manually
       try {
-        const { data: slugData, error: slugError } = await supabase
-          .rpc('generate_blog_slug', { title: post.title })
-
-        if (slugError) {
-          throw slugError
-        }
-        slug = slugData
-        console.log('Generated slug via database function:', slug)
-      } catch (slugError) {
-        console.warn('Database slug function not available, using client-side generation:', slugError)
-        // Fallback to client-side slug generation
-        slug = this.generateSlug(post.title)
-        
-        // Check for duplicates manually
-        const { data: existing } = await supabase
+        console.log('Checking for existing slugs...')
+        const { data: existing, error: slugCheckError } = await supabase
           .from('blog_posts')
           .select('slug')
           .like('slug', `${slug}%`)
         
-        if (existing && existing.length > 0) {
+        if (slugCheckError) {
+          console.warn('Could not check for duplicate slugs, using base slug:', slugCheckError)
+        } else if (existing && existing.length > 0) {
           const counter = existing.length
           slug = `${slug}-${counter}`
+          console.log('Found duplicates, using slug:', slug)
+        } else {
+          console.log('No duplicates found, using base slug:', slug)
         }
-        console.log('Generated slug client-side:', slug)
+      } catch (slugError) {
+        console.warn('Error checking duplicates, using base slug:', slugError)
       }
 
       const insertData = {
@@ -291,7 +288,8 @@ export class BlogService {
       
       console.log('Inserting blog post:', insertData)
 
-      const { data, error } = await supabase
+      // Insert with timeout
+      const insertPromise = supabase
         .from('blog_posts')
         .insert(insertData)
         .select(`
@@ -309,6 +307,12 @@ export class BlogService {
           updated_at
         `)
         .single()
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Insert operation timeout after 15 seconds')), 15000)
+      )
+
+      const { data, error } = await Promise.race([insertPromise, timeoutPromise]) as any
 
       if (error) {
         console.error('Error creating blog post:', error)
