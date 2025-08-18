@@ -16,9 +16,13 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  console.log('🚀 [STARTUP] AuthProvider component initializing')
+  
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [userCache, setUserCache] = useState<{[key: string]: {user: User, timestamp: number}}>({})
+  
+  console.log('🚀 [STARTUP] AuthProvider state initialized - Loading:', loading)
   
   // Debug user state changes
   useEffect(() => {
@@ -26,7 +30,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, loading])
 
   useEffect(() => {
+    console.log('🚀 [STARTUP] useEffect running - about to initialize auth')
+    
     const initializeAuth = async () => {
+      console.log('🚀 [STARTUP] initializeAuth function starting')
       try {
         // First, check for magic link tokens in URL
         const hashParams = new URLSearchParams(window.location.hash.substring(1))

@@ -11,6 +11,8 @@ import AdminDashboard from './pages/AdminDashboard'
 import ProfilePage from './pages/ProfilePage'
 
 function App() {
+  console.log('🚀 [STARTUP] App component rendering')
+  
   return (
     <AuthProvider>
       <Router>
