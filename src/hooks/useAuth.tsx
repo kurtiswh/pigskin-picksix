@@ -88,6 +88,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [])
 
+  const linkLeagueSafePayments = async (userId: string, userEmail: string) => {
+    console.log('💰 Linking LeagueSafe payments for user:', userEmail)
+    
+    try {
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
+      // Search for LeagueSafe payments with matching email
+      console.log('🔍 Searching for LeagueSafe payments with email:', userEmail)
+      const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?leaguesafe_email=eq.${userEmail}&is_matched=eq.false&select=*`, {
+        method: 'GET',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (paymentsResponse.ok) {
+        const payments = await paymentsResponse.json()
+        console.log(`📊 Found ${payments.length} unmatched LeagueSafe payments for ${userEmail}`)
+
+        if (payments.length > 0) {
+          // Update each payment to link to this user
+          for (const payment of payments) {
+            console.log(`🔗 Linking payment ID ${payment.id} (Season ${payment.season}) to user ${userId}`)
+            
+            const updateResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?id=eq.${payment.id}`, {
+              method: 'PATCH',
+              headers: {
+                'apikey': apiKey || '',
+                'Authorization': `Bearer ${apiKey || ''}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+              },
+              body: JSON.stringify({
+                user_id: userId,
+                is_matched: true
+              })
+            })
+
+            if (updateResponse.ok) {
+              console.log(`✅ Successfully linked payment for season ${payment.season}`)
+            } else {
+              console.error(`❌ Failed to link payment for season ${payment.season}:`, updateResponse.status)
+            }
+          }
+          
+          return { success: true, paymentsLinked: payments.length }
+        } else {
+          console.log('ℹ️ No unmatched LeagueSafe payments found for this email')
+          return { success: true, paymentsLinked: 0 }
+        }
+      } else {
+        console.error('❌ Failed to search LeagueSafe payments:', paymentsResponse.status)
+        return { success: false, error: 'Failed to search for LeagueSafe payments' }
+      }
+    } catch (error) {
+      console.error('💥 Exception in linkLeagueSafePayments:', error)
+      return { success: false, error: 'Exception while linking LeagueSafe payments' }
+    }
+  }
+
   const fetchUserProfile = async (userId: string) => {
     console.log('👤 Fetching user profile from database for ID:', userId)
     
@@ -274,8 +337,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         console.log('✅ New user record created with auth ID')
         
+        // Link LeagueSafe payments to this new user
+        console.log('🔗 Step 3: Linking LeagueSafe payments...')
+        const paymentResult = await linkLeagueSafePayments(authData.user.id, email)
+        
+        if (paymentResult.success) {
+          console.log(`✅ Successfully linked ${paymentResult.paymentsLinked} LeagueSafe payments`)
+        } else {
+          console.warn('⚠️ Failed to link LeagueSafe payments:', paymentResult.error)
+          // Don't fail the account creation - payments can be linked manually later
+        }
+        
         // Now delete the old user record (after creating new one to avoid foreign key issues)
-        console.log('🗑️ Cleaning up old user record...')
+        console.log('🗑️ Step 4: Cleaning up old user record...')
         const { error: deleteError } = await supabase
           .from('users')
           .delete()
@@ -333,6 +407,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       console.log('✅ SignUp successful!')
+      
+      // Link LeagueSafe payments if the user was created successfully
+      if (data?.user?.id) {
+        console.log('🔗 Linking LeagueSafe payments for new user...')
+        const paymentResult = await linkLeagueSafePayments(data.user.id, email)
+        
+        if (paymentResult.success) {
+          console.log(`✅ Successfully linked ${paymentResult.paymentsLinked} LeagueSafe payments`)
+        } else {
+          console.warn('⚠️ Failed to link LeagueSafe payments:', paymentResult.error)
+          // Don't fail the account creation - payments can be linked manually later
+        }
+      }
+      
       return data
     } catch (err) {
       console.error('💥 SignUp exception:', err)
