@@ -214,17 +214,45 @@ export class BlogService {
   }
 
   // Create new blog post
-  static async createPost(post: BlogPostCreate): Promise<BlogPost> {
+  static async createPost(post: BlogPostCreate, authorId?: string): Promise<BlogPost> {
     console.log('BlogService.createPost called with:', post)
     
     try {
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError || !user) {
-        throw new Error('User not authenticated')
+      // Get user ID - either passed in or from auth
+      let userId = authorId
+      if (!userId) {
+        // Get current user with timeout
+        try {
+          const userPromise = supabase.auth.getUser()
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('getUser timeout')), 5000)
+          )
+          
+          const { data: { user: authUser }, error: userError } = await Promise.race([
+            userPromise,
+            timeoutPromise
+          ]) as any
+          
+          if (userError || !authUser) {
+            throw new Error(`User not authenticated: ${userError?.message || 'No user found'}`)
+          }
+          
+          userId = authUser.id
+          console.log('Current user from auth:', userId)
+        } catch (authError) {
+          console.error('Auth error:', authError)
+          // Fallback: try to get user from session
+          const session = await supabase.auth.getSession()
+          if (session.data.session?.user) {
+            userId = session.data.session.user.id
+            console.log('Got user from session:', userId)
+          } else {
+            throw new Error('Unable to get authenticated user')
+          }
+        }
+      } else {
+        console.log('Using provided user ID:', userId)
       }
-      
-      console.log('Current user:', user.id)
 
       // Try to use database function first
       let slug: string
@@ -258,7 +286,7 @@ export class BlogService {
       const insertData = {
         ...post,
         slug,
-        author_id: user.id
+        author_id: userId
       }
       
       console.log('Inserting blog post:', insertData)

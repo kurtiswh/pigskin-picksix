@@ -110,7 +110,7 @@ export default function BlogEditorPage() {
       } else {
         // Create new post
         console.log('Creating new post')
-        result = await BlogService.createPost(postData as BlogPostCreate)
+        result = await BlogService.createPost(postData as BlogPostCreate, user.id)
       }
       
       console.log('Save successful:', result)
