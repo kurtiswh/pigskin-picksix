@@ -58,6 +58,53 @@ export function SupabaseTest() {
           addResult(`❌ Auth error: ${error.message}`)
         } else if (user) {
           addResult(`✅ User authenticated: ${user.id}`)
+          addResult(`📧 User email: ${user.email}`)
+          
+          // Test 5: Check user's admin status in database
+          addResult('Checking admin status in database...')
+          try {
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('id, email, display_name, is_admin')
+              .eq('email', user.email)
+              .single()
+            
+            if (userError) {
+              addResult(`❌ Failed to get user data: ${userError.message}`)
+            } else if (userData) {
+              addResult(`✅ Database user found: ${userData.email}`)
+              addResult(`🔐 Admin status: ${userData.is_admin ? 'TRUE (Admin)' : 'FALSE (Regular user)'}`)
+              addResult(`👤 Display name: ${userData.display_name}`)
+              addResult(`🆔 Database ID: ${userData.id}`)
+              addResult(`🆔 Auth ID: ${user.id}`)
+              if (userData.id !== user.id) {
+                addResult(`⚠️ WARNING: ID MISMATCH between auth and database!`)
+              }
+            } else {
+              addResult(`❌ No user found in database for email: ${user.email}`)
+            }
+          } catch (userCheckError) {
+            addResult(`❌ Error checking user data: ${userCheckError}`)
+          }
+          
+          // Test 6: Check specific user jstovall5@yahoo.com
+          addResult('Checking jstovall5@yahoo.com admin status...')
+          try {
+            const { data: jstovallData, error: jstovallError } = await supabase
+              .from('users')
+              .select('id, email, display_name, is_admin')
+              .eq('email', 'jstovall5@yahoo.com')
+              .single()
+            
+            if (jstovallError) {
+              addResult(`❌ jstovall5@yahoo.com not found: ${jstovallError.message}`)
+            } else if (jstovallData) {
+              addResult(`✅ jstovall5@yahoo.com found: Admin = ${jstovallData.is_admin}`)
+            }
+          } catch (jstovallCheckError) {
+            addResult(`❌ Error checking jstovall5@yahoo.com: ${jstovallCheckError}`)
+          }
+          
         } else {
           addResult('❌ No authenticated user')
         }

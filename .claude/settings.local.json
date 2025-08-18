@@ -35,7 +35,8 @@
       "Bash(mv:*)",
       "Bash(grep:*)",
       "Bash(kill:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(rg \"admin\" /Users/kurtiswh/Cursor/PP6/database/migrations/ -A 2 -B 2)"
     ],
     "deny": []
   }
