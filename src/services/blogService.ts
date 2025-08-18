@@ -254,31 +254,15 @@ export class BlogService {
         console.log('Using provided user ID:', userId)
       }
 
-      // Generate slug client-side (skip database function for now)
+      // Generate slug client-side (skip database function and duplicate check for now)
       console.log('Generating slug for title:', post.title)
       let slug = this.generateSlug(post.title)
-      console.log('Base slug generated:', slug)
       
-      // Check for duplicates manually
-      try {
-        console.log('Checking for existing slugs...')
-        const { data: existing, error: slugCheckError } = await supabase
-          .from('blog_posts')
-          .select('slug')
-          .like('slug', `${slug}%`)
-        
-        if (slugCheckError) {
-          console.warn('Could not check for duplicate slugs, using base slug:', slugCheckError)
-        } else if (existing && existing.length > 0) {
-          const counter = existing.length
-          slug = `${slug}-${counter}`
-          console.log('Found duplicates, using slug:', slug)
-        } else {
-          console.log('No duplicates found, using base slug:', slug)
-        }
-      } catch (slugError) {
-        console.warn('Error checking duplicates, using base slug:', slugError)
-      }
+      // Add timestamp to make it unique
+      const timestamp = Date.now().toString().slice(-4)
+      slug = `${slug}-${timestamp}`
+      
+      console.log('Generated unique slug:', slug)
 
       const insertData = {
         ...post,
