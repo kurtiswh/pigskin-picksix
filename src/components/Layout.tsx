@@ -98,28 +98,16 @@ export default function Layout({ children }: LayoutProps) {
               </Link>
 
               {user?.is_admin && (
-                <>
-                  <Link
-                    to="/admin"
-                    className={`text-sm font-medium transition-colors ${
-                      isActive('/admin') && !isActive('/admin/blog')
-                        ? 'text-gold-300'
-                        : 'text-pigskin-100 hover:text-white'
-                    }`}
-                  >
-                    Admin
-                  </Link>
-                  <Link
-                    to="/admin/blog"
-                    className={`text-sm font-medium transition-colors ${
-                      isActive('/admin/blog')
-                        ? 'text-gold-300'
-                        : 'text-pigskin-100 hover:text-white'
-                    }`}
-                  >
-                    Blog Admin
-                  </Link>
-                </>
+                <Link
+                  to="/admin"
+                  className={`text-sm font-medium transition-colors ${
+                    isActive('/admin')
+                      ? 'text-gold-300'
+                      : 'text-pigskin-100 hover:text-white'
+                  }`}
+                >
+                  Admin
+                </Link>
               )}
             </nav>
 
@@ -233,30 +221,17 @@ export default function Layout({ children }: LayoutProps) {
                 </Link>
 
                 {user?.is_admin && (
-                  <>
-                    <Link
-                      to="/admin"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`text-sm font-medium transition-colors ${
-                        isActive('/admin') && !isActive('/admin/blog')
-                          ? 'text-gold-300'
-                          : 'text-pigskin-100 hover:text-white'
-                      }`}
-                    >
-                      Admin
-                    </Link>
-                    <Link
-                      to="/admin/blog"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`text-sm font-medium transition-colors ${
-                        isActive('/admin/blog')
-                          ? 'text-gold-300'
-                          : 'text-pigskin-100 hover:text-white'
-                      }`}
-                    >
-                      Blog Admin
-                    </Link>
-                  </>
+                  <Link
+                    to="/admin"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`text-sm font-medium transition-colors ${
+                      isActive('/admin')
+                        ? 'text-gold-300'
+                        : 'text-pigskin-100 hover:text-white'
+                    }`}
+                  >
+                    Admin
+                  </Link>
                 )}
 
                 {/* Mobile-only user actions */}

@@ -13,7 +13,6 @@ import Layout from '@/components/Layout'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
 import '@/styles/quill-content.css'
-import { SupabaseTest } from '@/components/SupabaseTest'
 
 export default function BlogEditorPage() {
   const { user } = useAuth()
@@ -175,10 +174,6 @@ export default function BlogEditorPage() {
       </div>
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Temporary Supabase Test */}
-        <div className="mb-8">
-          <SupabaseTest />
-        </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Editor */}

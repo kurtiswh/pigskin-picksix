@@ -11,7 +11,6 @@ import AdminDashboard from './pages/AdminDashboard'
 import ProfilePage from './pages/ProfilePage'
 import BlogPage from './pages/BlogPage'
 import BlogPostPage from './pages/BlogPostPage'
-import AdminBlogPage from './pages/AdminBlogPage'
 import BlogEditorPage from './pages/BlogEditorPage'
 
 function App() {
@@ -33,7 +32,6 @@ function App() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/blog" element={<BlogPage />} />
             <Route path="/blog/:slug" element={<BlogPostPage />} />
-            <Route path="/admin/blog" element={<AdminBlogPage />} />
             <Route path="/admin/blog/new" element={<BlogEditorPage />} />
             <Route path="/admin/blog/edit/:postId" element={<BlogEditorPage />} />
           </Routes>
