@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 import { getCurrentWeek } from '@/services/collegeFootballApi'
 import { LeaderboardEntry, Pick } from '@/types'
+import Layout from '@/components/Layout'
 
 export default function HomePage() {
   const { user } = useAuth()
@@ -129,90 +130,40 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      {/* Header */}
-      <header className="bg-pigskin-500 text-white">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-gold-500 rounded-full flex items-center justify-center football-laces">
-                <span className="text-pigskin-900 font-bold text-xl">P6</span>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">Pigskin Pick Six Pro</h1>
-                <p className="text-pigskin-100">Where meaningless games become meaningful</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              {user ? (
-                <>
-                  <span className="text-pigskin-100">Welcome, {user.display_name}!</span>
-                  {user.is_admin && (
-                    <Link to="/admin">
-                      <Button variant="secondary">Admin Dashboard</Button>
-                    </Link>
-                  )}
-                  <Link to="/picks">
-                    <Button variant="secondary">Make Picks</Button>
-                  </Link>
-                  <Link to="/leaderboard">
-                    <Button variant="outline" className="border-white text-white hover:bg-white hover:text-pigskin-500">
-                      Leaderboard
-                    </Button>
-                  </Link>
-                  <Link to="/profile">
-                    <Button variant="outline" className="border-white text-white hover:bg-white hover:text-pigskin-500">
-                      Profile
-                    </Button>
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link to="/anonymous-picks">
-                    <Button variant="default" className="bg-gold-500 hover:bg-gold-600 text-pigskin-900">
-                      Submit Picks
-                    </Button>
-                  </Link>
-                  <Link to="/login">
-                    <Button variant="secondary">Log In</Button>
-                  </Link>
-                  <Link to="/login?signup=true">
-                    <Button variant="outline" className="border-white text-white hover:bg-white hover:text-pigskin-500">
-                      Register
-                    </Button>
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+    <Layout>
 
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-pigskin-600 to-pigskin-800 text-white py-20">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-5xl font-bold mb-6">
+          <h1 className="text-4xl md:text-6xl font-bold mb-4">
             Where meaningless games become meaningful
-          </h2>
-          <p className="text-xl text-pigskin-100 mb-8 max-w-2xl mx-auto">
-            Join the ultimate college football pick 'em experience. Pick 6 games against the spread each week, 
-            lock in your most confident pick, and compete for season-long glory.
+          </h1>
+          <p className="text-xl md:text-2xl text-pigskin-100 mb-8">
+            Join the ultimate college football pick 'em experience
           </p>
-          {!user && (
-            <div className="flex justify-center space-x-4">
-              <Link to="/anonymous-picks">
+          {user ? (
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link to="/picks">
                 <Button size="lg" className="bg-gold-500 hover:bg-gold-600 text-pigskin-900">
-                  Submit Picks Now
+                  Make Your Picks
                 </Button>
               </Link>
-              <Link to="/login?signup=true">
-                <Button size="lg" variant="secondary">
-                  Join the Competition
+              <Link to="/leaderboard">
+                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-pigskin-500">
+                  View Leaderboard
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link to="/anonymous-picks">
+                <Button size="lg" className="bg-gold-500 hover:bg-gold-600 text-pigskin-900">
+                  Submit Picks
                 </Button>
               </Link>
               <Link to="/login">
                 <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-pigskin-500">
-                  Already a member? Log In
+                  Log In
                 </Button>
               </Link>
             </div>
@@ -465,6 +416,6 @@ export default function HomePage() {
           </p>
         </div>
       </footer>
-    </div>
+    </Layout>
   )
 }

@@ -148,13 +148,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('🔧 [INIT] ❌ Auth endpoint test failed:', authError)
         }
         
-        // TEMPORARY: Skip getSession() call due to hanging issue
-        console.log('🚀 [INIT] TEMPORARY: Skipping getSession() call due to hanging issue')
-        console.log('🚀 [INIT] Setting loading to false so login form appears')
-        setLoading(false)
-        
-        // TODO: Uncomment this when getSession issue is resolved
-        /*
+        // Get current session to restore user state
+        console.log('🚀 [INIT] Step 2: Getting current session to restore auth state')
         console.log('🚀 [INIT] About to call supabase.auth.getSession() with 10 second timeout')
         
         // Add timeout to prevent infinite hanging
@@ -177,7 +172,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('🚀 [INIT] Step 3: No session user found, setting loading to false')
           setLoading(false)
         }
-        */
       } catch (error) {
         console.error('❌ [INIT] Auth initialization error:', error)
         console.log('🔄 [INIT] Attempting fallback initialization without getSession()')

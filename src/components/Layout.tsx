@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { ReactNode, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const { user, signOut } = useAuth()
   const location = useLocation()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const isActive = (path: string) => {
     return location.pathname === path || location.pathname.startsWith(path + '/')
@@ -23,10 +24,14 @@ export default function Layout({ children }: LayoutProps) {
     }
   }
 
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen)
+  }
+
   return (
     <div className="min-h-screen bg-stone-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-stone-200">
+      <header className="bg-pigskin-500 text-white shadow-lg">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
@@ -34,55 +39,52 @@ export default function Layout({ children }: LayoutProps) {
               <div className="w-10 h-10 bg-gold-500 rounded-full flex items-center justify-center football-laces">
                 <span className="text-pigskin-900 font-bold text-lg">P6</span>
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-charcoal-900">Pigskin Pick Six Pro</h1>
+              <div className="hidden sm:block">
+                <h1 className="text-xl font-bold text-white">Pigskin Pick Six Pro</h1>
               </div>
             </Link>
 
-            {/* Navigation */}
-            <nav className="hidden md:flex items-center space-x-6">
+            {/* Desktop Navigation */}
+            <nav className="hidden lg:flex items-center space-x-6">
               <Link
                 to="/"
                 className={`text-sm font-medium transition-colors ${
                   isActive('/') && location.pathname === '/'
-                    ? 'text-pigskin-600'
-                    : 'text-charcoal-600 hover:text-pigskin-600'
+                    ? 'text-gold-300'
+                    : 'text-pigskin-100 hover:text-white'
                 }`}
               >
                 Home
               </Link>
               
-              {user && (
-                <>
-                  <Link
-                    to="/picks"
-                    className={`text-sm font-medium transition-colors ${
-                      isActive('/picks')
-                        ? 'text-pigskin-600'
-                        : 'text-charcoal-600 hover:text-pigskin-600'
-                    }`}
-                  >
-                    Submit Picks
-                  </Link>
-                  <Link
-                    to="/leaderboard"
-                    className={`text-sm font-medium transition-colors ${
-                      isActive('/leaderboard')
-                        ? 'text-pigskin-600'
-                        : 'text-charcoal-600 hover:text-pigskin-600'
-                    }`}
-                  >
-                    Leaderboard
-                  </Link>
-                </>
-              )}
+              <Link
+                to="/picks"
+                className={`text-sm font-medium transition-colors ${
+                  isActive('/picks')
+                    ? 'text-gold-300'
+                    : 'text-pigskin-100 hover:text-white'
+                }`}
+              >
+                Picks
+              </Link>
+              
+              <Link
+                to="/leaderboard"
+                className={`text-sm font-medium transition-colors ${
+                  isActive('/leaderboard')
+                    ? 'text-gold-300'
+                    : 'text-pigskin-100 hover:text-white'
+                }`}
+              >
+                Leaderboard
+              </Link>
 
               <Link
                 to="/blog"
                 className={`text-sm font-medium transition-colors ${
                   isActive('/blog')
-                    ? 'text-pigskin-600'
-                    : 'text-charcoal-600 hover:text-pigskin-600'
+                    ? 'text-gold-300'
+                    : 'text-pigskin-100 hover:text-white'
                 }`}
               >
                 Blog
@@ -93,8 +95,8 @@ export default function Layout({ children }: LayoutProps) {
                   to="/admin"
                   className={`text-sm font-medium transition-colors ${
                     isActive('/admin')
-                      ? 'text-pigskin-600'
-                      : 'text-charcoal-600 hover:text-pigskin-600'
+                      ? 'text-gold-300'
+                      : 'text-pigskin-100 hover:text-white'
                   }`}
                 >
                   Admin
@@ -102,28 +104,153 @@ export default function Layout({ children }: LayoutProps) {
               )}
             </nav>
 
-            {/* User Menu */}
+            {/* User Menu & Mobile Menu Button */}
             <div className="flex items-center space-x-4">
               {user ? (
                 <>
-                  <span className="text-sm text-charcoal-600 hidden sm:block">
+                  <span className="text-sm text-pigskin-100 hidden md:block">
                     {user.display_name}
                   </span>
-                  <Button variant="outline" size="sm" onClick={handleSignOut}>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleSignOut}
+                    className="hidden sm:block border-white text-white hover:bg-white hover:text-pigskin-500"
+                  >
                     Sign Out
                   </Button>
                 </>
               ) : (
-                <div className="space-x-2">
-                  <Link to="/login">
-                    <Button variant="outline" size="sm">
-                      Log In
-                    </Button>
-                  </Link>
-                </div>
+                <Link to="/login" className="hidden sm:block">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="border-white text-white hover:bg-white hover:text-pigskin-500"
+                  >
+                    Log In
+                  </Button>
+                </Link>
               )}
+
+              {/* Mobile menu button */}
+              <button
+                onClick={toggleMobileMenu}
+                className="lg:hidden flex items-center justify-center w-8 h-8 text-white hover:text-gold-300 transition-colors"
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                )}
+              </button>
             </div>
           </div>
+
+          {/* Mobile Navigation Menu */}
+          {mobileMenuOpen && (
+            <div className="lg:hidden border-t border-pigskin-400 py-4">
+              <nav className="flex flex-col space-y-4">
+                <Link
+                  to="/"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`text-sm font-medium transition-colors ${
+                    isActive('/') && location.pathname === '/'
+                      ? 'text-gold-300'
+                      : 'text-pigskin-100 hover:text-white'
+                  }`}
+                >
+                  Home
+                </Link>
+                
+                <Link
+                  to="/picks"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`text-sm font-medium transition-colors ${
+                    isActive('/picks')
+                      ? 'text-gold-300'
+                      : 'text-pigskin-100 hover:text-white'
+                  }`}
+                >
+                  Picks
+                </Link>
+                
+                <Link
+                  to="/leaderboard"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`text-sm font-medium transition-colors ${
+                    isActive('/leaderboard')
+                      ? 'text-gold-300'
+                      : 'text-pigskin-100 hover:text-white'
+                  }`}
+                >
+                  Leaderboard
+                </Link>
+
+                <Link
+                  to="/blog"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`text-sm font-medium transition-colors ${
+                    isActive('/blog')
+                      ? 'text-gold-300'
+                      : 'text-pigskin-100 hover:text-white'
+                  }`}
+                >
+                  Blog
+                </Link>
+
+                {user?.is_admin && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`text-sm font-medium transition-colors ${
+                      isActive('/admin')
+                        ? 'text-gold-300'
+                        : 'text-pigskin-100 hover:text-white'
+                    }`}
+                  >
+                    Admin
+                  </Link>
+                )}
+
+                {/* Mobile-only user actions */}
+                <div className="pt-4 border-t border-pigskin-400">
+                  {user ? (
+                    <>
+                      <div className="text-sm text-pigskin-100 mb-2">
+                        {user.display_name}
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => {
+                          handleSignOut()
+                          setMobileMenuOpen(false)
+                        }}
+                        className="border-white text-white hover:bg-white hover:text-pigskin-500"
+                      >
+                        Sign Out
+                      </Button>
+                    </>
+                  ) : (
+                    <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="border-white text-white hover:bg-white hover:text-pigskin-500"
+                      >
+                        Log In
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+              </nav>
+            </div>
+          )}
         </div>
       </header>
 
