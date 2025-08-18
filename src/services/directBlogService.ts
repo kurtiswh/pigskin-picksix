@@ -198,8 +198,11 @@ export class DirectBlogService {
     console.log('DirectBlogService.getPostBySlug called with slug:', slug)
     
     try {
+      const encodedSlug = encodeURIComponent(slug)
+      console.log('DirectBlogService.getPostBySlug encoded slug:', encodedSlug)
+      
       const response = await this.fetchWithTimeout(
-        `${this.SUPABASE_URL}/rest/v1/blog_posts?slug=eq.${slug}&limit=1`
+        `${this.SUPABASE_URL}/rest/v1/blog_posts?slug=eq.${encodedSlug}&limit=1`
       )
       
       const data = await response.json()

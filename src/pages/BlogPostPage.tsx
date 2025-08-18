@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { BlogPost } from '@/types'
-import { BlogService } from '@/services/blogService'
+import { DirectBlogService } from '@/services/directBlogService'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import Layout from '@/components/Layout'
@@ -22,7 +22,7 @@ export default function BlogPostPage() {
 
     const loadPost = async () => {
       try {
-        const blogPost = await BlogService.getPostBySlug(slug)
+        const blogPost = await DirectBlogService.getPostBySlug(slug)
         if (blogPost) {
           setPost(blogPost)
         } else {
