@@ -96,20 +96,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('🔧 [INIT] ❌ Network connectivity test failed:', networkError)
         }
         
-        // Test auth endpoint specifically
+        // Test auth endpoint specifically (without session, should return 401 which is normal)
         try {
           console.log('🔧 [INIT] Testing auth endpoint specifically...')
           const authTestResponse = await fetch(`${ENV.SUPABASE_URL}/auth/v1/user`, {
             method: 'GET',
             headers: {
               'apikey': ENV.SUPABASE_ANON_KEY || '',
-              'Authorization': `Bearer ${ENV.SUPABASE_ANON_KEY || ''}`,
+              // Don't send Authorization header without a valid session token
             },
             signal: AbortSignal.timeout(5000)
           })
-          console.log('🔧 [INIT] Auth endpoint test status:', authTestResponse.status)
+          console.log('🔧 [INIT] Auth endpoint test status:', authTestResponse.status, '(401 is normal when not logged in)')
           
-          if (!authTestResponse.ok) {
+          if (authTestResponse.status === 401) {
+            console.log('🔧 [INIT] ✅ Auth endpoint working correctly (401 = not authenticated)')
+          } else if (!authTestResponse.ok) {
             const authErrorText = await authTestResponse.text()
             console.error('🔧 [INIT] Auth endpoint error response:', authErrorText)
           }
