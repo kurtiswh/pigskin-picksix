@@ -314,6 +314,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🔄 Using direct API approach only (bypassing hanging Supabase client)...')
       
+      // First, get the authenticated user's email from the session
+      let userEmail: string | undefined
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        userEmail = user?.email
+        console.log('📧 Authenticated user email:', userEmail)
+      } catch (authError) {
+        console.warn('⚠️ Could not get authenticated user email:', authError)
+      }
+      
       // Check if user with this exact ID exists in database
       console.log('🔍 Step 1: Looking for user by ID...')
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
@@ -350,40 +360,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('📝 Response text:', await response.text())
       }
 
-      // Try searching by email - get all users and find match
-      console.log('🔍 Step 2: Getting all users to find email match...')
-      response = await fetch(`${supabaseUrl}/rest/v1/users?select=*`, {
-        method: 'GET',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        }
-      })
+      // Try searching by email if we have one
+      if (userEmail) {
+        console.log('🔍 Step 2: Looking for user by authenticated email:', userEmail)
+        response = await fetch(`${supabaseUrl}/rest/v1/users?email=eq.${encodeURIComponent(userEmail)}&select=*`, {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          }
+        })
 
-      console.log('🔍 All users response status:', response.status)
+        console.log('🔍 Email search response status:', response.status)
 
-      if (response.status === 200) {
-        const allUsers = await response.json()
-        console.log('📥 All users response:', allUsers)
-        console.log('📊 Found', allUsers.length, 'total users in database')
-        
-        // Look for user by email kurtiswh+test2@gmail.com
-        const userByEmail = allUsers.find((u: any) => u.email === 'kurtiswh+test2@gmail.com')
-        if (userByEmail) {
-          console.log('✅ SUCCESS: Found user by email:', userByEmail.email)
-          console.log('🔧 User ID in database:', userByEmail.id, 'vs Auth ID:', userId)
-          setUser(userByEmail)
-          return
+        if (response.status === 200) {
+          const data = await response.json()
+          console.log('📥 Email search response:', data)
+          
+          if (data && data.length > 0) {
+            console.log('✅ SUCCESS: Found user by email:', data[0].email)
+            console.log('🔧 User ID in database:', data[0].id, 'vs Auth ID:', userId)
+            setUser(data[0])
+            return
+          } else {
+            console.log('❌ No user found with email:', userEmail)
+          }
         } else {
-          console.log('❌ No user found with email kurtiswh+test2@gmail.com')
-          console.log('📋 Available emails:', allUsers.map((u: any) => u.email))
+          console.log('❌ Email search failed with status:', response.status)
+          const errorText = await response.text()
+          console.log('❌ Error:', errorText)
         }
-      } else {
-        console.log('❌ Failed to get users, status:', response.status)
-        const errorText = await response.text()
-        console.log('❌ Error:', errorText)
       }
 
       // If we get here, no user was found
