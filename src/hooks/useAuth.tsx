@@ -70,6 +70,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Get current session if no magic link
         console.log('🚀 [INIT] Step 2: Getting current session - THIS MIGHT HANG')
+        
+        // First, test Supabase configuration
+        console.log('🔧 [INIT] Testing Supabase configuration...')
+        console.log('🔧 [INIT] Supabase URL:', ENV.SUPABASE_URL ? ENV.SUPABASE_URL.substring(0, 30) + '...' : 'MISSING')
+        console.log('🔧 [INIT] Supabase Key:', ENV.SUPABASE_ANON_KEY ? ENV.SUPABASE_ANON_KEY.substring(0, 20) + '...' : 'MISSING')
+        
+        // Test basic network connectivity to Supabase
+        try {
+          console.log('🔧 [INIT] Testing network connectivity to Supabase...')
+          const pingResponse = await fetch(`${ENV.SUPABASE_URL}/rest/v1/`, {
+            method: 'HEAD',
+            headers: {
+              'apikey': ENV.SUPABASE_ANON_KEY || '',
+            },
+            signal: AbortSignal.timeout(5000) // 5 second timeout for connectivity test
+          })
+          console.log('🔧 [INIT] Network test response status:', pingResponse.status)
+        } catch (networkError) {
+          console.error('🔧 [INIT] ❌ Network connectivity test failed:', networkError)
+        }
+        
         console.log('🚀 [INIT] About to call supabase.auth.getSession() with 10 second timeout')
         
         // Add timeout to prevent infinite hanging
@@ -94,6 +115,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         console.error('❌ [INIT] Auth initialization error:', error)
+        console.log('🔄 [INIT] Attempting fallback initialization without getSession()')
+        
+        // Fallback: Just set loading to false and let the auth state listener handle any future auth changes
+        console.log('🔄 [INIT] Fallback: Setting loading to false, auth will work when user manually signs in')
         setLoading(false)
       }
     }
