@@ -549,9 +549,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         console.log('✅ New user record created with auth ID')
         
-        // TEMPORARILY SKIP payment linking to isolate the issue
-        console.log('🔗 [SETUP] Step 3: TEMPORARILY SKIPPING payment linking to test setup isolation')
-        /*
         // Link LeagueSafe payments to this new user (non-blocking)
         console.log('🔗 [SETUP] Step 3: Starting LeagueSafe payment linking (non-blocking)...')
         linkLeagueSafePayments(authData.user.id, email)
@@ -567,7 +564,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           })
         
         console.log('🔗 [SETUP] Payment linking started in background, continuing with account setup...')
-        */
         
         // Now delete the old user record (after creating new one to avoid foreign key issues)
         console.log('🗑️ Step 4: Cleaning up old user record using direct API...')
@@ -642,9 +638,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       console.log('✅ [SIGNUP] Step 3: SignUp successful, user created!')
       
-      // TEMPORARILY SKIP payment linking to isolate the issue
-      console.log('🔗 [SIGNUP] Step 4: TEMPORARILY SKIPPING payment linking to test signup isolation')
-      /*
       // Link LeagueSafe payments if the user was created successfully (non-blocking)
       if (data?.user?.id) {
         console.log('🔗 [SIGNUP] Starting LeagueSafe payment linking for new user (non-blocking)...')
@@ -662,7 +655,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         console.log('🔗 [SIGNUP] Payment linking started in background, continuing with signup...')
       }
-      */
       
       console.log('🔐 [SIGNUP] Step 5: Returning signup data')
       return data
