@@ -161,45 +161,75 @@ export class BlogService {
     return data
   }
 
+  // Generate slug from title (client-side fallback)
+  private static generateSlug(title: string): string {
+    return title
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') || 'blog-post'
+  }
+
   // Create new blog post
   static async createPost(post: BlogPostCreate): Promise<BlogPost> {
-    // Generate slug from title
-    const { data: slugData, error: slugError } = await supabase
-      .rpc('generate_blog_slug', { title: post.title })
+    try {
+      // Try to use database function first
+      const { data: slugData, error: slugError } = await supabase
+        .rpc('generate_blog_slug', { title: post.title })
 
-    if (slugError) {
-      console.error('Error generating slug:', slugError)
-      throw slugError
-    }
+      let slug = slugData
+      if (slugError) {
+        console.warn('Database slug function not available, using client-side generation:', slugError)
+        // Fallback to client-side slug generation
+        slug = this.generateSlug(post.title)
+        
+        // Check for duplicates manually
+        const { data: existing } = await supabase
+          .from('blog_posts')
+          .select('slug')
+          .like('slug', `${slug}%`)
+        
+        if (existing && existing.length > 0) {
+          const counter = existing.length
+          slug = `${slug}-${counter}`
+        }
+      }
 
-    const { data, error } = await supabase
-      .from('blog_posts')
-      .insert({
-        ...post,
-        slug: slugData
-      })
-      .select(`
-        id,
-        title,
-        content,
-        excerpt,
-        author_id,
-        season,
-        week,
-        is_published,
-        featured_image_url,
-        slug,
-        created_at,
-        updated_at
-      `)
-      .single()
+      const { data, error } = await supabase
+        .from('blog_posts')
+        .insert({
+          ...post,
+          slug,
+          author_id: (await supabase.auth.getUser()).data.user?.id
+        })
+        .select(`
+          id,
+          title,
+          content,
+          excerpt,
+          author_id,
+          season,
+          week,
+          is_published,
+          featured_image_url,
+          slug,
+          created_at,
+          updated_at
+        `)
+        .single()
 
-    if (error) {
-      console.error('Error creating blog post:', error)
+      if (error) {
+        console.error('Error creating blog post:', error)
+        throw error
+      }
+
+      return data
+    } catch (error) {
+      console.error('Failed to create blog post:', error)
       throw error
     }
-
-    return data
   }
 
   // Update blog post
@@ -208,15 +238,36 @@ export class BlogService {
 
     // If title is being updated, regenerate slug
     if (updates.title) {
-      const { data: slugData, error: slugError } = await supabase
-        .rpc('generate_blog_slug', { title: updates.title, post_id: id })
+      try {
+        const { data: slugData, error: slugError } = await supabase
+          .rpc('generate_blog_slug', { title: updates.title, post_id: id })
 
-      if (slugError) {
-        console.error('Error generating slug:', slugError)
-        throw slugError
+        if (slugError) {
+          console.warn('Database slug function not available, using client-side generation:', slugError)
+          // Fallback to client-side slug generation
+          let slug = this.generateSlug(updates.title)
+          
+          // Check for duplicates manually (excluding current post)
+          const { data: existing } = await supabase
+            .from('blog_posts')
+            .select('slug')
+            .like('slug', `${slug}%`)
+            .neq('id', id)
+          
+          if (existing && existing.length > 0) {
+            const counter = existing.length
+            slug = `${slug}-${counter}`
+          }
+          
+          updateData.slug = slug
+        } else {
+          updateData.slug = slugData
+        }
+      } catch (error) {
+        console.warn('Error generating slug, keeping existing:', error)
+        // Don't update slug if there's an error
+        delete updateData.slug
       }
-
-      updateData.slug = slugData
     }
 
     const { data, error } = await supabase
