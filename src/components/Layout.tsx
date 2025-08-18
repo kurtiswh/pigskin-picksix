@@ -130,6 +130,15 @@ export default function Layout({ children }: LayoutProps) {
                   <span className="text-sm text-pigskin-100 hidden md:block">
                     {user.display_name}
                   </span>
+                  <Link to="/profile" className="hidden sm:block">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="border-white text-white hover:bg-white hover:text-pigskin-500"
+                    >
+                      Profile
+                    </Button>
+                  </Link>
                   <Button 
                     variant="outline" 
                     size="sm" 
@@ -257,18 +266,29 @@ export default function Layout({ children }: LayoutProps) {
                       <div className="text-sm text-pigskin-100 mb-2">
                         {user.display_name}
                       </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => {
-                          handleSignOut()
-                          setMobileMenuOpen(false)
-                        }}
-                        disabled={signingOut}
-                        className="border-white text-white hover:bg-white hover:text-pigskin-500"
-                      >
-                        {signingOut ? 'Signing Out...' : 'Sign Out'}
-                      </Button>
+                      <div className="space-y-2">
+                        <Link to="/profile" onClick={() => setMobileMenuOpen(false)}>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="w-full border-white text-white hover:bg-white hover:text-pigskin-500"
+                          >
+                            Profile
+                          </Button>
+                        </Link>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => {
+                            handleSignOut()
+                            setMobileMenuOpen(false)
+                          }}
+                          disabled={signingOut}
+                          className="w-full border-white text-white hover:bg-white hover:text-pigskin-500"
+                        >
+                          {signingOut ? 'Signing Out...' : 'Sign Out'}
+                        </Button>
+                      </div>
                     </>
                   ) : (
                     <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
@@ -326,11 +346,18 @@ export default function Layout({ children }: LayoutProps) {
                   </Link>
                 </li>
                 {user && (
-                  <li>
-                    <Link to="/picks" className="text-charcoal-300 hover:text-white transition-colors">
-                      Submit Picks
-                    </Link>
-                  </li>
+                  <>
+                    <li>
+                      <Link to="/picks" className="text-charcoal-300 hover:text-white transition-colors">
+                        Submit Picks
+                      </Link>
+                    </li>
+                    <li>
+                      <Link to="/profile" className="text-charcoal-300 hover:text-white transition-colors">
+                        Profile
+                      </Link>
+                    </li>
+                  </>
                 )}
               </ul>
             </div>
