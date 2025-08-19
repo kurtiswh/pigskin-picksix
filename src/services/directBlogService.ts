@@ -20,7 +20,13 @@ export class DirectBlogService {
       let authToken = this.SUPABASE_KEY
       if (requireAuth) {
         try {
-          const { data: { session } } = await supabase.auth.getSession()
+          // Add timeout to prevent hanging on getSession()
+          const sessionPromise = supabase.auth.getSession()
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('getSession timeout')), 5000) // 5 second timeout
+          })
+          
+          const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise])
           if (session?.access_token) {
             authToken = session.access_token
             console.log('DirectBlogService: Using user session token for authenticated request')
@@ -28,7 +34,8 @@ export class DirectBlogService {
             console.warn('DirectBlogService: No session found for authenticated request, using anon key')
           }
         } catch (sessionError) {
-          console.warn('DirectBlogService: Failed to get session, using anon key:', sessionError)
+          console.warn('DirectBlogService: Failed to get session (timeout or error), using anon key:', sessionError)
+          // Continue with anon key - RLS policies will handle the access control
         }
       }
 
@@ -210,23 +217,39 @@ export class DirectBlogService {
     }
   }
 
-  // Get single post by ID (for editing - requires admin access)
+  // Get single post by ID (for editing - tries auth first, falls back to anon)
   static async getPostById(id: string): Promise<BlogPost | null> {
     console.log('DirectBlogService.getPostById called with ID:', id)
     
     try {
-      // For editing, we need admin access to get any post (including unpublished)
+      // First try with authentication for admin/author access
+      console.log('DirectBlogService.getPostById: Trying authenticated request...')
+      try {
+        const response = await this.fetchWithTimeout(
+          `${this.SUPABASE_URL}/rest/v1/blog_posts?id=eq.${id}&limit=1`, {}, true
+        )
+        
+        const data = await response.json()
+        if (data && data.length > 0) {
+          console.log('✅ Found post with ID (authenticated):', id)
+          return data[0]
+        }
+      } catch (authError) {
+        console.log('DirectBlogService.getPostById: Auth request failed, trying anon...', authError)
+      }
+      
+      // Fallback to anonymous access (for published posts)
+      console.log('DirectBlogService.getPostById: Trying anonymous request...')
       const response = await this.fetchWithTimeout(
-        `${this.SUPABASE_URL}/rest/v1/blog_posts?id=eq.${id}&limit=1`, {}, true
-      ) // Requires authentication for admin/author access
+        `${this.SUPABASE_URL}/rest/v1/blog_posts?id=eq.${id}&limit=1`, {}, false
+      )
       
       const data = await response.json()
-      
       if (data && data.length > 0) {
-        console.log('✅ Found post with ID:', id)
+        console.log('✅ Found post with ID (anonymous):', id)
         return data[0]
       } else {
-        console.log('❌ No post found with ID (or no permission):', id)
+        console.log('❌ No post found with ID:', id)
         return null
       }
     } catch (error) {
