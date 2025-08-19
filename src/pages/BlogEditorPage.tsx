@@ -118,7 +118,7 @@ export default function BlogEditorPage() {
       }
       
       console.log('Save successful:', result)
-      navigate('/admin/blog')
+      navigate('/blog')
     } catch (error) {
       console.error('Failed to save post:', error)
       alert(`Failed to save blog post: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`)
@@ -167,9 +167,9 @@ export default function BlogEditorPage() {
             <Button
               variant="outline"
               className="border-white text-white hover:bg-white hover:text-pigskin-500"
-              onClick={() => navigate('/admin/blog')}
+              onClick={() => navigate('/blog')}
             >
-              ← Back to Blog Management
+              ← Back to Blog
             </Button>
           </div>
         </div>
@@ -371,7 +371,7 @@ export default function BlogEditorPage() {
 
                   <Button
                     variant="outline"
-                    onClick={() => navigate('/admin/blog')}
+                    onClick={() => navigate('/blog')}
                     className="w-full"
                     disabled={saving}
                   >
