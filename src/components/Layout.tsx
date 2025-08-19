@@ -36,7 +36,7 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen bg-stone-50 flex flex-col">
       {/* Header */}
       <header className="bg-pigskin-500 text-white shadow-lg">
         <div className="container mx-auto px-4">
@@ -284,7 +284,7 @@ export default function Layout({ children }: LayoutProps) {
       </header>
 
       {/* Main Content */}
-      <main>{children}</main>
+      <main className="flex-grow">{children}</main>
 
       {/* Footer */}
       <footer className="bg-charcoal-900 text-charcoal-100 py-8 mt-12">

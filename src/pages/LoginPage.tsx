@@ -272,7 +272,7 @@ export default function LoginPage() {
               <span className="text-pigskin-900 font-bold text-2xl">P6</span>
             </div>
             <div className="text-left">
-              <h1 className="text-2xl font-bold text-white">Pigskin Pick Six Pro</h1>
+              <h1 className="text-2xl font-bold text-white">Pigskin Pick Six</h1>
               <p className="text-pigskin-100 text-sm">Where meaningless games become meaningful</p>
             </div>
           </Link>

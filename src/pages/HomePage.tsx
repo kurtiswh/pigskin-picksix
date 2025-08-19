@@ -312,8 +312,7 @@ export default function HomePage() {
               </CardHeader>
               <CardContent className="text-center">
                 <p className="text-charcoal-600">
-                  20 points for wins, 10 for pushes, double points on your Lock pick. 
-                  Bonus tiers reward consistency.
+                  20 points for wins, 10 for pushes, double bonus points on your Lock pick.
                 </p>
               </CardContent>
             </Card>
@@ -342,8 +341,8 @@ export default function HomePage() {
               </CardHeader>
               <CardContent className="text-center">
                 <p className="text-charcoal-600">
-                  Special 4-week championship format (weeks 11-14) 
-                  gives everyone a shot at glory.
+                  Best Finish Championship (weeks 11-14) means
+                  gives everyone has a shot at glory and the season is never over.
                 </p>
               </CardContent>
             </Card>
@@ -374,7 +373,7 @@ export default function HomePage() {
               </div>
               <h4 className="font-semibold mb-2">Lock One Pick</h4>
               <p className="text-charcoal-600 text-sm">
-                Tag your most confident pick for double points
+                Lock your most confident pick for double points
               </p>
             </div>
             <div className="text-center">
@@ -399,23 +398,6 @@ export default function HomePage() {
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-charcoal-900 text-white py-12 mt-16">
-        <div className="container mx-auto px-4 text-center">
-          <div className="flex items-center justify-center space-x-4 mb-6">
-            <div className="w-10 h-10 bg-gold-500 rounded-full flex items-center justify-center football-laces">
-              <span className="text-pigskin-900 font-bold">P6</span>
-            </div>
-            <span className="text-xl font-bold">Pigskin Pick Six Pro</span>
-          </div>
-          <p className="text-charcoal-400 mb-4">
-            Where meaningless games become meaningful
-          </p>
-          <p className="text-charcoal-500 text-sm">
-            © 2024 Pigskin Pick Six Pro. Built for the love of college football.
-          </p>
-        </div>
-      </footer>
     </Layout>
   )
 }

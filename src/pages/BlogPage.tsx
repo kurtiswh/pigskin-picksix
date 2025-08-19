@@ -174,7 +174,7 @@ export default function BlogPage() {
         <div className="flex justify-between items-start mb-8">
           <div>
             <h1 className="text-3xl font-bold text-charcoal-900 mb-2">
-              Pigskin Pick Six Pro Blog
+              Pigskin Pick Six Blog
             </h1>
             <p className="text-charcoal-600">
               Analysis, insights, and commentary on college football pick 'em
