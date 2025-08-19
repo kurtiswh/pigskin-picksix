@@ -1,5 +1,6 @@
 import { BlogPost, BlogPostCreate, BlogPostUpdate } from '@/types'
 import { ENV } from '@/lib/env'
+import { supabase } from '@/lib/supabase'
 
 /**
  * Direct API Blog Service - bypasses Supabase JS client for better reliability
@@ -10,17 +11,33 @@ export class DirectBlogService {
   private static readonly SUPABASE_KEY = ENV.SUPABASE_ANON_KEY || ''
   private static readonly TIMEOUT = 10000 // 10 seconds
 
-  private static async fetchWithTimeout(url: string, options: RequestInit = {}) {
+  private static async fetchWithTimeout(url: string, options: RequestInit = {}, requireAuth = false) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), this.TIMEOUT)
 
     try {
+      // Get authentication token for authenticated requests
+      let authToken = this.SUPABASE_KEY
+      if (requireAuth) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.access_token) {
+            authToken = session.access_token
+            console.log('DirectBlogService: Using user session token for authenticated request')
+          } else {
+            console.warn('DirectBlogService: No session found for authenticated request, using anon key')
+          }
+        } catch (sessionError) {
+          console.warn('DirectBlogService: Failed to get session, using anon key:', sessionError)
+        }
+      }
+
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
         headers: {
           'apikey': this.SUPABASE_KEY,
-          'Authorization': `Bearer ${this.SUPABASE_KEY}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
           'Prefer': 'return=representation',
           ...options.headers
@@ -49,7 +66,7 @@ export class DirectBlogService {
   static async testConnection(): Promise<boolean> {
     try {
       console.log('🔍 Testing direct API connection...')
-      const response = await this.fetchWithTimeout(`${this.SUPABASE_URL}/rest/v1/blog_posts?select=id&limit=1`)
+      const response = await this.fetchWithTimeout(`${this.SUPABASE_URL}/rest/v1/blog_posts?select=id&limit=1`, {}, false)
       const data = await response.json()
       console.log('✅ Direct API connection successful:', data.length, 'test records')
       return true
@@ -85,7 +102,7 @@ export class DirectBlogService {
       }
 
       console.log('🔍 Fetching posts from:', url)
-      const response = await this.fetchWithTimeout(url)
+      const response = await this.fetchWithTimeout(url, {}, false) // Public read, no auth needed
       const data = await response.json()
       
       console.log('✅ Got', data?.length || 0, 'posts')
@@ -128,7 +145,7 @@ export class DirectBlogService {
       const response = await this.fetchWithTimeout(`${this.SUPABASE_URL}/rest/v1/blog_posts`, {
         method: 'POST',
         body: JSON.stringify(postData)
-      })
+      }, true) // Requires authentication
 
       const createdPost = await response.json()
       console.log('✅ Post created successfully:', createdPost[0]?.id)
@@ -165,7 +182,7 @@ export class DirectBlogService {
       const response = await this.fetchWithTimeout(`${this.SUPABASE_URL}/rest/v1/blog_posts?id=eq.${id}`, {
         method: 'PATCH',
         body: JSON.stringify(updateData)
-      })
+      }, true) // Requires authentication
 
       const updatedPost = await response.json()
       console.log('✅ Post updated successfully')
@@ -184,7 +201,7 @@ export class DirectBlogService {
     try {
       await this.fetchWithTimeout(`${this.SUPABASE_URL}/rest/v1/blog_posts?id=eq.${id}`, {
         method: 'DELETE'
-      })
+      }, true) // Requires authentication
 
       console.log('✅ Post deleted successfully')
     } catch (error) {
@@ -193,14 +210,15 @@ export class DirectBlogService {
     }
   }
 
-  // Get single post by ID  
+  // Get single post by ID (for editing - requires admin access)
   static async getPostById(id: string): Promise<BlogPost | null> {
     console.log('DirectBlogService.getPostById called with ID:', id)
     
     try {
+      // For editing, we need admin access to get any post (including unpublished)
       const response = await this.fetchWithTimeout(
-        `${this.SUPABASE_URL}/rest/v1/blog_posts?id=eq.${id}&limit=1`
-      )
+        `${this.SUPABASE_URL}/rest/v1/blog_posts?id=eq.${id}&limit=1`, {}, true
+      ) // Requires authentication for admin/author access
       
       const data = await response.json()
       
@@ -208,7 +226,7 @@ export class DirectBlogService {
         console.log('✅ Found post with ID:', id)
         return data[0]
       } else {
-        console.log('❌ No post found with ID:', id)
+        console.log('❌ No post found with ID (or no permission):', id)
         return null
       }
     } catch (error) {
@@ -226,8 +244,8 @@ export class DirectBlogService {
       console.log('DirectBlogService.getPostBySlug encoded slug:', encodedSlug)
       
       const response = await this.fetchWithTimeout(
-        `${this.SUPABASE_URL}/rest/v1/blog_posts?slug=eq.${encodedSlug}&limit=1`
-      )
+        `${this.SUPABASE_URL}/rest/v1/blog_posts?slug=eq.${encodedSlug}&limit=1`, {}, false
+      ) // Can be public read - RLS will handle permissions
       
       const data = await response.json()
       
@@ -255,7 +273,7 @@ export class DirectBlogService {
         url += `&limit=${limit}`
       }
 
-      const response = await this.fetchWithTimeout(url)
+      const response = await this.fetchWithTimeout(url, {}, true) // Admin-only, requires auth
       const data = await response.json()
       
       console.log('✅ Got', data?.length || 0, 'posts (including unpublished)')
