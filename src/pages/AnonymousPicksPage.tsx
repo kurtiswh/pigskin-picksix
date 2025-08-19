@@ -265,7 +265,7 @@ export default function AnonymousPicksPage() {
                   <span className="text-pigskin-900 font-bold">P6</span>
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-pigskin-900">Pigskin Pick Six Pro</h1>
+                  <h1 className="text-xl font-bold text-pigskin-900">Pigskin Pick Six</h1>
                   <p className="text-sm text-pigskin-600">Anonymous Pick Submission</p>
                 </div>
               </Link>
@@ -339,7 +339,7 @@ export default function AnonymousPicksPage() {
                   <span className="text-pigskin-900 font-bold">P6</span>
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-pigskin-900">Pigskin Pick Six Pro</h1>
+                  <h1 className="text-xl font-bold text-pigskin-900">Pigskin Pick Six</h1>
                   <p className="text-sm text-pigskin-600">Anonymous Pick Submission</p>
                 </div>
               </Link>
@@ -375,7 +375,7 @@ export default function AnonymousPicksPage() {
                 <span className="text-pigskin-900 font-bold">P6</span>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-pigskin-900">Pigskin Pick Six Pro</h1>
+                <h1 className="text-xl font-bold text-pigskin-900">Pigskin Pick Six</h1>
                 <p className="text-sm text-pigskin-600">Anonymous Pick Submission</p>
               </div>
             </Link>

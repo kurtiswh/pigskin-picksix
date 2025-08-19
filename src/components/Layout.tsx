@@ -47,7 +47,7 @@ export default function Layout({ children }: LayoutProps) {
                 <span className="text-pigskin-900 font-bold text-lg">P6</span>
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-xl font-bold text-white">Pigskin Pick Six Pro</h1>
+                <h1 className="text-xl font-bold text-white">Pigskin Pick Six</h1>
               </div>
             </Link>
 
@@ -289,13 +289,13 @@ export default function Layout({ children }: LayoutProps) {
       {/* Footer */}
       <footer className="bg-charcoal-900 text-charcoal-100 py-8 mt-12">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
               <div className="flex items-center space-x-3 mb-4">
                 <div className="w-8 h-8 bg-gold-500 rounded-full flex items-center justify-center football-laces">
                   <span className="text-pigskin-900 font-bold text-sm">P6</span>
                 </div>
-                <span className="font-bold">Pigskin Pick Six Pro</span>
+                <span className="font-bold">Pigskin Pick Six</span>
               </div>
               <p className="text-charcoal-300 text-sm">
                 Where meaningless games become meaningful
@@ -336,21 +336,11 @@ export default function Layout({ children }: LayoutProps) {
                 )}
               </ul>
             </div>
-
-            <div>
-              <h3 className="font-semibold mb-4">Season Info</h3>
-              <p className="text-charcoal-300 text-sm">
-                2024 College Football Season
-              </p>
-              <p className="text-charcoal-300 text-sm">
-                Pick 6 games against the spread each week
-              </p>
-            </div>
           </div>
 
           <div className="border-t border-charcoal-700 mt-8 pt-6 text-center">
             <p className="text-charcoal-400 text-sm">
-              © 2024 Pigskin Pick Six Pro. All rights reserved.
+              © 2025 Pigskin Pick Six. All rights reserved.
             </p>
           </div>
         </div>
