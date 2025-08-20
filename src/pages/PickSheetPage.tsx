@@ -123,7 +123,11 @@ export default function PickSheetPage() {
             kickoff_time: game.kickoff_time,
             spread: game.spread,
             custom_lock_time: game.custom_lock_time,
-            status: game.status || 'scheduled'
+            status: game.status || 'scheduled',
+            home_ranking: game.home_team_ranking,
+            away_ranking: game.away_team_ranking,
+            created_at: game.created_at || new Date().toISOString(),
+            updated_at: game.updated_at || new Date().toISOString()
           }))
           setGames(convertedGames)
           console.log('✅ Converted and set games:', convertedGames.length)

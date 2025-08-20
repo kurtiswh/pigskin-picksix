@@ -27,6 +27,7 @@ interface AdminGameSelectorProps {
   games: CFBGame[]
   selectedGames: CFBGame[]
   onGameToggle: (game: CFBGame) => void
+  onRankingUpdate?: (gameId: number, homeRanking?: number, awayRanking?: number) => void
   loading?: boolean
   maxGames?: number
 }
@@ -35,6 +36,7 @@ export default function AdminGameSelector({
   games,
   selectedGames,
   onGameToggle,
+  onRankingUpdate,
   loading = false,
   maxGames = 15
 }: AdminGameSelectorProps) {
@@ -44,6 +46,21 @@ export default function AdminGameSelector({
 
   const isSelected = (game: CFBGame) => {
     return selectedGames.some(sg => sg.id === game.id)
+  }
+
+  const handleRankingChange = (gameId: number, team: 'home' | 'away', value: string) => {
+    if (!onRankingUpdate) return
+    
+    const rankingValue = value === '' ? undefined : parseInt(value)
+    if (rankingValue !== undefined && (rankingValue < 1 || rankingValue > 25)) return
+    
+    const game = games.find(g => g.id === gameId)
+    if (!game) return
+    
+    const homeRanking = team === 'home' ? rankingValue : game.home_ranking
+    const awayRanking = team === 'away' ? rankingValue : game.away_ranking
+    
+    onRankingUpdate(gameId, homeRanking, awayRanking)
   }
 
   const formatGameTime = (startDate: string) => {
@@ -184,15 +201,49 @@ export default function AdminGameSelector({
                   >
                     <div className="flex-1">
                       <div className="flex items-center space-x-2">
-                        <div className="font-medium text-sm">
+                        <div className="font-medium text-sm flex-1">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
-                              <div className="flex items-center">
+                              <div className="flex items-center space-x-2">
                                 <span className="font-semibold">{game.away_team}</span>
+                                {game.away_ranking && (
+                                  <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded">
+                                    #{game.away_ranking}
+                                  </span>
+                                )}
+                                {onRankingUpdate && (
+                                  <Input
+                                    type="number"
+                                    placeholder="Rank"
+                                    min="1"
+                                    max="25"
+                                    value={game.away_ranking || ''}
+                                    onChange={(e) => handleRankingChange(game.id, 'away', e.target.value)}
+                                    className="w-16 h-6 text-xs px-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                )}
                               </div>
                               <span className="text-gray-500 font-normal">{game.neutral_site ? 'vs' : '@'}</span>
-                              <div className="flex items-center">
+                              <div className="flex items-center space-x-2">
                                 <span className="font-semibold">{game.home_team}</span>
+                                {game.home_ranking && (
+                                  <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded">
+                                    #{game.home_ranking}
+                                  </span>
+                                )}
+                                {onRankingUpdate && (
+                                  <Input
+                                    type="number"
+                                    placeholder="Rank"
+                                    min="1"
+                                    max="25"
+                                    value={game.home_ranking || ''}
+                                    onChange={(e) => handleRankingChange(game.id, 'home', e.target.value)}
+                                    className="w-16 h-6 text-xs px-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                )}
                               </div>
                             </div>
                           </div>

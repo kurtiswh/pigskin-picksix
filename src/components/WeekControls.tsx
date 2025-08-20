@@ -20,6 +20,8 @@ interface CFBGame {
   venue?: string
   spread?: number
   custom_lock_time?: string
+  home_ranking?: number
+  away_ranking?: number
 }
 
 interface WeekControlsProps {
@@ -399,8 +401,24 @@ export default function WeekControls({
                             {index + 1}
                           </span>
                           <div>
-                            <div className="font-medium text-sm">
-                              {game.away_team} @ {game.home_team}
+                            <div className="font-medium text-sm flex items-center space-x-2">
+                              <div className="flex items-center space-x-1">
+                                {game.away_ranking && (
+                                  <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded font-medium">
+                                    #{game.away_ranking}
+                                  </span>
+                                )}
+                                <span>{game.away_team}</span>
+                              </div>
+                              <span>@</span>
+                              <div className="flex items-center space-x-1">
+                                {game.home_ranking && (
+                                  <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded font-medium">
+                                    #{game.home_ranking}
+                                  </span>
+                                )}
+                                <span>{game.home_team}</span>
+                              </div>
                             </div>
                             <div className="text-xs text-charcoal-500 space-x-4">
                               <span>{formatGameTime(game.start_date)}</span>

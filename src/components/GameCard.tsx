@@ -209,7 +209,14 @@ export default function GameCard({
             )}
           >
             <div>
-              <div className="font-semibold text-sm">{game.away_team}</div>
+              <div className="font-semibold text-sm flex items-center space-x-2">
+                {game.away_ranking && (
+                  <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded font-medium">
+                    #{game.away_ranking}
+                  </span>
+                )}
+                <span>{game.away_team}</span>
+              </div>
               <div className="text-xs text-charcoal-500">@ {game.home_team}</div>
             </div>
             <div className="text-right">
@@ -235,7 +242,14 @@ export default function GameCard({
             )}
           >
             <div>
-              <div className="font-semibold text-sm">{game.home_team}</div>
+              <div className="font-semibold text-sm flex items-center space-x-2">
+                {game.home_ranking && (
+                  <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded font-medium">
+                    #{game.home_ranking}
+                  </span>
+                )}
+                <span>{game.home_team}</span>
+              </div>
               <div className="text-xs text-charcoal-500">vs {game.away_team}</div>
             </div>
             <div className="text-right">

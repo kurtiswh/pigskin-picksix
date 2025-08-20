@@ -3,38 +3,20 @@ import { useAuth } from '@/hooks/useAuth'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import LeaderboardTable from '@/components/LeaderboardTable'
 import GamesList from '@/components/GamesList'
 import { supabase } from '@/lib/supabase'
 import { getCurrentWeek } from '@/services/collegeFootballApi'
+import { LeaderboardService, LeaderboardEntry } from '@/services/leaderboardService'
 import Layout from '@/components/Layout'
 
-interface LeaderboardEntry {
-  user_id: string
-  display_name: string
-  weekly_record?: string
-  season_record: string
-  lock_record: string
-  weekly_points?: number
-  season_points: number
-  weekly_rank?: number
-  season_rank: number
-  best_finish_rank?: number
-  total_picks: number
-  total_wins: number
-  total_losses: number
-  total_pushes: number
-  lock_wins: number
-  lock_losses: number
-  last_week_points?: number
-  trend?: 'up' | 'down' | 'same'
-}
 
 export default function LeaderboardPage() {
   const { user, signOut } = useAuth()
   const [activeTab, setActiveTab] = useState<'weekly' | 'season' | 'best-finish' | 'games'>('season')
-  const [currentSeason, setCurrentSeason] = useState(new Date().getFullYear()) // Default to current year
-  const [currentWeek, setCurrentWeek] = useState(getCurrentWeek(new Date().getFullYear())) // Dynamic current week
+  const [currentSeason, setCurrentSeason] = useState(2024) // Default to 2024 season where data exists
+  const [currentWeek, setCurrentWeek] = useState(1) // Default to week 1
   const [loading, setLoading] = useState(true)
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([])
   const [error, setError] = useState('')
@@ -142,72 +124,29 @@ export default function LeaderboardPage() {
       }
       setError('')
 
-      console.log('👥 Starting leaderboard load with simple approach...')
+      console.log('👥 Loading real leaderboard data for', currentSeason, 'week', currentWeek)
       
-      // For now, let's just show a working leaderboard with the users we know exist
-      // based on the assigned picks you showed me
-      const knownUsers = [
-        {
-          user_id: 'test-admin-id',
-          display_name: 'TEst Admin - update2',
-          season_record: '0-0-0',
-          lock_record: '0-0',
-          season_points: 0,
-          season_rank: 1,
-          total_picks: 6, // Based on the 6 picks shown in screenshot
-          total_wins: 0,
-          total_losses: 0,
-          total_pushes: 0,
-          lock_wins: 0,
-          lock_losses: 0
-        },
-        {
-          user_id: user?.id || 'kurtis-id',
-          display_name: user?.display_name || 'KURTIS HANNI',
-          season_record: '0-0-0',
-          lock_record: '0-0',
-          season_points: 0,
-          season_rank: 2,
-          total_picks: 6, // Based on the 6 picks shown in screenshot  
-          total_wins: 0,
-          total_losses: 0,
-          total_pushes: 0,
-          lock_wins: 0,
-          lock_losses: 0
-        }
-      ]
+      let leaderboardEntries: LeaderboardEntry[] = []
       
-      console.log('✅ Using known assigned users from pick sets')
-      setLeaderboardData(knownUsers)
+      if (activeTab === 'weekly') {
+        leaderboardEntries = await LeaderboardService.getWeeklyLeaderboard(currentSeason, currentWeek)
+      } else if (activeTab === 'season') {
+        leaderboardEntries = await LeaderboardService.getSeasonLeaderboard(currentSeason)
+      } else {
+        // For best-finish, use season data for now
+        leaderboardEntries = await LeaderboardService.getSeasonLeaderboard(currentSeason)
+      }
+      
+      console.log('✅ Loaded', leaderboardEntries.length, 'leaderboard entries')
+      setLeaderboardData(leaderboardEntries)
       setLastUpdate(new Date())
-      
-      // Try to get real data in background (non-blocking)
-      setTimeout(async () => {
-        try {
-          console.log('🔄 Attempting background data fetch...')
-          
-          // Simple query with short timeout
-          const { data: anonymousData, error } = await supabase
-            .from('anonymous_picks')
-            .select('assigned_user_id, email')
-            .not('assigned_user_id', 'is', null)
-            .limit(5)
-          
-          if (error) {
-            console.log('Background query failed:', error)
-          } else {
-            console.log('Background data found:', anonymousData)
-            // Don't update UI to avoid disruption, just log success
-          }
-        } catch (bgError) {
-          console.log('Background fetch failed:', bgError)
-        }
-      }, 100) // Very short delay
 
     } catch (err: any) {
       console.error('Error loading leaderboard:', err)
       if (!isBackground) {
         setError(err.message)
+        // Fallback to empty array to show "No data" message
+        setLeaderboardData([])
       }
     } finally {
       if (!isBackground) {
@@ -216,181 +155,9 @@ export default function LeaderboardPage() {
     }
   }, [activeTab, currentWeek, currentSeason])
 
-  // Fallback mock data for demonstration (when no real data)
-  const mockLeaderboardData: LeaderboardEntry[] = [
-    {
-      user_id: '1',
-      display_name: 'Sarah "The Sharp" Johnson',
-      weekly_record: '5-1-0',
-      season_record: '15-2-1',
-      lock_record: '2-1-0',
-      weekly_points: 127, // 5 wins (20 each) + 1 bonus win (23) + 2 lock wins (22, 22)
-      season_points: 342, // 15 wins (avg 21 pts) + 1 push (10) + corrected lock bonuses
-      weekly_rank: 1,
-      season_rank: 1,
-      best_finish_rank: 1,
-      total_picks: 18,
-      total_wins: 15,
-      total_losses: 2,
-      total_pushes: 1,
-      lock_wins: 2,
-      lock_losses: 1,
-      last_week_points: 103,
-      trend: 'up'
-    },
-    {
-      user_id: '2',
-      display_name: 'Mike "Money" Martinez',
-      weekly_record: '4-2-0',
-      season_record: '13-4-1',
-      lock_record: '1-2-0',
-      weekly_points: 105, // 4 wins (20 each) + 1 lock win with bonus (26) + 1 bonus win (21)
-      season_points: 304, // 13 wins + 1 push + corrected lock bonuses
-      weekly_rank: 2,
-      season_rank: 2,
-      best_finish_rank: 3,
-      total_picks: 18,
-      total_wins: 13,
-      total_losses: 4,
-      total_pushes: 1,
-      lock_wins: 1,
-      lock_losses: 2,
-      last_week_points: 84,
-      trend: 'up'
-    },
-    {
-      user_id: '3',
-      display_name: 'Coach Thompson',
-      weekly_record: '5-1-0',
-      season_record: '14-3-1',
-      lock_record: '3-0-0',
-      weekly_points: 124, // 5 wins + 1 lock win with big bonus (30)
-      season_points: 318, // Perfect on locks = good bonus points
-      weekly_rank: 3,
-      season_rank: 3,
-      best_finish_rank: 2,
-      total_picks: 18,
-      total_wins: 14,
-      total_losses: 3,
-      total_pushes: 1,
-      lock_wins: 3,
-      lock_losses: 0,
-      last_week_points: 67,
-      trend: 'up'
-    },
-    {
-      user_id: '4',
-      display_name: 'Jennifer "Jinx" Williams',
-      weekly_record: '3-3-0',
-      season_record: '12-5-1',
-      lock_record: '2-1-0',
-      weekly_points: 81, // 3 wins (60) + 1 lock win (21)
-      season_points: 282, // 12 wins + 1 push + lock bonuses
-      weekly_rank: 6,
-      season_rank: 4,
-      best_finish_rank: 5,
-      total_picks: 18,
-      total_wins: 12,
-      total_losses: 5,
-      total_pushes: 1,
-      lock_wins: 2,
-      lock_losses: 1,
-      last_week_points: 102,
-      trend: 'down'
-    },
-    {
-      user_id: '5',
-      display_name: 'Big Tony',
-      weekly_record: '4-2-0',
-      season_record: '11-6-1',
-      lock_record: '1-2-0',
-      weekly_points: 103, // 4 wins + some bonus points
-      season_points: 263, // 11 wins + 1 push + minimal bonuses
-      weekly_rank: 4,
-      season_rank: 5,
-      best_finish_rank: 8,
-      total_picks: 18,
-      total_wins: 11,
-      total_losses: 6,
-      total_pushes: 1,
-      lock_wins: 1,
-      lock_losses: 2,
-      last_week_points: 62,
-      trend: 'up'
-    },
-    {
-      user_id: '6',
-      display_name: 'Lucky Larry',
-      weekly_record: '2-4-0',
-      season_record: '10-7-1',
-      lock_record: '0-3-0',
-      weekly_points: 44, // 2 wins (40) + 1 bonus (4)
-      season_points: 210, // 10 wins + 1 push + no lock bonuses
-      weekly_rank: 8,
-      season_rank: 6,
-      best_finish_rank: 12,
-      total_picks: 18,
-      total_wins: 10,
-      total_losses: 7,
-      total_pushes: 1,
-      lock_wins: 0,
-      lock_losses: 3,
-      last_week_points: 86,
-      trend: 'down'
-    },
-    {
-      user_id: '7',
-      display_name: 'The Rookie',
-      weekly_record: '4-2-0',
-      season_record: '10-7-1',
-      lock_record: '2-1-0',
-      weekly_points: 98, // 4 wins + lock bonuses
-      season_points: 255, // Good lock performance
-      weekly_rank: 5,
-      season_rank: 7,
-      best_finish_rank: 6,
-      total_picks: 18,
-      total_wins: 10,
-      total_losses: 7,
-      total_pushes: 1,
-      lock_wins: 2,
-      lock_losses: 1,
-      last_week_points: 43,
-      trend: 'up'
-    },
-    {
-      user_id: '8',
-      display_name: 'Commissioner Dave',
-      weekly_record: '3-3-0',
-      season_record: '9-8-1',
-      lock_record: '1-2-0',
-      weekly_points: 67, // 3 wins + minimal bonus
-      season_points: 202, // 9 wins + 1 push + some bonuses
-      weekly_rank: 7,
-      season_rank: 8,
-      best_finish_rank: 10,
-      total_picks: 18,
-      total_wins: 9,
-      total_losses: 8,
-      total_pushes: 1,
-      lock_wins: 1,
-      lock_losses: 2,
-      last_week_points: 71,
-      trend: 'same'
-    }
-  ]
-
-  const getCurrentWeekData = () => {
-    return mockLeaderboardData.map(entry => ({
-      ...entry,
-      weekly_points: entry.weekly_points || 0,
-      weekly_rank: entry.weekly_rank || 0
-    }))
-  }
-
   const getBestFinishData = () => {
-    // Simulate "Best Finish" championship (weeks 11-14)
-    return mockLeaderboardData
+    // Best Finish uses the same data as season but focuses on weeks 11-14
+    return leaderboardData
       .map(entry => ({
         ...entry,
         season_rank: entry.best_finish_rank || entry.season_rank
@@ -425,18 +192,39 @@ export default function LeaderboardPage() {
                 )}
               </div>
 
-              {/* Season Selector */}
-              <div className="flex items-center space-x-2">
-                <span className="text-pigskin-100 text-sm">Season:</span>
-                <select
-                  value={currentSeason}
-                  onChange={(e) => setCurrentSeason(parseInt(e.target.value))}
-                  className="flex h-8 rounded border border-white/30 bg-white/10 text-white px-2 py-1 text-sm"
-                >
-                  {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
-                    <option key={year} value={year} className="text-black">{year}</option>
-                  ))}
-                </select>
+              {/* Season and Week Selectors */}
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <span className="text-pigskin-100 text-sm">Season:</span>
+                  <select
+                    value={currentSeason}
+                    onChange={(e) => setCurrentSeason(parseInt(e.target.value))}
+                    className="flex h-8 rounded border border-white/30 bg-white/10 text-white px-2 py-1 text-sm"
+                  >
+                    {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                      <option key={year} value={year} className="text-black">{year}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {(activeTab === 'weekly' || activeTab === 'season') && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-pigskin-100 text-sm">Week:</span>
+                    <select
+                      value={currentWeek}
+                      onChange={(e) => setCurrentWeek(parseInt(e.target.value))}
+                      className="flex h-8 rounded border border-white/30 bg-white/10 text-white px-2 py-1 text-sm"
+                      disabled={activeTab === 'season'}
+                    >
+                      {Array.from({ length: 15 }, (_, i) => i + 1).map(week => (
+                        <option key={week} value={week} className="text-black">Week {week}</option>
+                      ))}
+                    </select>
+                    {activeTab === 'season' && (
+                      <span className="text-pigskin-200 text-xs">(All weeks)</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Live Controls - Desktop */}
@@ -560,11 +348,11 @@ export default function LeaderboardPage() {
                   </div>
                   <div className="p-2 bg-gold-50 rounded">
                     <div className="text-lg font-bold text-gold-600">🔒</div>
-                    <div className="text-xs text-charcoal-600">2x Lock</div>
+                    <div className="text-xs text-charcoal-600">2x Bonus on Lock</div>
                   </div>
                 </div>
                 <div className="text-xs text-charcoal-500 text-center">
-                  Bonus: +1 (11-19.5), +3 (20-28.5), +5 (29+) • Lock picks double all points
+                  Bonus: +1 (11-19.5), +3 (20-28.5), +5 (29+) • Lock picks double bonus points
                 </div>
               </div>
             </details>

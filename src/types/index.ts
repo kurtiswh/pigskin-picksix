@@ -51,6 +51,8 @@ export interface Game {
   kickoff_time: string
   custom_lock_time?: string
   status: 'scheduled' | 'in_progress' | 'completed'
+  home_ranking?: number
+  away_ranking?: number
   created_at: string
   updated_at: string
 }
