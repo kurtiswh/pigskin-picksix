@@ -123,16 +123,7 @@ export class LeaderboardService {
   private static async getAuthenticatedPicks(season: number, week?: number): Promise<PickResult[]> {
     let query = supabase
       .from('picks')
-      .select(`
-        user_id,
-        game_id,
-        week,
-        season,
-        selected_team,
-        is_lock,
-        result,
-        points_earned
-      `)
+      .select('user_id,game_id,week,season,selected_team,is_lock,result,points_earned')
       .eq('season', season)
 
     if (week !== undefined) {
@@ -150,15 +141,7 @@ export class LeaderboardService {
   private static async getAnonymousPicks(season: number, week?: number): Promise<PickResult[]> {
     let query = supabase
       .from('anonymous_picks')
-      .select(`
-        assigned_user_id,
-        game_id,
-        week,
-        season,
-        selected_team,
-        is_lock,
-        show_on_leaderboard
-      `)
+      .select('assigned_user_id,game_id,week,season,selected_team,is_lock,show_on_leaderboard')
       .eq('season', season)
       .not('assigned_user_id', 'is', null)
       .eq('show_on_leaderboard', true)
