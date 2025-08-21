@@ -105,6 +105,11 @@ export class LeaderboardService {
   private static async getGames(season: number, week?: number): Promise<GameResult[]> {
     console.log('🎮 getGames: Starting query for season', season, week ? `week ${week}` : 'all weeks')
     
+    // TEMPORARY FIX: Return empty array to bypass hanging games query
+    console.log('🎮 getGames: TEMPORARILY returning empty array due to RLS policy issue')
+    return []
+    
+    /* ORIGINAL CODE - COMMENTED OUT DUE TO RLS HANGING ISSUE
     let query = supabase
       .from('games')
       .select('*')
@@ -126,7 +131,7 @@ export class LeaderboardService {
     
     if (error) throw error
     return data || []
-  }
+    */
 
   /**
    * Get authenticated user picks
@@ -170,6 +175,11 @@ export class LeaderboardService {
   private static async getAnonymousPicks(season: number, week?: number): Promise<PickResult[]> {
     console.log('👤 getAnonymousPicks: Starting query for season', season, week ? `week ${week}` : 'all weeks')
     
+    // TEMPORARY FIX: Return empty array to bypass hanging anonymous picks query
+    console.log('👤 getAnonymousPicks: TEMPORARILY returning empty array due to RLS policy issue')
+    return []
+    
+    /* ORIGINAL CODE - COMMENTED OUT DUE TO RLS HANGING ISSUE
     let query = supabase
       .from('anonymous_picks')
       .select('assigned_user_id,game_id,week,season,selected_team,is_lock,show_on_leaderboard')
@@ -204,7 +214,7 @@ export class LeaderboardService {
       result: null, // Will be calculated
       points_earned: null // Will be calculated
     }))
-  }
+    */
 
   /**
    * Get all users who have made picks
@@ -212,6 +222,11 @@ export class LeaderboardService {
   private static async getUsers(): Promise<{ id: string; display_name: string }[]> {
     console.log('👥 getUsers: Starting query for all users')
     
+    // TEMPORARY FIX: Return empty array to bypass hanging users query
+    console.log('👥 getUsers: TEMPORARILY returning empty array due to RLS policy issue')
+    return []
+    
+    /* ORIGINAL CODE - COMMENTED OUT DUE TO RLS HANGING ISSUE
     console.log('👥 getUsers: About to execute query for all users')
     
     // Add a timeout to identify hanging queries
@@ -227,7 +242,7 @@ export class LeaderboardService {
     
     if (error) throw error
     return data || []
-  }
+    */
 
   /**
    * Calculate pick results on-demand for picks that don't have calculated values
@@ -326,6 +341,12 @@ export class LeaderboardService {
       ])
 
       console.log('LeaderboardService.getWeeklyLeaderboard: ✅ ALL queries completed - Got', authPicks.length, 'auth picks,', anonPicks.length, 'anon picks,', games.length, 'games,', users.length, 'users')
+
+      // TEMPORARY: Handle case where all queries are bypassed
+      if (authPicks.length === 0 && anonPicks.length === 0 && games.length === 0 && users.length === 0) {
+        console.log('🚧 LeaderboardService.getWeeklyLeaderboard: All data queries bypassed due to RLS issues, returning empty leaderboard')
+        return []
+      }
 
       // Combine all picks
       const allPicks = [...authPicks, ...anonPicks]
@@ -463,6 +484,12 @@ export class LeaderboardService {
       ])
 
       console.log('LeaderboardService.getSeasonLeaderboard: ✅ ALL queries completed - Got', authPicks.length, 'auth picks,', anonPicks.length, 'anon picks,', games.length, 'games,', users.length, 'users')
+
+      // TEMPORARY: Handle case where all queries are bypassed
+      if (authPicks.length === 0 && anonPicks.length === 0 && games.length === 0 && users.length === 0) {
+        console.log('🚧 LeaderboardService.getSeasonLeaderboard: All data queries bypassed due to RLS issues, returning empty leaderboard')
+        return []
+      }
 
       // Combine all picks
       const allPicks = [...authPicks, ...anonPicks]
