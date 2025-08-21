@@ -130,26 +130,34 @@ export class LeaderboardService {
   private static async getAuthenticatedPicks(season: number, week?: number): Promise<PickResult[]> {
     console.log('🔍 getAuthenticatedPicks: Starting query for season', season, week ? `week ${week}` : 'all weeks')
     
-    // First get verified LeagueSafe players for this season
-    const { data: verifiedPlayers, error: playersError } = await supabase
-      .from('leaguesafe_payments')
-      .select('user_id')
-      .eq('season', season)
-      .eq('status', 'Paid')
-      .eq('is_matched', true)
-      .not('user_id', 'is', null)
-    
-    if (playersError) {
-      console.error('🔍 getAuthenticatedPicks: Failed to get verified players:', playersError)
-      throw playersError
-    }
-    
-    const verifiedUserIds = verifiedPlayers?.map(p => p.user_id) || []
-    console.log('🔍 getAuthenticatedPicks: Found', verifiedUserIds.length, 'verified players')
-    
-    if (verifiedUserIds.length === 0) {
-      console.log('🔍 getAuthenticatedPicks: No verified players found, returning empty array')
-      return []
+    try {
+      // First get verified LeagueSafe players for this season
+      console.log('🔍 getAuthenticatedPicks: Step 1 - Getting verified players list')
+      const { data: verifiedPlayers, error: playersError } = await supabase
+        .from('leaguesafe_payments')
+        .select('user_id')
+        .eq('season', season)
+        .eq('status', 'Paid')
+        .eq('is_matched', true)
+        .not('user_id', 'is', null)
+      
+      if (playersError) {
+        console.error('🔍 getAuthenticatedPicks: Failed to get verified players:', playersError)
+        throw playersError
+      }
+      
+      const verifiedUserIds = verifiedPlayers?.map(p => p.user_id) || []
+      console.log('🔍 getAuthenticatedPicks: Step 1 completed - Found', verifiedUserIds.length, 'verified players')
+      
+      if (verifiedUserIds.length === 0) {
+        console.log('🔍 getAuthenticatedPicks: No verified players found, returning empty array')
+        return []
+      }
+      
+      console.log('🔍 getAuthenticatedPicks: Step 2 - Starting batch processing for picks queries')
+    } catch (error) {
+      console.error('🔍 getAuthenticatedPicks: Exception in initial setup:', error)
+      throw error
     }
     
     // Get picks only from verified players - batch the query to avoid large IN clause
@@ -268,28 +276,34 @@ export class LeaderboardService {
   private static async getUsers(season: number): Promise<{ id: string; display_name: string }[]> {
     console.log('👥 getUsers: Starting query for verified LeagueSafe players for season', season)
     
-    const { data: payments, error } = await supabase
-      .from('leaguesafe_payments')
-      .select('user_id, leaguesafe_owner_name, status, is_matched')
-      .eq('season', season)
-      .eq('status', 'Paid')
-      .eq('is_matched', true)
-      .not('user_id', 'is', null)
-    
-    if (error) {
-      console.error('👥 getUsers: LeagueSafe payments query failed:', error)
+    try {
+      const { data: payments, error } = await supabase
+        .from('leaguesafe_payments')
+        .select('user_id, leaguesafe_owner_name, status, is_matched')
+        .eq('season', season)
+        .eq('status', 'Paid')
+        .eq('is_matched', true)
+        .not('user_id', 'is', null)
+      
+      if (error) {
+        console.error('👥 getUsers: LeagueSafe payments query failed:', error)
+        throw error
+      }
+      
+      console.log('👥 getUsers: Query completed successfully, found', payments?.length || 0, 'verified LeagueSafe players for season', season)
+      
+      // Convert payments to user format using LeagueSafe owner name as display name
+      const users = (payments || []).map(payment => ({
+        id: payment.user_id,
+        display_name: payment.leaguesafe_owner_name
+      }))
+      
+      console.log('👥 getUsers: Returning', users.length, 'user objects')
+      return users
+    } catch (error) {
+      console.error('👥 getUsers: Exception occurred:', error)
       throw error
     }
-    
-    console.log('👥 getUsers: Found', payments?.length || 0, 'verified LeagueSafe players for season', season)
-    
-    // Convert payments to user format using LeagueSafe owner name as display name
-    const users = (payments || []).map(payment => ({
-      id: payment.user_id,
-      display_name: payment.leaguesafe_owner_name
-    }))
-    
-    return users
   }
 
   /**
