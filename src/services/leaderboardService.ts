@@ -105,11 +105,6 @@ export class LeaderboardService {
   private static async getGames(season: number, week?: number): Promise<GameResult[]> {
     console.log('🎮 getGames: Starting query for season', season, week ? `week ${week}` : 'all weeks')
     
-    // TEMPORARY FIX: Return empty array to bypass hanging games query
-    console.log('🎮 getGames: TEMPORARILY returning empty array due to RLS policy issue')
-    return []
-    
-    /* ORIGINAL CODE - COMMENTED OUT DUE TO RLS HANGING ISSUE
     let query = supabase
       .from('games')
       .select('*')
@@ -119,90 +114,113 @@ export class LeaderboardService {
       query = query.eq('week', week)
     }
 
-    console.log('🎮 getGames: About to execute query for season', season, week ? `week ${week}` : 'all weeks')
+    const { data, error } = await query
+    if (error) {
+      console.error('🎮 getGames: Query failed:', error)
+      throw error
+    }
     
-    // Add a timeout to identify hanging queries
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('getGames query timeout after 15 seconds')), 15000)
-    })
-    
-    const { data, error } = await Promise.race([query, timeoutPromise])
     console.log('🎮 getGames: Query completed, got', data?.length || 0, 'games')
-    
-    if (error) throw error
     return data || []
-    */
   }
 
   /**
-   * Get authenticated user picks
+   * Get verified user picks from LeagueSafe players only
    */
   private static async getAuthenticatedPicks(season: number, week?: number): Promise<PickResult[]> {
     console.log('🔍 getAuthenticatedPicks: Starting query for season', season, week ? `week ${week}` : 'all weeks')
     
-    // TEMPORARY FIX: Return empty array to bypass hanging picks query
-    // This allows the leaderboard to load with just anonymous picks and games
-    console.log('🔍 getAuthenticatedPicks: TEMPORARILY returning empty array due to RLS policy issue')
-    return []
+    // First get verified LeagueSafe players for this season
+    const { data: verifiedPlayers, error: playersError } = await supabase
+      .from('leaguesafe_payments')
+      .select('user_id')
+      .eq('season', season)
+      .eq('status', 'Paid')
+      .eq('is_matched', true)
+      .not('user_id', 'is', null)
     
-    /* ORIGINAL CODE - COMMENTED OUT DUE TO RLS HANGING ISSUE
+    if (playersError) {
+      console.error('🔍 getAuthenticatedPicks: Failed to get verified players:', playersError)
+      throw playersError
+    }
+    
+    const verifiedUserIds = verifiedPlayers?.map(p => p.user_id) || []
+    console.log('🔍 getAuthenticatedPicks: Found', verifiedUserIds.length, 'verified players')
+    
+    if (verifiedUserIds.length === 0) {
+      console.log('🔍 getAuthenticatedPicks: No verified players found, returning empty array')
+      return []
+    }
+    
+    // Get picks only from verified players
     let query = supabase
       .from('picks')
       .select('user_id,game_id,week,season,selected_team,is_lock,result,points_earned')
       .eq('season', season)
+      .in('user_id', verifiedUserIds)
+      .not('result', 'is', null)  // Only include picks with calculated results
+      .not('points_earned', 'is', null)
 
     if (week !== undefined) {
       query = query.eq('week', week)
     }
 
-    console.log('🔍 getAuthenticatedPicks: About to execute query for season', season, week ? `week ${week}` : 'all weeks')
+    const { data, error } = await query
+    if (error) {
+      console.error('🔍 getAuthenticatedPicks: Query failed:', error)
+      throw error
+    }
     
-    // Add a timeout to prevent infinite hanging
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('getAuthenticatedPicks query timeout after 15 seconds')), 15000)
-    })
-    
-    const { data, error } = await Promise.race([query, timeoutPromise])
-    console.log('🔍 getAuthenticatedPicks: Query completed, got', data?.length || 0, 'picks')
-    
-    if (error) throw error
+    console.log('🔍 getAuthenticatedPicks: Query completed, got', data?.length || 0, 'picks from verified players')
     return data || []
-    */
   }
 
   /**
-   * Get anonymous picks that are assigned to users
+   * Get anonymous picks that are assigned to verified users
    */
   private static async getAnonymousPicks(season: number, week?: number): Promise<PickResult[]> {
     console.log('👤 getAnonymousPicks: Starting query for season', season, week ? `week ${week}` : 'all weeks')
     
-    // TEMPORARY FIX: Return empty array to bypass hanging anonymous picks query
-    console.log('👤 getAnonymousPicks: TEMPORARILY returning empty array due to RLS policy issue')
-    return []
+    // First get verified LeagueSafe players for this season
+    const { data: verifiedPlayers, error: playersError } = await supabase
+      .from('leaguesafe_payments')
+      .select('user_id')
+      .eq('season', season)
+      .eq('status', 'Paid')
+      .eq('is_matched', true)
+      .not('user_id', 'is', null)
     
-    /* ORIGINAL CODE - COMMENTED OUT DUE TO RLS HANGING ISSUE
+    if (playersError) {
+      console.error('👤 getAnonymousPicks: Failed to get verified players:', playersError)
+      return [] // Don't fail, just return empty
+    }
+    
+    const verifiedUserIds = verifiedPlayers?.map(p => p.user_id) || []
+    
+    if (verifiedUserIds.length === 0) {
+      console.log('👤 getAnonymousPicks: No verified players found for anonymous picks')
+      return []
+    }
+    
     let query = supabase
       .from('anonymous_picks')
       .select('assigned_user_id,game_id,week,season,selected_team,is_lock,show_on_leaderboard')
       .eq('season', season)
-      .not('assigned_user_id', 'is', null)
+      .in('assigned_user_id', verifiedUserIds)  // Only verified players
       .eq('show_on_leaderboard', true)
+      .not('assigned_user_id', 'is', null)
 
     if (week !== undefined) {
       query = query.eq('week', week)
     }
 
-    console.log('👤 getAnonymousPicks: About to execute query for season', season, week ? `week ${week}` : 'all weeks')
+    const { data, error } = await query
+    if (error) {
+      console.error('👤 getAnonymousPicks: Query failed:', error)
+      return [] // Don't fail, just return empty
+    }
     
-    // Add a timeout to identify hanging queries
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('getAnonymousPicks query timeout after 15 seconds')), 15000)
-    })
-    
-    const { data, error } = await Promise.race([query, timeoutPromise])
-    console.log('👤 getAnonymousPicks: Query completed, got', data?.length || 0, 'anonymous picks')
-    
-    if (error) throw error
+    console.log('👤 getAnonymousPicks: Query completed, got', data?.length || 0, 'anonymous picks from verified players')
 
     // Convert anonymous picks to PickResult format
     return (data || []).map(pick => ({
@@ -215,7 +233,6 @@ export class LeaderboardService {
       result: null, // Will be calculated
       points_earned: null // Will be calculated
     }))
-    */
   }
 
   /**
