@@ -103,8 +103,41 @@ export class LeaderboardService {
    * Get games for a specific week/season
    */
   private static async getGames(season: number, week?: number): Promise<GameResult[]> {
-    console.log('🎮 getGames: TEMPORARILY returning empty array to focus on user loading')
-    return []
+    console.log('🎮 getGames: MINIMAL VERSION - Returning mock games for season', season, week ? `week ${week}` : 'all weeks')
+    
+    // TEMPORARY: Return mock completed games to test scoring
+    const mockGames = [
+      {
+        id: 'mock-game-1',
+        week: 1,
+        season: 2024,
+        home_team: 'Alabama',
+        away_team: 'Georgia',
+        home_score: 28,
+        away_score: 21,
+        spread: -3.5,
+        status: 'completed' as const,
+        base_points: 20,
+        margin_bonus: 1
+      },
+      {
+        id: 'mock-game-2',
+        week: 1,
+        season: 2024,
+        home_team: 'Ohio State',
+        away_team: 'Michigan',
+        home_score: 31,
+        away_score: 24,
+        spread: -7.5,
+        status: 'completed' as const,
+        base_points: 20,
+        margin_bonus: 0
+      }
+    ]
+    
+    const filteredGames = week ? mockGames.filter(g => g.week === week) : mockGames
+    console.log('🎮 getGames: Returning', filteredGames.length, 'mock games')
+    return filteredGames
   }
 
   /**
@@ -120,40 +153,54 @@ export class LeaderboardService {
         return []
       }
       
-      // Handle large user ID arrays by batching queries
-      const batchSize = 50 // Process 50 users at a time to avoid query size limits
-      const allPicks = []
-      
-      console.log('🔍 getAuthenticatedPicks: Processing', verifiedUserIds.length, 'user IDs in batches of', batchSize)
-      
-      for (let i = 0; i < verifiedUserIds.length; i += batchSize) {
-        const batch = verifiedUserIds.slice(i, i + batchSize)
-        console.log('🔍 getAuthenticatedPicks: Processing batch', Math.floor(i/batchSize) + 1, 'of', Math.ceil(verifiedUserIds.length/batchSize), 'with', batch.length, 'users')
-        
-        // Build the query for this batch of picks
-        let query = supabase
-          .from('picks')
-          .select('user_id,game_id,week,season,selected_team,is_lock,result,points_earned')
-          .eq('season', season)
-          .in('user_id', batch)
-          
-        if (week) {
-          query = query.eq('week', week)
+      // TEMPORARY: Return mock picks to test leaderboard
+      console.log('🔍 getAuthenticatedPicks: BYPASSING database - returning mock picks for', verifiedUserIds.length, 'users')
+      const mockPicks = [
+        {
+          user_id: 'mock-user-1',
+          game_id: 'mock-game-1',
+          week: 1,
+          season: 2024,
+          selected_team: 'Alabama',
+          is_lock: true,
+          result: 'win' as const,
+          points_earned: 25 // 20 base + 5 bonus for lock
+        },
+        {
+          user_id: 'mock-user-2', 
+          game_id: 'mock-game-1',
+          week: 1,
+          season: 2024,
+          selected_team: 'Georgia',
+          is_lock: false,
+          result: 'loss' as const,
+          points_earned: 0
+        },
+        {
+          user_id: 'mock-user-1',
+          game_id: 'mock-game-2',
+          week: 1,
+          season: 2024,
+          selected_team: 'Ohio State',
+          is_lock: false,
+          result: 'win' as const,
+          points_earned: 20
         }
-        
-        const { data: picks, error: picksError } = await query
-        
-        if (picksError) {
-          console.error('🔍 getAuthenticatedPicks: Batch query failed for batch', Math.floor(i/batchSize) + 1, ':', picksError)
-          throw picksError
-        }
-        
-        allPicks.push(...(picks || []))
-        console.log('🔍 getAuthenticatedPicks: Batch', Math.floor(i/batchSize) + 1, 'completed, found', picks?.length || 0, 'picks')
-      }
+      ]
       
-      console.log('🔍 getAuthenticatedPicks: All batches completed successfully, found', allPicks.length, 'total picks')
-      return allPicks
+      const filteredPicks = week ? mockPicks.filter(p => p.week === week) : mockPicks
+      console.log('🔍 getAuthenticatedPicks: Returning', filteredPicks.length, 'mock picks')
+      return filteredPicks
+      
+      // COMMENTED OUT: Handle large user ID arrays by batching queries
+      // const batchSize = 50 // Process 50 users at a time to avoid query size limits
+      // const allPicks = []
+      
+      // console.log('🔍 getAuthenticatedPicks: Processing', verifiedUserIds.length, 'user IDs in batches of', batchSize)
+      
+      // TEMPORARY: Skip database query for now
+      console.log('🔍 getAuthenticatedPicks: SKIPPING batch queries - using mock data only')
+      return []
       
     } catch (error) {
       console.error('🔍 getAuthenticatedPicks: Exception in query:', error)
@@ -217,72 +264,24 @@ export class LeaderboardService {
   }
 
   /**
-   * Get verified LeagueSafe players for the specified season
+   * Get verified LeagueSafe players for the specified season - MINIMAL VERSION
    */
   private static async getUsers(season: number): Promise<{ id: string; display_name: string }[]> {
-    console.log('👥 getUsers: Starting query for verified LeagueSafe players for season', season)
+    console.log('👥 getUsers: MINIMAL VERSION - Starting simple query for LeagueSafe players for season', season)
     
-    try {
-      console.log('👥 getUsers: Testing simple query first...')
-      
-      // Try a simple count query first to test connectivity
-      const { count, error: countError } = await supabase
-        .from('leaguesafe_payments')
-        .select('*', { count: 'exact', head: true })
-        .eq('season', season)
-        .eq('status', 'Paid')
-        .eq('is_matched', true)
-      
-      if (countError) {
-        console.error('👥 getUsers: Count query failed:', countError)
-        throw countError
-      }
-      
-      console.log('👥 getUsers: Count query success -', count, 'verified players found for season', season)
-      
-      if (count === 0) {
-        console.log('👥 getUsers: No verified players found, returning empty array')
-        return []
-      }
-      
-      // If count query worked, try the exact same query that worked in direct tests
-      console.log('👥 getUsers: Count query successful, now executing exact query from successful direct tests...')
-      
-      const { data: payments, error } = await supabase
-        .from('leaguesafe_payments')
-        .select('user_id, leaguesafe_owner_name, status, is_matched')
-        .eq('season', season)
-        .eq('status', 'Paid')
-        .eq('is_matched', true)
-        .not('user_id', 'is', null)
-        .order('user_id')
-      
-      if (error) {
-        console.error('👥 getUsers: Full query failed:', error)
-        throw error
-      }
-      
-      console.log('👥 getUsers: Full query completed successfully, found', payments?.length || 0, 'verified LeagueSafe players')
-      
-      // Convert payments to user format using LeagueSafe owner name as display name
-      const users = (payments || []).map(payment => ({
-        id: payment.user_id,
-        display_name: payment.leaguesafe_owner_name
-      }))
-      
-      console.log('👥 getUsers: Returning', users.length, 'user objects')
-      return users
-      
-    } catch (error) {
-      console.error('👥 getUsers: Exception occurred:', error)
-      // Return a minimal set of users as fallback instead of crashing
-      console.log('👥 getUsers: Falling back to minimal user set due to query failure')
-      return [
-        { id: 'fallback-1', display_name: 'Test User 1' },
-        { id: 'fallback-2', display_name: 'Test User 2' },
-        { id: 'fallback-3', display_name: 'Test User 3' }
-      ]
-    }
+    // TEMPORARY: Skip database query entirely and return mock data to test leaderboard rendering
+    console.log('👥 getUsers: BYPASSING database query - returning mock LeagueSafe users to test rendering')
+    
+    const mockUsers = [
+      { id: 'mock-user-1', display_name: '5x Pick 6 Champion' },
+      { id: 'mock-user-2', display_name: 'John Smith (LeagueSafe)' },
+      { id: 'mock-user-3', display_name: 'Jane Doe (Verified)' },
+      { id: 'mock-user-4', display_name: 'Mike Johnson (Paid)' },
+      { id: 'mock-user-5', display_name: 'Sarah Wilson (LeagueSafe)' }
+    ]
+    
+    console.log('👥 getUsers: Returning', mockUsers.length, 'mock users to test leaderboard')
+    return mockUsers
   }
 
   /**
