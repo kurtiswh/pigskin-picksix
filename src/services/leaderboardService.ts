@@ -132,6 +132,7 @@ export class LeaderboardService {
     if (error) throw error
     return data || []
     */
+  }
 
   /**
    * Get authenticated user picks
