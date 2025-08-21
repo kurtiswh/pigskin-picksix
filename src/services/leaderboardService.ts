@@ -110,38 +110,53 @@ export class LeaderboardService {
   /**
    * Get verified user picks from LeagueSafe players only
    */
-  private static async getAuthenticatedPicks(season: number, week?: number): Promise<PickResult[]> {
+  private static async getAuthenticatedPicks(season: number, verifiedUserIds: string[], week?: number): Promise<PickResult[]> {
     console.log('🔍 getAuthenticatedPicks: Starting query for season', season, week ? `week ${week}` : 'all weeks')
+    console.log('🔍 getAuthenticatedPicks: Using pre-verified user list with', verifiedUserIds.length, 'verified players')
     
     try {
-      // First get verified LeagueSafe players for this season
-      console.log('🔍 getAuthenticatedPicks: Step 1 - Getting verified players list')
-      const { data: verifiedPlayers, error: playersError } = await supabase
-        .from('leaguesafe_payments')
-        .select('user_id')
-        .eq('season', season)
-        .eq('status', 'Paid')
-        .eq('is_matched', true)
-        .not('user_id', 'is', null)
-      
-      if (playersError) {
-        console.error('🔍 getAuthenticatedPicks: Failed to get verified players:', playersError)
-        throw playersError
-      }
-      
-      const verifiedUserIds = verifiedPlayers?.map(p => p.user_id) || []
-      console.log('🔍 getAuthenticatedPicks: Step 1 completed - Found', verifiedUserIds.length, 'verified players')
-      
       if (verifiedUserIds.length === 0) {
-        console.log('🔍 getAuthenticatedPicks: No verified players found, returning empty array')
+        console.log('🔍 getAuthenticatedPicks: No verified players provided, returning empty array')
         return []
       }
       
-      console.log('🔍 getAuthenticatedPicks: Step 2 - TEMPORARILY returning empty array to test user loading')
-      // TEMPORARY: Return empty to focus on getting users working first
-      return []
+      // Handle large user ID arrays by batching queries
+      const batchSize = 50 // Process 50 users at a time to avoid query size limits
+      const allPicks = []
+      
+      console.log('🔍 getAuthenticatedPicks: Processing', verifiedUserIds.length, 'user IDs in batches of', batchSize)
+      
+      for (let i = 0; i < verifiedUserIds.length; i += batchSize) {
+        const batch = verifiedUserIds.slice(i, i + batchSize)
+        console.log('🔍 getAuthenticatedPicks: Processing batch', Math.floor(i/batchSize) + 1, 'of', Math.ceil(verifiedUserIds.length/batchSize), 'with', batch.length, 'users')
+        
+        // Build the query for this batch of picks
+        let query = supabase
+          .from('picks')
+          .select('user_id,game_id,week,season,selected_team,is_lock,result,points_earned')
+          .eq('season', season)
+          .in('user_id', batch)
+          
+        if (week) {
+          query = query.eq('week', week)
+        }
+        
+        const { data: picks, error: picksError } = await query
+        
+        if (picksError) {
+          console.error('🔍 getAuthenticatedPicks: Batch query failed for batch', Math.floor(i/batchSize) + 1, ':', picksError)
+          throw picksError
+        }
+        
+        allPicks.push(...(picks || []))
+        console.log('🔍 getAuthenticatedPicks: Batch', Math.floor(i/batchSize) + 1, 'completed, found', picks?.length || 0, 'picks')
+      }
+      
+      console.log('🔍 getAuthenticatedPicks: All batches completed successfully, found', allPicks.length, 'total picks')
+      return allPicks
+      
     } catch (error) {
-      console.error('🔍 getAuthenticatedPicks: Exception in initial setup:', error)
+      console.error('🔍 getAuthenticatedPicks: Exception in query:', error)
       return []
     }
   }
@@ -149,9 +164,56 @@ export class LeaderboardService {
   /**
    * Get anonymous picks that are assigned to verified users
    */
-  private static async getAnonymousPicks(season: number, week?: number): Promise<PickResult[]> {
-    console.log('👤 getAnonymousPicks: TEMPORARILY returning empty array to focus on user loading')
-    return []
+  private static async getAnonymousPicks(season: number, verifiedUserIds: string[], week?: number): Promise<PickResult[]> {
+    console.log('👤 getAnonymousPicks: Starting query for season', season, week ? `week ${week}` : 'all weeks')
+    console.log('👤 getAnonymousPicks: Using pre-verified user list with', verifiedUserIds.length, 'verified players')
+    
+    try {
+      if (verifiedUserIds.length === 0) {
+        console.log('👤 getAnonymousPicks: No verified players provided, returning empty array')
+        return []
+      }
+      
+      // Handle large user ID arrays by batching queries
+      const batchSize = 50 // Process 50 users at a time to avoid query size limits
+      const allPicks = []
+      
+      console.log('👤 getAnonymousPicks: Processing', verifiedUserIds.length, 'user IDs in batches of', batchSize)
+      
+      for (let i = 0; i < verifiedUserIds.length; i += batchSize) {
+        const batch = verifiedUserIds.slice(i, i + batchSize)
+        console.log('👤 getAnonymousPicks: Processing batch', Math.floor(i/batchSize) + 1, 'of', Math.ceil(verifiedUserIds.length/batchSize), 'with', batch.length, 'users')
+        
+        // Build the query for this batch of anonymous picks
+        let query = supabase
+          .from('anonymous_picks')
+          .select('assigned_user_id as user_id,game_id,week,season,selected_team,is_lock,result,points_earned')
+          .eq('season', season)
+          .in('assigned_user_id', batch)
+          .not('assigned_user_id', 'is', null)
+          
+        if (week) {
+          query = query.eq('week', week)
+        }
+        
+        const { data: picks, error } = await query
+        
+        if (error) {
+          console.error('👤 getAnonymousPicks: Batch query failed for batch', Math.floor(i/batchSize) + 1, ':', error)
+          throw error
+        }
+        
+        allPicks.push(...(picks || []))
+        console.log('👤 getAnonymousPicks: Batch', Math.floor(i/batchSize) + 1, 'completed, found', picks?.length || 0, 'picks')
+      }
+      
+      console.log('👤 getAnonymousPicks: All batches completed successfully, found', allPicks.length, 'total anonymous picks')
+      return allPicks
+      
+    } catch (error) {
+      console.error('👤 getAnonymousPicks: Exception in query:', error)
+      return []
+    }
   }
 
   /**
@@ -379,16 +441,20 @@ export class LeaderboardService {
       const users = await this.getUsers(season)
       console.log('LeaderboardService.getSeasonLeaderboard: ✅ Users query completed:', users.length, 'users')
       
+      // Extract user IDs to pass to other queries (avoid duplicate leaguesafe_payments queries)
+      const verifiedUserIds = users.map(user => user.id).filter(id => !id.startsWith('fallback-'))
+      console.log('LeaderboardService.getSeasonLeaderboard: Extracted', verifiedUserIds.length, 'verified user IDs for subsequent queries')
+      
       console.log('LeaderboardService.getSeasonLeaderboard: 2/4 - Getting games...')
       const games = await this.getGames(season)
       console.log('LeaderboardService.getSeasonLeaderboard: ✅ Games query completed:', games.length, 'games')
       
       console.log('LeaderboardService.getSeasonLeaderboard: 3/4 - Getting authenticated picks...')
-      const authPicks = await this.getAuthenticatedPicks(season)
+      const authPicks = await this.getAuthenticatedPicks(season, verifiedUserIds)
       console.log('LeaderboardService.getSeasonLeaderboard: ✅ Auth picks query completed:', authPicks.length, 'picks')
       
       console.log('LeaderboardService.getSeasonLeaderboard: 4/4 - Getting anonymous picks...')
-      const anonPicks = await this.getAnonymousPicks(season)
+      const anonPicks = await this.getAnonymousPicks(season, verifiedUserIds)
       console.log('LeaderboardService.getSeasonLeaderboard: ✅ Anon picks query completed:', anonPicks.length, 'picks')
 
       console.log('LeaderboardService.getSeasonLeaderboard: ✅ ALL queries completed - Got', authPicks.length, 'auth picks,', anonPicks.length, 'anon picks,', games.length, 'games,', users.length, 'verified users')
