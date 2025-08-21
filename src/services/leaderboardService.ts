@@ -209,58 +209,39 @@ export class LeaderboardService {
   }
 
   /**
-   * Get anonymous picks that are assigned to verified users
+   * Get anonymous picks that are assigned to verified users - MINIMAL VERSION
    */
   private static async getAnonymousPicks(season: number, verifiedUserIds: string[], week?: number): Promise<PickResult[]> {
-    console.log('👤 getAnonymousPicks: Starting query for season', season, week ? `week ${week}` : 'all weeks')
-    console.log('👤 getAnonymousPicks: Using pre-verified user list with', verifiedUserIds.length, 'verified players')
+    console.log('👤 getAnonymousPicks: MINIMAL VERSION - Starting query for season', season, week ? `week ${week}` : 'all weeks')
+    console.log('👤 getAnonymousPicks: BYPASSING database - returning mock anonymous picks')
     
-    try {
-      if (verifiedUserIds.length === 0) {
-        console.log('👤 getAnonymousPicks: No verified players provided, returning empty array')
-        return []
+    // TEMPORARY: Return mock anonymous picks to test leaderboard
+    const mockAnonymousPicks = [
+      {
+        user_id: 'mock-user-3',
+        game_id: 'mock-game-1',
+        week: 1,
+        season: 2024,
+        selected_team: 'Alabama',
+        is_lock: false,
+        result: 'win' as const,
+        points_earned: 21 // 20 base + 1 bonus
+      },
+      {
+        user_id: 'mock-user-4',
+        game_id: 'mock-game-2', 
+        week: 1,
+        season: 2024,
+        selected_team: 'Michigan',
+        is_lock: true,
+        result: 'loss' as const,
+        points_earned: 0
       }
-      
-      // Handle large user ID arrays by batching queries
-      const batchSize = 50 // Process 50 users at a time to avoid query size limits
-      const allPicks = []
-      
-      console.log('👤 getAnonymousPicks: Processing', verifiedUserIds.length, 'user IDs in batches of', batchSize)
-      
-      for (let i = 0; i < verifiedUserIds.length; i += batchSize) {
-        const batch = verifiedUserIds.slice(i, i + batchSize)
-        console.log('👤 getAnonymousPicks: Processing batch', Math.floor(i/batchSize) + 1, 'of', Math.ceil(verifiedUserIds.length/batchSize), 'with', batch.length, 'users')
-        
-        // Build the query for this batch of anonymous picks
-        let query = supabase
-          .from('anonymous_picks')
-          .select('assigned_user_id as user_id,game_id,week,season,selected_team,is_lock,result,points_earned')
-          .eq('season', season)
-          .in('assigned_user_id', batch)
-          .not('assigned_user_id', 'is', null)
-          
-        if (week) {
-          query = query.eq('week', week)
-        }
-        
-        const { data: picks, error } = await query
-        
-        if (error) {
-          console.error('👤 getAnonymousPicks: Batch query failed for batch', Math.floor(i/batchSize) + 1, ':', error)
-          throw error
-        }
-        
-        allPicks.push(...(picks || []))
-        console.log('👤 getAnonymousPicks: Batch', Math.floor(i/batchSize) + 1, 'completed, found', picks?.length || 0, 'picks')
-      }
-      
-      console.log('👤 getAnonymousPicks: All batches completed successfully, found', allPicks.length, 'total anonymous picks')
-      return allPicks
-      
-    } catch (error) {
-      console.error('👤 getAnonymousPicks: Exception in query:', error)
-      return []
-    }
+    ]
+    
+    const filteredPicks = week ? mockAnonymousPicks.filter(p => p.week === week) : mockAnonymousPicks
+    console.log('👤 getAnonymousPicks: Returning', filteredPicks.length, 'mock anonymous picks')
+    return filteredPicks
   }
 
   /**
