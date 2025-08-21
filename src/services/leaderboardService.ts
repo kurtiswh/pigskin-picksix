@@ -103,6 +103,8 @@ export class LeaderboardService {
    * Get games for a specific week/season
    */
   private static async getGames(season: number, week?: number): Promise<GameResult[]> {
+    console.log('🎮 getGames: Starting query for season', season, week ? `week ${week}` : 'all weeks')
+    
     let query = supabase
       .from('games')
       .select('*')
@@ -112,7 +114,16 @@ export class LeaderboardService {
       query = query.eq('week', week)
     }
 
-    const { data, error } = await query
+    console.log('🎮 getGames: About to execute query for season', season, week ? `week ${week}` : 'all weeks')
+    
+    // Add a timeout to identify hanging queries
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('getGames query timeout after 15 seconds')), 15000)
+    })
+    
+    const { data, error } = await Promise.race([query, timeoutPromise])
+    console.log('🎮 getGames: Query completed, got', data?.length || 0, 'games')
+    
     if (error) throw error
     return data || []
   }
@@ -157,6 +168,8 @@ export class LeaderboardService {
    * Get anonymous picks that are assigned to users
    */
   private static async getAnonymousPicks(season: number, week?: number): Promise<PickResult[]> {
+    console.log('👤 getAnonymousPicks: Starting query for season', season, week ? `week ${week}` : 'all weeks')
+    
     let query = supabase
       .from('anonymous_picks')
       .select('assigned_user_id,game_id,week,season,selected_team,is_lock,show_on_leaderboard')
@@ -168,7 +181,16 @@ export class LeaderboardService {
       query = query.eq('week', week)
     }
 
-    const { data, error } = await query
+    console.log('👤 getAnonymousPicks: About to execute query for season', season, week ? `week ${week}` : 'all weeks')
+    
+    // Add a timeout to identify hanging queries
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('getAnonymousPicks query timeout after 15 seconds')), 15000)
+    })
+    
+    const { data, error } = await Promise.race([query, timeoutPromise])
+    console.log('👤 getAnonymousPicks: Query completed, got', data?.length || 0, 'anonymous picks')
+    
     if (error) throw error
 
     // Convert anonymous picks to PickResult format
@@ -188,10 +210,21 @@ export class LeaderboardService {
    * Get all users who have made picks
    */
   private static async getUsers(): Promise<{ id: string; display_name: string }[]> {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, display_name')
-
+    console.log('👥 getUsers: Starting query for all users')
+    
+    console.log('👥 getUsers: About to execute query for all users')
+    
+    // Add a timeout to identify hanging queries
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('getUsers query timeout after 15 seconds')), 15000)
+    })
+    
+    const { data, error } = await Promise.race([
+      supabase.from('users').select('id, display_name'),
+      timeoutPromise
+    ])
+    console.log('👥 getUsers: Query completed, got', data?.length || 0, 'users')
+    
     if (error) throw error
     return data || []
   }
