@@ -152,27 +152,40 @@ export class LeaderboardService {
       return []
     }
     
-    // Get picks only from verified players
-    let query = supabase
-      .from('picks')
-      .select('user_id,game_id,week,season,selected_team,is_lock,result,points_earned')
-      .eq('season', season)
-      .in('user_id', verifiedUserIds)
-      .not('result', 'is', null)  // Only include picks with calculated results
-      .not('points_earned', 'is', null)
+    // Get picks only from verified players - batch the query to avoid large IN clause
+    const batchSize = 50 // Process 50 users at a time to avoid query size limits
+    const allPicks: any[] = []
+    
+    for (let i = 0; i < verifiedUserIds.length; i += batchSize) {
+      const batch = verifiedUserIds.slice(i, i + batchSize)
+      console.log('🔍 getAuthenticatedPicks: Processing batch', Math.floor(i/batchSize) + 1, 'of', Math.ceil(verifiedUserIds.length/batchSize), `(${batch.length} users)`)
+      
+      let query = supabase
+        .from('picks')
+        .select('user_id,game_id,week,season,selected_team,is_lock,result,points_earned')
+        .eq('season', season)
+        .in('user_id', batch)
+        .not('result', 'is', null)  // Only include picks with calculated results
+        .not('points_earned', 'is', null)
 
-    if (week !== undefined) {
-      query = query.eq('week', week)
-    }
+      if (week !== undefined) {
+        query = query.eq('week', week)
+      }
 
-    const { data, error } = await query
-    if (error) {
-      console.error('🔍 getAuthenticatedPicks: Query failed:', error)
-      throw error
+      const { data, error } = await query
+      if (error) {
+        console.error('🔍 getAuthenticatedPicks: Batch query failed:', error)
+        throw error
+      }
+      
+      if (data && data.length > 0) {
+        allPicks.push(...data)
+        console.log('🔍 getAuthenticatedPicks: Batch completed, got', data.length, 'picks')
+      }
     }
     
-    console.log('🔍 getAuthenticatedPicks: Query completed, got', data?.length || 0, 'picks from verified players')
-    return data || []
+    console.log('🔍 getAuthenticatedPicks: All batches completed, got', allPicks.length, 'total picks from verified players')
+    return allPicks
   }
 
   /**
@@ -202,28 +215,42 @@ export class LeaderboardService {
       return []
     }
     
-    let query = supabase
-      .from('anonymous_picks')
-      .select('assigned_user_id,game_id,week,season,selected_team,is_lock,show_on_leaderboard')
-      .eq('season', season)
-      .in('assigned_user_id', verifiedUserIds)  // Only verified players
-      .eq('show_on_leaderboard', true)
-      .not('assigned_user_id', 'is', null)
+    // Batch the anonymous picks query too to avoid large IN clause
+    const batchSize = 50
+    const allAnonymousPicks: any[] = []
+    
+    for (let i = 0; i < verifiedUserIds.length; i += batchSize) {
+      const batch = verifiedUserIds.slice(i, i + batchSize)
+      console.log('👤 getAnonymousPicks: Processing batch', Math.floor(i/batchSize) + 1, 'of', Math.ceil(verifiedUserIds.length/batchSize), `(${batch.length} users)`)
+      
+      let query = supabase
+        .from('anonymous_picks')
+        .select('assigned_user_id,game_id,week,season,selected_team,is_lock,show_on_leaderboard')
+        .eq('season', season)
+        .in('assigned_user_id', batch)  // Only verified players
+        .eq('show_on_leaderboard', true)
+        .not('assigned_user_id', 'is', null)
 
-    if (week !== undefined) {
-      query = query.eq('week', week)
-    }
+      if (week !== undefined) {
+        query = query.eq('week', week)
+      }
 
-    const { data, error } = await query
-    if (error) {
-      console.error('👤 getAnonymousPicks: Query failed:', error)
-      return [] // Don't fail, just return empty
+      const { data, error } = await query
+      if (error) {
+        console.error('👤 getAnonymousPicks: Batch query failed:', error)
+        continue // Skip this batch but continue with others
+      }
+      
+      if (data && data.length > 0) {
+        allAnonymousPicks.push(...data)
+        console.log('👤 getAnonymousPicks: Batch completed, got', data.length, 'anonymous picks')
+      }
     }
     
-    console.log('👤 getAnonymousPicks: Query completed, got', data?.length || 0, 'anonymous picks from verified players')
+    console.log('👤 getAnonymousPicks: All batches completed, got', allAnonymousPicks.length, 'total anonymous picks from verified players')
 
     // Convert anonymous picks to PickResult format
-    return (data || []).map(pick => ({
+    return allAnonymousPicks.map(pick => ({
       user_id: pick.assigned_user_id,
       game_id: pick.game_id,
       week: pick.week,
