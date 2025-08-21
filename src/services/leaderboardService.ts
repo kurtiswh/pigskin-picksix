@@ -216,6 +216,7 @@ export class LeaderboardService {
       points_earned: null // Will be calculated
     }))
     */
+  }
 
   /**
    * Get all users who have made picks
@@ -244,6 +245,7 @@ export class LeaderboardService {
     if (error) throw error
     return data || []
     */
+  }
 
   /**
    * Calculate pick results on-demand for picks that don't have calculated values
