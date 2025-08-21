@@ -130,7 +130,16 @@ export class LeaderboardService {
       query = query.eq('week', week)
     }
 
-    const { data, error } = await query
+    console.log('🔍 getAuthenticatedPicks: About to execute query for season', season, week ? `week ${week}` : 'all weeks')
+    
+    // Add a timeout to prevent infinite hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('getAuthenticatedPicks query timeout after 15 seconds')), 15000)
+    })
+    
+    const { data, error } = await Promise.race([query, timeoutPromise])
+    console.log('🔍 getAuthenticatedPicks: Query completed, got', data?.length || 0, 'picks')
+    
     if (error) throw error
     return data || []
   }
@@ -376,6 +385,7 @@ export class LeaderboardService {
         return result
       }).catch(error => {
         console.error('LeaderboardService.getSeasonLeaderboard: ❌ Auth picks query failed:', error)
+        console.error('Auth picks error details:', error.message, error.code, error.details)
         throw error
       })
       
