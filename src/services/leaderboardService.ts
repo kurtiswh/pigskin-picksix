@@ -250,14 +250,48 @@ export class LeaderboardService {
 
     try {
       // Get picks, games, and users in parallel - we need games for on-demand calculation
+      console.log('LeaderboardService.getWeeklyLeaderboard: Starting parallel queries...')
+      
+      const authPicksPromise = this.getAuthenticatedPicks(season, week).then(result => {
+        console.log('LeaderboardService.getWeeklyLeaderboard: ✅ Auth picks query completed:', result.length)
+        return result
+      }).catch(error => {
+        console.error('LeaderboardService.getWeeklyLeaderboard: ❌ Auth picks query failed:', error)
+        throw error
+      })
+      
+      const anonPicksPromise = this.getAnonymousPicks(season, week).then(result => {
+        console.log('LeaderboardService.getWeeklyLeaderboard: ✅ Anon picks query completed:', result.length)
+        return result
+      }).catch(error => {
+        console.error('LeaderboardService.getWeeklyLeaderboard: ❌ Anon picks query failed:', error)
+        throw error
+      })
+      
+      const gamesPromise = this.getGames(season, week).then(result => {
+        console.log('LeaderboardService.getWeeklyLeaderboard: ✅ Games query completed:', result.length)
+        return result
+      }).catch(error => {
+        console.error('LeaderboardService.getWeeklyLeaderboard: ❌ Games query failed:', error)
+        throw error
+      })
+      
+      const usersPromise = this.getUsers().then(result => {
+        console.log('LeaderboardService.getWeeklyLeaderboard: ✅ Users query completed:', result.length)
+        return result
+      }).catch(error => {
+        console.error('LeaderboardService.getWeeklyLeaderboard: ❌ Users query failed:', error)
+        throw error
+      })
+
       const [authPicks, anonPicks, games, users] = await Promise.all([
-        this.getAuthenticatedPicks(season, week),
-        this.getAnonymousPicks(season, week),
-        this.getGames(season, week),
-        this.getUsers()
+        authPicksPromise,
+        anonPicksPromise,
+        gamesPromise,
+        usersPromise
       ])
 
-      console.log('LeaderboardService.getWeeklyLeaderboard: Got', authPicks.length, 'auth picks,', anonPicks.length, 'anon picks,', games.length, 'games,', users.length, 'users')
+      console.log('LeaderboardService.getWeeklyLeaderboard: ✅ ALL queries completed - Got', authPicks.length, 'auth picks,', anonPicks.length, 'anon picks,', games.length, 'games,', users.length, 'users')
 
       // Combine all picks
       const allPicks = [...authPicks, ...anonPicks]
@@ -352,14 +386,48 @@ export class LeaderboardService {
 
     try {
       // Get picks, games, and users for the season - we need games for on-demand calculation
+      console.log('LeaderboardService.getSeasonLeaderboard: Starting parallel queries...')
+      
+      const authPicksPromise = this.getAuthenticatedPicks(season).then(result => {
+        console.log('LeaderboardService.getSeasonLeaderboard: ✅ Auth picks query completed:', result.length)
+        return result
+      }).catch(error => {
+        console.error('LeaderboardService.getSeasonLeaderboard: ❌ Auth picks query failed:', error)
+        throw error
+      })
+      
+      const anonPicksPromise = this.getAnonymousPicks(season).then(result => {
+        console.log('LeaderboardService.getSeasonLeaderboard: ✅ Anon picks query completed:', result.length)
+        return result
+      }).catch(error => {
+        console.error('LeaderboardService.getSeasonLeaderboard: ❌ Anon picks query failed:', error)
+        throw error
+      })
+      
+      const gamesPromise = this.getGames(season).then(result => {
+        console.log('LeaderboardService.getSeasonLeaderboard: ✅ Games query completed:', result.length)
+        return result
+      }).catch(error => {
+        console.error('LeaderboardService.getSeasonLeaderboard: ❌ Games query failed:', error)
+        throw error
+      })
+      
+      const usersPromise = this.getUsers().then(result => {
+        console.log('LeaderboardService.getSeasonLeaderboard: ✅ Users query completed:', result.length)
+        return result
+      }).catch(error => {
+        console.error('LeaderboardService.getSeasonLeaderboard: ❌ Users query failed:', error)
+        throw error
+      })
+
       const [authPicks, anonPicks, games, users] = await Promise.all([
-        this.getAuthenticatedPicks(season),
-        this.getAnonymousPicks(season),
-        this.getGames(season), // Get all games for the season
-        this.getUsers()
+        authPicksPromise,
+        anonPicksPromise,
+        gamesPromise,
+        usersPromise
       ])
 
-      console.log('LeaderboardService.getSeasonLeaderboard: Got', authPicks.length, 'auth picks,', anonPicks.length, 'anon picks,', games.length, 'games,', users.length, 'users')
+      console.log('LeaderboardService.getSeasonLeaderboard: ✅ ALL queries completed - Got', authPicks.length, 'auth picks,', anonPicks.length, 'anon picks,', games.length, 'games,', users.length, 'users')
 
       // Combine all picks
       const allPicks = [...authPicks, ...anonPicks]
