@@ -219,32 +219,33 @@ export class LeaderboardService {
   }
 
   /**
-   * Get all users who have made picks
+   * Get verified LeagueSafe players for the specified season
    */
-  private static async getUsers(): Promise<{ id: string; display_name: string }[]> {
-    console.log('👥 getUsers: Starting query for all users')
+  private static async getUsers(season: number): Promise<{ id: string; display_name: string }[]> {
+    console.log('👥 getUsers: Starting query for verified LeagueSafe players for season', season)
     
-    // TEMPORARY FIX: Return empty array to bypass hanging users query
-    console.log('👥 getUsers: TEMPORARILY returning empty array due to RLS policy issue')
-    return []
+    const { data: payments, error } = await supabase
+      .from('leaguesafe_payments')
+      .select('user_id, leaguesafe_owner_name, status, is_matched')
+      .eq('season', season)
+      .eq('status', 'Paid')
+      .eq('is_matched', true)
+      .not('user_id', 'is', null)
     
-    /* ORIGINAL CODE - COMMENTED OUT DUE TO RLS HANGING ISSUE
-    console.log('👥 getUsers: About to execute query for all users')
+    if (error) {
+      console.error('👥 getUsers: LeagueSafe payments query failed:', error)
+      throw error
+    }
     
-    // Add a timeout to identify hanging queries
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('getUsers query timeout after 15 seconds')), 15000)
-    })
+    console.log('👥 getUsers: Found', payments?.length || 0, 'verified LeagueSafe players for season', season)
     
-    const { data, error } = await Promise.race([
-      supabase.from('users').select('id, display_name'),
-      timeoutPromise
-    ])
-    console.log('👥 getUsers: Query completed, got', data?.length || 0, 'users')
+    // Convert payments to user format using LeagueSafe owner name as display name
+    const users = (payments || []).map(payment => ({
+      id: payment.user_id,
+      display_name: payment.leaguesafe_owner_name
+    }))
     
-    if (error) throw error
-    return data || []
-    */
+    return users
   }
 
   /**
@@ -328,7 +329,7 @@ export class LeaderboardService {
         throw error
       })
       
-      const usersPromise = this.getUsers().then(result => {
+      const usersPromise = this.getUsers(season).then(result => {
         console.log('LeaderboardService.getWeeklyLeaderboard: ✅ Users query completed:', result.length)
         return result
       }).catch(error => {
@@ -343,21 +344,15 @@ export class LeaderboardService {
         usersPromise
       ])
 
-      console.log('LeaderboardService.getWeeklyLeaderboard: ✅ ALL queries completed - Got', authPicks.length, 'auth picks,', anonPicks.length, 'anon picks,', games.length, 'games,', users.length, 'users')
+      console.log('LeaderboardService.getWeeklyLeaderboard: ✅ ALL queries completed - Got', authPicks.length, 'auth picks,', anonPicks.length, 'anon picks,', games.length, 'games,', users.length, 'verified users')
 
-      // TEMPORARY: Handle case where all queries are bypassed
-      if (authPicks.length === 0 && anonPicks.length === 0 && games.length === 0 && users.length === 0) {
-        console.log('🚧 LeaderboardService.getWeeklyLeaderboard: All data queries bypassed due to RLS issues, returning empty leaderboard')
-        return []
-      }
-
-      // Combine all picks
+      // Combine all picks (authPicks already have calculated results, anonPicks need calculation)
       const allPicks = [...authPicks, ...anonPicks]
 
-      // Calculate results for picks that don't have them, leave calculated ones as-is
+      // Calculate results for anonymous picks that don't have them, authenticated picks already have results
       const { picks: allCalculatedPicks, liveCalculated } = this.calculatePickResults(allPicks, games)
       
-      // Filter to picks that have valid results (either from DB or our calculation)
+      // All picks should have valid results now
       const picksWithResults = allCalculatedPicks.filter(pick => 
         pick.result !== null && pick.points_earned !== null
       )
@@ -471,7 +466,7 @@ export class LeaderboardService {
         throw error
       })
       
-      const usersPromise = this.getUsers().then(result => {
+      const usersPromise = this.getUsers(season).then(result => {
         console.log('LeaderboardService.getSeasonLeaderboard: ✅ Users query completed:', result.length)
         return result
       }).catch(error => {
@@ -486,21 +481,15 @@ export class LeaderboardService {
         usersPromise
       ])
 
-      console.log('LeaderboardService.getSeasonLeaderboard: ✅ ALL queries completed - Got', authPicks.length, 'auth picks,', anonPicks.length, 'anon picks,', games.length, 'games,', users.length, 'users')
+      console.log('LeaderboardService.getSeasonLeaderboard: ✅ ALL queries completed - Got', authPicks.length, 'auth picks,', anonPicks.length, 'anon picks,', games.length, 'games,', users.length, 'verified users')
 
-      // TEMPORARY: Handle case where all queries are bypassed
-      if (authPicks.length === 0 && anonPicks.length === 0 && games.length === 0 && users.length === 0) {
-        console.log('🚧 LeaderboardService.getSeasonLeaderboard: All data queries bypassed due to RLS issues, returning empty leaderboard')
-        return []
-      }
-
-      // Combine all picks
+      // Combine all picks (authPicks already have calculated results, anonPicks need calculation)
       const allPicks = [...authPicks, ...anonPicks]
 
-      // Calculate results for picks that don't have them, leave calculated ones as-is
+      // Calculate results for anonymous picks that don't have them, authenticated picks already have results
       const { picks: allCalculatedPicks, liveCalculated } = this.calculatePickResults(allPicks, games)
       
-      // Filter to picks that have valid results (either from DB or our calculation)
+      // All picks should have valid results now
       const picksWithResults = allCalculatedPicks.filter(pick => 
         pick.result !== null && pick.points_earned !== null
       )
