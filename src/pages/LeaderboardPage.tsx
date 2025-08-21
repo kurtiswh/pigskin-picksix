@@ -13,7 +13,7 @@ import Layout from '@/components/Layout'
 
 
 export default function LeaderboardPage() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, loading: authLoading } = useAuth()
   const [activeTab, setActiveTab] = useState<'weekly' | 'season' | 'best-finish' | 'games'>('season')
   const [currentSeason, setCurrentSeason] = useState(2024) // Default to 2024 season where data exists
   const [currentWeek, setCurrentWeek] = useState(1) // Default to week 1
@@ -34,8 +34,15 @@ export default function LeaderboardPage() {
   }, [currentSeason])
 
   useEffect(() => {
-    loadLeaderboard()
-  }, [activeTab, currentWeek, currentSeason])
+    // Wait for auth initialization to complete before loading leaderboard
+    console.log('🔐 [LEADERBOARD] Auth state:', { authLoading, user: user?.id, activeTab, currentWeek, currentSeason })
+    if (!authLoading) {
+      console.log('🔐 [LEADERBOARD] Auth initialization complete, loading leaderboard...')
+      loadLeaderboard()
+    } else {
+      console.log('🔐 [LEADERBOARD] Waiting for auth initialization to complete...')
+    }
+  }, [activeTab, currentWeek, currentSeason, authLoading])
 
   // Function to check for live games
   const checkForLiveGames = useCallback(async () => {
@@ -124,7 +131,7 @@ export default function LeaderboardPage() {
       }
       setError('')
 
-      console.log('👥 Loading real leaderboard data for', currentSeason, 'week', currentWeek)
+      console.log('👥 Loading real leaderboard data for', currentSeason, 'week', currentWeek, '- Auth user:', user?.id || 'anonymous')
       
       let leaderboardEntries: LeaderboardEntry[] = []
       
