@@ -223,29 +223,46 @@ export class LeaderboardService {
     console.log('👥 getUsers: Starting query for verified LeagueSafe players for season', season)
     
     try {
-      console.log('👥 getUsers: About to execute leaguesafe_payments query with timeout')
+      console.log('👥 getUsers: Testing simple query first...')
       
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('getUsers leaguesafe_payments query timeout after 15 seconds')), 15000)
-      })
+      // Try a simple count query first to test connectivity
+      const { count, error: countError } = await supabase
+        .from('leaguesafe_payments')
+        .select('*', { count: 'exact', head: true })
+        .eq('season', season)
+        .eq('status', 'Paid')
+        .eq('is_matched', true)
       
-      const queryPromise = supabase
+      if (countError) {
+        console.error('👥 getUsers: Count query failed:', countError)
+        throw countError
+      }
+      
+      console.log('👥 getUsers: Count query success -', count, 'verified players found for season', season)
+      
+      if (count === 0) {
+        console.log('👥 getUsers: No verified players found, returning empty array')
+        return []
+      }
+      
+      // If count query worked, try the exact same query that worked in direct tests
+      console.log('👥 getUsers: Count query successful, now executing exact query from successful direct tests...')
+      
+      const { data: payments, error } = await supabase
         .from('leaguesafe_payments')
         .select('user_id, leaguesafe_owner_name, status, is_matched')
         .eq('season', season)
         .eq('status', 'Paid')
         .eq('is_matched', true)
         .not('user_id', 'is', null)
-      
-      const { data: payments, error } = await Promise.race([queryPromise, timeoutPromise])
+        .order('user_id')
       
       if (error) {
-        console.error('👥 getUsers: LeagueSafe payments query failed:', error)
+        console.error('👥 getUsers: Full query failed:', error)
         throw error
       }
       
-      console.log('👥 getUsers: Query completed successfully, found', payments?.length || 0, 'verified LeagueSafe players for season', season)
+      console.log('👥 getUsers: Full query completed successfully, found', payments?.length || 0, 'verified LeagueSafe players')
       
       // Convert payments to user format using LeagueSafe owner name as display name
       const users = (payments || []).map(payment => ({
@@ -255,10 +272,11 @@ export class LeaderboardService {
       
       console.log('👥 getUsers: Returning', users.length, 'user objects')
       return users
+      
     } catch (error) {
       console.error('👥 getUsers: Exception occurred:', error)
       // Return a minimal set of users as fallback instead of crashing
-      console.log('👥 getUsers: Falling back to minimal user set due to query timeout')
+      console.log('👥 getUsers: Falling back to minimal user set due to query failure')
       return [
         { id: 'fallback-1', display_name: 'Test User 1' },
         { id: 'fallback-2', display_name: 'Test User 2' },

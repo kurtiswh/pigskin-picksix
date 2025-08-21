@@ -21,8 +21,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     fetch: (url, options = {}) => {
       return fetch(url, {
         ...options,
-        // Increase timeout to 15 seconds for database queries
-        signal: AbortSignal.timeout(15000)
+        // Increase timeout to 30 seconds for database queries (especially leaderboard)
+        signal: AbortSignal.timeout(30000)
       })
     }
   },
