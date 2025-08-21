@@ -121,6 +121,14 @@ export class LeaderboardService {
    * Get authenticated user picks
    */
   private static async getAuthenticatedPicks(season: number, week?: number): Promise<PickResult[]> {
+    console.log('🔍 getAuthenticatedPicks: Starting query for season', season, week ? `week ${week}` : 'all weeks')
+    
+    // TEMPORARY FIX: Return empty array to bypass hanging picks query
+    // This allows the leaderboard to load with just anonymous picks and games
+    console.log('🔍 getAuthenticatedPicks: TEMPORARILY returning empty array due to RLS policy issue')
+    return []
+    
+    /* ORIGINAL CODE - COMMENTED OUT DUE TO RLS HANGING ISSUE
     let query = supabase
       .from('picks')
       .select('user_id,game_id,week,season,selected_team,is_lock,result,points_earned')
@@ -142,6 +150,7 @@ export class LeaderboardService {
     
     if (error) throw error
     return data || []
+    */
   }
 
   /**
