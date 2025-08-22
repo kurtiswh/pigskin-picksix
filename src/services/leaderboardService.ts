@@ -24,198 +24,114 @@ export interface LeaderboardEntry {
 
 export class LeaderboardService {
   /**
-   * EMERGENCY MODE: Using simplified production-safe queries
-   * This replaces the complex trigger-based system temporarily to fix hanging issues
-   */
-  /**
-   * Emergency production fallback - use simple queries with timeouts
+   * Get leaderboard data for the entire season
    */
   static async getSeasonLeaderboard(season: number): Promise<LeaderboardEntry[]> {
-    console.log('🚨 EMERGENCY: Using simplified season leaderboard for', season)
+    console.log('🏆 LeaderboardService.getSeasonLeaderboard: Starting for season', season)
 
     try {
-      // Set a 5-second timeout for better UX
-      const timeoutPromise = new Promise<LeaderboardEntry[]>((_, reject) => {
-        setTimeout(() => reject(new Error('Emergency timeout: 5 seconds')), 5000)
-      })
+      // Query the season_leaderboard table directly with proper is_verified filtering
+      const { data: seasonData, error } = await supabase
+        .from('season_leaderboard')
+        .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks, is_verified')
+        .eq('season', season)
+        .eq('is_verified', true) // Only show verified/paid users
+        .order('season_rank', { ascending: true })
 
-      const queryPromise = this.getSimpleSeasonData(season)
+      if (error) {
+        console.error('🏆 LeaderboardService.getSeasonLeaderboard error:', error)
+        return []
+      }
       
-      return await Promise.race([queryPromise, timeoutPromise])
+      if (!seasonData || seasonData.length === 0) {
+        console.log('🏆 LeaderboardService.getSeasonLeaderboard: No verified users found for season', season)
+        return []
+      }
+      
+      console.log('🏆 LeaderboardService.getSeasonLeaderboard: ✅ Found', seasonData.length, 'verified season entries')
+      
+      // Format the data for the frontend
+      const leaderboardEntries: LeaderboardEntry[] = seasonData.map(entry => ({
+        user_id: entry.user_id,
+        display_name: entry.display_name,
+        weekly_record: '', // Not available in season view
+        season_record: `${entry.total_wins}-${entry.total_losses}-${entry.total_pushes}`,
+        lock_record: `${entry.lock_wins}-${entry.lock_losses}`,
+        weekly_points: 0, // Not available in season view
+        season_points: entry.total_points,
+        weekly_rank: 0, // Not available in season view
+        season_rank: entry.season_rank,
+        total_picks: entry.total_picks,
+        total_wins: entry.total_wins,
+        total_losses: entry.total_losses,
+        total_pushes: entry.total_pushes,
+        lock_wins: entry.lock_wins,
+        lock_losses: entry.lock_losses
+      }))
+      
+      console.log('✅ Generated season leaderboard:', leaderboardEntries.length, 'entries')
+      return leaderboardEntries
+
     } catch (error) {
-      console.error('🚨 EMERGENCY: Season leaderboard failed:', error.message)
-      // Return mock data to prevent total failure
-      return this.getMockSeasonData()
+      console.error('🏆 LeaderboardService.getSeasonLeaderboard failed:', error)
+      return []
     }
   }
 
+  /**
+   * Get leaderboard data for a specific week
+   */
   static async getWeeklyLeaderboard(season: number, week: number): Promise<LeaderboardEntry[]> {
-    console.log('🚨 EMERGENCY: Using simplified weekly leaderboard for', season, week)
+    console.log('📊 LeaderboardService.getWeeklyLeaderboard:', { season, week })
 
     try {
-      // Set a 5-second timeout for better UX
-      const timeoutPromise = new Promise<LeaderboardEntry[]>((_, reject) => {
-        setTimeout(() => reject(new Error('Emergency timeout: 5 seconds')), 5000)
-      })
+      // Query the weekly_leaderboard table directly with proper is_verified filtering
+      const { data: weeklyData, error } = await supabase
+        .from('weekly_leaderboard')
+        .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, picks_made, is_verified')
+        .eq('season', season)
+        .eq('week', week)
+        .eq('is_verified', true) // Only show verified/paid users
+        .order('weekly_rank', { ascending: true })
 
-      const queryPromise = this.getSimpleWeeklyData(season, week)
-      
-      return await Promise.race([queryPromise, timeoutPromise])
+      if (error) {
+        console.error('📊 LeaderboardService.getWeeklyLeaderboard error:', error)
+        return []
+      }
+
+      if (!weeklyData || weeklyData.length === 0) {
+        console.log('📊 LeaderboardService.getWeeklyLeaderboard: No verified weekly data found for season', season, 'week', week)
+        return []
+      }
+
+      console.log('📊 LeaderboardService.getWeeklyLeaderboard: ✅ Found', weeklyData.length, 'verified weekly entries')
+
+      // Format the data for the frontend
+      const leaderboardEntries: LeaderboardEntry[] = weeklyData.map(entry => ({
+        user_id: entry.user_id,
+        display_name: entry.display_name,
+        weekly_record: `${entry.wins || 0}-${entry.losses || 0}-${entry.pushes || 0}`,
+        season_record: '', // Not available in weekly view
+        lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
+        weekly_points: entry.total_points || 0,
+        season_points: 0, // Not available in weekly view
+        weekly_rank: entry.weekly_rank || 0,
+        season_rank: 0, // Not available in weekly view
+        total_picks: entry.picks_made || 0,
+        total_wins: entry.wins || 0,
+        total_losses: entry.losses || 0,
+        total_pushes: entry.pushes || 0,
+        lock_wins: entry.lock_wins || 0,
+        lock_losses: entry.lock_losses || 0
+      }))
+
+      console.log('✅ Generated weekly leaderboard:', leaderboardEntries.length, 'entries')
+      return leaderboardEntries
+
     } catch (error) {
-      console.error('🚨 EMERGENCY: Weekly leaderboard failed:', error.message)
-      // Return mock data to prevent total failure
-      return this.getMockWeeklyData(week)
-    }
-  }
-
-  private static async getSimpleSeasonData(season: number): Promise<LeaderboardEntry[]> {
-    console.log('📊 Attempting ultra-simple season query...')
-    
-    // Try the absolute simplest query possible - remove is_verified filter
-    // This avoids potential RLS issues with the is_verified column
-    const { data: seasonData, error } = await supabase
-      .from('season_leaderboard')
-      .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks')
-      .eq('season', season)
-      .order('season_rank', { ascending: true })
-      .limit(15) // Even smaller limit
-
-    if (error) {
-      console.error('📊 Ultra-simple season query failed:', error.message)
-      throw error
-    }
-
-    if (!seasonData || seasonData.length === 0) {
-      console.log('📊 No season data found')
+      console.error('📊 LeaderboardService.getWeeklyLeaderboard failed:', error)
       return []
     }
-
-    console.log('📊 Ultra-simple season query success:', seasonData.length, 'entries')
-
-    return seasonData.map(entry => ({
-      user_id: entry.user_id,
-      display_name: entry.display_name,
-      weekly_record: '',
-      season_record: `${entry.total_wins || 0}-${entry.total_losses || 0}-${entry.total_pushes || 0}`,
-      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
-      weekly_points: 0,
-      season_points: entry.total_points || 0,
-      weekly_rank: 0,
-      season_rank: entry.season_rank || 0,
-      total_picks: entry.total_picks || 0,
-      total_wins: entry.total_wins || 0,
-      total_losses: entry.total_losses || 0,
-      total_pushes: entry.total_pushes || 0,
-      lock_wins: entry.lock_wins || 0,
-      lock_losses: entry.lock_losses || 0
-    }))
   }
 
-  private static async getSimpleWeeklyData(season: number, week: number): Promise<LeaderboardEntry[]> {
-    console.log('📊 Attempting simple weekly query for week', week)
-    
-    // Try weekly leaderboard table first
-    const { data: weeklyData, error } = await supabase
-      .from('weekly_leaderboard')
-      .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, picks_made, is_verified')
-      .eq('season', season)
-      .eq('week', week)
-      .eq('is_verified', true)
-      .order('weekly_rank', { ascending: true })
-      .limit(20)
-
-    if (error) {
-      console.error('📊 Simple weekly query failed:', error.message)
-      // Fall back to empty result rather than complex query
-      return []
-    }
-
-    if (!weeklyData || weeklyData.length === 0) {
-      console.log('📊 No weekly data found - table may be empty')
-      return []
-    }
-
-    console.log('📊 Simple weekly query success:', weeklyData.length, 'entries')
-
-    return weeklyData.map(entry => ({
-      user_id: entry.user_id,
-      display_name: entry.display_name,
-      weekly_record: `${entry.wins || 0}-${entry.losses || 0}-${entry.pushes || 0}`,
-      season_record: '',
-      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
-      weekly_points: entry.total_points || 0,
-      season_points: 0,
-      weekly_rank: entry.weekly_rank || 0,
-      season_rank: 0,
-      total_picks: entry.picks_made || 0,
-      total_wins: entry.wins || 0,
-      total_losses: entry.losses || 0,
-      total_pushes: entry.pushes || 0,
-      lock_wins: entry.lock_wins || 0,
-      lock_losses: entry.lock_losses || 0
-    }))
-  }
-
-  private static getMockSeasonData(): LeaderboardEntry[] {
-    console.log('🚨 EMERGENCY: Returning mock season data')
-    return [
-      {
-        user_id: 'loading-1',
-        display_name: 'Loading data...',
-        weekly_record: '',
-        season_record: '⏳ Loading...',
-        lock_record: '⏳',
-        weekly_points: 0,
-        season_points: 0,
-        weekly_rank: 0,
-        season_rank: 1,
-        total_picks: 0,
-        total_wins: 0,
-        total_losses: 0,
-        total_pushes: 0,
-        lock_wins: 0,
-        lock_losses: 0
-      },
-      {
-        user_id: 'loading-2',
-        display_name: 'Please wait...',
-        weekly_record: '',
-        season_record: '⏳ Loading...',
-        lock_record: '⏳',
-        weekly_points: 0,
-        season_points: 0,
-        weekly_rank: 0,
-        season_rank: 2,
-        total_picks: 0,
-        total_wins: 0,
-        total_losses: 0,
-        total_pushes: 0,
-        lock_wins: 0,
-        lock_losses: 0
-      }
-    ]
-  }
-
-  private static getMockWeeklyData(week: number): LeaderboardEntry[] {
-    console.log('🚨 EMERGENCY: Returning mock weekly data for week', week)
-    return [
-      {
-        user_id: 'loading-weekly',
-        display_name: `Loading Week ${week}...`,
-        weekly_record: '⏳ Loading...',
-        season_record: '',
-        lock_record: '⏳',
-        weekly_points: 0,
-        season_points: 0,
-        weekly_rank: 1,
-        season_rank: 0,
-        total_picks: 0,
-        total_wins: 0,
-        total_losses: 0,
-        total_pushes: 0,
-        lock_wins: 0,
-        lock_losses: 0
-      }
-    ]
-  }
 }

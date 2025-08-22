@@ -19,10 +19,27 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       'x-application-name': 'pigskin-pick-six-pro'
     },
     fetch: (url, options = {}) => {
+      // Create manual timeout using AbortController (universally supported)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        controller.abort()
+      }, 30000) // 30 second timeout for database queries
+
+      // If original options had a signal, we need to handle both
+      if (options.signal) {
+        const originalSignal = options.signal
+        const handleAbort = () => {
+          clearTimeout(timeoutId)
+          controller.abort()
+        }
+        originalSignal.addEventListener('abort', handleAbort)
+      }
+
       return fetch(url, {
         ...options,
-        // Increase timeout to 30 seconds for database queries (especially leaderboard)
-        signal: AbortSignal.timeout(30000)
+        signal: controller.signal
+      }).finally(() => {
+        clearTimeout(timeoutId)
       })
     }
   },
