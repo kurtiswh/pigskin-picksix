@@ -1,32 +1,56 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { SimpleLeaderboardService, SimpleLeaderboardEntry } from '@/services/leaderboardService.simple'
+import { Button } from '@/components/ui/button'
+import { EmergencyLeaderboardService, EmergencyLeaderboardEntry } from '@/services/leaderboardService.emergency'
 
 export default function SimpleLeaderboard() {
   const [season, setSeason] = useState(2024)
-  const [data, setData] = useState<SimpleLeaderboardEntry[]>([])
+  const [data, setData] = useState<EmergencyLeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [strategy, setStrategy] = useState('')
 
   useEffect(() => {
     loadData()
   }, [season])
 
   const loadData = async () => {
+    const startTime = Date.now()
+    
     try {
       setLoading(true)
       setError('')
-      console.log('🔄 Loading simple leaderboard for season', season)
+      setStrategy('')
+      console.log('🔄 Loading emergency leaderboard for season', season)
       
-      const entries = await SimpleLeaderboardService.getSeasonLeaderboard(season)
+      // Add manual timeout to prevent infinite loading
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Overall timeout after 15 seconds')), 15000)
+      })
+      
+      const dataPromise = EmergencyLeaderboardService.getSeasonLeaderboard(season)
+      
+      const entries = await Promise.race([dataPromise, timeoutPromise])
+      
+      const loadTime = Date.now() - startTime
+      console.log('✅ Loaded', entries.length, 'entries in', loadTime, 'ms')
+      
       setData(entries)
       
-      console.log('✅ Loaded', entries.length, 'entries')
+      // Set strategy indicator based on data
+      if (entries.length === 1 && entries[0].user_id === 'emergency-1') {
+        setStrategy('Emergency static data - check console for errors')
+      } else if (entries.length > 0) {
+        setStrategy('Data loaded successfully')
+      }
+      
     } catch (err: any) {
-      console.error('❌ Failed to load leaderboard:', err)
+      const loadTime = Date.now() - startTime
+      console.error('❌ Failed to load leaderboard after', loadTime, 'ms:', err)
       setError(err.message || 'Failed to load leaderboard')
       setData([])
+      setStrategy('All loading strategies failed')
     } finally {
       setLoading(false)
     }
@@ -37,7 +61,7 @@ export default function SimpleLeaderboard() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-pigskin-600">Season Leaderboard</h1>
         
-        <div className="mt-4">
+        <div className="mt-4 flex items-center gap-4">
           <Select value={season.toString()} onValueChange={(value) => setSeason(parseInt(value))}>
             <SelectTrigger className="w-32">
               <SelectValue />
@@ -47,6 +71,21 @@ export default function SimpleLeaderboard() {
               <SelectItem value="2023">2023</SelectItem>
             </SelectContent>
           </Select>
+          
+          <Button 
+            onClick={loadData} 
+            disabled={loading}
+            variant="outline"
+            size="sm"
+          >
+            {loading ? 'Loading...' : 'Refresh'}
+          </Button>
+          
+          {strategy && (
+            <span className="text-sm text-gray-600">
+              Status: {strategy}
+            </span>
+          )}
         </div>
       </div>
 
