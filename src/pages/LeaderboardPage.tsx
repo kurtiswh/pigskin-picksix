@@ -8,7 +8,8 @@ import LeaderboardTable from '@/components/LeaderboardTable'
 import GamesList from '@/components/GamesList'
 import { supabase } from '@/lib/supabase'
 import { getCurrentWeek } from '@/services/collegeFootballApi'
-import { LeaderboardService, LeaderboardEntry } from '@/services/leaderboardService'
+// Emergency: Use optimized service with better fallbacks
+import { LeaderboardService, LeaderboardEntry } from '@/services/leaderboardService.optimized'
 import Layout from '@/components/Layout'
 
 
