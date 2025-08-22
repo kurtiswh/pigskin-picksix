@@ -34,9 +34,9 @@ export class LeaderboardService {
     console.log('🚨 EMERGENCY: Using simplified season leaderboard for', season)
 
     try {
-      // Set a 15-second timeout
+      // Set a 5-second timeout for better UX
       const timeoutPromise = new Promise<LeaderboardEntry[]>((_, reject) => {
-        setTimeout(() => reject(new Error('Emergency timeout: 15 seconds')), 15000)
+        setTimeout(() => reject(new Error('Emergency timeout: 5 seconds')), 5000)
       })
 
       const queryPromise = this.getSimpleSeasonData(season)
@@ -53,9 +53,9 @@ export class LeaderboardService {
     console.log('🚨 EMERGENCY: Using simplified weekly leaderboard for', season, week)
 
     try {
-      // Set a 15-second timeout
+      // Set a 5-second timeout for better UX
       const timeoutPromise = new Promise<LeaderboardEntry[]>((_, reject) => {
-        setTimeout(() => reject(new Error('Emergency timeout: 15 seconds')), 15000)
+        setTimeout(() => reject(new Error('Emergency timeout: 5 seconds')), 5000)
       })
 
       const queryPromise = this.getSimpleWeeklyData(season, week)
@@ -69,19 +69,19 @@ export class LeaderboardService {
   }
 
   private static async getSimpleSeasonData(season: number): Promise<LeaderboardEntry[]> {
-    console.log('📊 Attempting simple season query...')
+    console.log('📊 Attempting ultra-simple season query...')
     
-    // Try the simplest possible query first
+    // Try the absolute simplest query possible - remove is_verified filter
+    // This avoids potential RLS issues with the is_verified column
     const { data: seasonData, error } = await supabase
       .from('season_leaderboard')
-      .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks, is_verified')
+      .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks')
       .eq('season', season)
-      .eq('is_verified', true)
       .order('season_rank', { ascending: true })
-      .limit(20) // Limit to prevent large queries
+      .limit(15) // Even smaller limit
 
     if (error) {
-      console.error('📊 Simple season query failed:', error.message)
+      console.error('📊 Ultra-simple season query failed:', error.message)
       throw error
     }
 
@@ -90,7 +90,7 @@ export class LeaderboardService {
       return []
     }
 
-    console.log('📊 Simple season query success:', seasonData.length, 'entries')
+    console.log('📊 Ultra-simple season query success:', seasonData.length, 'entries')
 
     return seasonData.map(entry => ({
       user_id: entry.user_id,
@@ -160,15 +160,32 @@ export class LeaderboardService {
     console.log('🚨 EMERGENCY: Returning mock season data')
     return [
       {
-        user_id: 'mock-1',
-        display_name: 'Loading User 1',
+        user_id: 'loading-1',
+        display_name: 'Loading data...',
         weekly_record: '',
-        season_record: '0-0-0',
-        lock_record: '0-0',
+        season_record: '⏳ Loading...',
+        lock_record: '⏳',
         weekly_points: 0,
         season_points: 0,
         weekly_rank: 0,
         season_rank: 1,
+        total_picks: 0,
+        total_wins: 0,
+        total_losses: 0,
+        total_pushes: 0,
+        lock_wins: 0,
+        lock_losses: 0
+      },
+      {
+        user_id: 'loading-2',
+        display_name: 'Please wait...',
+        weekly_record: '',
+        season_record: '⏳ Loading...',
+        lock_record: '⏳',
+        weekly_points: 0,
+        season_points: 0,
+        weekly_rank: 0,
+        season_rank: 2,
         total_picks: 0,
         total_wins: 0,
         total_losses: 0,
@@ -183,11 +200,11 @@ export class LeaderboardService {
     console.log('🚨 EMERGENCY: Returning mock weekly data for week', week)
     return [
       {
-        user_id: 'mock-1',
-        display_name: `Loading Week ${week} Data`,
-        weekly_record: '0-0-0',
+        user_id: 'loading-weekly',
+        display_name: `Loading Week ${week}...`,
+        weekly_record: '⏳ Loading...',
         season_record: '',
-        lock_record: '0-0',
+        lock_record: '⏳',
         weekly_points: 0,
         season_points: 0,
         weekly_rank: 1,
