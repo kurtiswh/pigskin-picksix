@@ -97,56 +97,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
         
-        // Get current session if no magic link
-        console.log('🚀 [INIT] Step 2: Getting current session - THIS MIGHT HANG')
+        // Get current session if no magic link - simplified approach
+        console.log('🚀 [INIT] Step 2: Getting current session (simplified)')
+        console.log('🔧 [INIT] Supabase URL configured:', ENV.SUPABASE_URL ? 'Yes' : 'No')
+        console.log('🔧 [INIT] Supabase Key configured:', ENV.SUPABASE_ANON_KEY ? 'Yes' : 'No')
         
-        // First, test Supabase configuration
-        console.log('🔧 [INIT] Testing Supabase configuration...')
-        console.log('🔧 [INIT] Supabase URL:', ENV.SUPABASE_URL ? ENV.SUPABASE_URL.substring(0, 30) + '...' : 'MISSING')
-        console.log('🔧 [INIT] Supabase Key:', ENV.SUPABASE_ANON_KEY ? ENV.SUPABASE_ANON_KEY.substring(0, 20) + '...' : 'MISSING')
-        
-        // Test basic network connectivity to Supabase
-        try {
-          console.log('🔧 [INIT] Testing network connectivity to Supabase...')
-          const pingResponse = await fetch(`${ENV.SUPABASE_URL}/rest/v1/`, {
-            method: 'HEAD',
-            headers: {
-              'apikey': ENV.SUPABASE_ANON_KEY || '',
-            },
-            signal: AbortSignal.timeout(5000) // 5 second timeout for connectivity test
-          })
-          console.log('🔧 [INIT] Network test response status:', pingResponse.status)
-          
-          if (!pingResponse.ok) {
-            const errorText = await pingResponse.text()
-            console.error('🔧 [INIT] Network test error response:', errorText)
-          }
-        } catch (networkError) {
-          console.error('🔧 [INIT] ❌ Network connectivity test failed:', networkError)
-        }
-        
-        // Test auth endpoint specifically (without session, should return 401 which is normal)
-        try {
-          console.log('🔧 [INIT] Testing auth endpoint specifically...')
-          const authTestResponse = await fetch(`${ENV.SUPABASE_URL}/auth/v1/user`, {
-            method: 'GET',
-            headers: {
-              'apikey': ENV.SUPABASE_ANON_KEY || '',
-              // Don't send Authorization header without a valid session token
-            },
-            signal: AbortSignal.timeout(5000)
-          })
-          console.log('🔧 [INIT] Auth endpoint test status:', authTestResponse.status, '(401 is normal when not logged in)')
-          
-          if (authTestResponse.status === 401) {
-            console.log('🔧 [INIT] ✅ Auth endpoint working correctly (401 = not authenticated)')
-          } else if (!authTestResponse.ok) {
-            const authErrorText = await authTestResponse.text()
-            console.error('🔧 [INIT] Auth endpoint error response:', authErrorText)
-          }
-        } catch (authError) {
-          console.error('🔧 [INIT] ❌ Auth endpoint test failed:', authError)
-        }
+        // Skip connectivity tests to avoid potential issues - go straight to session check
         
         // Get current session to restore user state
         console.log('🚀 [INIT] Step 2: Getting current session to restore auth state')

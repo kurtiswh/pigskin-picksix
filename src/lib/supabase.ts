@@ -17,31 +17,32 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
       'x-application-name': 'pigskin-pick-six-pro'
-    },
-    fetch: (url, options = {}) => {
-      // Create manual timeout using AbortController (universally supported)
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => {
-        controller.abort()
-      }, 30000) // 30 second timeout for database queries
-
-      // If original options had a signal, we need to handle both
-      if (options.signal) {
-        const originalSignal = options.signal
-        const handleAbort = () => {
-          clearTimeout(timeoutId)
-          controller.abort()
-        }
-        originalSignal.addEventListener('abort', handleAbort)
-      }
-
-      return fetch(url, {
-        ...options,
-        signal: controller.signal
-      }).finally(() => {
-        clearTimeout(timeoutId)
-      })
     }
+    // Temporarily disable custom fetch to test if it interferes with auth
+    // fetch: (url, options = {}) => {
+    //   // Create manual timeout using AbortController (universally supported)
+    //   const controller = new AbortController()
+    //   const timeoutId = setTimeout(() => {
+    //     controller.abort()
+    //   }, 30000) // 30 second timeout for database queries
+
+    //   // If original options had a signal, we need to handle both
+    //   if (options.signal) {
+    //     const originalSignal = options.signal
+    //     const handleAbort = () => {
+    //       clearTimeout(timeoutId)
+    //       controller.abort()
+    //     }
+    //     originalSignal.addEventListener('abort', handleAbort)
+    //   }
+
+    //   return fetch(url, {
+    //     ...options,
+    //     signal: controller.signal
+    //   }).finally(() => {
+    //     clearTimeout(timeoutId)
+    //   })
+    // }
   },
   realtime: {
     params: {
