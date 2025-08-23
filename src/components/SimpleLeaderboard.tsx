@@ -24,9 +24,9 @@ export default function SimpleLeaderboard() {
       setStrategy('')
       console.log('🔄 Loading emergency leaderboard for season', season)
       
-      // Add manual timeout to prevent infinite loading
+      // Add manual timeout to prevent infinite loading - reduced for faster fallback in production
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Overall timeout after 15 seconds')), 15000)
+        setTimeout(() => reject(new Error('Overall timeout after 10 seconds')), 10000)
       })
       
       const dataPromise = EmergencyLeaderboardService.getSeasonLeaderboard(season)

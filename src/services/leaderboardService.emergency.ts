@@ -18,7 +18,7 @@ export interface EmergencyLeaderboardEntry {
  * 3. Direct picks query (always works)
  */
 export class EmergencyLeaderboardService {
-  private static readonly QUERY_TIMEOUT = 8000
+  private static readonly QUERY_TIMEOUT = 5000  // Reduced from 8000ms for faster fallback
 
   /**
    * Create timeout promise for queries
