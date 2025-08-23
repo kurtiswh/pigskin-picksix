@@ -156,14 +156,14 @@ export default function HomePage() {
             </div>
           ) : (
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/anonymous-picks">
+              <Link to="/register">
                 <Button size="lg" className="bg-gold-500 hover:bg-gold-600 text-pigskin-900">
-                  Submit Picks
+                  Join the League
                 </Button>
               </Link>
-              <Link to="/login">
+              <Link to="/anonymous-picks">
                 <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-pigskin-500">
-                  Log In
+                  Try Without Account
                 </Button>
               </Link>
             </div>

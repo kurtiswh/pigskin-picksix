@@ -65,9 +65,9 @@ export default function Layout({ children }: LayoutProps) {
               </Link>
               
               <Link
-                to="/picks"
+                to={user ? "/picks" : "/anonymous-picks"}
                 className={`text-sm font-medium transition-colors ${
-                  isActive('/picks')
+                  (user && isActive('/picks')) || (!user && isActive('/anonymous-picks'))
                     ? 'text-gold-300'
                     : 'text-pigskin-100 hover:text-white'
                 }`}
@@ -138,15 +138,25 @@ export default function Layout({ children }: LayoutProps) {
                   </Button>
                 </>
               ) : (
-                <Link to="/login" className="hidden sm:block">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="border-white text-white hover:bg-white hover:text-pigskin-500"
-                  >
-                    Log In
-                  </Button>
-                </Link>
+                <div className="hidden sm:flex items-center space-x-2">
+                  <Link to="/register">
+                    <Button 
+                      size="sm"
+                      className="bg-gold-500 hover:bg-gold-600 text-pigskin-900"
+                    >
+                      Join Now
+                    </Button>
+                  </Link>
+                  <Link to="/login">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="border-white text-white hover:bg-white hover:text-pigskin-500"
+                    >
+                      Log In
+                    </Button>
+                  </Link>
+                </div>
               )}
 
               {/* Mobile menu button */}
@@ -185,10 +195,10 @@ export default function Layout({ children }: LayoutProps) {
                 </Link>
                 
                 <Link
-                  to="/picks"
+                  to={user ? "/picks" : "/anonymous-picks"}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`text-sm font-medium transition-colors ${
-                    isActive('/picks')
+                    (user && isActive('/picks')) || (!user && isActive('/anonymous-picks'))
                       ? 'text-gold-300'
                       : 'text-pigskin-100 hover:text-white'
                   }`}
@@ -266,15 +276,25 @@ export default function Layout({ children }: LayoutProps) {
                       </div>
                     </>
                   ) : (
-                    <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="border-white text-white hover:bg-white hover:text-pigskin-500"
-                      >
-                        Log In
-                      </Button>
-                    </Link>
+                    <div className="space-y-2">
+                      <Link to="/register" onClick={() => setMobileMenuOpen(false)}>
+                        <Button 
+                          size="sm"
+                          className="w-full bg-gold-500 hover:bg-gold-600 text-pigskin-900"
+                        >
+                          Join Now
+                        </Button>
+                      </Link>
+                      <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="w-full border-white text-white hover:bg-white hover:text-pigskin-500"
+                        >
+                          Log In
+                        </Button>
+                      </Link>
+                    </div>
                   )}
                 </div>
               </nav>
