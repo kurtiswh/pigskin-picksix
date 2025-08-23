@@ -18,7 +18,7 @@ WHERE schemaname = 'public'
 ALTER TABLE public.season_leaderboard DISABLE ROW LEVEL SECURITY;
 
 -- Test query performance now (should be under 100ms)
-\timing on
+-- Note: Check the execution time in the Supabase Studio results panel
 SELECT 
     user_id, 
     display_name, 
@@ -28,7 +28,6 @@ FROM public.season_leaderboard
 WHERE season = 2024 
 ORDER BY season_rank 
 LIMIT 10;
-\timing off
 
 -- If the query above is now fast, RLS was the problem
 -- Re-enable RLS with the simplest possible policy
@@ -54,8 +53,7 @@ CREATE POLICY "allow_all_reads" ON public.season_leaderboard
     FOR SELECT TO public 
     USING (true);
 
--- Test query performance again
-\timing on
+-- Test query performance again (check execution time in Studio)
 SELECT 
     user_id, 
     display_name, 
@@ -65,7 +63,6 @@ FROM public.season_leaderboard
 WHERE season = 2024 
 ORDER BY season_rank 
 LIMIT 10;
-\timing off
 
 -- =============================================================================
 -- FORCE STATISTICS UPDATE
@@ -122,8 +119,7 @@ ON public.season_leaderboard (season, season_rank);
 -- FINAL VERIFICATION
 -- =============================================================================
 
--- This should now be very fast (under 200ms)
-\timing on
+-- This should now be very fast (under 200ms - check execution time in Studio)
 SELECT 
     user_id, 
     display_name, 
@@ -138,7 +134,6 @@ FROM public.season_leaderboard
 WHERE season = 2024 
 ORDER BY season_rank 
 LIMIT 50;
-\timing off
 
 -- Success message
 SELECT 
