@@ -291,15 +291,16 @@ export default function LoginPage() {
                 <p className="text-sm text-blue-800 mb-2">
                   <strong>Existing league member?</strong> If you were added to the league via LeagueSafe but haven't set up your login yet, 
                 </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsFirstTime(true)}
-                  className="text-blue-700 border-blue-300 hover:bg-blue-100"
-                >
-                  Set up first-time login
-                </Button>
+                <Link to="/register">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-blue-700 border-blue-300 hover:bg-blue-100"
+                  >
+                    Set up first-time login
+                  </Button>
+                </Link>
               </div>
             )}
 
