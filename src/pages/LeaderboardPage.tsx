@@ -1,10 +1,10 @@
-import SimpleLeaderboard from '@/components/SimpleLeaderboard'
+import TabbedLeaderboard from '@/components/TabbedLeaderboard'
 import Layout from '@/components/Layout'
 
 export default function LeaderboardPage() {
   return (
     <Layout>
-      <SimpleLeaderboard />
+      <TabbedLeaderboard />
     </Layout>
   )
 }
