@@ -4,15 +4,16 @@ import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ENV } from '@/lib/env'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
-  const { user, signUp, setupExistingUser } = useAuth()
+  const { user, signUp } = useAuth()
   
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
-  const [isFirstTime, setIsFirstTime] = useState(false)
+  const [isValidated, setIsValidated] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -23,6 +24,64 @@ export default function RegisterPage() {
     }
   }, [user, navigate])
 
+  const validateEmail = async (emailToCheck: string) => {
+    try {
+      console.log('📧 Validating email via direct API:', emailToCheck)
+      
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+
+      // Check users table
+      const usersResponse = await fetch(`${supabaseUrl}/rest/v1/users?or=(email.eq.${emailToCheck},leaguesafe_email.eq.${emailToCheck})&limit=1`, {
+        method: 'GET',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (usersResponse.ok) {
+        const users = await usersResponse.json()
+        if (users && users.length > 0) {
+          console.log('✅ Email found in users table')
+          return true
+        }
+      }
+
+      // Check leaguesafe_payments table
+      const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?leaguesafe_email=eq.${emailToCheck}&limit=1`, {
+        method: 'GET',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (paymentsResponse.ok) {
+        const payments = await paymentsResponse.json()
+        if (payments && payments.length > 0) {
+          console.log('✅ Email found in leaguesafe payments')
+          return true
+        }
+      }
+
+      console.log('❌ Email not found in any table')
+      return false
+    } catch (error) {
+      console.error('❌ Error validating email:', error)
+      return false
+    }
+  }
+
+  const handleEmailBlur = async () => {
+    if (email.trim()) {
+      const validated = await validateEmail(email.trim())
+      setIsValidated(validated)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -30,21 +89,12 @@ export default function RegisterPage() {
     setSuccess('')
 
     try {
-      if (isFirstTime) {
-        const result = await setupExistingUser(email, password)
-        if (result.success) {
-          setSuccess('✅ Setup email sent! Please check your email to complete account setup.')
-        } else {
-          throw new Error(result.message || 'Setup failed')
-        }
-      } else {
-        if (!displayName.trim()) {
-          throw new Error('Display name is required')
-        }
-        
-        await signUp(email, password, displayName)
-        setSuccess('✅ Account created! Please check your email for a confirmation link to complete setup.')
+      if (!displayName.trim()) {
+        throw new Error('Display name is required')
       }
+      
+      await signUp(email, password, displayName)
+      setSuccess('✅ Account created! Please check your email for a confirmation link to complete setup.')
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -78,80 +128,31 @@ export default function RegisterPage() {
             </p>
           </CardHeader>
           <CardContent>
-            {/* Registration Type Selection */}
-            <div className="mb-6">
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsFirstTime(false)}
-                  className={`p-4 border rounded-lg text-sm font-medium transition-colors ${
-                    !isFirstTime 
-                      ? 'bg-pigskin-500 text-white border-pigskin-500' 
-                      : 'bg-white text-charcoal-700 border-stone-300 hover:bg-stone-50'
-                  }`}
-                >
-                  <div className="text-2xl mb-2">🆕</div>
-                  <div className="font-semibold">New Player</div>
-                  <div className="text-xs opacity-75">Create new account</div>
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => setIsFirstTime(true)}
-                  className={`p-4 border rounded-lg text-sm font-medium transition-colors ${
-                    isFirstTime 
-                      ? 'bg-pigskin-500 text-white border-pigskin-500' 
-                      : 'bg-white text-charcoal-700 border-stone-300 hover:bg-stone-50'
-                  }`}
-                >
-                  <div className="text-2xl mb-2">🔗</div>
-                  <div className="font-semibold">League Member</div>
-                  <div className="text-xs opacity-75">Already paid via LeagueSafe</div>
-                </button>
+            {/* Information Panel */}
+            <div className="mb-6 p-4 rounded-lg border bg-blue-50 border-blue-200">
+              <div className="text-blue-800 text-sm">
+                <div className="font-semibold mb-1">📧 Email Validation</div>
+                <p>
+                  Enter your email address and we'll check if you're already in our system from LeagueSafe payments. 
+                  This helps link your account properly, but you can register either way.
+                </p>
               </div>
             </div>
 
-            {/* Information Panel */}
-            <div className={`mb-6 p-4 rounded-lg border ${
-              isFirstTime 
-                ? 'bg-blue-50 border-blue-200' 
-                : 'bg-green-50 border-green-200'
-            }`}>
-              {isFirstTime ? (
-                <div className="text-blue-800 text-sm">
-                  <div className="font-semibold mb-1">🔗 League Member Setup</div>
-                  <p>
-                    Use the <strong>same email address</strong> from your LeagueSafe payment. 
-                    We'll automatically link your account to your league entry.
-                  </p>
-                </div>
-              ) : (
-                <div className="text-green-800 text-sm">
-                  <div className="font-semibold mb-1">🆕 New Player Registration</div>
-                  <p>
-                    Create a new account. Remember to use the same email when you make your LeagueSafe payment 
-                    to link your account properly.
-                  </p>
-                </div>
-              )}
-            </div>
-
             <form onSubmit={handleSubmit} className="space-y-4">
-              {!isFirstTime && (
-                <div>
-                  <label htmlFor="displayName" className="block text-sm font-medium text-charcoal-700 mb-1">
-                    Display Name
-                  </label>
-                  <Input
-                    id="displayName"
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="How you'll appear on leaderboards"
-                    required
-                  />
-                </div>
-              )}
+              <div>
+                <label htmlFor="displayName" className="block text-sm font-medium text-charcoal-700 mb-1">
+                  Display Name
+                </label>
+                <Input
+                  id="displayName"
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="How you'll appear on leaderboards"
+                  required
+                />
+              </div>
               
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-charcoal-700 mb-1">
@@ -162,14 +163,21 @@ export default function RegisterPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={isFirstTime ? "Email from your LeagueSafe payment" : "Your email address"}
+                  onBlur={handleEmailBlur}
+                  placeholder="Your email address"
                   required
                 />
+                {isValidated === true && (
+                  <p className="text-green-600 text-sm mt-1">✅ Email validated - you're already in our system! This will link your account to your LeagueSafe entry.</p>
+                )}
+                {isValidated === false && email.trim() && (
+                  <p className="text-orange-600 text-sm mt-1">⚠️ Email not found in our system. This could mean: 1) Your LeagueSafe payment hasn't been processed yet, 2) You used a different email for LeagueSafe, or 3) You're registering before making your LeagueSafe payment.</p>
+                )}
               </div>
 
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-charcoal-700 mb-1">
-                  {isFirstTime ? 'Create Password' : 'Password'}
+                  Password
                 </label>
                 <Input
                   id="password"
@@ -201,9 +209,7 @@ export default function RegisterPage() {
                 className="w-full bg-pigskin-500 hover:bg-pigskin-600" 
                 disabled={loading}
               >
-                {loading ? 'Creating Account...' : (
-                  isFirstTime ? 'Set Up My Account' : 'Create Account'
-                )}
+                {loading ? 'Creating Account...' : 'Create Account'}
               </Button>
             </form>
 
