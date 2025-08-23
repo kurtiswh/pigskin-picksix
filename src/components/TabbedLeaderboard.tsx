@@ -5,14 +5,15 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EmergencyLeaderboardService, EmergencyLeaderboardEntry } from '@/services/leaderboardService.emergency'
 import { ProductionLeaderboardService, ProductionLeaderboardEntry } from '@/services/leaderboardService.production'
-import { LeaderboardService } from '@/services/leaderboardService'
+import { EmergencyWeeklyLeaderboardService, EmergencyWeeklyLeaderboardEntry } from '@/services/weeklyLeaderboardService.emergency'
+import { ProductionWeeklyLeaderboardService, ProductionWeeklyLeaderboardEntry } from '@/services/weeklyLeaderboardService.production'
 
 export default function TabbedLeaderboard() {
   const [season, setSeason] = useState(2024)
   const [selectedWeek, setSelectedWeek] = useState(1)
   const [activeTab, setActiveTab] = useState('season')
   const [seasonData, setSeasonData] = useState<EmergencyLeaderboardEntry[]>([])
-  const [weeklyData, setWeeklyData] = useState<EmergencyLeaderboardEntry[]>([])
+  const [weeklyData, setWeeklyData] = useState<EmergencyWeeklyLeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [strategy, setStrategy] = useState('')
@@ -81,33 +82,38 @@ export default function TabbedLeaderboard() {
     try {
       setLoading(true)
       setError('')
+      setStrategy('')
       console.log('🔄 Loading weekly leaderboard for season', season, 'week', selectedWeek)
       
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Weekly timeout after 10 seconds')), 10000)
+        setTimeout(() => reject(new Error('Overall timeout after 10 seconds')), 10000)
       })
       
-      // Try main LeaderboardService first for weekly data
-      console.log('🚀 [WEEKLY] Using LeaderboardService for weekly data')
-      const dataPromise = LeaderboardService.getWeeklyLeaderboard(season, selectedWeek)
+      console.log('🚀 [WEEKLY TABBED] Trying production-optimized weekly service first')
+      let dataPromise
+      
+      try {
+        dataPromise = ProductionWeeklyLeaderboardService.getWeeklyLeaderboard(season, selectedWeek)
+      } catch (error) {
+        console.log('⚠️ [WEEKLY TABBED] Production weekly service failed, falling back to emergency service')
+        dataPromise = EmergencyWeeklyLeaderboardService.getWeeklyLeaderboard(season, selectedWeek)
+      }
       
       const entries = await Promise.race([dataPromise, timeoutPromise])
       
       const loadTime = Date.now() - startTime
       console.log('✅ Loaded weekly data:', entries.length, 'entries in', loadTime, 'ms')
       
-      // Convert to format expected by the UI
-      const formattedEntries = entries.map(entry => ({
-        user_id: entry.user_id,
-        display_name: entry.display_name,
-        season_record: entry.weekly_record || `${entry.total_wins || 0}-${entry.total_losses || 0}-${entry.total_pushes || 0}`,
-        lock_record: entry.lock_record,
-        total_points: entry.weekly_points || entry.season_points,
-        season_rank: entry.weekly_rank || 0
-      }))
+      setWeeklyData(entries)
       
-      setWeeklyData(formattedEntries)
-      setStrategy(`Week ${selectedWeek} data loaded successfully`)
+      // Set strategy indicator based on data
+      if (entries.length === 1 && entries[0].user_id.includes('emergency')) {
+        setStrategy('Emergency static data - check console for errors')
+      } else if (entries.length === 1 && entries[0].user_id.includes('production-static')) {
+        setStrategy('Production fallback data - weekly table may be empty')
+      } else if (entries.length > 0) {
+        setStrategy(`Week ${selectedWeek} data loaded successfully`)
+      }
       
     } catch (err: any) {
       const loadTime = Date.now() - startTime
@@ -273,9 +279,9 @@ export default function TabbedLeaderboard() {
           <tbody>
             {data.map((entry) => (
               <tr key={entry.user_id} className="border-b hover:bg-gray-50">
-                <td className="p-2 font-semibold">#{entry.season_rank}</td>
+                <td className="p-2 font-semibold">#{entry.season_rank || entry.weekly_rank}</td>
                 <td className="p-2">{entry.display_name}</td>
-                <td className="p-2">{entry.season_record}</td>
+                <td className="p-2">{entry.season_record || entry.weekly_record}</td>
                 <td className="p-2">{entry.lock_record}</td>
                 <td className="p-2 font-semibold">{entry.total_points}</td>
               </tr>
