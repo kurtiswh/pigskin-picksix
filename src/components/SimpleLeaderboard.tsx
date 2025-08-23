@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { EmergencyLeaderboardService, EmergencyLeaderboardEntry } from '@/services/leaderboardService.emergency'
+import { ProductionLeaderboardService, ProductionLeaderboardEntry } from '@/services/leaderboardService.production'
 
 export default function SimpleLeaderboard() {
   const [season, setSeason] = useState(2024)
@@ -29,7 +30,16 @@ export default function SimpleLeaderboard() {
         setTimeout(() => reject(new Error('Overall timeout after 10 seconds')), 10000)
       })
       
-      const dataPromise = EmergencyLeaderboardService.getSeasonLeaderboard(season)
+      // Try production-optimized service first (direct REST API)
+      console.log('🚀 [SIMPLE] Trying production-optimized service first')
+      let dataPromise
+      
+      try {
+        dataPromise = ProductionLeaderboardService.getSeasonLeaderboard(season)
+      } catch (error) {
+        console.log('⚠️ [SIMPLE] Production service failed, falling back to emergency service')
+        dataPromise = EmergencyLeaderboardService.getSeasonLeaderboard(season)
+      }
       
       const entries = await Promise.race([dataPromise, timeoutPromise])
       
