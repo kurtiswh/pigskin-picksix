@@ -21,6 +21,8 @@ export async function matchOrCreateUserForLeagueSafeFallback(
   
   console.log(`🎯 [FALLBACK] Matching/creating user: ${email} (${leaguesafeName})`)
   
+  // EMERGENCY BYPASS: If we're still getting 42P17 errors, skip user matching
+  // and create a payment record without linking to a user
   try {
     // Try to find existing user by primary email or leaguesafe_email
     const { data: existingUser, error: fetchError } = await supabase
@@ -54,7 +56,33 @@ export async function matchOrCreateUserForLeagueSafeFallback(
 
     // Check if the error was because no user was found (expected) vs other errors
     if (fetchError && fetchError.code !== 'PGRST116') {
-      console.error(`❌ [FALLBACK] Error searching for user:`, fetchError)
+      console.error(`❌ [FALLBACK] Error searching for user:`, {
+        error: fetchError,
+        code: fetchError.code,
+        message: fetchError.message,
+        details: fetchError.details,
+        hint: fetchError.hint,
+        email
+      })
+      
+      // EMERGENCY BYPASS: If it's an RLS policy error, return null user for unlinked payment
+      if (fetchError.code === '42P17') {
+        console.log(`🚨 [EMERGENCY] RLS policy recursion detected - creating payment without user link`)
+        console.log(`⚠️ [EMERGENCY] Payment will be created with null user_id for: ${email}`)
+        
+        return {
+          user: null,
+          isNewUser: false,
+          matchedEmails: [email]
+        }
+      }
+      
+      // If it's permission denied, throw with helpful message
+      if (fetchError.code === '42501') {
+        throw new Error(`Permission denied accessing user data. Please contact admin. Email: ${email}`)
+      }
+      
+      // For other errors, return null user but don't throw
       return {
         user: null,
         isNewUser: false,
@@ -125,8 +153,21 @@ export async function matchOrCreateUserForLeagueSafeFallback(
       isNewUser: true,
       matchedEmails: [email]
     }
-  } catch (error) {
-    console.error(`💥 [FALLBACK] Exception:`, error)
+  } catch (error: any) {
+    console.error(`💥 [FALLBACK] Exception:`, {
+      error,
+      message: error?.message,
+      email,
+      leaguesafeName
+    })
+    
+    // Re-throw known errors that we want to surface to the user
+    if (error?.message?.includes('Database policy error') || 
+        error?.message?.includes('Permission denied')) {
+      throw error
+    }
+    
+    // For unknown exceptions, return null user
     return {
       user: null,
       isNewUser: false,

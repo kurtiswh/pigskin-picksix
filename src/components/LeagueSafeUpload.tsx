@@ -11,14 +11,18 @@ interface UploadResult {
   newUsers: number
   matchedPayments: number
   unmatchedPayments: number
+  updatedPayments: number
+  skippedDuplicates: number
   errors: string[]
+  warnings: string[]
   matched: Array<{
     email: string
     name: string
     status: string
-    action: 'matched' | 'unmatched' | 'user_created'
+    action: 'matched' | 'unmatched' | 'user_created' | 'updated' | 'skipped'
   }>
   season: number
+  existingPayments: number
 }
 
 interface LeagueSafeUploadProps {
@@ -28,9 +32,10 @@ interface LeagueSafeUploadProps {
 export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadProps) {
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState({ current: 0, total: 0, status: '' })
   const [result, setResult] = useState<UploadResult | null>(null)
   const [error, setError] = useState('')
-  const [season, setSeason] = useState(2024) // Default to 2024 since we're uploading 2024 data
+  const [season, setSeason] = useState(2025) // Default to 2025 for new uploads
 
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,26 +56,37 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
     try {
       setLoading(true)
       setError('')
+      setProgress({ current: 0, total: 0, status: 'Reading CSV file...' })
       
       const csvText = await file.text()
       const entries = parseLeagueSafeCSV(csvText)
+      
+      setProgress({ current: 0, total: entries.length, status: 'Processing entries...' })
       
       if (entries.length === 0) {
         throw new Error('No valid entries found in CSV file')
       }
 
-      // First, clear existing payments for this season to start fresh
-      console.log(`🧹 Clearing existing LeagueSafe payments for season ${season}`)
-      const { error: deleteError } = await supabase
+      // Check existing payments for this season instead of clearing
+      console.log(`🔍 Checking existing LeagueSafe payments for season ${season}`)
+      const { data: existingPayments, error: fetchError } = await supabase
         .from('leaguesafe_payments')
-        .delete()
+        .select('leaguesafe_email, user_id, status, leaguesafe_owner_name')
         .eq('season', season)
 
-      if (deleteError) {
-        console.warn('Failed to clear existing payments:', deleteError)
-        // Don't stop the process - continue anyway
-      } else {
-        console.log(`✅ Cleared existing payments for season ${season}`)
+      if (fetchError) {
+        console.warn('Failed to fetch existing payments:', fetchError)
+        // Continue anyway with empty set
+      }
+
+      const existingByEmail = new Map<string, any>()
+      if (existingPayments) {
+        existingPayments.forEach(payment => {
+          if (payment.leaguesafe_email) {
+            existingByEmail.set(payment.leaguesafe_email.toLowerCase(), payment)
+          }
+        })
+        console.log(`📊 Found ${existingPayments.length} existing payments for season ${season}`)
       }
 
       const result: UploadResult = {
@@ -78,13 +94,24 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
         newUsers: 0,
         matchedPayments: 0,
         unmatchedPayments: 0,
+        updatedPayments: 0,
+        skippedDuplicates: 0,
         errors: [],
+        warnings: [],
         matched: [],
-        season
+        season,
+        existingPayments: existingPayments?.length || 0
       }
 
       // Process each entry
-      for (const entry of entries) {
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i]
+        setProgress({ 
+          current: i + 1, 
+          total: entries.length, 
+          status: `Processing ${entry.OwnerEmail}...` 
+        })
+        
         try {
           // Validate entry
           const validationErrors = validateLeagueSafeEntry(entry)
@@ -105,22 +132,17 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
           // Use the fallback user matching system (works with existing schema)
           const matchResult = await matchOrCreateUserForLeagueSafeFallback(email, name, isCommish)
           
-          if (!matchResult.user) {
-            result.errors.push(`Failed to match or create user for ${email}`)
-            continue
-          }
-
-          const userId = matchResult.user.id
-          let action: 'matched' | 'unmatched' | 'user_created' = matchResult.isNewUser ? 'user_created' : 'matched'
+          const userId = matchResult.user?.id || null
+          let action: 'matched' | 'unmatched' | 'user_created' | 'updated' | 'skipped' = matchResult.user ? (matchResult.isNewUser ? 'user_created' : 'matched') : 'unmatched'
           
-          if (matchResult.isNewUser) {
+          if (matchResult.isNewUser && matchResult.user) {
             result.newUsers++
           }
 
-          // Create payment record
-          console.log(`💰 Creating payment record for ${email} (${name}) - User ID: ${userId}`)
+          // Check if payment already exists for this email/season
+          const existingPayment = existingByEmail.get(email)
           const paymentData = {
-            user_id: userId,
+            user_id: userId || null, // Allow null user_id if user matching failed
             season,
             leaguesafe_owner_name: name,
             leaguesafe_email: email,
@@ -132,24 +154,59 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
             status,
             is_matched: !!userId
           }
-          
-          const { error: paymentError } = await supabase
-            .from('leaguesafe_payments')
-            .insert(paymentData)
 
-          if (paymentError) {
-            console.error(`❌ Failed to create payment record for ${email}:`, {
-              email,
-              error: paymentError,
-              code: paymentError.code,
-              message: paymentError.message,
-              paymentData
-            })
-            result.errors.push(`Failed to create payment record for ${email}: ${paymentError.message}`)
-            continue
+          if (existingPayment) {
+            // Check if data has changed
+            const hasChanges = (
+              existingPayment.status !== status ||
+              existingPayment.leaguesafe_owner_name !== name ||
+              existingPayment.user_id !== userId
+            )
+
+            if (!hasChanges) {
+              console.log(`⏭️ Skipping duplicate for ${email} (${name}) - no changes`)
+              result.skippedDuplicates++
+              action = 'skipped'
+            } else {
+              // Update existing payment
+              console.log(`🔄 Updating existing payment for ${email} (${name})`)
+              const { error: updateError } = await supabase
+                .from('leaguesafe_payments')
+                .update(paymentData)
+                .eq('season', season)
+                .eq('leaguesafe_email', email)
+
+              if (updateError) {
+                console.error(`❌ Failed to update payment record for ${email}:`, updateError)
+                result.errors.push(`Failed to update payment record for ${email}: ${updateError.message}`)
+                continue
+              }
+
+              console.log(`✅ Updated payment record for ${email}`)
+              result.updatedPayments++
+              action = 'updated'
+            }
+          } else {
+            // Create new payment record
+            console.log(`💰 Creating new payment record for ${email} (${name}) - User ID: ${userId}`)
+            const { error: paymentError } = await supabase
+              .from('leaguesafe_payments')
+              .insert(paymentData)
+
+            if (paymentError) {
+              console.error(`❌ Failed to create payment record for ${email}:`, {
+                email,
+                error: paymentError,
+                code: paymentError.code,
+                message: paymentError.message,
+                paymentData
+              })
+              result.errors.push(`Failed to create payment record for ${email}: ${paymentError.message}`)
+              continue
+            }
+            
+            console.log(`✅ Created payment record for ${email}`)
           }
-          
-          console.log(`✅ Created payment record for ${email}`)
 
           if (userId) {
             result.matchedPayments++
@@ -245,6 +302,22 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
               </div>
             )}
 
+            {loading && progress.total > 0 && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium text-blue-800">Upload Progress</span>
+                  <span className="text-sm text-blue-600">{progress.current} / {progress.total}</span>
+                </div>
+                <div className="w-full bg-blue-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-200"
+                    style={{ width: `${(progress.current / progress.total) * 100}%` }}
+                  ></div>
+                </div>
+                <div className="text-sm text-blue-600 mt-2">{progress.status}</div>
+              </div>
+            )}
+
             <div className="flex space-x-3">
               <Button
                 onClick={processUpload}
@@ -261,7 +334,7 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
                 )}
               </Button>
               {file && (
-                <Button onClick={resetUpload} variant="outline">
+                <Button onClick={resetUpload} variant="outline" disabled={loading}>
                   Clear
                 </Button>
               )}
@@ -276,24 +349,43 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
               </div>
             </div>
             
-            <div className="grid md:grid-cols-4 gap-4">
+            <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="text-center p-4 border border-green-200 bg-green-50 rounded-lg">
                 <div className="text-2xl font-bold text-green-600">{result.totalEntries}</div>
                 <div className="text-sm text-green-700">Total Entries</div>
               </div>
               <div className="text-center p-4 border border-blue-200 bg-blue-50 rounded-lg">
                 <div className="text-2xl font-bold text-blue-600">{result.matchedPayments}</div>
-                <div className="text-sm text-blue-700">Matched Payments</div>
+                <div className="text-sm text-blue-700">New Payments</div>
               </div>
-              <div className="text-center p-4 border border-orange-200 bg-orange-50 rounded-lg">
-                <div className="text-2xl font-bold text-orange-600">{result.unmatchedPayments}</div>
-                <div className="text-sm text-orange-700">Unmatched Payments</div>
+              <div className="text-center p-4 border border-yellow-200 bg-yellow-50 rounded-lg">
+                <div className="text-2xl font-bold text-yellow-600">{result.updatedPayments}</div>
+                <div className="text-sm text-yellow-700">Updated</div>
+              </div>
+              <div className="text-center p-4 border border-gray-200 bg-gray-50 rounded-lg">
+                <div className="text-2xl font-bold text-gray-600">{result.skippedDuplicates}</div>
+                <div className="text-sm text-gray-700">Skipped</div>
               </div>
               <div className="text-center p-4 border border-purple-200 bg-purple-50 rounded-lg">
                 <div className="text-2xl font-bold text-purple-600">{result.newUsers}</div>
-                <div className="text-sm text-purple-700">New Users Created</div>
+                <div className="text-sm text-purple-700">New Users</div>
+              </div>
+              <div className="text-center p-4 border border-red-200 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">{result.errors.length}</div>
+                <div className="text-sm text-red-700">Errors</div>
               </div>
             </div>
+
+            {result.existingPayments > 0 && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="font-medium text-blue-800">
+                  Found {result.existingPayments} existing payments for season {result.season}
+                </div>
+                <div className="text-sm text-blue-600">
+                  Payments were updated or skipped as appropriate to avoid duplicates.
+                </div>
+              </div>
+            )}
 
             {/* Errors */}
             {result.errors.length > 0 && (
@@ -337,10 +429,16 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
                             ? 'bg-purple-100 text-purple-700' 
                             : match.action === 'matched'
                             ? 'bg-blue-100 text-blue-700'
+                            : match.action === 'updated'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : match.action === 'skipped'
+                            ? 'bg-gray-100 text-gray-700'
                             : 'bg-orange-100 text-orange-700'
                         }`}>
                           {match.action === 'user_created' ? 'New User' : 
-                           match.action === 'matched' ? 'Matched' : 'Unmatched'}
+                           match.action === 'matched' ? 'New Payment' :
+                           match.action === 'updated' ? 'Updated' :
+                           match.action === 'skipped' ? 'Skipped' : 'Unmatched'}
                         </span>
                       </div>
                     </div>
