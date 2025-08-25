@@ -9,6 +9,8 @@ import GameCard from '@/components/GameCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { NotificationScheduler } from '@/services/notificationScheduler'
+import { EmailService } from '@/services/emailService'
 
 interface AnonymousPick {
   gameId: string
@@ -241,6 +243,35 @@ export default function AnonymousPicksPage() {
       }
 
       console.log('✅ Anonymous picks submitted successfully via direct API')
+      
+      // Send pick confirmation email for anonymous picks
+      try {
+        // Format picks for email
+        const formattedPicks = picks.map(pick => {
+          const game = games.find(g => g.id === pick.gameId)
+          return {
+            game: `${game?.away_team} @ ${game?.home_team}`,
+            pick: pick.selectedTeam,
+            isLock: pick.isLock,
+            lockTime: game?.kickoff_time || ''
+          }
+        })
+
+        await EmailService.sendPickConfirmation(
+          'anonymous', // Placeholder for anonymous picks
+          email.trim(),
+          name.trim(),
+          currentWeek,
+          currentSeason,
+          formattedPicks,
+          new Date()
+        )
+        console.log('📧 Anonymous pick confirmation email scheduled')
+      } catch (emailError) {
+        console.error('❌ Error sending anonymous pick confirmation:', emailError)
+        // Don't fail the entire submission for email errors
+      }
+      
       setSubmitted(true)
       
     } catch (err: any) {
@@ -285,6 +316,14 @@ export default function AnonymousPicksPage() {
                   <span className="text-green-600 font-semibold">✅ Validated</span> : 
                   <span className="text-orange-600 font-semibold">⏳ Pending Manual Review</span>
                 }</p>
+              </div>
+              
+              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                <p className="font-semibold text-blue-800 mb-2">📧 Confirmation Email</p>
+                <p className="text-blue-700">
+                  A confirmation email with your submitted picks has been sent to <strong>{email}</strong>. 
+                  If you don't receive it within a few minutes, please check your spam folder.
+                </p>
               </div>
               
               {!isValidated && (

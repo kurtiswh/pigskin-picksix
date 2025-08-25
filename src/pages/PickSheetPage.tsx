@@ -11,6 +11,7 @@ import PickSummary from '@/components/PickSummary'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Layout from '@/components/Layout'
+import { NotificationScheduler } from '@/services/notificationScheduler'
 
 export default function PickSheetPage() {
   const { user, signOut } = useAuth()
@@ -588,10 +589,37 @@ export default function PickSheetPage() {
       
       console.log('✅ Picks submitted successfully via direct API')
       
+      // Send pick confirmation email
+      try {
+        // Format picks for email
+        const formattedPicks = picks.map(pick => {
+          const game = games.find(g => g.id === pick.game_id)
+          return {
+            game: `${game?.away_team} @ ${game?.home_team}`,
+            pick: pick.selected_team,
+            isLock: pick.is_lock,
+            lockTime: pick.lock_time || game?.kickoff_time || ''
+          }
+        })
+
+        await NotificationScheduler.onPicksSubmitted(
+          user.id,
+          user.email || '',
+          user.display_name || 'Player',
+          currentWeek,
+          currentSeason,
+          formattedPicks
+        )
+        console.log('📧 Pick confirmation email scheduled')
+      } catch (emailError) {
+        console.error('❌ Error sending pick confirmation:', emailError)
+        // Don't fail the entire submission for email errors
+      }
+      
       // Refresh picks to show submitted status
       await fetchPickSheetData()
       
-      alert('Picks submitted successfully! Good luck! 🏈')
+      alert('Picks submitted successfully! A confirmation email has been sent. Good luck! 🏈')
       
     } catch (err: any) {
       console.error('❌ Error submitting picks:', err)

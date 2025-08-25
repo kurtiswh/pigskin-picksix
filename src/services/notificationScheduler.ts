@@ -5,6 +5,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { EmailService } from './emailService'
+import { AdminEmailSettingsService } from './adminEmailSettings'
 
 export interface NotificationEvent {
   type: 'week_opened' | 'picks_submitted' | 'week_completed' | 'deadline_approaching'
@@ -26,14 +27,30 @@ export class NotificationScheduler {
     try {
       console.log(`📅 Scheduling notifications for Week ${week}, ${season}`)
       
-      // First, send immediate "week opened" announcement to all active users
-      try {
-        await EmailService.sendWeekOpenedAnnouncement(week, season, deadline, totalGames)
-      } catch (error) {
-        console.error('Error sending week opened announcement:', error)
-        // Don't fail the whole process if this fails
+      // Check if open picks notifications are enabled
+      const openPicksEnabled = await AdminEmailSettingsService.isOpenPicksNotificationEnabled(season)
+      
+      if (openPicksEnabled) {
+        // Send immediate "week opened" announcement to all active users
+        try {
+          await EmailService.sendWeekOpenedAnnouncement(week, season, deadline, totalGames)
+          console.log('📧 Week opened announcement sent')
+        } catch (error) {
+          console.error('Error sending week opened announcement:', error)
+          // Don't fail the whole process if this fails
+        }
+      } else {
+        console.log('📧 Week opened notifications disabled by admin')
       }
       
+      // Get admin-configured reminder times
+      const reminderTimes = await AdminEmailSettingsService.getEnabledReminderTimes(season)
+      
+      if (reminderTimes.length === 0) {
+        console.log('📧 All reminders disabled by admin')
+        return
+      }
+
       // Get all users with notification preferences enabled for ongoing reminders
       const users = await EmailService.getUsersForNotification('pick_reminders', season, week)
       
@@ -42,40 +59,30 @@ export class NotificationScheduler {
         return
       }
 
-      let remindersScheduled = 0
-      let alertsScheduled = 0
+      let totalRemindersScheduled = 0
 
       for (const user of users) {
         try {
-          // Schedule pick reminder (48 hours before deadline or when week opens, whichever is later)
           if (user.preferences.pick_reminders) {
-            const reminderTime = this.calculateReminderTime(deadline)
-            
-            if (reminderTime > new Date()) {
-              await EmailService.schedulePickReminder(
-                user.id,
-                user.email,
-                user.display_name,
-                week,
-                season,
-                deadline,
-                reminderTime
-              )
-              remindersScheduled++
+            // Schedule reminders based on admin configuration
+            for (const hoursBeforeDeadline of reminderTimes) {
+              const reminderTime = new Date(deadline.getTime() - (hoursBeforeDeadline * 60 * 60 * 1000))
+              
+              // Only schedule if reminder time is in the future
+              if (reminderTime > new Date()) {
+                await EmailService.schedulePickReminder(
+                  user.id,
+                  user.email,
+                  user.display_name,
+                  week,
+                  season,
+                  deadline,
+                  reminderTime
+                )
+                totalRemindersScheduled++
+                console.log(`📧 Scheduled ${hoursBeforeDeadline}h reminder for ${user.display_name} at ${reminderTime.toLocaleString()}`)
+              }
             }
-          }
-
-          // Schedule deadline alerts
-          if (user.preferences.deadline_alerts) {
-            const alertIds = await EmailService.scheduleDeadlineAlerts(
-              user.id,
-              user.email,
-              user.display_name,
-              week,
-              season,
-              deadline
-            )
-            alertsScheduled += alertIds.length
           }
 
         } catch (error) {
@@ -83,7 +90,7 @@ export class NotificationScheduler {
         }
       }
 
-      console.log(`📧 Scheduled notifications: ${remindersScheduled} reminders, ${alertsScheduled} alerts for ${users.length} users`)
+      console.log(`📧 Scheduled ${totalRemindersScheduled} total reminders for ${users.length} users using admin settings`)
 
     } catch (error) {
       console.error('Error scheduling week notifications:', error)
@@ -130,6 +137,16 @@ export class NotificationScheduler {
           new Date()
         )
         console.log(`📧 Queued pick confirmation email for user ${userId}`)
+        
+        // Immediately process the email queue to send confirmation
+        try {
+          console.log(`📤 Auto-processing pick confirmation email for user ${userId}`)
+          await EmailService.processPendingEmails()
+          console.log(`✅ Pick confirmation email sent immediately for user ${userId}`)
+        } catch (processError) {
+          console.warn(`⚠️ Could not auto-process pick confirmation for user ${userId}:`, processError)
+          console.log(`💡 Email queued - can be sent via manual queue processing`)
+        }
       } catch (error) {
         console.error(`Error sending pick confirmation for user ${userId}:`, error)
         // Don't fail the submission for email errors
@@ -145,7 +162,17 @@ export class NotificationScheduler {
    */
   static async onWeekCompleted(week: number, season: number): Promise<void> {
     try {
-      console.log(`📊 Sending weekly results for Week ${week}, ${season}`)
+      console.log(`📊 Processing weekly results for Week ${week}, ${season}`)
+      
+      // Check if weekly results feature is enabled (for manual sending)
+      const resultsEnabled = await AdminEmailSettingsService.isWeeklyResultsEnabled(season)
+      
+      if (!resultsEnabled) {
+        console.log('📊 Weekly results feature disabled by admin')
+        return
+      }
+      
+      console.log('📧 Sending weekly results manually (no auto-send with new manual-only approach)')
       
       // Get all users with weekly results notifications enabled
       const users = await EmailService.getUsersForNotification('weekly_results', season, week)
@@ -188,11 +215,12 @@ export class NotificationScheduler {
   }
 
   /**
-   * Calculate optimal reminder time (48 hours before deadline, but not earlier than now)
+   * Calculate reminder time based on admin settings
+   * @deprecated - Now uses admin-configurable schedules in onWeekOpened
    */
   private static calculateReminderTime(deadline: Date): Date {
     const now = new Date()
-    const reminderTime = new Date(deadline.getTime() - (48 * 60 * 60 * 1000)) // 48 hours before
+    const reminderTime = new Date(deadline.getTime() - (2 * 60 * 60 * 1000)) // 2 hours before (default)
     
     // If reminder time is in the past, schedule for 1 hour from now
     if (reminderTime <= now) {

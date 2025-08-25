@@ -13,6 +13,8 @@ import ApiStatusWidget from '@/components/ApiStatusWidget'
 import ScoreManager from '@/components/ScoreManager'
 import AdminNotifications from '@/components/AdminNotifications'
 import AnonymousPicksAdmin from '@/components/AnonymousPicksAdmin'
+import '@/utils/emailTesting' // Load email testing utilities for console access
+import { testPickConfirmationEmail, processTestEmailQueue, testNotificationScheduling } from '@/utils/emailTesting'
 import Layout from '@/components/Layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,6 +33,33 @@ export default function AdminDashboard() {
   const currentSeason = new Date().getFullYear()
   const [currentWeek, setCurrentWeek] = useState(getCurrentWeek(currentSeason))
   const maxGames = 15
+
+  // Register email testing functions globally for console access
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Wrap functions to add debugging
+      (window as any).testPickConfirmationEmail = async (email: string, name: string) => {
+        console.log('🔍 CALLED: testPickConfirmationEmail')
+        return await testPickConfirmationEmail(email, name)
+      }
+      
+      (window as any).processTestEmailQueue = async () => {
+        console.log('🔍 CALLED: processTestEmailQueue')
+        return await processTestEmailQueue()
+      }
+      
+      (window as any).testNotificationScheduling = async (userId?: string) => {
+        console.log('🔍 CALLED: testNotificationScheduling')
+        return await testNotificationScheduling(userId)
+      }
+      
+      console.log('🧪 Email testing utilities registered with debugging!')
+      console.log('📋 Available functions:')
+      console.log('  - testPickConfirmationEmail("your.email@example.com", "Your Name")')
+      console.log('  - processTestEmailQueue()')
+      console.log('  - testNotificationScheduling()')
+    }
+  }, [])
 
   useEffect(() => {
     if (user?.is_admin) {

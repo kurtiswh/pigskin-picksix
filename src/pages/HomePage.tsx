@@ -373,7 +373,7 @@ export default function HomePage() {
               </div>
               <h4 className="font-semibold mb-2">Lock One Pick</h4>
               <p className="text-charcoal-600 text-sm">
-                Lock your most confident pick for double points
+                Lock your most confident pick for double bonus points
               </p>
             </div>
             <div className="text-center">
