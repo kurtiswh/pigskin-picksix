@@ -6,6 +6,41 @@
 import { supabase } from '@/lib/supabase'
 import { UserPreferences } from '@/types'
 import { Resend } from 'resend'
+import { 
+  getPickReminderSubject, 
+  getPickReminderHtml, 
+  getPickReminderText 
+} from '@/templates/pickReminder'
+import { 
+  getDeadlineAlertSubject, 
+  getDeadlineAlertHtml, 
+  getDeadlineAlertText 
+} from '@/templates/deadlineAlert'
+import { 
+  getWeeklyResultsSubject, 
+  getWeeklyResultsHtml, 
+  getWeeklyResultsText 
+} from '@/templates/weeklyResults'
+import { 
+  getPicksSubmittedSubject, 
+  getPicksSubmittedHtml, 
+  getPicksSubmittedText 
+} from '@/templates/picksSubmitted'
+import { 
+  getWeekOpenedSubject, 
+  getWeekOpenedHtml, 
+  getWeekOpenedText 
+} from '@/templates/weekOpened'
+import { 
+  getMagicLinkSubject, 
+  getMagicLinkHtml, 
+  getMagicLinkText 
+} from '@/templates/magicLink'
+import { 
+  getPasswordResetSubject, 
+  getPasswordResetHtml, 
+  getPasswordResetText 
+} from '@/templates/passwordReset'
 
 export interface EmailTemplate {
   subject: string
@@ -44,76 +79,21 @@ export class EmailTemplates {
       timeZoneName: 'short'
     })
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
-        <div style="background-color: #8B4513; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h1 style="margin: 0; font-size: 24px;">🏈 Pigskin Pick Six</h1>
-          <p style="margin: 10px 0 0 0; font-size: 16px;">Pick Reminder</p>
-        </div>
-        
-        <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h2 style="color: #1f2937; margin-top: 0;">Hi ${userDisplayName}!</h2>
-          
-          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">
-            Don't forget to submit your picks for <strong>Week ${week}</strong> of the ${season} season!
-          </p>
-          
-          <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h3 style="color: #92400e; margin-top: 0; font-size: 18px;">⏰ Deadline Approaching</h3>
-            <p style="color: #92400e; margin: 0; font-size: 16px;">
-              <strong>Picks must be submitted by:</strong><br>
-              ${deadlineStr}
-            </p>
-          </div>
-          
-          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">
-            Remember to:
-          </p>
-          <ul style="color: #4b5563; font-size: 16px; line-height: 1.5;">
-            <li>Select exactly 6 games</li>
-            <li>Choose 1 game as your Lock (doubles margin bonus)</li>
-            <li>Submit your picks before the deadline</li>
-          </ul>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/picks" 
-               style="background-color: #8B4513; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-              Make Your Picks Now
-            </a>
-          </div>
-          
-          <p style="color: #6b7280; font-size: 14px; text-align: center; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-            Good luck! 🍀<br>
-            <em>The Pigskin Pick Six Team</em>
-          </p>
-        </div>
-      </div>
-    `
-
-    const text = `
-🏈 Pigskin Pick Six - Pick Reminder
-
-Hi ${userDisplayName}!
-
-Don't forget to submit your picks for Week ${week} of the ${season} season!
-
-⏰ DEADLINE: ${deadlineStr}
-
-Remember to:
-• Select exactly 6 games
-• Choose 1 game as your Lock (doubles margin bonus)  
-• Submit your picks before the deadline
-
-Make your picks now: ${window.location.origin}/picks
-
-Good luck! 🍀
-The Pigskin Pick Six Team
-    `.trim()
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'
+    
+    const templateData = {
+      userDisplayName,
+      week,
+      season,
+      deadline,
+      deadlineStr,
+      baseUrl
+    }
 
     return {
-      subject: `🏈 Week ${week} Pick Reminder - Deadline ${deadline.toLocaleDateString()}`,
-      html,
-      text
+      subject: getPickReminderSubject(templateData),
+      html: getPickReminderHtml(templateData),
+      text: getPickReminderText(templateData)
     }
   }
 
@@ -128,73 +108,22 @@ The Pigskin Pick Six Team
       timeZoneName: 'short'
     })
 
-    const urgencyColor = hoursLeft <= 2 ? '#dc2626' : '#f59e0b'
-    const urgencyText = hoursLeft <= 2 ? 'URGENT' : 'REMINDER'
-
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
-        <div style="background-color: ${urgencyColor}; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h1 style="margin: 0; font-size: 24px;">🚨 ${urgencyText}: Deadline Alert</h1>
-          <p style="margin: 10px 0 0 0; font-size: 16px;">Pigskin Pick Six</p>
-        </div>
-        
-        <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h2 style="color: #1f2937; margin-top: 0;">Hi ${userDisplayName}!</h2>
-          
-          <div style="background-color: #fee2e2; border: 2px solid ${urgencyColor}; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
-            <h3 style="color: ${urgencyColor}; margin-top: 0; font-size: 20px;">
-              ⏰ Only ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''} left!
-            </h3>
-            <p style="color: #1f2937; margin: 10px 0; font-size: 18px;">
-              <strong>Week ${week} picks due:</strong><br>
-              ${deadlineStr}
-            </p>
-          </div>
-          
-          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">
-            ${hoursLeft <= 2 
-              ? 'This is your final reminder! Don\'t miss out on Week ' + week + '.' 
-              : 'Time is running out to submit your picks for Week ' + week + '.'}
-          </p>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/picks" 
-               style="background-color: ${urgencyColor}; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 18px;">
-              Submit Picks Now!
-            </a>
-          </div>
-          
-          <p style="color: #6b7280; font-size: 14px; text-align: center; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-            Don't let the clock run out! ⏰<br>
-            <em>The Pigskin Pick Six Team</em>
-          </p>
-        </div>
-      </div>
-    `
-
-    const text = `
-🚨 ${urgencyText}: DEADLINE ALERT
-
-Hi ${userDisplayName}!
-
-⏰ Only ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''} left to submit Week ${week} picks!
-
-DEADLINE: ${deadlineStr}
-
-${hoursLeft <= 2 
-  ? 'This is your final reminder! Don\'t miss out on Week ' + week + '.' 
-  : 'Time is running out to submit your picks for Week ' + week + '.'}
-
-Submit picks now: ${window.location.origin}/picks
-
-Don't let the clock run out! ⏰
-The Pigskin Pick Six Team
-    `.trim()
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'
+    
+    const templateData = {
+      userDisplayName,
+      week,
+      season,
+      deadline,
+      deadlineStr,
+      hoursLeft,
+      baseUrl
+    }
 
     return {
-      subject: `🚨 ${urgencyText}: Week ${week} Picks Due in ${hoursLeft}h!`,
-      html,
-      text
+      subject: getDeadlineAlertSubject(templateData),
+      html: getDeadlineAlertHtml(templateData),
+      text: getDeadlineAlertText(templateData)
     }
   }
 
@@ -216,111 +145,27 @@ The Pigskin Pick Six Team
       }>
     }
   ): EmailTemplate {
-    const { points, record, rank, totalPlayers, picks } = userStats
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'
     
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
-        <div style="background-color: #8B4513; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h1 style="margin: 0; font-size: 24px;">🏈 Week ${week} Results</h1>
-          <p style="margin: 10px 0 0 0; font-size: 16px;">Pigskin Pick Six</p>
-        </div>
-        
-        <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h2 style="color: #1f2937; margin-top: 0;">Hi ${userDisplayName}!</h2>
-          
-          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">
-            Here are your results for Week ${week} of the ${season} season:
-          </p>
-          
-          <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: center;">
-              <div>
-                <h3 style="color: #1f2937; margin: 0 0 10px 0; font-size: 18px;">Points Earned</h3>
-                <p style="color: #059669; margin: 0; font-size: 24px; font-weight: bold;">${points}</p>
-              </div>
-              <div>
-                <h3 style="color: #1f2937; margin: 0 0 10px 0; font-size: 18px;">Weekly Rank</h3>
-                <p style="color: #1f2937; margin: 0; font-size: 24px; font-weight: bold;">#${rank} of ${totalPlayers}</p>
-              </div>
-            </div>
-            <div style="text-align: center; margin-top: 15px;">
-              <p style="color: #4b5563; margin: 0; font-size: 16px;">Record: ${record}</p>
-            </div>
-          </div>
-          
-          <h3 style="color: #1f2937; margin: 20px 0 15px 0;">Your Picks Breakdown:</h3>
-          
-          <div style="space-y: 10px;">
-            ${picks.map(pick => `
-              <div style="border: 1px solid #d1d5db; border-radius: 6px; padding: 15px; margin: 10px 0; 
-                          background-color: ${pick.result === 'win' ? '#f0f9f4' : pick.result === 'loss' ? '#fef2f2' : '#fffbeb'};">
-                <div style="display: flex; justify-content: between; align-items: center;">
-                  <div style="flex: 1;">
-                    <strong style="color: #1f2937;">${pick.game}</strong>
-                    <br>
-                    <span style="color: #6b7280; font-size: 14px;">Pick: ${pick.pick}</span>
-                    ${pick.isLock ? '<span style="color: #f59e0b; font-size: 12px; margin-left: 8px;">🔒 LOCK</span>' : ''}
-                  </div>
-                  <div style="text-align: right;">
-                    <span style="color: ${pick.result === 'win' ? '#059669' : pick.result === 'loss' ? '#dc2626' : '#f59e0b'}; 
-                                 font-weight: bold; font-size: 16px;">
-                      ${pick.result === 'win' ? '✓' : pick.result === 'loss' ? '✗' : '≈'} ${pick.points} pts
-                    </span>
-                  </div>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/leaderboard" 
-               style="background-color: #8B4513; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; margin-right: 10px;">
-              View Full Leaderboard
-            </a>
-            <a href="${window.location.origin}/picks" 
-               style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-              Next Week's Picks
-            </a>
-          </div>
-          
-          <p style="color: #6b7280; font-size: 14px; text-align: center; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-            Great job this week! 🎉<br>
-            <em>The Pigskin Pick Six Team</em>
-          </p>
-        </div>
-      </div>
-    `
-
-    const text = `
-🏈 Week ${week} Results - Pigskin Pick Six
-
-Hi ${userDisplayName}!
-
-Here are your results for Week ${week} of the ${season} season:
-
-📊 WEEK ${week} SUMMARY
-Points Earned: ${points}
-Weekly Rank: #${rank} of ${totalPlayers}
-Record: ${record}
-
-🏈 YOUR PICKS:
-${picks.map(pick => 
-  `${pick.game}
-   Pick: ${pick.pick}${pick.isLock ? ' 🔒 LOCK' : ''}
-   Result: ${pick.result === 'win' ? '✓ WIN' : pick.result === 'loss' ? '✗ LOSS' : '≈ PUSH'} - ${pick.points} pts`
-).join('\n\n')}
-
-View full leaderboard: ${window.location.origin}/leaderboard
-Make next week's picks: ${window.location.origin}/picks
-
-Great job this week! 🎉
-The Pigskin Pick Six Team
-    `.trim()
+    const templateData = {
+      userDisplayName,
+      week,
+      season,
+      baseUrl,
+      userStats: {
+        weeklyPoints: userStats.points,
+        weeklyRank: userStats.rank,
+        totalPlayers: userStats.totalPlayers,
+        seasonPoints: userStats.points, // This would come from a different source in real usage
+        seasonRank: userStats.rank, // This would come from a different source in real usage
+        picks: userStats.picks
+      }
+    }
 
     return {
-      subject: `🏈 Week ${week} Results: ${points} Points (#${rank} of ${totalPlayers})`,
-      html,
-      text
+      subject: getWeeklyResultsSubject(templateData),
+      html: getWeeklyResultsHtml(templateData),
+      text: getWeeklyResultsText(templateData)
     }
   }
 
@@ -346,121 +191,29 @@ The Pigskin Pick Six Team
       timeZoneName: 'short'
     })
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
-        <div style="background-color: #059669; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h1 style="margin: 0; font-size: 24px;">✅ Picks Confirmed!</h1>
-          <p style="margin: 10px 0 0 0; font-size: 16px;">Pigskin Pick Six</p>
-        </div>
-        
-        <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h2 style="color: #1f2937; margin-top: 0;">Hi ${userDisplayName}!</h2>
-          
-          <div style="background-color: #d1fae5; border: 1px solid #10b981; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
-            <h3 style="color: #065f46; margin-top: 0; font-size: 20px;">
-              🎉 Your Week ${week} picks are confirmed!
-            </h3>
-            <p style="color: #047857; margin: 10px 0; font-size: 16px;">
-              Submitted on ${submittedStr}
-            </p>
-          </div>
-          
-          <h3 style="color: #1f2937; margin: 20px 0 15px 0;">Your Submitted Picks:</h3>
-          
-          <div style="space-y: 10px;">
-            ${picks.map((pick, index) => `
-              <div style="border: 1px solid #d1d5db; border-radius: 6px; padding: 15px; margin: 10px 0; background-color: #f9fafb;">
-                <div style="display: flex; justify-content: between; align-items: center;">
-                  <div style="flex: 1;">
-                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                      <span style="background-color: #8B4513; color: white; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; margin-right: 10px;">
-                        ${index + 1}
-                      </span>
-                      <strong style="color: #1f2937; font-size: 16px;">${pick.game}</strong>
-                    </div>
-                    <div style="margin-left: 34px;">
-                      <div style="color: #4b5563; font-size: 14px; margin-bottom: 4px;">
-                        <strong>Your Pick:</strong> ${pick.pick}
-                        ${pick.isLock ? '<span style="color: #f59e0b; font-weight: bold; margin-left: 8px;">🔒 LOCK PICK</span>' : ''}
-                      </div>
-                      <div style="color: #6b7280; font-size: 12px;">
-                        Locks at: ${pick.lockTime}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-          
-          <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 30px 0;">
-            <h4 style="color: #92400e; margin-top: 0; font-size: 16px;">📋 Important Reminders:</h4>
-            <div style="color: #92400e; font-size: 14px; line-height: 1.5;">
-              <p>• Your picks are now locked and cannot be changed after each game's lock time</p>
-              <p>• Points: 20 base + margin bonuses (1, 3, or 5 pts for covering by 11-19.5, 20-28.5, 29+ points)</p>
-              <p>• Lock Pick: Doubles your margin bonus for that game</p>
-              <p>• You can edit picks until each game locks, but must resubmit</p>
-            </div>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${typeof window !== 'undefined' ? window.location.origin : 'https://your-app.com'}/picks" 
-               style="background-color: #8B4513; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; margin-right: 10px;">
-              View Your Picks
-            </a>
-            <a href="${typeof window !== 'undefined' ? window.location.origin : 'https://your-app.com'}/leaderboard" 
-               style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-              Check Leaderboard
-            </a>
-          </div>
-          
-          <p style="color: #6b7280; font-size: 14px; text-align: center; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-            Good luck this week! 🍀<br>
-            <em>The Pigskin Pick Six Team</em>
-          </p>
-        </div>
-      </div>
-    `
-
-    const text = `
-✅ PICKS CONFIRMED! - Pigskin Pick Six
-
-Hi ${userDisplayName}!
-
-🎉 Your Week ${week} picks are confirmed!
-Submitted on ${submittedStr}
-
-YOUR SUBMITTED PICKS:
-${picks.map((pick, index) => 
-  `${index + 1}. ${pick.game}
-     Pick: ${pick.pick}${pick.isLock ? ' 🔒 LOCK PICK' : ''}
-     Locks at: ${pick.lockTime}`
-).join('\n\n')}
-
-📋 IMPORTANT REMINDERS:
-• Your picks are now locked and cannot be changed after each game's lock time
-• Points: 20 base + margin bonuses (1, 3, or 5 pts for covering by 11-19.5, 20-28.5, 29+ points)
-• Lock Pick: Doubles your margin bonus for that game
-• You can edit picks until each game locks, but must resubmit
-
-View your picks: ${typeof window !== 'undefined' ? window.location.origin : 'https://your-app.com'}/picks
-Check leaderboard: ${typeof window !== 'undefined' ? window.location.origin : 'https://your-app.com'}/leaderboard
-
-Good luck this week! 🍀
-The Pigskin Pick Six Team
-    `.trim()
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'
+    
+    const templateData = {
+      userDisplayName,
+      week,
+      season,
+      picks,
+      submittedAt,
+      submittedStr,
+      baseUrl
+    }
 
     return {
-      subject: `✅ Week ${week} Picks Confirmed - ${picks.length} Games Selected`,
-      html,
-      text
+      subject: getPicksSubmittedSubject(templateData),
+      html: getPicksSubmittedHtml(templateData),
+      text: getPicksSubmittedText(templateData)
     }
   }
 
   static weekOpened(week: number, season: number, deadline: Date, totalGames: number): EmailTemplate {
     const deadlineStr = deadline.toLocaleDateString('en-US', {
       weekday: 'long',
-      year: 'numeric',
+      year: 'numeric', 
       month: 'long',
       day: 'numeric',
       hour: 'numeric',
@@ -468,280 +221,47 @@ The Pigskin Pick Six Team
       timeZoneName: 'short'
     })
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
-        <div style="background-color: #8B4513; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h1 style="margin: 0; font-size: 24px;">🏈 Week ${week} is Open!</h1>
-          <p style="margin: 10px 0 0 0; font-size: 16px;">Pigskin Pick Six - ${season} Season</p>
-        </div>
-        
-        <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h2 style="color: #1f2937; margin-top: 0;">Get Ready for Week ${week}!</h2>
-          
-          <div style="background-color: #dbeafe; border: 1px solid #3b82f6; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
-            <h3 style="color: #1e40af; margin-top: 0; font-size: 20px;">
-              🎯 Picks are now OPEN!
-            </h3>
-            <p style="color: #1e3a8a; margin: 10px 0; font-size: 16px;">
-              <strong>${totalGames} games available</strong> • Choose your 6 best bets
-            </p>
-            <p style="color: #1e3a8a; margin: 0; font-size: 14px;">
-              Deadline: ${deadlineStr}
-            </p>
-          </div>
-          
-          <h3 style="color: #1f2937; margin: 20px 0 15px 0;">How to Play:</h3>
-          
-          <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <div style="display: grid; gap: 15px;">
-              <div style="display: flex; align-items: flex-start;">
-                <span style="background-color: #8B4513; color: white; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; margin-right: 12px; flex-shrink: 0;">1</span>
-                <div>
-                  <div style="font-weight: bold; color: #1f2937; margin-bottom: 4px;">Select 6 Games</div>
-                  <div style="color: #4b5563; font-size: 14px;">Choose the 6 games you're most confident about from the ${totalGames} available</div>
-                </div>
-              </div>
-              
-              <div style="display: flex; align-items: flex-start;">
-                <span style="background-color: #f59e0b; color: white; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; margin-right: 12px; flex-shrink: 0;">2</span>
-                <div>
-                  <div style="font-weight: bold; color: #1f2937; margin-bottom: 4px;">Choose Your Lock 🔒</div>
-                  <div style="color: #4b5563; font-size: 14px;">Pick 1 game as your "Lock" to double the margin bonus (most confident pick)</div>
-                </div>
-              </div>
-              
-              <div style="display: flex; align-items: flex-start;">
-                <span style="background-color: #059669; color: white; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; margin-right: 12px; flex-shrink: 0;">3</span>
-                <div>
-                  <div style="font-weight: bold; color: #1f2937; margin-bottom: 4px;">Submit Before Deadline</div>
-                  <div style="color: #4b5563; font-size: 14px;">All picks must be submitted by ${deadlineStr}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div style="background-color: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h4 style="color: #065f46; margin-top: 0; font-size: 16px;">💰 Scoring System:</h4>
-            <div style="color: #047857; font-size: 14px; line-height: 1.6;">
-              <div><strong>Base Points:</strong> 20 points for each winning pick</div>
-              <div><strong>Margin Bonuses:</strong></div>
-              <div style="margin-left: 20px;">
-                • Cover by 11-19.5 points: +1 bonus point<br>
-                • Cover by 20-28.5 points: +3 bonus points<br>
-                • Cover by 29+ points: +5 bonus points
-              </div>
-              <div><strong>Lock Bonus:</strong> Doubles the margin bonus for your Lock pick</div>
-              <div><strong>Push:</strong> 10 points (tie against the spread)</div>
-            </div>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${typeof window !== 'undefined' ? window.location.origin : 'https://your-app.com'}/picks" 
-               style="background-color: #8B4513; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 18px;">
-              Make Your Picks Now!
-            </a>
-          </div>
-          
-          <p style="color: #6b7280; font-size: 14px; text-align: center; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-            Don't wait until the last minute! 🏃‍♂️<br>
-            <em>The Pigskin Pick Six Team</em>
-          </p>
-        </div>
-      </div>
-    `
-
-    const text = `
-🏈 WEEK ${week} IS OPEN! - Pigskin Pick Six
-
-Get Ready for Week ${week}!
-
-🎯 PICKS ARE NOW OPEN!
-${totalGames} games available • Choose your 6 best bets
-Deadline: ${deadlineStr}
-
-HOW TO PLAY:
-1. SELECT 6 GAMES
-   Choose the 6 games you're most confident about from the ${totalGames} available
-
-2. CHOOSE YOUR LOCK 🔒  
-   Pick 1 game as your "Lock" to double the margin bonus (most confident pick)
-
-3. SUBMIT BEFORE DEADLINE
-   All picks must be submitted by ${deadlineStr}
-
-💰 SCORING SYSTEM:
-Base Points: 20 points for each winning pick
-Margin Bonuses:
-  • Cover by 11-19.5 points: +1 bonus point
-  • Cover by 20-28.5 points: +3 bonus points  
-  • Cover by 29+ points: +5 bonus points
-Lock Bonus: Doubles the margin bonus for your Lock pick
-Push: 10 points (tie against the spread)
-
-Make your picks now: ${typeof window !== 'undefined' ? window.location.origin : 'https://your-app.com'}/picks
-
-Don't wait until the last minute! 🏃‍♂️
-The Pigskin Pick Six Team
-    `.trim()
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'
+    
+    const templateData = {
+      week,
+      season,
+      deadline,
+      deadlineStr,
+      totalGames,
+      baseUrl
+    }
 
     return {
-      subject: `🏈 Week ${week} Picks are OPEN! ${totalGames} Games Available`,
-      html,
-      text
+      subject: getWeekOpenedSubject(templateData),
+      html: getWeekOpenedHtml(templateData),
+      text: getWeekOpenedText(templateData)
     }
   }
 
   static magicLink(userDisplayName: string, magicLinkUrl: string): EmailTemplate {
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
-        <div style="background-color: #8B4513; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h1 style="margin: 0; font-size: 24px;">🔮 Magic Link Sign-In</h1>
-          <p style="margin: 10px 0 0 0; font-size: 16px;">Pigskin Pick Six</p>
-        </div>
-        
-        <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h2 style="color: #1f2937; margin-top: 0;">Hi ${userDisplayName}!</h2>
-          
-          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">
-            You requested a magic link to sign in to your Pigskin Pick Six account. Click the button below to sign in instantly - no password required!
-          </p>
-          
-          <div style="background-color: #dbeafe; border: 1px solid #3b82f6; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
-            <h3 style="color: #1e40af; margin-top: 0; font-size: 18px;">
-              ✨ One-Click Sign In
-            </h3>
-            <p style="color: #1e3a8a; margin: 10px 0; font-size: 14px;">
-              Click the button below to sign in to your account securely.
-            </p>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${magicLinkUrl}" 
-               style="background-color: #8B4513; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
-              Sign In with Magic Link
-            </a>
-          </div>
-          
-          <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h4 style="color: #92400e; margin-top: 0; font-size: 14px;">🔒 Security Notice:</h4>
-            <div style="color: #92400e; font-size: 13px; line-height: 1.5;">
-              <p style="margin: 5px 0;">• This link will expire in 15 minutes for security</p>
-              <p style="margin: 5px 0;">• Only works once - request a new link if expired</p>
-              <p style="margin: 5px 0;">• If you didn't request this, please ignore this email</p>
-            </div>
-          </div>
-          
-          <p style="color: #6b7280; font-size: 14px; text-align: center; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-            If the button doesn't work, copy and paste this link:<br>
-            <span style="word-break: break-all; color: #3b82f6;">${magicLinkUrl}</span>
-          </p>
-          
-          <p style="color: #6b7280; font-size: 12px; text-align: center; margin-top: 20px;">
-            <em>The Pigskin Pick Six Team</em>
-          </p>
-        </div>
-      </div>
-    `
-
-    const text = `
-🔮 MAGIC LINK SIGN-IN - Pigskin Pick Six
-
-Hi ${userDisplayName}!
-
-You requested a magic link to sign in to your Pigskin Pick Six account. 
-
-✨ ONE-CLICK SIGN IN
-Click this link to sign in instantly: ${magicLinkUrl}
-
-🔒 SECURITY NOTICE:
-• This link will expire in 15 minutes for security
-• Only works once - request a new link if expired  
-• If you didn't request this, please ignore this email
-
-The Pigskin Pick Six Team
-    `.trim()
+    const templateData = {
+      userDisplayName,
+      magicLinkUrl
+    }
 
     return {
-      subject: '🔮 Your Magic Sign-In Link - Pigskin Pick Six',
-      html,
-      text
+      subject: getMagicLinkSubject(templateData),
+      html: getMagicLinkHtml(templateData),
+      text: getMagicLinkText(templateData)
     }
   }
 
   static passwordReset(userDisplayName: string, resetUrl: string): EmailTemplate {
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
-        <div style="background-color: #8B4513; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h1 style="margin: 0; font-size: 24px;">🔐 Password Reset</h1>
-          <p style="margin: 10px 0 0 0; font-size: 16px;">Pigskin Pick Six</p>
-        </div>
-        
-        <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h2 style="color: #1f2937; margin-top: 0;">Hi ${userDisplayName}!</h2>
-          
-          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">
-            A password reset has been requested for your Pigskin Pick Six account. If you didn't request this reset, you can safely ignore this email.
-          </p>
-          
-          <div style="background-color: #dbeafe; border: 1px solid #3b82f6; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
-            <h3 style="color: #1e40af; margin-top: 0; font-size: 18px;">
-              🔑 Reset Your Password
-            </h3>
-            <p style="color: #1e3a8a; margin: 10px 0; font-size: 14px;">
-              Click the button below to create a new password for your account.
-            </p>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}" 
-               style="background-color: #8B4513; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
-              Reset Password
-            </a>
-          </div>
-          
-          <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h4 style="color: #92400e; margin-top: 0; font-size: 14px;">⚠️ Security Notice:</h4>
-            <div style="color: #92400e; font-size: 13px; line-height: 1.5;">
-              <p style="margin: 5px 0;">• This link will expire in 1 hour for security</p>
-              <p style="margin: 5px 0;">• If you didn't request this, please contact an admin</p>
-              <p style="margin: 5px 0;">• Never share this reset link with anyone</p>
-            </div>
-          </div>
-          
-          <p style="color: #6b7280; font-size: 14px; text-align: center; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-            If the button doesn't work, copy and paste this link:<br>
-            <span style="word-break: break-all; color: #3b82f6;">${resetUrl}</span>
-          </p>
-          
-          <p style="color: #6b7280; font-size: 12px; text-align: center; margin-top: 20px;">
-            <em>The Pigskin Pick Six Team</em>
-          </p>
-        </div>
-      </div>
-    `
-
-    const text = `
-🔐 PASSWORD RESET - Pigskin Pick Six
-
-Hi ${userDisplayName}!
-
-A password reset has been requested for your Pigskin Pick Six account. If you didn't request this reset, you can safely ignore this email.
-
-🔑 RESET YOUR PASSWORD
-Click this link to create a new password: ${resetUrl}
-
-⚠️ SECURITY NOTICE:
-• This link will expire in 1 hour for security
-• If you didn't request this, please contact an admin  
-• Never share this reset link with anyone
-
-The Pigskin Pick Six Team
-    `.trim()
+    const templateData = {
+      userDisplayName,
+      resetUrl
+    }
 
     return {
-      subject: '🔐 Password Reset Request - Pigskin Pick Six',
-      html,
-      text
+      subject: getPasswordResetSubject(templateData),
+      html: getPasswordResetHtml(templateData), 
+      text: getPasswordResetText(templateData)
     }
   }
 }
@@ -1264,6 +784,74 @@ export class EmailService {
     // Filter users to only those who are paid
     const paidUserIds = new Set(paidUsers)
     return allUsers.filter(user => paidUserIds.has(user.id))
+  }
+
+  /**
+   * Process a specific email job by ID
+   */
+  static async processPendingEmailById(jobId: string): Promise<boolean> {
+    try {
+      console.log(`📧 Processing specific email job: ${jobId}`)
+      
+      // Get the specific job
+      const { data: job, error } = await supabase
+        .from('email_jobs')
+        .select('*')
+        .eq('id', jobId)
+        .eq('status', 'pending')
+        .single()
+
+      if (error) {
+        console.error(`❌ Error fetching email job ${jobId}:`, error)
+        return false
+      }
+
+      if (!job) {
+        console.log(`📧 No pending email job found with ID: ${jobId}`)
+        return false
+      }
+
+      try {
+        console.log(`📧 Processing specific email job ${job.id}: ${job.subject} -> ${job.email}`)
+        
+        const emailSent = await this.sendEmail(job)
+        
+        if (emailSent) {
+          // Mark as sent
+          await supabase
+            .from('email_jobs')
+            .update({
+              status: 'sent',
+              sent_at: new Date().toISOString(),
+              attempts: job.attempts + 1
+            })
+            .eq('id', job.id)
+          
+          console.log(`✅ Email sent successfully: ${job.id}`)
+          return true
+        } else {
+          throw new Error('Email sending failed')
+        }
+      } catch (error) {
+        console.error(`❌ Error processing email job ${job.id}:`, error)
+        
+        // Update attempt count and error message
+        await supabase
+          .from('email_jobs')
+          .update({
+            status: job.attempts >= 2 ? 'failed' : 'pending',
+            attempts: job.attempts + 1,
+            error_message: error instanceof Error ? error.message : String(error)
+          })
+          .eq('id', job.id)
+        
+        return false
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error processing specific email job ${jobId}:`, error)
+      return false
+    }
   }
 
   /**

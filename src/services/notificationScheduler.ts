@@ -127,7 +127,7 @@ export class NotificationScheduler {
 
       // Send pick confirmation email
       try {
-        await EmailService.sendPickConfirmation(
+        const jobId = await EmailService.sendPickConfirmation(
           userId,
           userEmail,
           displayName,
@@ -138,10 +138,10 @@ export class NotificationScheduler {
         )
         console.log(`📧 Queued pick confirmation email for user ${userId}`)
         
-        // Immediately process the email queue to send confirmation
+        // Immediately process ONLY the confirmation email we just created
         try {
           console.log(`📤 Auto-processing pick confirmation email for user ${userId}`)
-          await EmailService.processPendingEmails()
+          await EmailService.processPendingEmailById(jobId)
           console.log(`✅ Pick confirmation email sent immediately for user ${userId}`)
         } catch (processError) {
           console.warn(`⚠️ Could not auto-process pick confirmation for user ${userId}:`, processError)
