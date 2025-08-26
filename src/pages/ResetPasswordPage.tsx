@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordResetService } from '@/services/passwordResetService'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -16,6 +18,14 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false)
   const [tokenValid, setTokenValid] = useState<boolean | null>(null)
   const [email, setEmail] = useState('')
+
+  // Handle case where user becomes authenticated after component loads
+  useEffect(() => {
+    if (user && tokenValid === null) {
+      console.log('✅ [RESET] User authenticated via auth context, enabling password reset')
+      setTokenValid(true)
+    }
+  }, [user, tokenValid])
 
   useEffect(() => {
     const handleAuthCallback = async () => {
@@ -167,7 +177,20 @@ export default function ResetPasswordPage() {
           const allParams = Object.fromEntries(searchParams.entries())
           console.log('🔍 [RESET] All URL parameters:', allParams)
           
-          // Try to exchange the code for a session
+          // First check if user is already authenticated from the code
+          console.log('🔍 [RESET] Checking current auth state...')
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+          
+          if (session?.user) {
+            console.log('✅ [RESET] User is already authenticated from password reset code!')
+            console.log('✅ [RESET] User ID:', session.user.id)
+            console.log('✅ [RESET] User email:', session.user.email)
+            setTokenValid(true)
+            return
+          }
+          
+          // If not authenticated, try to exchange the code for a session
+          console.log('🔄 [RESET] User not authenticated, attempting code exchange...')
           try {
             const { data, error } = await supabase.auth.exchangeCodeForSession(possibleResetCode)
             
