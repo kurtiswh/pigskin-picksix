@@ -160,7 +160,11 @@ export default function ResetPasswordPage() {
           // Handle password reset code (production misconfiguration workaround)
           console.log('🔄 [RESET] Processing password reset code from production')
           console.log('⚠️  [RESET] This indicates Supabase email template is using confirmation flow instead of recovery flow')
-          console.log('💡 [RESET] Attempting to exchange code for session')
+          console.log('💡 [RESET] Code value:', possibleResetCode.substring(0, 8) + '...')
+          
+          // Check if this is actually a PKCE flow that needs additional parameters
+          const allParams = Object.fromEntries(searchParams.entries())
+          console.log('🔍 [RESET] All URL parameters:', allParams)
           
           // Try to exchange the code for a session
           try {
@@ -168,14 +172,19 @@ export default function ResetPasswordPage() {
             
             if (error) {
               console.error('❌ [RESET] Failed to exchange password reset code:', error.message)
-              console.error('❌ [RESET] Error details:', JSON.stringify(error, null, 2))
+              console.error('❌ [RESET] Error code:', error.code)
+              console.error('❌ [RESET] Error status:', error.status)
+              console.error('❌ [RESET] Full error:', JSON.stringify(error, null, 2))
               
-              if (error.message?.includes('expired')) {
+              // Provide specific error messages based on the error type
+              if (error.code === 'validation_failed' && error.message?.includes('code verifier')) {
+                setError('This password reset link is missing required security parameters. This indicates a configuration issue with the email template. Please request a new password reset or contact support.')
+              } else if (error.message?.includes('expired') || error.code === 'otp_expired') {
                 setError('This password reset link has expired. Please request a new password reset.')
-              } else if (error.message?.includes('invalid')) {
+              } else if (error.message?.includes('invalid') || error.code === 'invalid_code') {
                 setError('This password reset link is invalid. Please request a new password reset.')
               } else {
-                setError('Unable to process password reset link. Please request a new password reset.')
+                setError(`Unable to process password reset link (${error.code}). Please request a new password reset.`)
               }
               setTokenValid(false)
             } else if (data.session?.user) {
