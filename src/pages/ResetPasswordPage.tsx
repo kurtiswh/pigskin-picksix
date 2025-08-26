@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordResetService } from '@/services/passwordResetService'
+import { supabase } from '@/lib/supabase'
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
