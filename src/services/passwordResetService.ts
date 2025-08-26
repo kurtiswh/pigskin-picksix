@@ -78,10 +78,19 @@ export class PasswordResetService {
 
       // Use Supabase Auth - the same system that works for registration emails
       // Note: The redirectTo URL must be added to your allowed redirect URLs in Supabase dashboard
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'
+      let baseUrl: string
+      if (typeof window !== 'undefined') {
+        baseUrl = window.location.origin
+        console.log(`📍 Detected browser environment, using window.location.origin: ${baseUrl}`)
+      } else {
+        baseUrl = 'https://pigskinpicksix.com'  // Updated to match production domain
+        console.log(`📍 Server environment detected, using production URL: ${baseUrl}`)
+      }
+      
       const redirectUrl = `${baseUrl}/reset-password`
-      console.log(`📍 Using redirect URL: ${redirectUrl}`)
-      console.log(`📍 Base URL detected: ${baseUrl}`)
+      console.log(`📍 Final redirect URL: ${redirectUrl}`)
+      console.log(`⚠️  IMPORTANT: This URL must be added to Supabase Dashboard > Authentication > URL Configuration`)
+      console.log(`⚠️  VERIFY: Password reset email template should use recovery flow, not confirmation flow`)
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl

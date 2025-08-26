@@ -63,18 +63,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Handle email confirmation callback (?code=)
         if (confirmationCode) {
-          console.log('🔮 [INIT] Processing email confirmation code')
+          console.log('🔮 [INIT] Processing confirmation code...')
+          
+          // Check if this might be a password reset that got misrouted
+          const currentPath = window.location.pathname
+          const urlParams = new URLSearchParams(window.location.search)
+          
+          console.log('🔍 [INIT] Code context:', { 
+            path: currentPath, 
+            hasResetParam: urlParams.has('reset'),
+            hasTypeParam: urlParams.has('type'),
+            allParams: Object.fromEntries(urlParams.entries())
+          })
+          
+          // If we're not on the login page and have a code, this might be a password reset
+          // that got redirected to the wrong place
+          if (currentPath !== '/login' && currentPath !== '/') {
+            console.log('⚠️ [INIT] Code received on non-login page, might be password reset misrouting')
+          }
           
           const { data, error } = await supabase.auth.exchangeCodeForSession(confirmationCode)
           
           if (error) {
-            console.error('❌ [INIT] Email confirmation error:', error.message)
+            console.error('❌ [INIT] Code exchange error:', error.message)
+            console.error('❌ [INIT] Error details:', JSON.stringify(error, null, 2))
+            
+            // If this is a password reset that got misrouted, redirect to reset password page
+            if (error.message?.includes('invalid') && window.location.pathname === '/') {
+              console.log('🔄 [INIT] Possible password reset misrouting, redirecting to reset page')
+              window.location.href = `/reset-password?error=invalid_code&code=${confirmationCode}`
+              return
+            }
+            
             setLoading(false)
             return
           }
           
           if (data.session?.user) {
-            console.log('✅ [INIT] Email confirmation successful')
+            console.log('✅ [INIT] Code exchange successful')
             // Don't clear the URL immediately - let LoginPage show success message first
             await fetchUserProfile(data.session.user.id, data.session.user.email)
             return

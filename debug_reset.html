@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Password Reset Debug</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Password Reset Debug Tool</h1>
+    
+    <div>
+        <label>Email: <input type="email" id="email" placeholder="Enter email"></label>
+        <button onclick="testReset()">Test Password Reset</button>
+    </div>
+    
+    <div>
+        <h3>Console Logs:</h3>
+        <div id="logs" style="border: 1px solid #ccc; padding: 10px; height: 400px; overflow-y: scroll; font-family: monospace; white-space: pre-wrap;"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4NDU2MjgsImV4cCI6MjA2OTQyMTYyOH0.DCpIOdBbzQ0pPyk5WpfrKrcRxi49oyMccHCzP-T14w8'
+
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+        
+        function log(message) {
+            const logsDiv = document.getElementById('logs')
+            const timestamp = new Date().toLocaleTimeString()
+            logsDiv.textContent += `[${timestamp}] ${message}\n`
+            logsDiv.scrollTop = logsDiv.scrollHeight
+            console.log(message)
+        }
+
+        async function testReset() {
+            const email = document.getElementById('email').value
+            if (!email) {
+                alert('Please enter an email')
+                return
+            }
+
+            log(`🧪 Testing password reset for: ${email}`)
+            
+            // Test with the current dev server port
+            const currentPort = window.location.port || '5174'
+            const redirectUrl = `http://localhost:${currentPort}/reset-password`
+            
+            log(`🔗 Using redirect URL: ${redirectUrl}`)
+            log(`🌐 Current window location: ${window.location.href}`)
+            
+            try {
+                const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: redirectUrl
+                })
+                
+                if (error) {
+                    log(`❌ Error: ${error.message} (Code: ${error.code})`)
+                    log(`📋 Full error: ${JSON.stringify(error, null, 2)}`)
+                } else {
+                    log(`✅ Password reset request sent successfully!`)
+                    log(`📊 Response data: ${JSON.stringify(data, null, 2)}`)
+                    log(`📧 Check your email for the reset link`)
+                    log(`⚠️  Email should redirect to: ${redirectUrl}`)
+                }
+            } catch (exception) {
+                log(`💥 Exception: ${exception.message}`)
+                log(`📋 Full exception: ${JSON.stringify(exception, null, 2)}`)
+            }
+        }
+
+        log('🚀 Debug tool loaded')
+        log(`🌐 Current URL: ${window.location.href}`)
+    </script>
+</body>
+</html>

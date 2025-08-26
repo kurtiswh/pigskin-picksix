@@ -36,6 +36,11 @@ export default function ResetPasswordPage() {
 
         // Also check for custom token in query params (fallback)
         const customToken = searchParams.get('token')
+        
+        // IMPORTANT: Check for misrouted password reset codes
+        // Sometimes Supabase sends password reset as ?code= instead of proper recovery flow
+        const possibleResetCode = searchParams.get('code')
+        const errorParam = searchParams.get('error')
 
         console.log('🔐 FULL URL DEBUG:', {
           fullUrl: window.location.href,
@@ -50,12 +55,15 @@ export default function ResetPasswordPage() {
           type, 
           hasAccessToken: !!accessToken, 
           hasCustomToken: !!customToken,
+          hasPossibleResetCode: !!possibleResetCode,
           queryError,
           queryErrorCode,
           hashError,
           hashErrorCode,
+          errorParam,
           accessTokenPreview: accessToken ? accessToken.substring(0, 20) + '...' : null,
-          refreshTokenPreview: refreshToken ? refreshToken.substring(0, 20) + '...' : null
+          refreshTokenPreview: refreshToken ? refreshToken.substring(0, 20) + '...' : null,
+          resetCodePreview: possibleResetCode ? possibleResetCode.substring(0, 8) + '...' : null
         })
 
         // Handle errors - but check if we also have valid tokens
@@ -146,6 +154,41 @@ export default function ResetPasswordPage() {
           } else {
             console.error('❌ Custom token format invalid')
             setError('Invalid reset token format. Please request a new password reset.')
+            setTokenValid(false)
+          }
+        } else if (possibleResetCode) {
+          // Handle password reset code (production misconfiguration workaround)
+          console.log('🔄 [RESET] Processing password reset code from production')
+          console.log('⚠️  [RESET] This indicates Supabase email template is using confirmation flow instead of recovery flow')
+          console.log('💡 [RESET] Attempting to exchange code for session')
+          
+          // Try to exchange the code for a session
+          try {
+            const { data, error } = await supabase.auth.exchangeCodeForSession(possibleResetCode)
+            
+            if (error) {
+              console.error('❌ [RESET] Failed to exchange password reset code:', error.message)
+              console.error('❌ [RESET] Error details:', JSON.stringify(error, null, 2))
+              
+              if (error.message?.includes('expired')) {
+                setError('This password reset link has expired. Please request a new password reset.')
+              } else if (error.message?.includes('invalid')) {
+                setError('This password reset link is invalid. Please request a new password reset.')
+              } else {
+                setError('Unable to process password reset link. Please request a new password reset.')
+              }
+              setTokenValid(false)
+            } else if (data.session?.user) {
+              console.log('✅ [RESET] Successfully exchanged code for session - user can now reset password')
+              setTokenValid(true)
+            } else {
+              console.error('❌ [RESET] Code exchange returned no session')
+              setError('Unable to validate reset link. Please request a new password reset.')
+              setTokenValid(false)
+            }
+          } catch (err: any) {
+            console.error('❌ [RESET] Exception handling password reset code:', err)
+            setError('Failed to process reset link. Please request a new password reset.')
             setTokenValid(false)
           }
         } else if (type === 'recovery') {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,6 +10,7 @@ import Layout from '@/components/Layout'
 
 export default function HomePage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   
   console.log('🏠 HomePage - User state:', user)
   const currentSeason = new Date().getFullYear()
@@ -19,7 +20,32 @@ export default function HomePage() {
   const [userPicks, setUserPicks] = useState<Pick[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Check for password recovery tokens and redirect to reset password page
   useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.substring(1))
+    const accessToken = hashParams.get('access_token')
+    const refreshToken = hashParams.get('refresh_token')
+    const type = hashParams.get('type')
+    
+    console.log('🏠 [RECOVERY-CHECK] HomePage checking for recovery tokens:', {
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+      type: type,
+      fullHash: window.location.hash
+    })
+    
+    // If we have recovery tokens on the homepage, redirect to reset password page
+    if (type === 'recovery' && accessToken && refreshToken) {
+      console.log('🔄 [RECOVERY-REDIRECT] Password recovery tokens detected on homepage, redirecting to reset password page')
+      
+      // Use navigate to preserve hash parameters better
+      console.log('🔄 [RECOVERY-REDIRECT] Navigating to reset password page with tokens')
+      
+      // Use React Router navigate with replace to preserve hash
+      navigate(`/reset-password${window.location.hash}`, { replace: true })
+      return
+    }
+    
     fetchHomePageData()
   }, [])
 
