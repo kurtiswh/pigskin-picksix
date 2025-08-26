@@ -23,7 +23,9 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     if (user && tokenValid === null) {
       console.log('✅ [RESET] User authenticated via auth context, enabling password reset')
+      console.log('✅ [RESET] Auth context user:', user.email, user.id)
       setTokenValid(true)
+      return
     }
   }, [user, tokenValid])
 
@@ -173,6 +175,15 @@ export default function ResetPasswordPage() {
           console.log('⚠️  [RESET] This indicates Supabase email template is using confirmation flow instead of recovery flow')
           console.log('💡 [RESET] Code value:', possibleResetCode.substring(0, 8) + '...')
           
+          // CRITICAL: Check if user is already authenticated via auth context
+          // This prevents the double code exchange that causes PKCE errors
+          if (user) {
+            console.log('✅ [RESET] User already authenticated via auth context - skipping code exchange')
+            console.log('✅ [RESET] Authenticated user:', user.email, user.id)
+            setTokenValid(true)
+            return
+          }
+          
           // Check if this is actually a PKCE flow that needs additional parameters
           const allParams = Object.fromEntries(searchParams.entries())
           console.log('🔍 [RESET] All URL parameters:', allParams)
@@ -238,8 +249,13 @@ export default function ResetPasswordPage() {
       }
     }
 
-    handleAuthCallback()
-  }, [searchParams])
+    // Add small delay to allow auth context to process first
+    const timer = setTimeout(() => {
+      handleAuthCallback()
+    }, 100)
+    
+    return () => clearTimeout(timer)
+  }, [searchParams, user])
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
