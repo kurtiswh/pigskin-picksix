@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { NotificationScheduler } from '@/services/notificationScheduler'
 import { EmailService } from '@/services/emailService'
+import Layout from '@/components/Layout'
 
 interface AnonymousPick {
   gameId: string
@@ -257,7 +258,8 @@ export default function AnonymousPicksPage() {
           }
         })
 
-        await EmailService.sendPickConfirmation(
+        // Create email job for tracking
+        const jobId = await EmailService.sendPickConfirmation(
           'anonymous', // Placeholder for anonymous picks
           email.trim(),
           name.trim(),
@@ -266,7 +268,48 @@ export default function AnonymousPicksPage() {
           formattedPicks,
           new Date()
         )
-        console.log('📧 Anonymous pick confirmation email scheduled')
+        console.log(`📧 Anonymous pick confirmation email queued (job: ${jobId})`)
+        
+        // Send email immediately using direct approach
+        try {
+          console.log('📤 Sending anonymous pick confirmation immediately...')
+          
+          const success = await EmailService.sendPickConfirmationDirect(
+            'anonymous',
+            email.trim(),
+            name.trim(),
+            currentWeek,
+            currentSeason,
+            formattedPicks,
+            new Date()
+          )
+          
+          if (success) {
+            console.log('✅ Anonymous pick confirmation sent immediately!')
+            
+            // Update job status to sent
+            const { error: updateError } = await supabase
+              .from('email_jobs')
+              .update({
+                status: 'sent',
+                sent_at: new Date().toISOString(),
+                attempts: 1
+              })
+              .eq('id', jobId)
+              
+            if (updateError) {
+              console.warn('Could not update email job status:', updateError)
+            } else {
+              console.log('📋 Email job status updated to sent')
+            }
+          } else {
+            console.warn('⚠️ Anonymous pick confirmation failed to send immediately')
+            console.log('💡 Email remains queued for manual processing')
+          }
+        } catch (directSendError) {
+          console.error('❌ Error sending anonymous pick confirmation immediately:', directSendError)
+          console.log('💡 Email remains queued for manual processing')
+        }
       } catch (emailError) {
         console.error('❌ Error sending anonymous pick confirmation:', emailError)
         // Don't fail the entire submission for email errors
@@ -276,7 +319,13 @@ export default function AnonymousPicksPage() {
       
     } catch (err: any) {
       console.error('Error submitting picks:', err)
-      setError(err.message)
+      
+      // Handle specific error cases with user-friendly messages
+      if (err.message.includes('409') && err.message.includes('unique_anonymous_pick_per_game_user')) {
+        setError('Picks have already been submitted for this email address. Each email can only submit picks once per week.')
+      } else {
+        setError(err.message)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -287,23 +336,7 @@ export default function AnonymousPicksPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-stone-50">
-        <div className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center justify-between">
-              <Link to="/" className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-gold-500 rounded-full flex items-center justify-center football-laces">
-                  <span className="text-pigskin-900 font-bold">P6</span>
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-pigskin-900">Pigskin Pick Six</h1>
-                  <p className="text-sm text-pigskin-600">Anonymous Pick Submission</p>
-                </div>
-              </Link>
-            </div>
-          </div>
-        </div>
-
+      <Layout>
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card className="text-center">
             <CardContent className="p-8">
@@ -352,40 +385,26 @@ export default function AnonymousPicksPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </Layout>
     )
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-pigskin-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-pigskin-600">Loading games...</p>
+      <Layout>
+        <div className="flex items-center justify-center min-h-96">
+          <div className="text-center">
+            <div className="w-8 h-8 border-4 border-pigskin-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-pigskin-600">Loading games...</p>
+          </div>
         </div>
-      </div>
+      </Layout>
     )
   }
 
   if (!isPicksOpen) {
     return (
-      <div className="min-h-screen bg-stone-50">
-        <div className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center justify-between">
-              <Link to="/" className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-gold-500 rounded-full flex items-center justify-center football-laces">
-                  <span className="text-pigskin-900 font-bold">P6</span>
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-pigskin-900">Pigskin Pick Six</h1>
-                  <p className="text-sm text-pigskin-600">Anonymous Pick Submission</p>
-                </div>
-              </Link>
-            </div>
-          </div>
-        </div>
-
+      <Layout>
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card>
             <CardContent className="text-center p-8">
@@ -400,29 +419,18 @@ export default function AnonymousPicksPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </Layout>
     )
   }
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-gold-500 rounded-full flex items-center justify-center football-laces">
-                <span className="text-pigskin-900 font-bold">P6</span>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-pigskin-900">Pigskin Pick Six</h1>
-                <p className="text-sm text-pigskin-600">Anonymous Pick Submission</p>
-              </div>
-            </Link>
-          </div>
-        </div>
-      </div>
-
+    <Layout>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        {/* Page Title */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-pigskin-900">Anonymous Pick Submission</h1>
+          <p className="text-pigskin-600 mt-2">Submit your picks for Week {currentWeek}</p>
+        </div>
         {/* User Info Form */}
         <Card>
           <CardHeader>
@@ -551,6 +559,6 @@ export default function AnonymousPicksPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </Layout>
   )
 }

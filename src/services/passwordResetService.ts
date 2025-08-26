@@ -74,22 +74,39 @@ export class PasswordResetService {
   static async sendPasswordReset(email: string): Promise<{ success: boolean; error?: string }> {
     try {
       console.log(`🔐 Generating password reset for ${email}`)
-      console.log(`📧 Attempting Supabase Auth with custom SMTP configuration`)
+      console.log(`📧 Using Supabase Auth (same as registration emails)`)
 
-      // First try Supabase Auth with custom SMTP
+      // Use Supabase Auth - the same system that works for registration emails
+      // Note: The redirectTo URL must be added to your allowed redirect URLs in Supabase dashboard
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'
+      const redirectUrl = `${baseUrl}/reset-password`
+      console.log(`📍 Using redirect URL: ${redirectUrl}`)
+      console.log(`📍 Base URL detected: ${baseUrl}`)
+      
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: redirectUrl
       })
 
       if (error) {
         console.error('❌ Supabase Auth password reset error:', error)
-        console.log('🔄 Supabase SMTP failed, attempting fallback to direct Resend API...')
+        console.error('Error code:', error.code)
+        console.error('Error status:', error.status)
+        console.error('Full error object:', JSON.stringify(error, null, 2))
         
-        // If Supabase SMTP fails, fall back to our working Resend API
+        // Check if it's a rate limit error
+        if (error.message?.includes('rate') || error.status === 429) {
+          console.log('⚠️ Rate limit detected, using fallback...')
+        }
+        
+        console.log('🔄 Supabase Auth failed, attempting fallback to direct Resend API...')
+        
+        // If Supabase Auth fails, fall back to our Resend API
         return await this.sendPasswordResetViaResendAPI(email)
       }
 
-      console.log(`✅ Password reset email sent successfully via Supabase Auth with custom SMTP`)
+      console.log(`✅ Password reset email sent successfully via Supabase Auth`)
+      console.log(`⚠️ NOTE: If email doesn't arrive, check Supabase Dashboard > Authentication > Email Templates`)
+      console.log(`⚠️ Ensure 'Reset Password' template is enabled and redirect URLs are configured`)
       return { success: true }
 
     } catch (error: any) {
@@ -100,6 +117,7 @@ export class PasswordResetService {
 
   /**
    * Fallback method using direct Resend API
+   * Used when Supabase Auth email fails to send
    */
   private static async sendPasswordResetViaResendAPI(email: string): Promise<{ success: boolean; error?: string }> {
     try {

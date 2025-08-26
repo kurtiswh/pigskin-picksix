@@ -200,7 +200,7 @@ export default function LoginPage() {
       const result = await PasswordResetService.sendPasswordReset(userEmail)
       
       if (result.success) {
-        alert(`✅ Password reset email sent to ${userEmail}! Please check your inbox and click the reset link.`)
+        alert(`✅ Password reset email sent to ${userEmail}! Please check your inbox and spam folder. The email will come from admin@pigskinpicksix.com.`)
       } else {
         throw new Error(result.error || 'Failed to send password reset email')
       }

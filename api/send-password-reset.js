@@ -10,16 +10,19 @@ export default async function handler(req, res) {
   try {
     console.log('Password reset API called')
     
-    // Check if API key is available
-    if (!process.env.RESEND_API_KEY) {
+    // Check if API key is available (try both RESEND_API_KEY and VITE_RESEND_API_KEY)
+    const resendApiKey = process.env.RESEND_API_KEY || process.env.VITE_RESEND_API_KEY
+    
+    if (!resendApiKey) {
       console.error('RESEND_API_KEY environment variable not set')
+      console.error('Checked: RESEND_API_KEY and VITE_RESEND_API_KEY')
       return res.status(500).json({ error: 'Email service not configured' })
     }
 
-    console.log('RESEND_API_KEY length:', process.env.RESEND_API_KEY.length)
-    console.log('RESEND_API_KEY starts with:', process.env.RESEND_API_KEY.substring(0, 7))
+    console.log('RESEND_API_KEY length:', resendApiKey.length)
+    console.log('RESEND_API_KEY starts with:', resendApiKey.substring(0, 7))
 
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(resendApiKey)
     
     const { email, token } = req.body
 
@@ -46,71 +49,55 @@ export default async function handler(req, res) {
     const { data, error } = await resend.emails.send({
       from: 'Pigskin Pick 6 Pro <admin@pigskinpicksix.com>', // Using custom domain
       to: [email],
-      subject: '🔐 Password Reset Request - Pigskin Pick 6 Pro',
+      subject: 'Password Reset Request - Pigskin Pick 6 Pro',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
-          <div style="background-color: #8B4513; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-            <h1 style="margin: 0; font-size: 24px;">🔐 Password Reset</h1>
-            <p style="margin: 10px 0 0 0; font-size: 16px;">Pigskin Pick 6 Pro</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">Password Reset Request</h2>
+          
+          <p style="color: #555; font-size: 16px;">
+            Hi ${displayName},
+          </p>
+          
+          <p style="color: #555; font-size: 16px;">
+            We received a request to reset your password for Pigskin Pick 6 Pro. Click the button below to create a new password:
+          </p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetUrl}" 
+               style="background-color: #8B4513; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-size: 16px;">
+              Reset Password
+            </a>
           </div>
           
-          <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-            <h2 style="color: #1f2937; margin-top: 0;">Hi ${displayName}!</h2>
-            
-            <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">
-              A password reset has been requested for your Pigskin Pick 6 Pro account. If you didn't request this reset, you can safely ignore this email.
-            </p>
-            
-            <div style="background-color: #dbeafe; border: 1px solid #3b82f6; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
-              <h3 style="color: #1e40af; margin-top: 0; font-size: 18px;">
-                🔑 Reset Your Password
-              </h3>
-              <p style="color: #1e3a8a; margin: 10px 0; font-size: 14px;">
-                Click the button below to create a new password for your account.
-              </p>
-            </div>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetUrl}" 
-                 style="background-color: #8B4513; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
-                Reset Password
-              </a>
-            </div>
-            
-            <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
-              <h4 style="color: #92400e; margin-top: 0; font-size: 14px;">⚠️ Security Notice:</h4>
-              <div style="color: #92400e; font-size: 13px; line-height: 1.5;">
-                <p style="margin: 5px 0;">• This link will expire in 1 hour for security</p>
-                <p style="margin: 5px 0;">• If you didn't request this, please contact an admin</p>
-                <p style="margin: 5px 0;">• Never share this reset link with anyone</p>
-              </div>
-            </div>
-            
-            <p style="color: #6b7280; font-size: 14px; text-align: center; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-              If the button doesn't work, copy and paste this link:<br>
-              <span style="word-break: break-all; color: #3b82f6;">${resetUrl}</span>
-            </p>
-            
-            <p style="color: #6b7280; font-size: 12px; text-align: center; margin-top: 20px;">
-              <em>The Pigskin Pick 6 Pro Team</em>
-            </p>
-          </div>
+          <p style="color: #555; font-size: 14px;">
+            If you didn't request this password reset, you can safely ignore this email.
+          </p>
+          
+          <p style="color: #777; font-size: 12px; margin-top: 30px;">
+            This link will expire in 1 hour for security reasons.
+          </p>
+          
+          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+          
+          <p style="color: #999; font-size: 12px;">
+            If the button doesn't work, copy and paste this link into your browser:<br>
+            <span style="color: #8B4513;">${resetUrl}</span>
+          </p>
         </div>
       `,
       text: `
-🔐 PASSWORD RESET - Pigskin Pick 6 Pro
+Password Reset Request - Pigskin Pick 6 Pro
 
-Hi ${displayName}!
+Hi ${displayName},
 
-A password reset has been requested for your Pigskin Pick 6 Pro account. If you didn't request this reset, you can safely ignore this email.
+We received a request to reset your password for Pigskin Pick 6 Pro.
 
-🔑 RESET YOUR PASSWORD
-Click this link to create a new password: ${resetUrl}
+To create a new password, please visit:
+${resetUrl}
 
-⚠️ SECURITY NOTICE:
-• This link will expire in 1 hour for security
-• If you didn't request this, please contact an admin  
-• Never share this reset link with anyone
+If you didn't request this password reset, you can safely ignore this email.
+
+This link will expire in 1 hour for security reasons.
 
 The Pigskin Pick 6 Pro Team
       `.trim(),

@@ -5,6 +5,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { UserPreferences } from '@/types'
+import { ENV } from '@/lib/env'
 import { Resend } from 'resend'
 import { 
   getPickReminderSubject, 
@@ -443,10 +444,13 @@ export class EmailService {
     try {
       const template = EmailTemplates.picksSubmitted(displayName, week, season, picks, submittedAt)
       
+      // Handle anonymous users - set user_id to null for foreign key constraint
+      const actualUserId = (userId === 'anonymous' || !userId) ? null : userId
+      
       const { data, error } = await supabase
         .from('email_jobs')
         .insert({
-          user_id: userId,
+          user_id: actualUserId,
           email,
           template_type: 'picks_submitted',
           subject: template.subject,
@@ -459,9 +463,12 @@ export class EmailService {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Error creating email job:', error)
+        throw error
+      }
       
-      console.log(`📧 Queued pick confirmation email for ${email}`)
+      console.log(`📧 Queued pick confirmation email for ${email} (user: ${actualUserId || 'anonymous'})`)
       return data.id
     } catch (error) {
       console.error('Error sending pick confirmation:', error)
@@ -934,66 +941,167 @@ export class EmailService {
   }
 
   /**
-   * Send email using Supabase Edge Function (which calls Resend securely)
-   * Falls back to mock mode for development
+   * Send email using multiple methods with proper error handling
+   * 1. Try Edge Function with anon key (for anonymous picks)
+   * 2. Try Edge Function with user session (for authenticated picks)  
+   * 3. Return actual failures instead of silent success
    */
   private static async sendEmail(job: EmailJob): Promise<boolean> {
     try {
-      console.log(`📧 SENDING EMAIL via Edge Function:`)
+      console.log(`📧 SENDING EMAIL:`)
       console.log(`   To: ${job.email}`)
       console.log(`   Subject: ${job.subject}`)
       console.log(`   Type: ${job.template_type}`)
 
-      // Get current user session for authentication
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (!session?.access_token) {
-        console.error('❌ No valid session - using mock mode')
-        console.log('📧 MOCK EMAIL SENT (no session)')
-        return true // Return true for development
-      }
+      // Get environment variables with proper fallbacks for browser context
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const anonKey = ENV.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4NDU2MjgsImV4cCI6MjA2OTQyMTYyOH0.DCpIOdBbzQ0pPyk5WpfrKrcRxi49oyMccHCzP-T14w8'
 
+      console.log('🔧 Environment check (browser context):')
+      console.log(`   Supabase URL: ${supabaseUrl ? 'Available' : 'Missing'}`)
+      console.log(`   Anon Key: ${anonKey ? 'Available' : 'Missing'}`)
+      console.log(`   Using import.meta.env: ${typeof import.meta !== 'undefined' && import.meta.env ? 'Yes' : 'No'}`)
+
+      // Use direct Edge Function call (the approach that works in our tests)
       try {
-        // Call Supabase Edge Function
-        const { data, error } = await supabase.functions.invoke('send-email', {
-          body: {
+        console.log('🔄 Calling Edge Function directly...')
+        
+        const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${anonKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
             to: job.email,
             subject: job.subject,
             html: job.html_content,
             text: job.text_content,
             from: 'Pigskin Pick Six <admin@pigskinpicksix.com>'
-          },
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
+          })
         })
-
-        if (error) {
-          console.error('❌ Edge function error:', error)
-          // Fall back to mock mode for development
-          console.log('📧 FALLBACK: Mock email sent (Edge function not deployed)')
+        
+        console.log(`📡 Response status: ${response.status}`)
+        
+        if (response.ok) {
+          const result = await response.json()
+          console.log('✅ Email sent successfully via Edge Function:', result?.messageId)
           return true
+        } else {
+          const errorText = await response.text()
+          console.error('❌ Edge Function failed:', response.status, errorText)
+          console.error('💡 Full error response:', errorText)
         }
+      } catch (fetchError: any) {
+        console.error('❌ Edge Function call failed:', fetchError.message)
+        console.error('💡 Network or parsing error:', fetchError)
+      }
 
-        if (!data?.success) {
-          console.error('❌ Email sending failed:', data?.error || 'Unknown error')
-          console.log('📧 FALLBACK: Mock email sent (sending failed)')
-          return true // Return true for development to keep testing
-        }
+      // If we get here, the email sending failed
+      console.error('❌ EMAIL SENDING FAILED')
+      console.error('💡 Check Edge Function deployment and Resend API key configuration')
+      return false
 
-        console.log('✅ Email sent successfully via Edge Function:', data?.messageId)
+    } catch (error) {
+      console.error('❌ Email sending exception:', error)
+      return false
+    }
+  }
+
+  /**
+   * Send pick confirmation email directly without going through job queue processing
+   * This combines template generation with immediate sending
+   */
+  static async sendPickConfirmationDirect(
+    userId: string,
+    email: string,
+    displayName: string,
+    week: number,
+    season: number,
+    picks: Array<{
+      game: string
+      pick: string
+      isLock: boolean
+      lockTime: string
+    }>,
+    submittedAt: Date
+  ): Promise<boolean> {
+    try {
+      console.log(`📧 SENDING PICK CONFIRMATION DIRECTLY:`)
+      console.log(`   To: ${email}`)
+      console.log(`   User: ${displayName} (${userId})`)
+      console.log(`   Week ${week}, ${season}`)
+
+      // Generate the template (reuse existing logic)
+      const template = EmailTemplates.picksSubmitted(displayName, week, season, picks, submittedAt)
+
+      // Send directly using our working approach
+      return await this.sendEmailDirect(
+        email,
+        template.subject,
+        template.html,
+        template.text
+      )
+
+    } catch (error) {
+      console.error('❌ Direct pick confirmation sending exception:', error)
+      return false
+    }
+  }
+
+  /**
+   * Send email directly without going through the job queue processing
+   * This is used for immediate email sending during pick submission
+   */
+  static async sendEmailDirect(
+    to: string,
+    subject: string,
+    html: string,
+    text: string
+  ): Promise<boolean> {
+    try {
+      console.log(`📧 SENDING EMAIL DIRECTLY:`)
+      console.log(`   To: ${to}`)
+      console.log(`   Subject: ${subject}`)
+
+      // Get environment variables (this should work in browser now)
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const anonKey = ENV.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4NDU2MjgsImV4cCI6MjA2OTQyMTYyOH0.DCpIOdBbzQ0pPyk5WpfrKrcRxi49oyMccHCzP-T14w8'
+
+      console.log('🔧 Direct send environment check:')
+      console.log(`   Supabase URL: ${supabaseUrl ? 'Available' : 'Missing'}`)
+      console.log(`   Anon Key: ${anonKey ? 'Available' : 'Missing'}`)
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${anonKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          to,
+          subject,
+          html,
+          text,
+          from: 'Pigskin Pick Six <admin@pigskinpicksix.com>'
+        })
+      })
+
+      console.log(`📡 Direct send response status: ${response.status}`)
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('✅ Email sent directly via Edge Function:', result?.messageId)
         return true
-
-      } catch (functionError) {
-        console.error('❌ Edge function call failed:', functionError)
-        console.log('📧 FALLBACK: Mock email sent (function not available)')
-        return true // Return true for development
+      } else {
+        const errorText = await response.text()
+        console.error('❌ Direct email sending failed:', response.status, errorText)
+        return false
       }
 
     } catch (error) {
-      console.error('❌ Error sending email:', error)
-      console.log('📧 FALLBACK: Mock email sent (general error)')
-      return true // Return true for development
+      console.error('❌ Direct email sending exception:', error)
+      return false
     }
   }
 

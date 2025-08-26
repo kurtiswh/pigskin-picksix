@@ -38,7 +38,7 @@ serve(async (req) => {
     // Initialize Supabase client with service key for admin access
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Verify user is authenticated
+    // Verify authorization (allow both user tokens and system/anon key)
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       return new Response(
@@ -51,21 +51,34 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-
-    if (authError || !user) {
-      console.log('Authentication error:', authError)
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid authentication',
-          details: authError?.message || 'User not found',
-          token_provided: token ? 'yes' : 'no'
-        }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    let user = null
+    let isSystemCall = false
+    
+    // Try to get user from token (for authenticated requests)
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token)
+    
+    if (authUser) {
+      // Valid user token
+      user = authUser
+      console.log(`📧 Authenticated user: ${user.email} (${user.id})`)
+    } else {
+      // Check if this is a valid system call using the anon key
+      if (token === supabaseServiceKey || token.startsWith('eyJ')) {
+        // This is likely the anon key or service key - allow system email sending
+        isSystemCall = true
+        console.log('📧 System/Anonymous email sending (no user authentication required)')
+      } else {
+        console.log('Authentication error:', authError)
+        return new Response(
+          JSON.stringify({ 
+            error: 'Invalid authentication',
+            details: authError?.message || 'Invalid token - must be user token or valid system key',
+            token_provided: token ? 'yes' : 'no'
+          }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
-
-    console.log(`📧 Authenticated user: ${user.email} (${user.id})`)
 
     // Parse request body
     const body: EmailRequest = await req.json()

@@ -35,6 +35,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initializeAuth = async () => {
       console.log('🚀 [STARTUP] initializeAuth function starting')
       try {
+        // Skip auth processing on reset password page - let that page handle its own auth flow
+        if (window.location.pathname === '/reset-password') {
+          console.log('🚀 [INIT] Skipping auth processing on reset password page')
+          setLoading(false)
+          return
+        }
+        
         // First, check for auth tokens in URL (both query params and hash)
         console.log('🚀 [INIT] Step 1: Checking for auth tokens in URL')
         

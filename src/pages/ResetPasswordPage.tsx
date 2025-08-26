@@ -25,27 +25,107 @@ export default function ResetPasswordPage() {
         const refreshToken = hashParams.get('refresh_token')
         const type = hashParams.get('type')
 
+        // Check for errors in both query params and hash
+        const queryError = searchParams.get('error')
+        const queryErrorCode = searchParams.get('error_code')
+        const queryErrorDesc = searchParams.get('error_description')
+        
+        const hashError = hashParams.get('error')
+        const hashErrorCode = hashParams.get('error_code')
+        const hashErrorDesc = hashParams.get('error_description')
+
         // Also check for custom token in query params (fallback)
         const customToken = searchParams.get('token')
 
-        console.log('🔐 Checking reset tokens...', { type, hasAccessToken: !!accessToken, hasCustomToken: !!customToken })
+        console.log('🔐 FULL URL DEBUG:', {
+          fullUrl: window.location.href,
+          pathname: window.location.pathname,
+          search: window.location.search,
+          hash: window.location.hash,
+          queryParams: Object.fromEntries(searchParams.entries()),
+          hashParams: Object.fromEntries(hashParams.entries())
+        })
+
+        console.log('🔐 Checking reset tokens...', { 
+          type, 
+          hasAccessToken: !!accessToken, 
+          hasCustomToken: !!customToken,
+          queryError,
+          queryErrorCode,
+          hashError,
+          hashErrorCode,
+          accessTokenPreview: accessToken ? accessToken.substring(0, 20) + '...' : null,
+          refreshTokenPreview: refreshToken ? refreshToken.substring(0, 20) + '...' : null
+        })
+
+        // Handle errors - but check if we also have valid tokens
+        if ((queryError || hashError) && (!accessToken || !refreshToken)) {
+          const error = queryError || hashError
+          const errorCode = queryErrorCode || hashErrorCode
+          const errorDesc = queryErrorDesc || hashErrorDesc
+          
+          console.error('❌ Reset link error (no valid tokens):', { error, errorCode, errorDesc })
+          
+          if (errorCode === 'otp_expired' || error === 'access_denied') {
+            setError('This password reset link has expired or is invalid. This usually means the link was used already, expired (links expire after 1 hour), or there\'s a configuration issue. Please request a new password reset.')
+          } else {
+            setError(`Reset link error: ${errorDesc || error}. Please request a new password reset.`)
+          }
+          setTokenValid(false)
+          return
+        } else if (queryError || hashError) {
+          console.log('⚠️ Found errors but also have tokens, attempting recovery anyway...')
+        }
 
         // If this is a Supabase password recovery callback, set the session
         if (type === 'recovery' && accessToken && refreshToken) {
           console.log('🔐 Processing Supabase Auth recovery callback...')
           
           const { supabase } = await import('@/lib/supabase')
-          const { error } = await supabase.auth.setSession({
+          
+          // First check current session
+          const { data: currentSession } = await supabase.auth.getSession()
+          console.log('🔐 Current session before reset:', {
+            hasSession: !!currentSession?.session,
+            userId: currentSession?.session?.user?.id,
+            userEmail: currentSession?.session?.user?.email
+          })
+          
+          const { data: sessionData, error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
           })
 
           if (error) {
             console.error('❌ Error setting session:', error.message)
+            console.error('❌ Full session error:', JSON.stringify(error, null, 2))
             setError('Invalid or expired reset link. Please request a new password reset.')
             setTokenValid(false)
           } else {
             console.log('✅ Session established for password reset')
+            console.log('✅ New session data:', {
+              hasSession: !!sessionData?.session,
+              userId: sessionData?.session?.user?.id,
+              userEmail: sessionData?.session?.user?.email
+            })
+            setTokenValid(true)
+          }
+        } else if (accessToken && refreshToken && !type) {
+          // Sometimes Supabase recovery doesn't include type parameter, try anyway
+          console.log('🔐 Found tokens without type, attempting recovery session...')
+          
+          const { supabase } = await import('@/lib/supabase')
+          const { data: sessionData, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          })
+
+          if (error) {
+            console.error('❌ Error setting session (no type):', error.message)
+            setError('Invalid or expired reset link. Please request a new password reset.')
+            setTokenValid(false)
+          } else {
+            console.log('✅ Session established without type parameter')
             setTokenValid(true)
           }
         } else if (customToken) {
@@ -218,12 +298,21 @@ export default function ResetPasswordPage() {
               <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm mb-4">
                 {error}
               </div>
-              <Button
-                onClick={() => navigate('/login')}
-                className="w-full bg-pigskin-600 hover:bg-pigskin-700"
-              >
-                Back to Login
-              </Button>
+              <div className="space-y-3">
+                <Button
+                  onClick={() => navigate('/login')}
+                  className="w-full bg-pigskin-600 hover:bg-pigskin-700"
+                >
+                  Request New Password Reset
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/login')}
+                  className="w-full"
+                >
+                  Back to Login
+                </Button>
+              </div>
             </div>
           ) : tokenValid === null ? (
             <div className="text-center">

@@ -593,6 +593,17 @@ export default function PickSheetPage() {
       
       // Send pick confirmation email
       try {
+        console.log('🔧 DEBUG: About to send authenticated pick confirmation email')
+        console.log('🔧 DEBUG: User data:', {
+          id: user.id,
+          email: user.email,
+          display_name: user.display_name,
+          hasEmail: !!user.email,
+          emailLength: user.email?.length || 0
+        })
+        console.log('🔧 DEBUG: Week/Season:', { currentWeek, currentSeason })
+        console.log('🔧 DEBUG: Picks count:', picks.length)
+        
         // Format picks for email
         const formattedPicks = picks.map(pick => {
           const game = games.find(g => g.id === pick.game_id)
@@ -603,18 +614,29 @@ export default function PickSheetPage() {
             lockTime: pick.lock_time || game?.kickoff_time || ''
           }
         })
+        console.log('🔧 DEBUG: Formatted picks:', formattedPicks)
 
+        // Validate required data before calling NotificationScheduler
+        if (!user.email || user.email.trim() === '') {
+          console.error('❌ Cannot send email: User has no email address')
+          alert('⚠️ Cannot send confirmation email: No email address found for your account.')
+          return
+        }
+
+        console.log('🔧 DEBUG: Calling NotificationScheduler.onPicksSubmitted...')
         await NotificationScheduler.onPicksSubmitted(
           user.id,
-          user.email || '',
+          user.email.trim(),
           user.display_name || 'Player',
           currentWeek,
           currentSeason,
           formattedPicks
         )
-        console.log('📧 Pick confirmation email scheduled')
+        console.log('✅ Pick confirmation email process completed')
       } catch (emailError) {
         console.error('❌ Error sending pick confirmation:', emailError)
+        console.error('❌ Email error details:', emailError.message)
+        console.error('❌ Email error stack:', emailError.stack)
         // Don't fail the entire submission for email errors
       }
       
