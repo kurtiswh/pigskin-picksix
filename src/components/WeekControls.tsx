@@ -105,11 +105,11 @@ export default function WeekControls({
     } else {
       // Saturday, Sunday, Monday, Tuesday games - lock at Saturday 11:00 AM CT
       // Find the Saturday that defines this week
-      const saturdayLock = new Date(gameDate)
+      const saturdayLock = new Date(gameDate.getFullYear(), gameDate.getMonth(), gameDate.getDate())
       
       if (gameDay === 6) {
         // Saturday game - lock the same Saturday at 11:00 AM CT
-        // No date change needed
+        // Use the same Saturday date
       } else if (gameDay === 0) {
         // Sunday game - part of the previous Saturday's week (go back 1 day to Saturday)
         saturdayLock.setDate(saturdayLock.getDate() - 1)
@@ -124,7 +124,7 @@ export default function WeekControls({
         saturdayLock.setDate(saturdayLock.getDate() + 3)
       }
       
-      // Set to 11:00 AM CDT = 16:00 UTC
+      // Set to 11:00 AM CDT = 16:00 UTC (corrected timezone)
       saturdayLock.setUTCHours(16, 0, 0, 0)
       return saturdayLock
     }
@@ -410,7 +410,7 @@ export default function WeekControls({
                                 )}
                                 <span>{game.away_team}</span>
                               </div>
-                              <span>@</span>
+                              <span>{game.neutral_site ? 'vs' : '@'}</span>
                               <div className="flex items-center space-x-1">
                                 {game.home_ranking && (
                                   <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded font-medium">
@@ -423,6 +423,7 @@ export default function WeekControls({
                             <div className="text-xs text-charcoal-500 space-x-4">
                               <span>{formatGameTime(game.start_date)}</span>
                               {game.venue && <span>• {game.venue}</span>}
+                              {game.neutral_site && <span>• Neutral Site</span>}
                               {game.home_conference && (
                                 <span>• {game.home_conference}</span>
                               )}
@@ -451,9 +452,10 @@ export default function WeekControls({
                               </span>
                             )}
                           </div>
-                          {game.spread && game.spread !== 0 && (
+                          {game.spread && game.spread !== 0 && game.home_team && game.away_team && (
                             <div className="text-xs text-charcoal-500">
-                              {game.spread > 0 ? `${game.home_team} -${game.spread}` : `${game.away_team} -${Math.abs(game.spread)}`}
+                              {/* Display in standard sportsbook format: [Favored Team] -[Points] */}
+                              {game.spread < 0 ? `${game.home_team} -${Math.abs(game.spread)}` : `${game.away_team} -${game.spread}`}
                             </div>
                           )}
                         </div>

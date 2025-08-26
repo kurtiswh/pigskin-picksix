@@ -171,6 +171,9 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
       await AdminEmailSettingsService.updateReminderSchedule(currentSeason, emailSettings.reminder_schedule)
       setStatus('✅ Reminder settings updated successfully!')
       
+      // Reload settings to sync UI with database
+      await loadEmailSettings()
+      
     } catch (error) {
       console.error('Error updating reminder settings:', error)
       setStatus('❌ Error updating settings: ' + (error as Error).message)
@@ -190,6 +193,9 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
       await AdminEmailSettingsService.updateOpenPicksSettings(currentSeason, emailSettings.open_picks_notifications)
       setStatus('✅ Open picks settings updated successfully!')
       
+      // Reload settings to sync UI with database
+      await loadEmailSettings()
+      
     } catch (error) {
       console.error('Error updating open picks settings:', error)
       setStatus('❌ Error updating settings: ' + (error as Error).message)
@@ -208,6 +214,9 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
       
       await AdminEmailSettingsService.updateWeeklyResultsSettings(currentSeason, emailSettings.weekly_results)
       setStatus('✅ Weekly results settings updated successfully!')
+      
+      // Reload settings to sync UI with database
+      await loadEmailSettings()
       
     } catch (error) {
       console.error('Error updating weekly results settings:', error)
@@ -472,17 +481,26 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
                   <Button onClick={addCustomReminder} variant="outline" size="sm">
                     Add Custom Reminder
                   </Button>
-                  
-                  <Button 
-                    onClick={handleUpdateReminderSettings}
-                    disabled={loading}
-                    size="sm"
-                  >
-                    Save Reminder Settings
-                  </Button>
                 </div>
               </div>
             )}
+            
+            {/* Save button always visible (moved outside the conditional) */}
+            <div className="pt-4 border-t">
+              <Button 
+                onClick={handleUpdateReminderSettings}
+                disabled={loading}
+                size="sm"
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                ) : null}
+                Save Reminder Settings
+              </Button>
+              <p className="text-xs text-charcoal-500 mt-2">
+                💡 Changes are only saved to database when you click "Save"
+              </p>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -548,14 +566,21 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
             )}
             
             {/* Save button always visible */}
-            <Button 
-              onClick={handleUpdateOpenPicksSettings}
-              disabled={loading}
-              size="sm"
-              className="mt-4"
-            >
-              Save Week Opening Settings
-            </Button>
+            <div className="pt-4 border-t">
+              <Button 
+                onClick={handleUpdateOpenPicksSettings}
+                disabled={loading}
+                size="sm"
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                ) : null}
+                Save Week Opening Settings
+              </Button>
+              <p className="text-xs text-charcoal-500 mt-2">
+                💡 Changes are only saved to database when you click "Save"
+              </p>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -606,14 +631,21 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
             )}
             
             {/* Save button always visible */}
-            <Button 
-              onClick={handleUpdateWeeklyResultsSettings}
-              disabled={loading}
-              size="sm"
-              className="mt-4"
-            >
-              Save Weekly Results Settings
-            </Button>
+            <div className="pt-4 border-t">
+              <Button 
+                onClick={handleUpdateWeeklyResultsSettings}
+                disabled={loading}
+                size="sm"
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                ) : null}
+                Save Weekly Results Settings
+              </Button>
+              <p className="text-xs text-charcoal-500 mt-2">
+                💡 Changes are only saved to database when you click "Save"
+              </p>
+            </div>
           </CardContent>
         </Card>
       )}

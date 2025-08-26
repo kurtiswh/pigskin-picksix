@@ -261,7 +261,7 @@ export default function AdminGameSelector({
                           <span>• {game.home_conference}</span>
                         )}
                         {game.spread && (
-                          <span>• {game.spread > 0 ? `${game.home_team} -${game.spread.toFixed(1)}` : `${game.away_team} -${Math.abs(game.spread).toFixed(1)}`}</span>
+                          <span>• {game.spread < 0 ? `${game.home_team} -${Math.abs(game.spread).toFixed(1)}` : `${game.away_team} -${game.spread.toFixed(1)}`}</span>
                         )}
                         {game.neutral_site && (
                           <span>• 🏟️ Neutral Site</span>

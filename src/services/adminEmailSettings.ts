@@ -85,6 +85,8 @@ export class AdminEmailSettingsService {
    */
   static async updateReminderSchedule(season: number, settings: ReminderScheduleSettings): Promise<void> {
     try {
+      console.log('🔧 DEBUG: Updating reminder schedule with settings:', JSON.stringify(settings, null, 2))
+      
       const { error } = await supabase
         .from('admin_email_settings')
         .upsert({
@@ -96,8 +98,17 @@ export class AdminEmailSettingsService {
           onConflict: 'season,setting_key'
         })
 
-      if (error) throw error
-      console.log('✅ Reminder schedule updated')
+      if (error) {
+        console.error('❌ Database error during reminder schedule update:', error)
+        throw error
+      }
+      
+      console.log('✅ Reminder schedule updated successfully')
+      console.log('🔍 Updated with data:', {
+        season,
+        setting_key: 'reminder_schedule',
+        setting_value: settings
+      })
     } catch (error) {
       console.error('Error updating reminder schedule:', error)
       throw error

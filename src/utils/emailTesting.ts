@@ -5,6 +5,7 @@
 
 import { EmailService, EmailTemplates } from '@/services/emailService'
 import { NotificationScheduler } from '@/services/notificationScheduler'
+import { AdminEmailSettingsService } from '@/services/adminEmailSettings'
 import { supabase } from '@/lib/supabase'
 
 /**
@@ -175,6 +176,33 @@ export const testNotificationScheduling = async (
 }
 
 /**
+ * Clear all pending emails from the queue (use carefully!)
+ */
+export const clearEmailQueue = async () => {
+  console.log('🗑️ Clearing email queue...')
+  
+  try {
+    const { data: result, error } = await supabase
+      .from('email_jobs')
+      .delete()
+      .eq('status', 'pending')
+      .select()
+
+    if (error) {
+      console.error('❌ Error clearing email queue:', error)
+      return null
+    }
+
+    console.log(`✅ Cleared ${result?.length || 0} pending emails from queue`)
+    return result
+    
+  } catch (error) {
+    console.error('❌ Exception clearing email queue:', error)
+    return null
+  }
+}
+
+/**
  * Check what emails are currently in the queue
  */
 export const checkEmailQueue = async () => {
@@ -276,14 +304,131 @@ export const testAllTemplates = () => {
 }
 
 /**
+ * Initialize admin email settings with default values
+ */
+export const initializeDefaultEmailSettings = async (season: number = 2024) => {
+  console.log(`🔧 Initializing default email settings for season ${season}...`)
+  
+  try {
+    // Get current admin user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      throw new Error('Must be authenticated as admin to initialize settings')
+    }
+
+    // Check if user is admin
+    const { data: userProfile, error: profileError } = await supabase
+      .from('users')
+      .select('is_admin')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !userProfile?.is_admin) {
+      throw new Error('Must be admin to initialize email settings')
+    }
+
+    console.log('✅ Admin user confirmed, inserting default settings...')
+
+    // Insert default settings
+    const defaultSettings = [
+      {
+        season,
+        setting_key: 'reminder_schedule',
+        setting_value: {
+          enabled: false, // Start disabled
+          reminders: [
+            { name: "48 Hour Reminder", hours_before_deadline: 48, enabled: false },
+            { name: "24 Hour Reminder", hours_before_deadline: 24, enabled: false },
+            { name: "Final Reminder", hours_before_deadline: 2, enabled: false }
+          ]
+        },
+        created_by: user.id
+      },
+      {
+        season,
+        setting_key: 'open_picks_notifications',
+        setting_value: {
+          enabled: false, // Start disabled
+          send_immediately: true,
+          include_total_games: true
+        },
+        created_by: user.id
+      },
+      {
+        season,
+        setting_key: 'weekly_results',
+        setting_value: {
+          enabled: false, // Start disabled
+          manual_only: true
+        },
+        created_by: user.id
+      }
+    ]
+
+    const { data, error } = await supabase
+      .from('admin_email_settings')
+      .upsert(defaultSettings, {
+        onConflict: 'season,setting_key'
+      })
+      .select()
+
+    if (error) {
+      console.error('❌ Error initializing settings:', error)
+      throw error
+    }
+
+    console.log('✅ Default email settings initialized!')
+    console.log('📊 Inserted records:', JSON.stringify(data, null, 2))
+    
+    return data
+
+  } catch (error) {
+    console.error('❌ Failed to initialize default settings:', error)
+    return null
+  }
+}
+
+/**
+ * Check what's actually in the admin_email_settings database table
+ */
+export const checkDatabaseEmailSettings = async (season: number = 2024) => {
+  console.log(`🔍 Checking RAW database for season ${season}...`)
+  
+  try {
+    const { data: rawData, error } = await supabase
+      .from('admin_email_settings')
+      .select('*')
+      .eq('season', season)
+      .order('updated_at', { ascending: false })
+
+    if (error) {
+      console.error('❌ Database query error:', error)
+      return null
+    }
+
+    console.log('📊 Raw database records:', JSON.stringify(rawData, null, 2))
+    console.log(`📋 Found ${rawData?.length || 0} records in database`)
+    
+    if (!rawData || rawData.length === 0) {
+      console.log('⚠️ NO RECORDS FOUND - Service will use hardcoded defaults (all TRUE)')
+      console.log('💡 This explains why everything appears enabled!')
+    }
+    
+    return rawData
+    
+  } catch (error) {
+    console.error('❌ Database check failed:', error)
+    return null
+  }
+}
+
+/**
  * Debug admin email settings to see what's enabled
  */
 export const checkAdminEmailSettings = async (season: number = 2024) => {
   console.log(`🔍 Checking admin email settings for season ${season}...`)
   
   try {
-    const { AdminEmailSettingsService } = await import('@/services/adminEmailSettings')
-    
     // Check all settings
     const settings = await AdminEmailSettingsService.getEmailSettings(season)
     console.log('📊 Full email settings:', JSON.stringify(settings, null, 2))
@@ -314,44 +459,161 @@ export const checkAdminEmailSettings = async (season: number = 2024) => {
   }
 }
 
-// Make functions available globally for console testing
-if (typeof window !== 'undefined') {
-  // Ensure window properties exist
-  (window as any).testPickConfirmationEmail = testPickConfirmationEmail
-  (window as any).testAnonymousPickConfirmation = testAnonymousPickConfirmation
-  (window as any).processTestEmailQueue = processTestEmailQueue
-  (window as any).testNotificationScheduling = testNotificationScheduling
-  (window as any).testAllTemplates = testAllTemplates
-  (window as any).checkEmailQueue = checkEmailQueue
-  (window as any).checkAdminEmailSettings = checkAdminEmailSettings
+// Force registration function that can be called explicitly
+export const registerGlobalEmailTesting = () => {
+  if (typeof window === 'undefined') return
+  
+  console.log('🔧 Registering email testing functions globally...')
+  
+  // Register all async functions with error handling
+  ;(window as any).testPickConfirmationEmail = async (email = 'test@example.com', name = 'Test User') => {
+    try {
+      return await testPickConfirmationEmail(email, name)
+    } catch (error) {
+      console.error('❌ testPickConfirmationEmail failed:', error)
+      return false
+    }
+  }
+  
+  ;(window as any).testAnonymousPickConfirmation = async (email = 'test@example.com', name = 'Test User') => {
+    try {
+      return await testAnonymousPickConfirmation(email, name)
+    } catch (error) {
+      console.error('❌ testAnonymousPickConfirmation failed:', error)
+      return false
+    }
+  }
+  
+  ;(window as any).processTestEmailQueue = async () => {
+    try {
+      return await processTestEmailQueue()
+    } catch (error) {
+      console.error('❌ processTestEmailQueue failed:', error)
+      return null
+    }
+  }
+  
+  ;(window as any).testNotificationScheduling = async (userId?: string) => {
+    try {
+      return await testNotificationScheduling(userId)
+    } catch (error) {
+      console.error('❌ testNotificationScheduling failed:', error)
+      return false
+    }
+  }
+  
+  ;(window as any).checkEmailQueue = async () => {
+    try {
+      return await checkEmailQueue()
+    } catch (error) {
+      console.error('❌ checkEmailQueue failed:', error)
+      return null
+    }
+  }
+  
+  ;(window as any).checkAdminEmailSettings = async (season = 2024) => {
+    try {
+      return await checkAdminEmailSettings(season)
+    } catch (error) {
+      console.error('❌ checkAdminEmailSettings failed:', error)
+      return null
+    }
+  }
+  
+  ;(window as any).clearEmailQueue = async () => {
+    try {
+      return await clearEmailQueue()
+    } catch (error) {
+      console.error('❌ clearEmailQueue failed:', error)
+      return null
+    }
+  }
+  
+  ;(window as any).checkDatabaseEmailSettings = async (season = 2024) => {
+    try {
+      return await checkDatabaseEmailSettings(season)
+    } catch (error) {
+      console.error('❌ checkDatabaseEmailSettings failed:', error)
+      return null
+    }
+  }
+  
+  ;(window as any).initializeDefaultEmailSettings = async (season = 2024) => {
+    try {
+      return await initializeDefaultEmailSettings(season)
+    } catch (error) {
+      console.error('❌ initializeDefaultEmailSettings failed:', error)
+      return null
+    }
+  }
+  
+  ;(window as any).testAllTemplates = () => {
+    try {
+      return testAllTemplates()
+    } catch (error) {
+      console.error('❌ testAllTemplates failed:', error)
+      return null
+    }
+  }
+  
+  // Add simple wrapper functions for easier console usage
+  ;(window as any).checkQueue = async () => {
+    console.log('🔍 Checking email queue...')
+    try {
+      const result = await checkEmailQueue()
+      console.log('✅ Queue check complete')
+      return result
+    } catch (error) {
+      console.error('❌ Queue check failed:', error)
+      return null
+    }
+  }
+  
+  ;(window as any).checkSettings = async (season = 2024) => {
+    console.log(`🔍 Checking admin email settings for season ${season}...`)
+    try {
+      const result = await checkAdminEmailSettings(season)
+      console.log('✅ Settings check complete')
+      return result
+    } catch (error) {
+      console.error('❌ Settings check failed:', error)
+      return null
+    }
+  }
   
   // Also add to a namespace for easier access
   ;(window as any).emailTesting = {
-    testPickConfirmationEmail,
-    testAnonymousPickConfirmation,
-    processTestEmailQueue,
-    testNotificationScheduling,
-    testAllTemplates,
-    checkEmailQueue,
-    checkAdminEmailSettings
+    testPickConfirmationEmail: (window as any).testPickConfirmationEmail,
+    testAnonymousPickConfirmation: (window as any).testAnonymousPickConfirmation,
+    processTestEmailQueue: (window as any).processTestEmailQueue,
+    testNotificationScheduling: (window as any).testNotificationScheduling,
+    testAllTemplates: (window as any).testAllTemplates,
+    checkEmailQueue: (window as any).checkEmailQueue,
+    checkAdminEmailSettings: (window as any).checkAdminEmailSettings,
+    checkDatabaseEmailSettings: (window as any).checkDatabaseEmailSettings,
+    initializeDefaultEmailSettings: (window as any).initializeDefaultEmailSettings,
+    clearEmailQueue: (window as any).clearEmailQueue,
+    checkQueue: (window as any).checkQueue,
+    checkSettings: (window as any).checkSettings
   }
   
   console.log('🧪 Email testing utilities loaded!')
   console.log('📋 Available functions:')
-  console.log('  - checkEmailQueue() - See what emails are in the queue')
-  console.log('  - checkAdminEmailSettings() - Debug admin email settings')
+  console.log('  - checkQueue() - Quick email queue check')
+  console.log('  - checkSettings(season?) - Quick admin settings check') 
+  console.log('  - checkDatabaseEmailSettings(season?) - Check raw database records')
+  console.log('  - clearEmailQueue() - Clear all pending emails (DANGER!)')
+  console.log('  - checkEmailQueue() - Detailed email queue check')
+  console.log('  - checkAdminEmailSettings(season?) - Detailed admin settings check')
   console.log('  - testAllTemplates() - Test all email templates')
   console.log('  - testPickConfirmationEmail("your.email@example.com", "Your Name")')
   console.log('  - testAnonymousPickConfirmation("your.email@example.com", "Your Name")')
   console.log('  - processTestEmailQueue() - Process ALL pending emails (use carefully!)')
-  console.log('  - testNotificationScheduling()')
-  console.log('  - Or use emailTesting.checkAdminEmailSettings() for namespaced access')
-  
-  // Force registration after a short delay to ensure DOM is ready
-  setTimeout(() => {
-    if (!(window as any).processTestEmailQueue) {
-      (window as any).processTestEmailQueue = processTestEmailQueue
-      console.log('🔄 Re-registered processTestEmailQueue function')
-    }
-  }, 1000)
+  console.log('  - testNotificationScheduling(userId?)')
+  console.log('  - Or use emailTesting.checkDatabaseEmailSettings() for namespaced access')
+}
+
+// Auto-register functions when module loads
+if (typeof window !== 'undefined') {
+  registerGlobalEmailTesting()
 }

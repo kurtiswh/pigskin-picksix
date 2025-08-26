@@ -138,6 +138,25 @@ export async function unsaveGamesDirect(week: number, season: number) {
     
     if (existingSettings && existingSettings.length > 0) {
       // Update week settings to unsave games but preserve deadline
+      // First, delete all games for this week and season
+      console.log(`🗑️ Deleting games from database for week ${week} season ${season}...`)
+      const deleteGamesResponse = await fetch(`${supabaseUrl}/rest/v1/games?week=eq.${week}&season=eq.${season}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      })
+      
+      if (!deleteGamesResponse.ok) {
+        const errorText = await deleteGamesResponse.text()
+        throw new Error(`Delete games failed HTTP ${deleteGamesResponse.status}: ${errorText}`)
+      }
+      console.log('✅ Games deleted from database')
+
+      // Then update week settings to unsave games but preserve deadline
       const updateResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${week}&season=eq.${season}`, {
         method: 'PATCH',
         headers: {
@@ -163,7 +182,7 @@ export async function unsaveGamesDirect(week: number, season: number) {
       }
       
       const updatedSettings = await updateResponse.json()
-      console.log('✅ Games unsaved successfully via direct API (games preserved, deadline retained):', updatedSettings)
+      console.log('✅ Week settings updated - games unsaved successfully, deadline preserved:', updatedSettings)
       return updatedSettings
     } else {
       throw new Error('No week settings found to unsave')

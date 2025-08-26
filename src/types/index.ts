@@ -53,6 +53,8 @@ export interface Game {
   status: 'scheduled' | 'in_progress' | 'completed'
   home_ranking?: number
   away_ranking?: number
+  neutral_site?: boolean
+  venue?: string
   created_at: string
   updated_at: string
 }

@@ -14,7 +14,7 @@ import ScoreManager from '@/components/ScoreManager'
 import AdminNotifications from '@/components/AdminNotifications'
 import AnonymousPicksAdmin from '@/components/AnonymousPicksAdmin'
 import '@/utils/emailTesting' // Load email testing utilities for console access
-import { testPickConfirmationEmail, processTestEmailQueue, testNotificationScheduling } from '@/utils/emailTesting'
+import { testPickConfirmationEmail, processTestEmailQueue, testNotificationScheduling, registerGlobalEmailTesting } from '@/utils/emailTesting'
 import Layout from '@/components/Layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -25,7 +25,8 @@ export default function AdminDashboard() {
   const { user, signOut } = useAuth()
   const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'anonymous' | 'notifications'>('games')
   const [cfbGames, setCfbGames] = useState<CFBGame[]>([])
-  const [selectedGames, setSelectedGames] = useState<CFBGame[]>([])
+  const [savedGames, setSavedGames] = useState<CFBGame[]>([]) // Games actually saved to database
+  const [tempSelectedGames, setTempSelectedGames] = useState<CFBGame[]>([]) // UI-only selections
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -34,32 +35,13 @@ export default function AdminDashboard() {
   const [currentWeek, setCurrentWeek] = useState(getCurrentWeek(currentSeason))
   const maxGames = 15
 
-  // Register email testing functions globally for console access
+
+  // Force registration of email testing utilities for console access
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Wrap functions to add debugging
-      (window as any).testPickConfirmationEmail = async (email: string, name: string) => {
-        console.log('🔍 CALLED: testPickConfirmationEmail')
-        return await testPickConfirmationEmail(email, name)
-      }
-      
-      (window as any).processTestEmailQueue = async () => {
-        console.log('🔍 CALLED: processTestEmailQueue')
-        return await processTestEmailQueue()
-      }
-      
-      (window as any).testNotificationScheduling = async (userId?: string) => {
-        console.log('🔍 CALLED: testNotificationScheduling')
-        return await testNotificationScheduling(userId)
-      }
-      
-      console.log('🧪 Email testing utilities registered with debugging!')
-      console.log('📋 Available functions:')
-      console.log('  - testPickConfirmationEmail("your.email@example.com", "Your Name")')
-      console.log('  - processTestEmailQueue()')
-      console.log('  - testNotificationScheduling()')
-    }
+    registerGlobalEmailTesting()
+    console.log('🧪 Email testing utilities explicitly registered from AdminDashboard')
   }, [])
+
 
   useEffect(() => {
     if (user?.is_admin) {
@@ -128,7 +110,8 @@ export default function AdminDashboard() {
           custom_lock_time: g.custom_lock_time
         })))
 
-        setSelectedGames(cfbFormatGames)
+        setSavedGames(cfbFormatGames)
+        setTempSelectedGames(cfbFormatGames) // Initialize temp selection with saved games
         console.log('✅ Week data loaded successfully via standard client')
 
       } catch (timeoutError) {
@@ -158,13 +141,15 @@ export default function AdminDashboard() {
             custom_lock_time: game.custom_lock_time // Include custom lock time from database
           }))
           
-          setSelectedGames(cfbFormatGames)
+          setSavedGames(cfbFormatGames)
+          setTempSelectedGames(cfbFormatGames) // Initialize temp selection with saved games
           console.log('✅ Week data loaded successfully via direct API')
           
         } catch (directError) {
           console.log('❌ Both standard client and direct API failed')
           setWeekSettings(null)
-          setSelectedGames([])
+          setSavedGames([])
+          setTempSelectedGames([])
           setError('Both standard client and direct API failed. Check network connection.')
         }
       }
@@ -174,7 +159,8 @@ export default function AdminDashboard() {
       setError(err.message)
       // Set empty states
       setWeekSettings(null)
-      setSelectedGames([])
+      setSavedGames([])
+      setTempSelectedGames([])
     } finally {
       console.log('📊 Week data loading completed')
       setLoading(false)
@@ -205,11 +191,11 @@ export default function AdminDashboard() {
             console.log(`✅ Successfully loaded ${realGames.length} real games`)
             setCfbGames(realGames)
             
-            // Sync selected games with newly loaded available games to fix ID matching
-            setSelectedGames(prev => {
+            // Sync temp selected games with newly loaded available games to fix ID matching
+            setTempSelectedGames(prev => {
               if (prev.length > 0) {
                 const synced = syncSelectedGamesWithAvailable(prev, realGames)
-                console.log(`🔄 Synced ${synced.length} selected games with available games`)
+                console.log(`🔄 Synced ${synced.length} temp selected games with available games`)
                 return synced
               }
               return prev
@@ -396,11 +382,13 @@ export default function AdminDashboard() {
       
       if (matching) {
         console.log(`✅ Found match for ${selected.home_team} vs ${selected.away_team}: ${selected.id} → ${matching.id}`)
-        // Use the available game's ID and preserve any manual edits
+        // Preserve the selected game's data and only update essential fields from matching
         return {
-          ...matching,
+          ...selected, // Keep all original data including rankings, venue, etc.
+          id: matching.id, // Update ID to match available games
+          start_date: matching.start_date || selected.start_date, // Update start time if available
           spread: selected.spread || matching.spread, // Keep manual spread edits
-          custom_lock_time: selected.custom_lock_time // Keep manual lock time edits
+          // Don't overwrite: home_ranking, away_ranking, venue, neutral_site, etc.
         }
       } else {
         console.log(`❌ No match found for ${selected.home_team} vs ${selected.away_team}`)
@@ -416,15 +404,15 @@ export default function AdminDashboard() {
   const handleGameToggle = (game: CFBGame) => {
     console.log('🎯 Game toggle clicked for:', game.home_team, 'vs', game.away_team, 'ID:', game.id)
     
-    setSelectedGames(prev => {
+    setTempSelectedGames(prev => {
       const isSelected = prev.some(g => g.id === game.id)
-      console.log('🔍 Is selected:', isSelected, 'Selected games:', prev.map(g => `${g.home_team} vs ${g.away_team} (ID: ${g.id})`))
+      console.log('🔍 Is selected:', isSelected, 'Temp selected games:', prev.map(g => `${g.home_team} vs ${g.away_team} (ID: ${g.id})`))
       
       if (isSelected) {
-        console.log('➖ Removing game from selection')
+        console.log('➖ Removing game from temp selection')
         return prev.filter(g => g.id !== game.id)
       } else if (prev.length < maxGames) {
-        console.log('➕ Adding game to selection')
+        console.log('➕ Adding game to temp selection')
         return [...prev, game]
       } else {
         console.log('❌ Max games reached, cannot add more')
@@ -479,8 +467,8 @@ export default function AdminDashboard() {
       }
 
       // Save games to database
-      console.log(`🏈 Inserting ${selectedGames.length} games...`)
-      const gamesToInsert = selectedGames.map(game => ({
+      console.log(`🏈 Inserting ${tempSelectedGames.length} games...`)
+      const gamesToInsert = tempSelectedGames.map(game => ({
         week: currentWeek,
         season: currentSeason,
         home_team: game.home_team,
@@ -488,6 +476,10 @@ export default function AdminDashboard() {
         spread: game.spread || 0,
         kickoff_time: game.start_date,
         custom_lock_time: game.custom_lock_time || null,
+        neutral_site: game.neutral_site || false,
+        home_team_ranking: game.home_ranking || null,
+        away_team_ranking: game.away_ranking || null,
+        venue: game.venue || null,
         status: 'scheduled'
       }))
       
@@ -628,15 +620,19 @@ export default function AdminDashboard() {
         console.log('⚠️ No existing week settings found, this should not happen')
       }
       
-      // Update local state immediately
+      // Update local state immediately to show UI changes
       if (updatedSettings && updatedSettings.length > 0) {
         setWeekSettings(updatedSettings[0])
         console.log('✅ Local week settings state updated')
+      } else {
+        // Ensure games_selected is true even if DB update unclear
+        setWeekSettings(prev => prev ? { ...prev, games_selected: true } : null)
+        console.log('✅ Local week settings forced to show games_selected: true')
       }
 
-      // Reload data
-      console.log('🔄 Reloading week data...')
-      await loadWeekData()
+      // Update saved games state (temp selections are now saved)
+      setSavedGames([...tempSelectedGames])
+      console.log('✅ Temp selections moved to saved games')
 
       alert('Games saved successfully! 🏈')
       console.log('🎉 Save operation completed successfully')
@@ -644,13 +640,7 @@ export default function AdminDashboard() {
     } catch (err: any) {
       console.error('Error saving games:', err)
       setError(`Save failed: ${err.message}`)
-      
-      // Try to reload data to see current state
-      try {
-        await loadWeekData()
-      } catch (reloadError) {
-        console.log('⚠️ Failed to reload after error')
-      }
+      console.log('❌ Games save failed, keeping current UI state')
     } finally {
       console.log('🏁 Save games operation finished')
       setLoading(false)
@@ -658,7 +648,13 @@ export default function AdminDashboard() {
   }
 
   const handleSpreadUpdate = (gameId: number, spread: number) => {
-    setSelectedGames(prev => 
+    setTempSelectedGames(prev => 
+      prev.map(game => 
+        game.id === gameId ? { ...game, spread } : game
+      )
+    )
+    // Also update saved games if they exist (for games already saved)
+    setSavedGames(prev => 
       prev.map(game => 
         game.id === gameId ? { ...game, spread } : game
       )
@@ -666,7 +662,13 @@ export default function AdminDashboard() {
   }
 
   const handleLockTimeUpdate = (gameId: number, lockTime: string) => {
-    setSelectedGames(prev => 
+    setTempSelectedGames(prev => 
+      prev.map(game => 
+        game.id === gameId ? { ...game, custom_lock_time: lockTime || undefined } : game
+      )
+    )
+    // Also update saved games if they exist (for games already saved)
+    setSavedGames(prev => 
       prev.map(game => 
         game.id === gameId ? { ...game, custom_lock_time: lockTime || undefined } : game
       )
@@ -708,17 +710,24 @@ export default function AdminDashboard() {
           // deadline is preserved by not updating it
         } : null)
 
-        // Sync selected games with available games to fix ID matching after unsave
+        // Clear saved games from database (but keep temp selections for re-editing)
+        setSavedGames([])
+        console.log('✅ Cleared saved games - temp selections preserved for editing')
+
+        // Sync temp selected games with available games to fix ID matching after unsave
         if (cfbGames.length > 0) {
-          setSelectedGames(prev => {
+          setTempSelectedGames(prev => {
             const synced = syncSelectedGamesWithAvailable(prev, cfbGames)
-            console.log(`🔄 Post-unsave sync: Updated ${synced.length} selected games with correct IDs`)
+            console.log(`🔄 Post-unsave sync: Updated ${synced.length} temp selected games with correct IDs`)
             return synced
           })
+        } else {
+          console.log(`⚠️ No available games to sync with - keeping ${tempSelectedGames.length} temp selected games as-is`)
+          // Keep tempSelectedGames as-is if no available games
         }
 
         alert('Games unsaved successfully! You can now make changes to your selection.')
-        console.log('🎉 Unsave operation completed successfully - selected games preserved')
+        console.log('🎉 Unsave operation completed successfully - temp selections preserved for editing')
 
       } catch (error) {
         console.error('❌ Unsave operation failed:', error)
@@ -919,7 +928,7 @@ export default function AdminDashboard() {
             {cfbGames.length > 0 ? (
               <AdminGameSelector
                 games={cfbGames}
-                selectedGames={selectedGames}
+                selectedGames={tempSelectedGames}
                 onGameToggle={handleGameToggle}
                 loading={loading}
                 maxGames={maxGames}
@@ -948,7 +957,7 @@ export default function AdminDashboard() {
               onUnsaveGames={handleUnsaveGames}
               onSpreadUpdate={handleSpreadUpdate}
               onLockTimeUpdate={handleLockTimeUpdate}
-              selectedGames={selectedGames}
+              selectedGames={tempSelectedGames}
               maxGames={maxGames}
               loading={loading}
               currentWeek={currentWeek}

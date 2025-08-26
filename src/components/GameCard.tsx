@@ -1,4 +1,3 @@
-import React from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -106,10 +105,13 @@ export default function GameCard({
   const isGameLocked = now > actualLockTime
 
   const getSpreadDisplay = (team: string) => {
+    // College Football Data API spread: negative = home team favored, positive = away team favored
     if (team === game.home_team) {
+      // Home team gets the spread as-is: negative if favored, positive if underdog
       return game.spread > 0 ? `+${game.spread}` : `${game.spread}`
     } else {
-      return game.spread > 0 ? `${-game.spread}` : `+${-game.spread}`
+      // Away team gets the opposite: positive if favored, negative if underdog
+      return game.spread < 0 ? `+${Math.abs(game.spread)}` : `-${game.spread}`
     }
   }
 
@@ -172,6 +174,19 @@ export default function GameCard({
             {formatTime(game.kickoff_time)}
           </div>
           
+          {/* Venue and Game Type Indicator */}
+          <div className="text-xs mb-2">
+            {game.neutral_site ? (
+              <div className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
+                <span className="mr-1">⚖️</span>
+                Neutral Site
+                {game.venue && <span className="ml-1 text-purple-600">• {game.venue}</span>}
+              </div>
+            ) : (
+              game.venue && <div className="text-charcoal-400 italic">{game.venue}</div>
+            )}
+          </div>
+          
           {/* Lock Time Indicator */}
           {shouldShowLockTimeIndicator && (
             <div className={cn(
@@ -208,18 +223,33 @@ export default function GameCard({
               isGameLocked && "bg-stone-50 border-stone-300"
             )}
           >
-            <div>
-              <div className="font-semibold text-sm flex items-center space-x-2">
-                {game.away_ranking && (
-                  <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded font-medium">
-                    #{game.away_ranking}
-                  </span>
-                )}
-                <span>{game.away_team}</span>
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center space-x-2">
+                  {game.away_ranking && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded font-medium">
+                      #{game.away_ranking}
+                    </span>
+                  )}
+                  <span className="font-semibold text-sm">{game.away_team}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {!game.neutral_site && (
+                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
+                      AWAY
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="text-xs text-charcoal-500">@ {game.home_team}</div>
+              <div className="text-xs text-charcoal-500 flex items-center space-x-1">
+                <span>{game.neutral_site ? 'vs' : '@'}</span>
+                <span>{game.home_team}</span>
+                {game.neutral_site && (
+                  <span className="text-purple-600 font-medium">(Neutral)</span>
+                )}
+              </div>
             </div>
-            <div className="text-right">
+            <div className="text-right ml-3">
               <div className="font-bold text-base">{getSpreadDisplay(game.away_team)}</div>
               {selectedTeam === game.away_team && (
                 <div className="text-xs text-pigskin-600 font-medium">SELECTED</div>
@@ -241,18 +271,33 @@ export default function GameCard({
               isGameLocked && "bg-stone-50 border-stone-300"
             )}
           >
-            <div>
-              <div className="font-semibold text-sm flex items-center space-x-2">
-                {game.home_ranking && (
-                  <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded font-medium">
-                    #{game.home_ranking}
-                  </span>
-                )}
-                <span>{game.home_team}</span>
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center space-x-2">
+                  {game.home_ranking && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded font-medium">
+                      #{game.home_ranking}
+                    </span>
+                  )}
+                  <span className="font-semibold text-sm">{game.home_team}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {!game.neutral_site && (
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                      HOME
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="text-xs text-charcoal-500">vs {game.away_team}</div>
+              <div className="text-xs text-charcoal-500 flex items-center space-x-1">
+                <span>vs</span>
+                <span>{game.away_team}</span>
+                {game.neutral_site && (
+                  <span className="text-purple-600 font-medium">(Neutral)</span>
+                )}
+              </div>
             </div>
-            <div className="text-right">
+            <div className="text-right ml-3">
               <div className="font-bold text-base">{getSpreadDisplay(game.home_team)}</div>
               {selectedTeam === game.home_team && (
                 <div className="text-xs text-pigskin-600 font-medium">SELECTED</div>
@@ -285,7 +330,7 @@ export default function GameCard({
         <div className="mt-2 text-center">
           {isPicked ? (
             <div className="text-sm text-pigskin-600 font-medium">
-              Pick: {selectedTeam} {getSpreadDisplay(selectedTeam)}
+              Pick: {selectedTeam} {selectedTeam && getSpreadDisplay(selectedTeam)}
               {isLock && " (LOCK)"}
               {isGameLocked && " - LOCKED"}
             </div>

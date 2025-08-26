@@ -127,6 +127,8 @@ export default function PickSheetPage() {
             status: game.status || 'scheduled',
             home_ranking: game.home_team_ranking,
             away_ranking: game.away_team_ranking,
+            neutral_site: game.neutral_site || false,
+            venue: game.venue,
             created_at: game.created_at || new Date().toISOString(),
             updated_at: game.updated_at || new Date().toISOString()
           }))
