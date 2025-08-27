@@ -128,6 +128,13 @@ export async function getGames(
     
     clearTimeout(timeoutId)
     
+    if (response.status === 429) {
+      const responseData = await response.json().catch(() => ({}))
+      const message = responseData.message || 'Rate limit exceeded'
+      console.warn('⚠️ CFBD API quota exceeded for games request, using mock data')
+      return getMockGames(season, week)
+    }
+    
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
@@ -187,6 +194,13 @@ export async function getBettingLines(
     })
     
     clearTimeout(timeoutId)
+    
+    if (response.status === 429) {
+      const responseData = await response.json().catch(() => ({}))
+      const message = responseData.message || 'Rate limit exceeded'
+      console.warn('⚠️ CFBD API quota exceeded for betting lines, skipping spreads')
+      return []  // Return empty array, games will work without spreads
+    }
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
@@ -575,11 +589,16 @@ export async function getCompletedGames(
 /**
  * Check if the API is accessible with timeout
  */
-export async function testApiConnection(timeoutMs: number = 5000): Promise<boolean> {
+export async function testApiConnection(timeoutMs: number = 5000): Promise<{ 
+  connected: boolean; 
+  error?: string; 
+  quotaExceeded?: boolean;
+  status?: number 
+}> {
   try {
     if (!API_KEY) {
       console.warn('⚠️ No CFBD API key found. Set VITE_CFBD_API_KEY environment variable.')
-      return false
+      return { connected: false, error: 'No API key configured' }
     }
     
     // Add timeout to API connection test
@@ -596,16 +615,45 @@ export async function testApiConnection(timeoutMs: number = 5000): Promise<boole
     
     if (response.status === 401) {
       console.error('❌ API key is invalid or missing. Get a free key at https://collegefootballdata.com/')
-      return false
+      return { connected: false, error: 'Invalid API key', status: 401 }
     }
     
-    return response.ok
+    if (response.status === 429) {
+      const responseData = await response.json().catch(() => ({}))
+      const message = responseData.message || 'Rate limit exceeded'
+      console.warn('⚠️ CFBD API quota exceeded:', message)
+      return { 
+        connected: false, 
+        error: message, 
+        quotaExceeded: true, 
+        status: 429 
+      }
+    }
+    
+    if (response.status === 403) {
+      console.error('❌ API access forbidden. Check API key permissions.')
+      return { connected: false, error: 'Access forbidden', status: 403 }
+    }
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error')
+      return { 
+        connected: false, 
+        error: `HTTP ${response.status}: ${errorText}`, 
+        status: response.status 
+      }
+    }
+    
+    console.log('✅ CFBD API connection successful')
+    return { connected: true }
+    
   } catch (error) {
     if (error.name === 'AbortError') {
       console.log('⏰ API connection test timed out')
+      return { connected: false, error: 'Connection timeout' }
     } else {
       console.error('❌ API connection test failed:', error)
+      return { connected: false, error: error.message || 'Network error' }
     }
-    return false
   }
 }

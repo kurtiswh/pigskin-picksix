@@ -9,9 +9,10 @@ interface ApiStatusWidgetProps {
 }
 
 export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidgetProps) {
-  const [apiStatus, setApiStatus] = useState<'unknown' | 'connected' | 'error'>('unknown')
+  const [apiStatus, setApiStatus] = useState<'unknown' | 'connected' | 'error' | 'quota_exceeded'>('unknown')
   const [currentWeek, setCurrentWeek] = useState(getCurrentWeek(season))
   const [testing, setTesting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string>('')
 
   useEffect(() => {
     testApi()
@@ -20,10 +21,21 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
   const testApi = async () => {
     setTesting(true)
     try {
-      const connected = await testApiConnection()
-      setApiStatus(connected ? 'connected' : 'error')
+      const result = await testApiConnection()
+      
+      if (result.connected) {
+        setApiStatus('connected')
+        setErrorMessage('')
+      } else if (result.quotaExceeded) {
+        setApiStatus('quota_exceeded')
+        setErrorMessage(result.error || 'Monthly API quota exceeded')
+      } else {
+        setApiStatus('error')
+        setErrorMessage(result.error || 'Connection failed')
+      }
     } catch (error) {
       setApiStatus('error')
+      setErrorMessage('Network error')
     } finally {
       setTesting(false)
     }
@@ -50,13 +62,16 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
                 <div className="flex items-center space-x-1">
                   <div className={`w-3 h-3 rounded-full ${
                     apiStatus === 'connected' ? 'bg-green-500' : 
+                    apiStatus === 'quota_exceeded' ? 'bg-yellow-500' :
                     apiStatus === 'error' ? 'bg-red-500' : 'bg-gray-400'
                   }`}></div>
                   <span className={`text-xs font-medium ${
                     apiStatus === 'connected' ? 'text-green-700' : 
+                    apiStatus === 'quota_exceeded' ? 'text-yellow-700' :
                     apiStatus === 'error' ? 'text-red-700' : 'text-gray-600'
                   }`}>
                     {apiStatus === 'connected' ? 'Connected' : 
+                     apiStatus === 'quota_exceeded' ? 'Quota Exceeded' :
                      apiStatus === 'error' ? 'Disconnected' : 'Unknown'}
                   </span>
                 </div>
@@ -87,9 +102,41 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
           </Button>
         </div>
         
-        {apiStatus === 'error' && (
-          <div className="mt-2 text-xs text-red-600">
-            ⚠️ Cannot connect to CollegeFootballData API. Get a free API key at collegefootballdata.com and set VITE_CFBD_API_KEY in your .env file. Using sample data for now.
+        {(apiStatus === 'error' || apiStatus === 'quota_exceeded') && (
+          <div className={`mt-2 text-xs ${
+            apiStatus === 'quota_exceeded' ? 'text-yellow-600' : 'text-red-600'
+          }`}>
+            {apiStatus === 'quota_exceeded' ? (
+              <>
+                📊 <strong>API Quota Exceeded:</strong> {errorMessage}
+                <br />
+                The app will use sample data and cached results until the monthly quota resets.
+                <br />
+                <a 
+                  href="https://collegefootballdata.com/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="underline hover:no-underline"
+                >
+                  Get a paid API plan at collegefootballdata.com
+                </a> for unlimited access.
+              </>
+            ) : (
+              <>
+                ⚠️ <strong>API Connection Error:</strong> {errorMessage || 'Cannot connect to CollegeFootballData API'}
+                <br />
+                Get a free API key at{' '}
+                <a 
+                  href="https://collegefootballdata.com/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="underline hover:no-underline"
+                >
+                  collegefootballdata.com
+                </a>{' '}
+                and set VITE_CFBD_API_KEY in your .env file. Using sample data for now.
+              </>
+            )}
           </div>
         )}
         
