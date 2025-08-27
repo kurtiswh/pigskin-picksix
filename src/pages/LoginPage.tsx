@@ -27,9 +27,10 @@ export default function LoginPage() {
 
   // Check for email confirmation success
   useEffect(() => {
-    // Check URL query parameters (for email confirmation links with ?code=)
+    // Check URL query parameters
     const urlParams = new URLSearchParams(window.location.search)
     const code = urlParams.get('code')
+    const confirmed = urlParams.get('confirmed')
     
     // Check URL hash parameters (for magic links with #access_token=)
     const hashParams = new URLSearchParams(window.location.hash.substring(1))
@@ -38,12 +39,23 @@ export default function LoginPage() {
     
     console.log('🔍 [CONFIRMATION] Checking for auth callback:', { 
       hasCode: !!code, 
+      confirmed,
       hashType: type, 
       hasAccessToken: !!accessToken 
     })
     
-    // Check if this is an email confirmation callback (query parameter)
-    if (code) {
+    // Check if user was redirected here after email confirmation
+    if (confirmed === 'true') {
+      console.log('✅ Email confirmation redirect detected')
+      setIsPositiveMessage(true)
+      setError('✅ Email confirmed successfully! You are now signed in.')
+      // Clear the URL parameters after a short delay
+      setTimeout(() => {
+        window.history.replaceState({}, document.title, window.location.pathname)
+      }, 3000)
+    }
+    // Check if this is an email confirmation callback (query parameter with code)
+    else if (code) {
       console.log('✅ Email confirmation code detected in URL')
       setIsPositiveMessage(true)
       setError('✅ Email confirmed successfully! You are now signed in.')

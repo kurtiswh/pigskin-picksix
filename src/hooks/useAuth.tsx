@@ -65,42 +65,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (confirmationCode) {
           console.log('🔮 [INIT] Processing confirmation code...')
           
-          // Check if this might be a password reset that got misrouted
+          // Check if this is specifically for password reset
           const currentPath = window.location.pathname
           const urlParams = new URLSearchParams(window.location.search)
+          const isPasswordReset = currentPath === '/reset-password' || 
+                                  urlParams.has('reset') || 
+                                  urlParams.get('type') === 'recovery'
           
           console.log('🔍 [INIT] Code context:', { 
             path: currentPath, 
+            isPasswordReset,
             hasResetParam: urlParams.has('reset'),
-            hasTypeParam: urlParams.has('type'),
+            typeParam: urlParams.get('type'),
+            confirmedParam: urlParams.get('confirmed'),
             allParams: Object.fromEntries(urlParams.entries())
           })
           
-          // If we're not on the login page and have a code, this might be a password reset
-          // that got redirected to the wrong place
-          if (currentPath !== '/login' && currentPath !== '/') {
-            console.log('⚠️ [INIT] Code received on non-login page, might be password reset misrouting')
+          // If this is clearly a password reset, don't process as email confirmation
+          if (isPasswordReset) {
+            console.log('🔄 [INIT] Code is for password reset, skipping email confirmation processing')
+            setLoading(false)
+            return
           }
+          
+          // This should be an email confirmation for registration
+          console.log('✅ [INIT] Processing as email confirmation for registration')
           
           const { data, error } = await supabase.auth.exchangeCodeForSession(confirmationCode)
           
           if (error) {
-            console.error('❌ [INIT] Code exchange error:', error.message)
+            console.error('❌ [INIT] Email confirmation failed:', error.message)
             console.error('❌ [INIT] Error details:', JSON.stringify(error, null, 2))
             
-            // If this is a password reset that got misrouted, redirect to reset password page
-            if (error.message?.includes('invalid') && window.location.pathname === '/') {
-              console.log('🔄 [INIT] Possible password reset misrouting, redirecting to reset page')
+            // Only redirect to reset password if we're sure this was meant to be a password reset
+            if (error.message?.includes('invalid') && error.message?.includes('recovery')) {
+              console.log('🔄 [INIT] Code was actually for password reset, redirecting')
               window.location.href = `/reset-password?error=invalid_code&code=${confirmationCode}`
               return
             }
             
+            // For email confirmation errors, show the error but don't redirect to password reset
+            console.log('❌ [INIT] Email confirmation error, staying on current page')
             setLoading(false)
             return
           }
           
           if (data.session?.user) {
-            console.log('✅ [INIT] Code exchange successful')
+            console.log('✅ [INIT] Email confirmation successful - user signed in!')
             // Don't clear the URL immediately - let LoginPage show success message first
             await fetchUserProfile(data.session.user.id, data.session.user.email)
             return
@@ -634,8 +645,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: {
             display_name: displayName,
           },
-          emailRedirectTo: undefined, // Disable email confirmation
-          email_confirm: false, // Explicitly disable email confirmation
+          emailRedirectTo: `${window.location.origin}/login?confirmed=true`, // Redirect to login with confirmation success
         },
       })
       
