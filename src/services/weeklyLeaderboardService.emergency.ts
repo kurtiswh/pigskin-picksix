@@ -8,6 +8,7 @@ export interface EmergencyWeeklyLeaderboardEntry {
   weekly_record: string
   lock_record: string
   week: number
+  pick_source?: 'authenticated' | 'anonymous' | 'mixed'
 }
 
 /**
@@ -72,11 +73,12 @@ export class EmergencyWeeklyLeaderboardService {
   private static async getTableWeeklyLeaderboard(season: number, week: number): Promise<EmergencyWeeklyLeaderboardEntry[]> {
     const query = supabase
       .from('weekly_leaderboard')
-      .select('user_id, display_name, weekly_rank, total_points, wins, losses, pushes, lock_wins, lock_losses')
+      .select('user_id, display_name, weekly_rank, total_points, wins, losses, pushes, lock_wins, lock_losses, pick_source, is_verified')
       .eq('season', season)
       .eq('week', week)
+      .or('is_verified.eq.true,pick_source.eq.anonymous,pick_source.eq.mixed')
       .order('weekly_rank', { ascending: true })
-      .limit(100)
+      .limit(200)
 
     const { data, error } = await Promise.race([
       query,
@@ -96,11 +98,11 @@ export class EmergencyWeeklyLeaderboardService {
   private static async getViewWeeklyLeaderboard(season: number, week: number): Promise<EmergencyWeeklyLeaderboardEntry[]> {
     const query = supabase
       .from('weekly_leaderboard')
-      .select('user_id, display_name, weekly_rank, total_points, wins, losses, pushes, lock_wins, lock_losses')
+      .select('user_id, display_name, weekly_rank, total_points, wins, losses, pushes, lock_wins, lock_losses, pick_source')
       .eq('season', season)
       .eq('week', week)
       .order('weekly_rank', { ascending: true })
-      .limit(100)
+      .limit(200)
 
     const { data, error } = await Promise.race([
       query,
@@ -174,7 +176,8 @@ export class EmergencyWeeklyLeaderboardService {
       total_points: entry.total_points || 0,
       weekly_record: `${entry.wins || 0}-${entry.losses || 0}-${entry.pushes || 0}`,
       lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
-      week: week
+      week: week,
+      pick_source: entry.pick_source || 'authenticated'
     }))
   }
 
@@ -220,7 +223,8 @@ export class EmergencyWeeklyLeaderboardService {
       total_points: stats.total_points,
       weekly_record: `${stats.total_wins}-${stats.total_losses}-${stats.total_pushes}`,
       lock_record: `${stats.lock_wins}-${stats.lock_losses}`,
-      week: week
+      week: week,
+      pick_source: 'authenticated'
     }))
   }
 }

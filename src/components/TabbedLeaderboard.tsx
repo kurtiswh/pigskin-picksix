@@ -7,8 +7,10 @@ import { EmergencyLeaderboardService, EmergencyLeaderboardEntry } from '@/servic
 import { ProductionLeaderboardService, ProductionLeaderboardEntry } from '@/services/leaderboardService.production'
 import { EmergencyWeeklyLeaderboardService, EmergencyWeeklyLeaderboardEntry } from '@/services/weeklyLeaderboardService.emergency'
 import { ProductionWeeklyLeaderboardService, ProductionWeeklyLeaderboardEntry } from '@/services/weeklyLeaderboardService.production'
+import { useAuth } from '@/hooks/useAuth'
 
 export default function TabbedLeaderboard() {
+  const { user } = useAuth()
   const [season, setSeason] = useState(2025)
   const [selectedWeek, setSelectedWeek] = useState(1)
   const [activeTab, setActiveTab] = useState('season')
@@ -17,6 +19,9 @@ export default function TabbedLeaderboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [strategy, setStrategy] = useState('')
+  
+  // Check if current user is admin
+  const isAdmin = user?.is_admin === true
 
   useEffect(() => {
     loadSeasonData()
@@ -156,6 +161,35 @@ export default function TabbedLeaderboard() {
     }
   }
 
+  const getSourceBadge = (source?: 'authenticated' | 'anonymous' | 'mixed') => {
+    switch (source) {
+      case 'authenticated':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            <span>🔐</span> Auth
+          </span>
+        )
+      case 'anonymous':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+            <span>👤</span> Anon
+          </span>
+        )
+      case 'mixed':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+            <span>🔄</span> Mixed
+          </span>
+        )
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            <span>🔐</span> Auth
+          </span>
+        )
+    }
+  }
+
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="mb-6">
@@ -271,6 +305,7 @@ export default function TabbedLeaderboard() {
             <tr className="border-b">
               <th className="text-left p-2">Rank</th>
               <th className="text-left p-2">Name</th>
+              {isAdmin && <th className="text-left p-2">Source</th>}
               <th className="text-left p-2">Record</th>
               <th className="text-left p-2">Lock Record</th>
               <th className="text-left p-2">Points</th>
@@ -281,6 +316,7 @@ export default function TabbedLeaderboard() {
               <tr key={entry.user_id} className="border-b hover:bg-gray-50">
                 <td className="p-2 font-semibold">#{entry.season_rank || entry.weekly_rank}</td>
                 <td className="p-2">{entry.display_name}</td>
+                {isAdmin && <td className="p-2">{getSourceBadge(entry.pick_source)}</td>}
                 <td className="p-2">{entry.season_record || entry.weekly_record}</td>
                 <td className="p-2">{entry.lock_record}</td>
                 <td className="p-2 font-semibold">{entry.total_points}</td>

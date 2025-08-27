@@ -7,6 +7,7 @@ export interface EmergencyLeaderboardEntry {
   total_points: number
   season_record: string
   lock_record: string
+  pick_source?: 'authenticated' | 'anonymous' | 'mixed'
 }
 
 /**
@@ -70,10 +71,10 @@ export class EmergencyLeaderboardService {
   private static async getTableLeaderboard(season: number): Promise<EmergencyLeaderboardEntry[]> {
     const query = supabase
       .from('season_leaderboard')
-      .select('user_id, display_name, season_rank, total_points, total_wins, total_losses, total_pushes, lock_wins, lock_losses')
+      .select('user_id, display_name, season_rank, total_points, total_wins, total_losses, total_pushes, lock_wins, lock_losses, pick_source')
       .eq('season', season)
       .order('season_rank', { ascending: true })
-      .limit(50)
+      .limit(200)
 
     const { data, error } = await Promise.race([
       query,
@@ -94,10 +95,10 @@ export class EmergencyLeaderboardService {
     // Original VIEW doesn't have is_verified column, so we can't filter by it
     const query = supabase
       .from('season_leaderboard')
-      .select('user_id, display_name, season_rank, total_points, total_wins, total_losses, total_pushes, lock_wins, lock_losses')
+      .select('user_id, display_name, season_rank, total_points, total_wins, total_losses, total_pushes, lock_wins, lock_losses, pick_source')
       .eq('season', season)
       .order('season_rank', { ascending: true })
-      .limit(50)
+      .limit(200)
 
     const { data, error } = await Promise.race([
       query,
@@ -182,7 +183,8 @@ export class EmergencyLeaderboardService {
       season_rank: entry.season_rank || (index + 1),
       total_points: entry.total_points || 0,
       season_record: `${entry.total_wins || 0}-${entry.total_losses || 0}-${entry.total_pushes || 0}`,
-      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`
+      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
+      pick_source: entry.pick_source || 'authenticated'
     }))
   }
 

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/useAuth'
 
 interface LeaderboardEntry {
   user_id: string
@@ -23,6 +24,7 @@ interface LeaderboardEntry {
   lock_losses: number
   last_week_points?: number
   trend?: 'up' | 'down' | 'same'
+  pick_source?: 'authenticated' | 'anonymous' | 'mixed'
 }
 
 interface LeaderboardTableProps {
@@ -44,9 +46,13 @@ export default function LeaderboardTable({
   isLive = false,
   hasLiveGames = false
 }: LeaderboardTableProps) {
+  const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<'rank' | 'name' | 'record' | 'points'>('rank')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+
+  // Check if current user is admin
+  const isAdmin = user?.is_admin === true
 
   const filteredEntries = entries
     .filter(entry => 
@@ -106,6 +112,19 @@ export default function LeaderboardTable({
       case 2: return '🥈' 
       case 3: return '🥉'
       default: return `#${rank}`
+    }
+  }
+
+  const getSourceBadge = (source?: 'authenticated' | 'anonymous' | 'mixed') => {
+    switch (source) {
+      case 'authenticated':
+        return { text: 'Auth', color: 'bg-blue-100 text-blue-800', icon: '🔐' }
+      case 'anonymous':
+        return { text: 'Anon', color: 'bg-purple-100 text-purple-800', icon: '👤' }
+      case 'mixed':
+        return { text: 'Mixed', color: 'bg-orange-100 text-orange-800', icon: '🔄' }
+      default:
+        return { text: 'Auth', color: 'bg-blue-100 text-blue-800', icon: '🔐' }
     }
   }
 
@@ -189,13 +208,13 @@ export default function LeaderboardTable({
         ) : (
           <div className="space-y-2">
             {/* Header */}
-            <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-medium text-charcoal-500 uppercase tracking-wide border-b border-stone-200">
+            <div className={`grid gap-4 px-4 py-2 text-xs font-medium text-charcoal-500 uppercase tracking-wide border-b border-stone-200 ${isAdmin ? 'grid-cols-12' : 'grid-cols-10'}`}>
               <div className="col-span-1">Rank</div>
               <div className="col-span-3">Player</div>
+              {isAdmin && <div className="col-span-2">Source</div>}
               <div className="col-span-2">Record</div>
-              <div className="col-span-2">Lock Record</div>
+              <div className="col-span-2">Lock</div>
               <div className="col-span-2">Points</div>
-              <div className="col-span-2">Trend</div>
             </div>
             
             {/* Entries */}
@@ -203,12 +222,13 @@ export default function LeaderboardTable({
               const rank = type === 'weekly' ? (entry.weekly_rank || index + 1) : entry.season_rank
               const points = type === 'weekly' ? (entry.weekly_points || 0) : entry.season_points
               const record = type === 'weekly' ? entry.weekly_record : entry.season_record
+              const sourceBadge = getSourceBadge(entry.pick_source)
               
               return (
                 <div
                   key={entry.user_id}
                   className={cn(
-                    "grid grid-cols-12 gap-4 px-4 py-3 rounded-lg transition-colors hover:bg-stone-50",
+                    `grid gap-4 px-4 py-3 rounded-lg transition-colors hover:bg-stone-50 ${isAdmin ? 'grid-cols-12' : 'grid-cols-10'}`,
                     rank <= 3 && "bg-gradient-to-r from-gold-50 to-transparent border border-gold-200"
                   )}
                 >
@@ -236,6 +256,19 @@ export default function LeaderboardTable({
                     </div>
                   </div>
                   
+                  {/* Source - Only show for admins */}
+                  {isAdmin && (
+                    <div className="col-span-2 flex items-center">
+                      <div className={cn(
+                        "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium",
+                        sourceBadge.color
+                      )}>
+                        <span className="text-xs">{sourceBadge.icon}</span>
+                        <span>{sourceBadge.text}</span>
+                      </div>
+                    </div>
+                  )}
+                  
                   {/* Record */}
                   <div className="col-span-2 flex items-center">
                     <div>
@@ -256,21 +289,14 @@ export default function LeaderboardTable({
                   
                   {/* Points */}
                   <div className="col-span-2 flex items-center">
-                    <div className="text-right">
+                    <div className="text-right w-full">
                       <div className="font-bold text-lg">{points}</div>
-                      <div className="text-xs text-charcoal-500">points</div>
-                    </div>
-                  </div>
-                  
-                  {/* Trend */}
-                  <div className="col-span-2 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="text-xl">{getTrendIcon(entry.trend)}</div>
-                      {type === 'best-finish' && entry.best_finish_rank && (
-                        <div className="text-xs text-charcoal-500">
-                          BF: #{entry.best_finish_rank}
-                        </div>
-                      )}
+                      <div className="text-xs text-charcoal-500">
+                        {getTrendIcon(entry.trend)} points
+                        {type === 'best-finish' && entry.best_finish_rank && (
+                          <span className="ml-2">BF: #{entry.best_finish_rank}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

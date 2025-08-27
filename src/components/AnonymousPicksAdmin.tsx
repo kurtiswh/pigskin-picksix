@@ -7,6 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 
+type ValidationStatus = 'pending_validation' | 'auto_validated' | 'manually_validated' | 'duplicate_conflict'
+type PickSource = 'authenticated' | 'anonymous'
+
 interface AnonymousPick {
   id: string
   email: string
@@ -22,6 +25,8 @@ interface AnonymousPick {
   submitted_at: string
   assigned_user_id?: string
   show_on_leaderboard: boolean
+  validation_status: ValidationStatus
+  processing_notes?: string
   created_at: string
 }
 
@@ -33,6 +38,8 @@ interface PickSet {
   picks: AnonymousPick[]
   assignedUserId?: string
   showOnLeaderboard: boolean
+  validationStatus: ValidationStatus
+  processingNotes?: string
   autoAssigned?: boolean
   hasConflicts?: boolean
 }
@@ -55,6 +62,21 @@ interface AnonymousPicksAdminProps {
   currentSeason: number
 }
 
+const getValidationStatusBadge = (status: ValidationStatus) => {
+  switch (status) {
+    case 'pending_validation':
+      return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">⏳ Pending Validation</Badge>
+    case 'auto_validated':
+      return <Badge variant="default" className="bg-green-100 text-green-800">✅ Auto-Validated</Badge>
+    case 'manually_validated':
+      return <Badge variant="default" className="bg-purple-100 text-purple-800">👤 Manually Validated</Badge>
+    case 'duplicate_conflict':
+      return <Badge variant="destructive" className="bg-red-100 text-red-800">⚠️ Duplicate Conflict</Badge>
+    default:
+      return <Badge variant="secondary">❓ Unknown Status</Badge>
+  }
+}
+
 export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: AnonymousPicksAdminProps) {
   const [pickSets, setPickSets] = useState<PickSet[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -62,6 +84,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
   const [error, setError] = useState('')
   const [selectedWeek, setSelectedWeek] = useState(currentWeek)
   const [selectedSeason, setSelectedSeason] = useState(currentSeason)
+  const [statusFilter, setStatusFilter] = useState<ValidationStatus | 'all'>('all')
   const [conflictResolution, setConflictResolution] = useState<{
     pickSet: PickSet
     assignedUserId: string
@@ -83,22 +106,33 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     checkCurrentUser()
   }, [selectedWeek, selectedSeason])
 
+  const [autoProcessingComplete, setAutoProcessingComplete] = useState(false)
+
   useEffect(() => {
-    // Auto-process validated users after initial data loads (with delay to avoid race conditions)
-    if (!loading && pickSets.length > 0 && users.length > 0) {
-      // Only auto-process unassigned validated pick sets to prevent infinite loop
-      const unassignedValidatedPickSets = pickSets.filter(ps => ps.isValidated && !ps.assignedUserId && !ps.autoAssigned)
+    // Auto-process validated users only once per data load
+    if (!loading && pickSets.length > 0 && users.length > 0 && !autoProcessingComplete) {
+      const unassignedValidatedPickSets = pickSets.filter(ps => 
+        ps.isValidated && 
+        !ps.assignedUserId && 
+        !ps.autoAssigned &&
+        ps.validationStatus === 'pending_validation' // Only process pending ones
+      )
       
       if (unassignedValidatedPickSets.length > 0) {
         console.log(`🔄 Auto-processing ${unassignedValidatedPickSets.length} validated users`)
-        const timer = setTimeout(() => {
-          processValidatedUsers()
-        }, 500) // 500ms delay to ensure data is stable
-        
-        return () => clearTimeout(timer)
+        processValidatedUsers().then(() => {
+          setAutoProcessingComplete(true) // Prevent further auto-processing
+        })
+      } else {
+        setAutoProcessingComplete(true)
       }
     }
-  }, [loading, pickSets.length, users.length]) // Only trigger on length changes, not content changes
+  }, [loading, pickSets.length, users.length, autoProcessingComplete])
+
+  // Reset auto-processing flag when week/season changes
+  useEffect(() => {
+    setAutoProcessingComplete(false)
+  }, [selectedWeek, selectedSeason])
 
   const processValidatedUsers = async () => {
     const validatedPickSets = pickSets.filter(ps => ps.isValidated && !ps.assignedUserId && !ps.autoAssigned)
@@ -184,21 +218,29 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       const usersData = await usersResponse.json()
       console.log('✅ Loaded users for assignment:', usersData.length)
 
-      // Group picks into pick sets by email + submitted_at (to handle multiple submissions from same email)
+      // Group picks into pick sets by email + rounded submitted_at (to handle multiple submissions from same email)
+      // Round to nearest minute to group picks from same form submission
       const pickSetMap = new Map<string, PickSet>()
       
       for (const pick of picksData) {
-        const key = `${pick.email}-${pick.submitted_at}`
+        // Round submitted_at to nearest minute to group picks from same form submission
+        const submittedDate = new Date(pick.submitted_at)
+        submittedDate.setSeconds(0, 0) // Reset seconds and milliseconds
+        const roundedSubmittedAt = submittedDate.toISOString()
+        
+        const key = `${pick.email}-${roundedSubmittedAt}`
         
         if (!pickSetMap.has(key)) {
           pickSetMap.set(key, {
             email: pick.email,
             name: pick.name,
-            submittedAt: pick.submitted_at,
+            submittedAt: roundedSubmittedAt, // Use rounded timestamp for consistency
             isValidated: pick.is_validated,
             picks: [],
             assignedUserId: pick.assigned_user_id,
-            showOnLeaderboard: pick.show_on_leaderboard
+            showOnLeaderboard: pick.show_on_leaderboard,
+            validationStatus: pick.validation_status || 'pending_validation',
+            processingNotes: pick.processing_notes
           })
         }
         
@@ -209,6 +251,13 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
 
       console.log('✅ Grouped into pick sets:', pickSetsArray.length)
+      
+      // Debug: Show pick set sizes to identify splitting issues
+      pickSetsArray.forEach(ps => {
+        if (ps.picks.length !== 6) {
+          console.warn(`⚠️ Pick set ${ps.email} has ${ps.picks.length} picks (expected 6) - submitted at ${ps.submittedAt}`)
+        }
+      })
       
       // Debug: Show assignment status of pick sets
       pickSetsArray.forEach(ps => {
@@ -249,12 +298,18 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       // No conflicts - safe to assign and add to leaderboard
       if (autoMode && pickSet.isValidated) {
         console.log(`✅ Auto-assigning validated user ${pickSet.email} - no conflicts found`)
+        
+        // Update validation status to auto_validated first
+        await handleUpdateValidationStatus(pickSet, 'auto_validated', 'Auto-assigned - no conflicts found')
+        
+        // Then assign the pick set
         await confirmAssignment(pickSet, userId, 'new')
-        // Update local state to show as auto-assigned (in addition to confirmAssignment's update)
+        
+        // Update local state to show as auto-assigned
         setPickSets(prev => 
           prev.map(ps => 
             ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
-              ? { ...ps, autoAssigned: true }  // Just add the auto-assigned flag
+              ? { ...ps, autoAssigned: true, validationStatus: 'auto_validated' as ValidationStatus, processingNotes: 'Auto-assigned - no conflicts found' }
               : ps
           )
         )
@@ -268,12 +323,16 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       console.log('📋 Existing pick sets details:', existingPickSets)
       
       if (autoMode && pickSet.isValidated) {
-        // For auto-mode validated users, just mark the pick set to show conflicts without opening dialog
+        // For auto-mode validated users, mark as duplicate conflict and update status
         console.log(`🔄 Auto-mode: Marking validated user ${pickSet.email} with conflicts for manual review`)
+        
+        // Update validation status to duplicate_conflict
+        await handleUpdateValidationStatus(pickSet, 'duplicate_conflict', `Conflicts found: ${existingPickSets.length} existing pick sets`)
+        
         setPickSets(prev => 
           prev.map(ps => 
             ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
-              ? { ...ps, autoAssigned: false, hasConflicts: true }  // Mark as having conflicts
+              ? { ...ps, autoAssigned: false, hasConflicts: true, validationStatus: 'duplicate_conflict' as ValidationStatus, processingNotes: `Conflicts found: ${existingPickSets.length} existing pick sets` }
               : ps
           )
         )
@@ -527,6 +586,49 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     }
   }
 
+  const handleUpdateValidationStatus = async (pickSet: PickSet, newStatus: ValidationStatus, notes?: string) => {
+    try {
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+
+      console.log('🔄 Updating validation status for pick set...', { email: pickSet.email, newStatus, notes })
+
+      for (const pick of pickSet.picks) {
+        const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            validation_status: newStatus,
+            processing_notes: notes || null
+          })
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`Failed to update validation status: ${response.status} - ${errorText}`)
+        }
+      }
+
+      console.log('✅ Validation status updated for pick set')
+
+      // Update local state
+      setPickSets(prev => 
+        prev.map(ps => 
+          ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
+            ? { ...ps, validationStatus: newStatus, processingNotes: notes }
+            : ps
+        )
+      )
+    } catch (err: any) {
+      console.error('❌ Error updating validation status:', err)
+      setError(err.message)
+    }
+  }
+
   const handleToggleLeaderboard = async (pickSet: PickSet, showOnLeaderboard: boolean) => {
     try {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
@@ -570,8 +672,22 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
   }
 
   // Filter pick sets based on status
-  const unassignedPickSets = pickSets.filter(ps => !ps.assignedUserId)
-  const assignedPickSets = pickSets.filter(ps => ps.assignedUserId)
+  const filteredPickSets = pickSets.filter(ps => {
+    if (statusFilter === 'all') return true
+    return ps.validationStatus === statusFilter
+  })
+  
+  const unassignedPickSets = filteredPickSets.filter(ps => !ps.assignedUserId)
+  const assignedPickSets = filteredPickSets.filter(ps => ps.assignedUserId)
+  
+  // Status counts for display (including hasConflicts as duplicate_conflict)
+  const statusCounts = {
+    all: pickSets.length,
+    pending_validation: pickSets.filter(ps => ps.validationStatus === 'pending_validation').length,
+    auto_validated: pickSets.filter(ps => ps.validationStatus === 'auto_validated').length,
+    manually_validated: pickSets.filter(ps => ps.validationStatus === 'manually_validated').length,
+    duplicate_conflict: pickSets.filter(ps => ps.validationStatus === 'duplicate_conflict' || ps.hasConflicts).length
+  }
 
   if (loading) {
     return (
@@ -592,14 +708,14 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
           <CardTitle>Anonymous Picks Management</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center space-x-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium mb-1">Season:</label>
               <Input
                 type="number"
                 value={selectedSeason}
                 onChange={(e) => setSelectedSeason(parseInt(e.target.value))}
-                className="w-24"
+                className="w-full"
               />
             </div>
             <div>
@@ -610,16 +726,52 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                 onChange={(e) => setSelectedWeek(parseInt(e.target.value))}
                 min="1"
                 max="15"
-                className="w-20"
+                className="w-full"
               />
             </div>
-            <Button onClick={loadData} className="mt-6">
-              Load Picks
-            </Button>
+            <div>
+              <label className="block text-sm font-medium mb-1">Status Filter:</label>
+              <Select value={statusFilter} onValueChange={(value: ValidationStatus | 'all') => setStatusFilter(value)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All ({statusCounts.all})</SelectItem>
+                  <SelectItem value="pending_validation">Pending Validation ({statusCounts.pending_validation})</SelectItem>
+                  <SelectItem value="auto_validated">Auto-Validated ({statusCounts.auto_validated})</SelectItem>
+                  <SelectItem value="manually_validated">Manually Validated ({statusCounts.manually_validated})</SelectItem>
+                  <SelectItem value="duplicate_conflict">Duplicate Conflict ({statusCounts.duplicate_conflict})</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Button onClick={loadData} className="w-full">
+                Load Picks
+              </Button>
+            </div>
           </div>
           
-          <div className="text-sm text-charcoal-600">
-            Found {pickSets.length} pick sets • {unassignedPickSets.length} unassigned • {assignedPickSets.length} assigned
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+            <div className="bg-blue-50 p-3 rounded-lg text-center">
+              <div className="font-semibold text-blue-800">{statusCounts.all}</div>
+              <div className="text-blue-600">Total Pick Sets</div>
+            </div>
+            <div className="bg-yellow-50 p-3 rounded-lg text-center">
+              <div className="font-semibold text-yellow-800">{statusCounts.pending_validation}</div>
+              <div className="text-yellow-600">Pending</div>
+            </div>
+            <div className="bg-green-50 p-3 rounded-lg text-center">
+              <div className="font-semibold text-green-800">{statusCounts.auto_validated}</div>
+              <div className="text-green-600">Auto-Validated</div>
+            </div>
+            <div className="bg-purple-50 p-3 rounded-lg text-center">
+              <div className="font-semibold text-purple-800">{statusCounts.manually_validated}</div>
+              <div className="text-purple-600">Manual</div>
+            </div>
+            <div className="bg-red-50 p-3 rounded-lg text-center">
+              <div className="font-semibold text-red-800">{statusCounts.duplicate_conflict}</div>
+              <div className="text-red-600">Conflicts</div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -650,17 +802,18 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                       <div className="flex items-center space-x-3 mb-2">
                         <div className="font-semibold text-lg">{pickSet.name} ({pickSet.email})</div>
                         <div className="flex items-center space-x-2">
-                          {pickSet.isValidated ? (
-                            <Badge variant="default" className="bg-green-100 text-green-800">✅ Validated User</Badge>
-                          ) : (
-                            <Badge variant="secondary">⚠️ Unvalidated Email</Badge>
-                          )}
+                          {getValidationStatusBadge(pickSet.validationStatus)}
                           <Badge variant="outline">{pickSet.picks.length} picks</Badge>
                         </div>
                       </div>
                       
                       <div className="text-sm text-charcoal-600 mb-3">
-                        Submitted: {new Date(pickSet.submittedAt).toLocaleString()}
+                        <div>Submitted: {new Date(pickSet.submittedAt).toLocaleString()}</div>
+                        {pickSet.processingNotes && (
+                          <div className="mt-1 text-xs bg-gray-100 p-2 rounded">
+                            <span className="font-medium">Notes:</span> {pickSet.processingNotes}
+                          </div>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
@@ -676,13 +829,32 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                       </div>
                     </div>
                     
-                    <div className="ml-4 flex flex-col space-y-2">
+                    <div className="ml-4 flex flex-col space-y-2 w-60">
+                      {/* Manual Status Control */}
+                      <div className="bg-white p-3 border rounded-lg">
+                        <div className="text-xs font-medium text-charcoal-600 mb-1">Change Status:</div>
+                        <Select 
+                          value={pickSet.validationStatus} 
+                          onValueChange={(value: ValidationStatus) => handleUpdateValidationStatus(pickSet, value)}
+                        >
+                          <SelectTrigger className="w-full text-xs h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending_validation">Pending Validation</SelectItem>
+                            <SelectItem value="auto_validated">Auto-Validated</SelectItem>
+                            <SelectItem value="manually_validated">Manually Validated</SelectItem>
+                            <SelectItem value="duplicate_conflict">Duplicate Conflict</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
                       {pickSet.isValidated ? (
                         <div className="w-48">
-                          {pickSet.hasConflicts ? (
-                            <div className="text-center p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                              <div className="text-yellow-800 font-medium mb-1">⚠️ Conflicts Found</div>
-                              <div className="text-yellow-600 text-sm">Manual review required</div>
+                          {pickSet.hasConflicts || pickSet.validationStatus === 'duplicate_conflict' ? (
+                            <div className="text-center p-3 bg-red-50 border border-red-200 rounded-md">
+                              <div className="text-red-800 font-medium mb-1">⚠️ Duplicate Conflict</div>
+                              <div className="text-red-600 text-sm">Choose which pick set to keep</div>
                               <Button
                                 onClick={() => {
                                   const user = users.find(u => u.email === pickSet.email)
@@ -695,10 +867,26 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                                 Resolve Conflicts
                               </Button>
                             </div>
-                          ) : pickSet.autoAssigned ? (
+                          ) : pickSet.autoAssigned || pickSet.validationStatus === 'auto_validated' ? (
                             <div className="text-center p-3 bg-green-50 border border-green-200 rounded-md">
                               <div className="text-green-800 font-medium mb-1">✅ Auto-Assigned</div>
                               <div className="text-green-600 text-sm">No conflicts found</div>
+                            </div>
+                          ) : pickSet.validationStatus === 'manually_validated' ? (
+                            <div className="text-center p-3 bg-purple-50 border border-purple-200 rounded-md">
+                              <div className="text-purple-800 font-medium mb-1">👤 Manually Validated</div>
+                              <div className="text-purple-600 text-sm">Ready for assignment</div>
+                              <Button
+                                onClick={() => {
+                                  const user = users.find(u => u.email === pickSet.email)
+                                  if (user) handleAssignPickSet(pickSet, user.id, false)
+                                }}
+                                variant="outline"
+                                size="sm"
+                                className="mt-2 text-xs"
+                              >
+                                Assign
+                              </Button>
                             </div>
                           ) : (
                             <div className="text-center p-3 bg-blue-50 border border-blue-200 rounded-md">
@@ -782,6 +970,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                         <div className="flex items-center space-x-3 mb-2">
                           <div className="font-semibold text-lg">{pickSet.name} ({pickSet.email})</div>
                           <div className="flex items-center space-x-2">
+                            {getValidationStatusBadge(pickSet.validationStatus)}
                             <Badge variant="default" className="bg-blue-100 text-blue-800">
                               👤 {assignedUser?.display_name || 'Unknown User'}
                             </Badge>
@@ -796,7 +985,12 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                         </div>
                         
                         <div className="text-sm text-charcoal-600 mb-3">
-                          Submitted: {new Date(pickSet.submittedAt).toLocaleString()}
+                          <div>Submitted: {new Date(pickSet.submittedAt).toLocaleString()}</div>
+                          {pickSet.processingNotes && (
+                            <div className="mt-1 text-xs bg-gray-100 p-2 rounded">
+                              <span className="font-medium">Notes:</span> {pickSet.processingNotes}
+                            </div>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
@@ -812,7 +1006,26 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                         </div>
                       </div>
                       
-                      <div className="ml-4 flex flex-col space-y-2">
+                      <div className="ml-4 flex flex-col space-y-2 w-60">
+                        {/* Manual Status Control */}
+                        <div className="bg-white p-3 border rounded-lg">
+                          <div className="text-xs font-medium text-charcoal-600 mb-1">Change Status:</div>
+                          <Select 
+                            value={pickSet.validationStatus} 
+                            onValueChange={(value: ValidationStatus) => handleUpdateValidationStatus(pickSet, value)}
+                          >
+                            <SelectTrigger className="w-full text-xs h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending_validation">Pending Validation</SelectItem>
+                              <SelectItem value="auto_validated">Auto-Validated</SelectItem>
+                              <SelectItem value="manually_validated">Manually Validated</SelectItem>
+                              <SelectItem value="duplicate_conflict">Duplicate Conflict</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
                         <Button
                           variant={pickSet.showOnLeaderboard ? "default" : "outline"}
                           size="sm"

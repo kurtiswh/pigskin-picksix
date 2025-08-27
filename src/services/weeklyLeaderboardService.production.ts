@@ -8,6 +8,7 @@ export interface ProductionWeeklyLeaderboardEntry {
   weekly_record: string
   lock_record: string
   week: number
+  pick_source?: 'authenticated' | 'anonymous' | 'mixed'
 }
 
 /**
@@ -36,9 +37,9 @@ export class ProductionWeeklyLeaderboardService {
         controller.abort()
       }, this.API_TIMEOUT)
 
-      // Direct REST API call to Supabase weekly_leaderboard table
+      // Direct REST API call to Supabase weekly_leaderboard table with pick_source filtering
       const response = await fetch(
-        `${this.supabaseUrl}/rest/v1/weekly_leaderboard?season=eq.${season}&week=eq.${week}&order=weekly_rank.asc&limit=100`,
+        `${this.supabaseUrl}/rest/v1/weekly_leaderboard?select=user_id,display_name,weekly_rank,total_points,wins,losses,pushes,lock_wins,lock_losses,pick_source&season=eq.${season}&week=eq.${week}&or=(is_verified.eq.true,pick_source.eq.anonymous,pick_source.eq.mixed)&order=weekly_rank.asc&limit=200`,
         {
           headers: {
             'apikey': this.supabaseKey,
@@ -83,7 +84,8 @@ export class ProductionWeeklyLeaderboardService {
       total_points: entry.total_points || 0,
       weekly_record: `${entry.wins || 0}-${entry.losses || 0}-${entry.pushes || 0}`,
       lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
-      week: week
+      week: week,
+      pick_source: entry.pick_source || 'authenticated'
     }))
   }
 

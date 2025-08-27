@@ -20,6 +20,7 @@ export interface LeaderboardEntry {
   last_week_points?: number
   trend?: 'up' | 'down' | 'same'
   live_calculated?: boolean
+  pick_source?: 'authenticated' | 'anonymous' | 'mixed'
 }
 
 export class LeaderboardService {
@@ -46,9 +47,10 @@ export class LeaderboardService {
       
       const queryPromise = supabase
         .from('season_leaderboard')
-        .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks, is_verified')
+        .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks, is_verified, pick_source')
         .eq('season', season)
-        .eq('is_verified', true) // Only show verified/paid users
+        // Modified verification filter: show verified users OR users with anonymous picks
+        .or('is_verified.eq.true,pick_source.eq.anonymous,pick_source.eq.mixed')
         .order('season_rank', { ascending: true })
         .limit(100) // Reasonable limit to prevent excessive data transfer
 
@@ -67,7 +69,7 @@ export class LeaderboardService {
         const { data: fallbackData, error: fallbackError } = await Promise.race([
           supabase
             .from('season_leaderboard')
-            .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks, is_verified')
+            .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks, is_verified, pick_source')
             .eq('season', season)
             .order('season_rank', { ascending: true })
             .limit(20),
@@ -115,7 +117,8 @@ export class LeaderboardService {
       total_losses: entry.total_losses || 0,
       total_pushes: entry.total_pushes || 0,
       lock_wins: entry.lock_wins || 0,
-      lock_losses: entry.lock_losses || 0
+      lock_losses: entry.lock_losses || 0,
+      pick_source: entry.pick_source || 'authenticated'
     }))
     
     console.log('✅ Generated season leaderboard:', leaderboardEntries.length, 'entries')
@@ -134,10 +137,11 @@ export class LeaderboardService {
       
       const queryPromise = supabase
         .from('weekly_leaderboard')
-        .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, picks_made, is_verified')
+        .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, picks_made, is_verified, pick_source')
         .eq('season', season)
         .eq('week', week)
-        .eq('is_verified', true) // Only show verified/paid users
+        // Modified verification filter: show verified users OR users with anonymous picks
+        .or('is_verified.eq.true,pick_source.eq.anonymous,pick_source.eq.mixed')
         .order('weekly_rank', { ascending: true })
         .limit(100) // Reasonable limit to prevent excessive data transfer
 
@@ -156,7 +160,7 @@ export class LeaderboardService {
         const { data: fallbackData, error: fallbackError } = await Promise.race([
           supabase
             .from('weekly_leaderboard')
-            .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, picks_made, is_verified')
+            .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, picks_made, is_verified, pick_source')
             .eq('season', season)
             .eq('week', week)
             .order('weekly_rank', { ascending: true })
@@ -204,7 +208,8 @@ export class LeaderboardService {
       total_losses: entry.losses || 0,
       total_pushes: entry.pushes || 0,
       lock_wins: entry.lock_wins || 0,
-      lock_losses: entry.lock_losses || 0
+      lock_losses: entry.lock_losses || 0,
+      pick_source: entry.pick_source || 'authenticated'
     }))
 
     console.log('✅ Generated weekly leaderboard:', leaderboardEntries.length, 'entries')
