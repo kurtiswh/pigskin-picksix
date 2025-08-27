@@ -56,64 +56,68 @@ export default function HomePage() {
   }, [user, currentWeek])
 
   const fetchHomePageData = async () => {
-    console.log('🏠 Using mock data for homepage - skipping database calls')
+    console.log('🏠 Fetching real homepage data from database')
     
     try {
-      // Use mock week settings
-      setCurrentWeek(1)
-      setDeadline(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) // 1 week from now
+      // Get actual week settings to get the real deadline
+      const { data: weekSettingsData, error: weekError } = await supabase
+        .from('week_settings')
+        .select('*')
+        .eq('week', currentWeek)
+        .eq('season', currentSeason)
+        .single()
       
-      // Use mock leaderboard data
-      const mockLeaderboard: LeaderboardEntry[] = [
-        {
-          user_id: user?.id || '1',
-          display_name: user?.display_name || 'You',
-          season_record: '0-0-0',
-          lock_record: '0-0', 
-          season_points: 0,
-          season_rank: 1,
-          total_picks: 0,
-          total_wins: 0,
-          total_losses: 0,
-          total_pushes: 0,
-          lock_wins: 0,
-          lock_losses: 0
-        },
-        {
-          user_id: '2',
-          display_name: 'Sample Player 1',
-          season_record: '0-0-0',
-          lock_record: '0-0',
-          season_points: 0,
-          season_rank: 2,
-          total_picks: 0,
-          total_wins: 0,
-          total_losses: 0,
-          total_pushes: 0,
-          lock_wins: 0,
-          lock_losses: 0
-        },
-        {
-          user_id: '3',
-          display_name: 'Sample Player 2',
-          season_record: '0-0-0',
-          lock_record: '0-0',
-          season_points: 0,
-          season_rank: 3,
-          total_picks: 0,
-          total_wins: 0,
-          total_losses: 0,
-          total_pushes: 0,
-          lock_wins: 0,
-          lock_losses: 0
+      if (weekError) {
+        console.warn('⚠️ Could not fetch week settings:', weekError.message)
+        // Fallback to dynamic current week and mock deadline
+        setCurrentWeek(getCurrentWeek(currentSeason))
+        setDeadline(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) // 1 week from now
+      } else {
+        console.log('✅ Loaded week settings:', weekSettingsData)
+        setCurrentWeek(weekSettingsData.week)
+        setDeadline(new Date(weekSettingsData.deadline))
+      }
+      
+      // Get real leaderboard data (top 5 season leaders)
+      try {
+        const { data: leaderboardData, error: leaderboardError } = await supabase
+          .from('season_leaderboard')
+          .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks')
+          .eq('season', currentSeason)
+          .or('is_verified.eq.true,pick_source.eq.anonymous,pick_source.eq.mixed')
+          .order('season_rank', { ascending: true })
+          .limit(5)
+        
+        if (leaderboardError) {
+          console.warn('⚠️ Could not fetch leaderboard data:', leaderboardError.message)
+          setTopPlayers([])
+        } else {
+          // Transform the data to match LeaderboardEntry interface
+          const transformedLeaderboard: LeaderboardEntry[] = leaderboardData.map(player => ({
+            user_id: player.user_id,
+            display_name: player.display_name,
+            season_record: `${player.total_wins || 0}-${player.total_losses || 0}-${player.total_pushes || 0}`,
+            lock_record: `${player.lock_wins || 0}-${player.lock_losses || 0}`,
+            season_points: player.total_points || 0,
+            season_rank: player.season_rank,
+            total_picks: player.total_picks || 0,
+            total_wins: player.total_wins || 0,
+            total_losses: player.total_losses || 0,
+            total_pushes: player.total_pushes || 0,
+            lock_wins: player.lock_wins || 0,
+            lock_losses: player.lock_losses || 0
+          }))
+          
+          setTopPlayers(transformedLeaderboard)
+          console.log('✅ Real leaderboard data loaded:', transformedLeaderboard.length, 'players')
         }
-      ]
-      
-      setTopPlayers(mockLeaderboard)
-      console.log('✅ Mock homepage data loaded immediately')
+      } catch (leaderboardException) {
+        console.warn('⚠️ Exception fetching leaderboard:', leaderboardException)
+        setTopPlayers([])
+      }
       
     } catch (error) {
-      console.error('Error with mock homepage data:', error)
+      console.error('Error loading homepage data:', error)
     } finally {
       setLoading(false)
     }
