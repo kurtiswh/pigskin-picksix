@@ -168,7 +168,7 @@ export default function RegisterPage() {
                   required
                 />
                 {isValidated === true && (
-                  <p className="text-green-600 text-sm mt-1">✅ Email validated - you're already in our system! This will link your account to your LeagueSafe entry.</p>
+                  <p className="text-green-600 text-sm mt-1">✅ Email validated - it matches a LeagueSafe payment in our system! Continue creating an account to link your account to your LeagueSafe entry.</p>
                 )}
                 {isValidated === false && email.trim() && (
                   <p className="text-orange-600 text-sm mt-1">
