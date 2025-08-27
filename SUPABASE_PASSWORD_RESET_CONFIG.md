@@ -4,42 +4,75 @@
 
 The password reset functionality has been updated in the code, but requires matching configuration in your Supabase Dashboard.
 
+## 🚨 URGENT FIXES FOR CURRENT ERRORS
+
+### Current Error 1: "403: Email link is invalid or has expired"
+**Root Cause:** URL mismatch between email template and allowed redirect URLs
+**Solution:** Add both www and non-www versions of your domain
+
+### Current Error 2: "400: PKCE auth code and code verifier missing"  
+**Root Cause:** Email template is using wrong flow (confirmation instead of recovery)
+**Solution:** Verify email template uses recovery flow with proper tokens
+
 ## Required Configuration Steps
 
-### 1. Update Redirect URLs
+### 1. Update Redirect URLs (CRITICAL FIX)
 **Location:** Supabase Dashboard > Settings > Authentication > URL Configuration
 
-Add these URLs to **Redirect URLs**:
+Add these URLs to **Redirect URLs** (include BOTH www and non-www):
 ```
+https://www.pigskinpicksix.com/reset-password
 https://pigskinpicksix.com/reset-password
 http://localhost:5173/reset-password
 http://localhost:5174/reset-password
 http://127.0.0.1:3000/reset-password
 ```
 
-**Note:** The local port may vary (5173 or 5174) depending on which ports are available when you start the dev server.
+**⚠️ IMPORTANT:** The 403 error occurs because emails link to `pigskinpicksix.com` but redirect URLs may only include `www.pigskinpicksix.com`
 
-### 2. Verify Email Template Configuration  
+### 2. Fix Email Template Configuration (CRITICAL FIX)
 **Location:** Supabase Dashboard > Authentication > Email Templates
+
+**Current Problem:** Users getting "400 PKCE" errors because template generates wrong token type
 
 **Check "Reset Password" template:**
 - ✅ Template should be **ENABLED**
-- ✅ Should use **Recovery** flow (generates `#access_token=` URLs)
+- ✅ Should use **Recovery** flow (generates `#access_token=...&type=recovery` URLs)
 - ❌ Should **NOT** use Confirmation flow (generates `?code=` URLs)
 
-**Template should contain:**
+**CORRECT Template should contain:**
 ```html
 {{ .ConfirmationURL }}
 ```
-**NOT:**
+**INCORRECT (causes PKCE errors):**
 ```html
 {{ .SiteURL }}/reset-password?code={{ .Token }}
 ```
 
-### 3. Current Issue
-Based on the URL you showed: `pigskinpicksix.com/?code=d726875c-545a-42d2-847e-e692d239be0f`
+### 3. Site URL Configuration (CRITICAL FIX)
+**Location:** Supabase Dashboard > Settings > Authentication > URL Configuration
 
-The issue is that Supabase is generating **confirmation codes** (`?code=`) instead of **recovery tokens** (`#access_token=` with `type=recovery`).
+**Set Site URL to match your primary domain:**
+```
+https://www.pigskinpicksix.com
+```
+OR
+```
+https://pigskinpicksix.com
+```
+
+**⚠️ IMPORTANT:** This must match the domain in your email template and redirect URLs
+
+### 4. Current Issues Analysis
+Based on your error logs:
+
+**Error 1:** `403: Email link is invalid or has expired`
+- **Cause:** URL mismatch between Site URL and redirect URLs
+- **Fix:** Ensure both www and non-www versions are in redirect URLs list
+
+**Error 2:** `400: PKCE auth code and code verifier missing`
+- **Cause:** Email template using confirmation flow instead of recovery flow
+- **Fix:** Use default Supabase recovery template (see section 2 above)
 
 ## How to Fix the Email Template
 

@@ -6,6 +6,7 @@
 import { supabase } from '@/lib/supabase'
 import { EmailService } from './emailService'
 import { findUserByAnyEmail } from '@/utils/userMatching'
+import { getPasswordResetRedirectUrl, debugDomainInfo, getPasswordResetRedirectUrls } from '@/utils/domainUtils'
 
 interface PasswordResetToken {
   id: string
@@ -70,27 +71,27 @@ export class PasswordResetService {
 
   /**
    * Send password reset email with fallback system
+   * Enhanced to handle domain mismatches that cause 403 errors
    */
   static async sendPasswordReset(email: string): Promise<{ success: boolean; error?: string }> {
     try {
       console.log(`🔐 Generating password reset for ${email}`)
       console.log(`📧 Using Supabase Auth (same as registration emails)`)
 
-      // Use Supabase Auth - the same system that works for registration emails
-      // Note: The redirectTo URL must be added to your allowed redirect URLs in Supabase dashboard
-      let baseUrl: string
-      if (typeof window !== 'undefined') {
-        baseUrl = window.location.origin
-        console.log(`📍 Detected browser environment, using window.location.origin: ${baseUrl}`)
-      } else {
-        baseUrl = 'https://pigskinpicksix.com'  // Updated to match production domain
-        console.log(`📍 Server environment detected, using production URL: ${baseUrl}`)
-      }
+      // Debug domain information
+      debugDomainInfo('PASSWORD-RESET-SERVICE')
       
-      const redirectUrl = `${baseUrl}/reset-password`
-      console.log(`📍 Final redirect URL: ${redirectUrl}`)
-      console.log(`⚠️  IMPORTANT: This URL must be added to Supabase Dashboard > Authentication > URL Configuration`)
-      console.log(`⚠️  VERIFY: Password reset email template should use recovery flow, not confirmation flow`)
+      // Get the appropriate redirect URL using domain utilities
+      const redirectUrl = getPasswordResetRedirectUrl()
+      const allPossibleUrls = getPasswordResetRedirectUrls()
+      
+      console.log(`📍 Using redirect URL: ${redirectUrl}`)
+      console.log(`📍 All possible redirect URLs that should be configured:`)
+      allPossibleUrls.forEach(url => console.log(`   - ${url}`))
+      console.log(`⚠️  CRITICAL: ALL these URLs must be added to Supabase Dashboard > Authentication > URL Configuration`)
+      console.log(`⚠️  CRITICAL: Email template must use recovery flow ({{ .ConfirmationURL }}) not confirmation flow`)
+      console.log(`⚠️  403 errors occur when redirect URL is not in the allowed list`)
+      console.log(`⚠️  400 PKCE errors occur when email template uses wrong flow type`)
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl
@@ -102,9 +103,29 @@ export class PasswordResetService {
         console.error('Error status:', error.status)
         console.error('Full error object:', JSON.stringify(error, null, 2))
         
+        // Provide specific guidance for configuration errors
+        if (error.status === 403 || error.message?.includes('redirect')) {
+          console.error('🚨 403 ERROR: This is likely the "Email link is invalid or has expired" error from your logs!')
+          console.error('🚨 CAUSE: Redirect URL mismatch - the email template domain doesn\'t match allowed redirect URLs')
+          console.error('🚨 FIX: Add ALL these URLs to Supabase Dashboard > Authentication > URL Configuration:')
+          allPossibleUrls.forEach(url => console.error(`   - ${url}`))
+        }
+        
+        if (error.message?.includes('invalid_request') || error.message?.includes('PKCE')) {
+          console.error('🚨 PKCE ERROR: This matches the "400 PKCE validation" error from your logs!')
+          console.error('🚨 CAUSE: Email template is using confirmation flow instead of recovery flow')
+          console.error('🚨 FIX: Update Supabase email template to use {{ .ConfirmationURL }} instead of custom URL')
+        }
+        
         // Check if it's a rate limit error
         if (error.message?.includes('rate') || error.status === 429) {
           console.log('⚠️ Rate limit detected, using fallback...')
+        } else if (error.status === 403) {
+          // Don't fall back for 403 errors - these need configuration fixes
+          return { 
+            success: false, 
+            error: `Configuration Error: Password reset redirect URL (${redirectUrl}) is not in the allowed redirect URLs list. Please contact support to fix the configuration.` 
+          }
         }
         
         console.log('🔄 Supabase Auth failed, attempting fallback to direct Resend API...')

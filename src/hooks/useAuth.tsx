@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { User, AuthContextType } from '@/types'
 import { findUserByAnyEmail, createUserWithEmails, addEmailToUser } from '@/utils/userMatching'
 import { ENV } from '@/lib/env'
+import { debugDomainInfo, isSameDomain, getCurrentSiteUrl } from '@/utils/domainUtils'
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
@@ -35,6 +36,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initializeAuth = async () => {
       console.log('🚀 [STARTUP] initializeAuth function starting')
       try {
+        // Debug domain information for troubleshooting auth issues
+        debugDomainInfo('AUTH-INIT')
+        
         // Skip auth processing on reset password page - let that page handle its own auth flow
         if (window.location.pathname === '/reset-password') {
           console.log('🚀 [INIT] Skipping auth processing on reset password page')

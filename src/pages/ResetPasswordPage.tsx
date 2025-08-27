@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input'
 import { PasswordResetService } from '@/services/passwordResetService'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { debugDomainInfo, isSameDomain, getCurrentSiteUrl } from '@/utils/domainUtils'
+import { quickAuthTest, testUrlParsing, logTestResults } from '@/utils/authTestUtils'
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
@@ -32,6 +34,13 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
+        // Debug domain information for troubleshooting 403 errors
+        debugDomainInfo('RESET-PAGE-LOAD')
+        
+        // Run comprehensive URL parsing test for troubleshooting
+        const urlTestResults = testUrlParsing()
+        logTestResults(urlTestResults)
+        
         // Check for password reset tokens in URL (Supabase Auth format)
         const hashParams = new URLSearchParams(window.location.hash.substring(1))
         const accessToken = hashParams.get('access_token')
@@ -61,7 +70,8 @@ export default function ResetPasswordPage() {
           search: window.location.search,
           hash: window.location.hash,
           queryParams: Object.fromEntries(searchParams.entries()),
-          hashParams: Object.fromEntries(hashParams.entries())
+          hashParams: Object.fromEntries(hashParams.entries()),
+          currentDomain: getCurrentSiteUrl()
         })
 
         console.log('🔐 Checking reset tokens...', { 
@@ -87,8 +97,13 @@ export default function ResetPasswordPage() {
           
           console.error('❌ Reset link error (no valid tokens):', { error, errorCode, errorDesc })
           
+          // Provide specific error messages for common issues
           if (errorCode === 'otp_expired' || error === 'access_denied') {
-            setError('This password reset link has expired or is invalid. This usually means the link was used already, expired (links expire after 1 hour), or there\'s a configuration issue. Please request a new password reset.')
+            setError('This password reset link has expired or is invalid. Links expire after 1 hour. Please request a new password reset.')
+          } else if (error === 'invalid_request' && errorDesc?.includes('token')) {
+            setError('⚠️ EMAIL CONFIGURATION ISSUE: This error usually means the email template is misconfigured. The admin needs to check Supabase email templates. Please request a new password reset or contact support.')
+          } else if (error === 'invalid_code' || errorCode === '400') {
+            setError('⚠️ INVALID RESET LINK: This link format is not supported. This may be due to email template configuration issues. Please request a new password reset.')
           } else {
             setError(`Reset link error: ${errorDesc || error}. Please request a new password reset.`)
           }
@@ -213,7 +228,11 @@ export default function ResetPasswordPage() {
               
               // Provide specific error messages based on the error type
               if (error.code === 'validation_failed' && error.message?.includes('code verifier')) {
-                setError('This password reset link is missing required security parameters. This indicates a configuration issue with the email template. Please request a new password reset or contact support.')
+                console.error('🚨 [RESET] PKCE VALIDATION FAILED - This is the 400 error from your logs!')
+                setError('🚨 EMAIL TEMPLATE CONFIGURATION ERROR: The password reset email is using the wrong flow type (confirmation instead of recovery). This causes PKCE validation failures. The admin needs to fix the Supabase email template configuration. Please contact support or request a new reset after the template is fixed.')
+              } else if (error.message?.includes('both auth code and code verifier should be non-empty')) {
+                console.error('🚨 [RESET] PKCE AUTH CODE ERROR - This matches your 400 error!')
+                setError('🚨 EMAIL TEMPLATE ISSUE: The reset link is missing required PKCE parameters. This happens when the email template uses confirmation flow instead of recovery flow. Please contact support - the email template needs to be reconfigured.')
               } else if (error.message?.includes('expired') || error.code === 'otp_expired') {
                 setError('This password reset link has expired. Please request a new password reset.')
               } else if (error.message?.includes('invalid') || error.code === 'invalid_code') {
