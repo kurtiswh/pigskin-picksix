@@ -9,7 +9,7 @@ import { EmergencyWeeklyLeaderboardService, EmergencyWeeklyLeaderboardEntry } fr
 import { ProductionWeeklyLeaderboardService, ProductionWeeklyLeaderboardEntry } from '@/services/weeklyLeaderboardService.production'
 
 export default function TabbedLeaderboard() {
-  const [season, setSeason] = useState(2024)
+  const [season, setSeason] = useState(2025)
   const [selectedWeek, setSelectedWeek] = useState(1)
   const [activeTab, setActiveTab] = useState('season')
   const [seasonData, setSeasonData] = useState<EmergencyLeaderboardEntry[]>([])
@@ -167,6 +167,7 @@ export default function TabbedLeaderboard() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="2025">2025</SelectItem>
               <SelectItem value="2024">2024</SelectItem>
             </SelectContent>
           </Select>
