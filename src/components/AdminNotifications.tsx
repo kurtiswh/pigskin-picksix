@@ -22,6 +22,7 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
   const [emailSettings, setEmailSettings] = useState<AdminEmailSettings | null>(null)
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [testEmail, setTestEmail] = useState('admin@pigskinpicksix.com')
+  const [authError, setAuthError] = useState<string | null>(null)
 
   // Load current email settings on component mount
   useEffect(() => {
@@ -31,11 +32,26 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
   const loadEmailSettings = async () => {
     try {
       setSettingsLoading(true)
+      setAuthError(null)
       const settings = await AdminEmailSettingsService.getEmailSettings(currentSeason)
       setEmailSettings(settings)
     } catch (error) {
       console.error('Error loading email settings:', error)
-      setStatus('❌ Error loading email settings: ' + (error as Error).message)
+      
+      // Provide specific error messages for common issues
+      let errorMessage = (error as Error).message
+      if (errorMessage.includes('row-level security policy')) {
+        errorMessage = 'Permission denied. Please make sure you are logged in as an admin user.'
+        setAuthError(errorMessage)
+      } else if (errorMessage.includes('Auth session missing')) {
+        errorMessage = 'Authentication required. Please log in to view email settings.'
+        setAuthError(errorMessage)
+      } else if (errorMessage.includes('JWT expired') || errorMessage.includes('refresh token')) {
+        errorMessage = 'Your session has expired. Please log in again.'
+        setAuthError(errorMessage)
+      }
+      
+      setStatus('❌ Error loading email settings: ' + errorMessage)
     } finally {
       setSettingsLoading(false)
     }
@@ -176,7 +192,18 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
       
     } catch (error) {
       console.error('Error updating reminder settings:', error)
-      setStatus('❌ Error updating settings: ' + (error as Error).message)
+      
+      // Provide specific error messages for common issues
+      let errorMessage = (error as Error).message
+      if (errorMessage.includes('row-level security policy')) {
+        errorMessage = 'Permission denied. Please make sure you are logged in as an admin user.'
+      } else if (errorMessage.includes('Auth session missing')) {
+        errorMessage = 'Authentication required. Please log in to save email settings.'
+      } else if (errorMessage.includes('JWT expired') || errorMessage.includes('refresh token')) {
+        errorMessage = 'Your session has expired. Please log in again.'
+      }
+      
+      setStatus('❌ Error updating settings: ' + errorMessage)
     } finally {
       setLoading(false)
       setTimeout(() => setStatus(''), 3000)
@@ -198,7 +225,18 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
       
     } catch (error) {
       console.error('Error updating open picks settings:', error)
-      setStatus('❌ Error updating settings: ' + (error as Error).message)
+      
+      // Provide specific error messages for common issues
+      let errorMessage = (error as Error).message
+      if (errorMessage.includes('row-level security policy')) {
+        errorMessage = 'Permission denied. Please make sure you are logged in as an admin user.'
+      } else if (errorMessage.includes('Auth session missing')) {
+        errorMessage = 'Authentication required. Please log in to save email settings.'
+      } else if (errorMessage.includes('JWT expired') || errorMessage.includes('refresh token')) {
+        errorMessage = 'Your session has expired. Please log in again.'
+      }
+      
+      setStatus('❌ Error updating settings: ' + errorMessage)
     } finally {
       setLoading(false)
       setTimeout(() => setStatus(''), 3000)
@@ -220,7 +258,18 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
       
     } catch (error) {
       console.error('Error updating weekly results settings:', error)
-      setStatus('❌ Error updating settings: ' + (error as Error).message)
+      
+      // Provide specific error messages for common issues
+      let errorMessage = (error as Error).message
+      if (errorMessage.includes('row-level security policy')) {
+        errorMessage = 'Permission denied. Please make sure you are logged in as an admin user.'
+      } else if (errorMessage.includes('Auth session missing')) {
+        errorMessage = 'Authentication required. Please log in to save email settings.'
+      } else if (errorMessage.includes('JWT expired') || errorMessage.includes('refresh token')) {
+        errorMessage = 'Your session has expired. Please log in again.'
+      }
+      
+      setStatus('❌ Error updating settings: ' + errorMessage)
     } finally {
       setLoading(false)
       setTimeout(() => setStatus(''), 3000)
@@ -292,6 +341,28 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
 
   return (
     <div className="space-y-6">
+      {/* Authentication Error Display */}
+      {authError && (
+        <Card className="border-2 border-red-200 bg-red-50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="text-red-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div>
+                <div className="text-red-800 font-medium">Authentication Required</div>
+                <div className="text-red-700 text-sm">{authError}</div>
+                <div className="text-red-600 text-xs mt-1">
+                  💡 Email notification settings require admin authentication. Please make sure you are logged in with admin permissions.
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Status Display */}
       {status && (
         <Card className={`border-2 ${
