@@ -550,13 +550,66 @@ export default function PickSheetPage() {
     
     try {
       setSubmitting(true)
-      console.log('📤 Submitting picks via direct API...')
+      console.log('🚨 PICK SUBMISSION DEBUG START 🚨')
+      console.log('=' .repeat(50))
+      
+      // Enhanced error logging for debugging
+      console.log('📤 Starting pick submission process...')
+      console.log('👤 User profile validation:')
+      console.log('  - User ID:', user.id)
+      console.log('  - Email:', user.email)
+      console.log('  - Display Name:', user.display_name)
+      console.log('  - User Object Keys:', Object.keys(user))
+      console.log('  - Full User Object:', JSON.stringify(user, null, 2))
+      
+      console.log('🏈 Pick submission validation:')
+      console.log('  - Picks count:', picks.length)
+      console.log('  - Has lock pick:', picks.some(p => p.is_lock))
+      console.log('  - Week/Season:', currentWeek, '/', currentSeason)
+      console.log('  - All picks:', picks.map(p => ({ 
+        id: p.id, 
+        game_id: p.game_id, 
+        selected_team: p.selected_team, 
+        is_lock: p.is_lock,
+        submitted: p.submitted
+      })))
+      
+      // Basic user profile validation
+      console.log('🔍 Validating user profile for pick submission...')
+      
+      // The previous 400 error was due to database trigger functions, not missing user data
+      // Users DO have display names - the issue was fixed in Migration 054
+      if (!user.email || user.email.trim() === '') {
+        console.error('❌ VALIDATION ERROR: User has no email address')
+        const errorMsg = 'Cannot submit picks: Your profile is missing an email address. Please contact support.'
+        setError(errorMsg)
+        throw new Error(errorMsg)
+      }
+      
+      if (!user.display_name || user.display_name.trim() === '') {
+        console.error('❌ VALIDATION ERROR: User has no display name')
+        const errorMsg = 'Cannot submit picks: Your profile is missing a display name. Please contact support.'
+        setError(errorMsg)
+        throw new Error(errorMsg)
+      }
+      
+      console.log('✅ Profile validation passed:', {
+        display_name: user.display_name,
+        email: user.email
+      })
       
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
       
+      console.log('🔐 Authentication setup:')
+      console.log('  - Supabase URL:', supabaseUrl)
+      console.log('  - Has API Key:', !!apiKey)
+      console.log('  - API Key length:', apiKey?.length || 0)
+      
       // Get auth token with timeout
       let authToken = apiKey
+      let sessionInfo = { hasSession: false, hasAccessToken: false, tokenLength: 0 }
+      
       try {
         const sessionPromise = supabase.auth.getSession()
         const timeoutPromise = new Promise((_, reject) => 
@@ -564,11 +617,36 @@ export default function PickSheetPage() {
         )
         
         const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
-        authToken = session?.access_token || apiKey
+        if (session?.access_token) {
+          authToken = session.access_token
+          sessionInfo = {
+            hasSession: true,
+            hasAccessToken: true,
+            tokenLength: session.access_token.length
+          }
+        }
       } catch (sessionError) {
         console.warn('⚠️ Submit session failed, using API key:', sessionError)
         authToken = apiKey
       }
+      
+      console.log('🔐 Authentication result:', sessionInfo)
+      console.log('  - Using JWT token:', authToken !== apiKey)
+      console.log('  - Token type:', authToken !== apiKey ? 'JWT' : 'API_KEY')
+      console.log('  - Token length:', authToken?.length || 0)
+      
+      console.log('🌐 Making API request...')
+      console.log('  - Method: PATCH')
+      console.log('  - URL:', `${supabaseUrl}/rest/v1/picks?user_id=eq.${user.id}&week=eq.${currentWeek}&season=eq.${currentSeason}`)
+      console.log('  - Headers:', {
+        'apikey': '***',
+        'Authorization': `Bearer ${authToken?.substring(0, 20)}...`,
+        'Content-Type': 'application/json'
+      })
+      console.log('  - Body:', JSON.stringify({ 
+        submitted: true,
+        submitted_at: new Date().toISOString()
+      }))
       
       // Mark all picks as submitted via direct API
       const response = await fetch(`${supabaseUrl}/rest/v1/picks?user_id=eq.${user.id}&week=eq.${currentWeek}&season=eq.${currentSeason}`, {
@@ -584,9 +662,33 @@ export default function PickSheetPage() {
         })
       })
 
+      console.log('📊 API Response Details:')
+      console.log('  - Status:', response.status)
+      console.log('  - Status Text:', response.statusText)
+      console.log('  - OK:', response.ok)
+      console.log('  - Headers:', Object.fromEntries(response.headers.entries()))
+
       if (!response.ok) {
         const errorText = await response.text()
-        throw new Error(`Failed to submit picks: ${response.status} - ${errorText}`)
+        console.error('❌ API ERROR DETAILS:')
+        console.error('  - Status Code:', response.status)
+        console.error('  - Status Text:', response.statusText)
+        console.error('  - Error Body:', errorText)
+        console.error('  - Response Headers:', Object.fromEntries(response.headers.entries()))
+        
+        // Try to parse error details
+        let errorDetails = errorText
+        try {
+          const parsedError = JSON.parse(errorText)
+          console.error('  - Parsed Error Object:', JSON.stringify(parsedError, null, 2))
+          errorDetails = parsedError.message || parsedError.details || errorText
+        } catch (parseError) {
+          console.error('  - Could not parse error as JSON')
+        }
+        
+        const detailedError = `Pick submission failed (${response.status}): ${errorDetails}`
+        console.error('❌ THROWING ERROR:', detailedError)
+        throw new Error(detailedError)
       }
       
       console.log('✅ Picks submitted successfully via direct API')

@@ -35,6 +35,7 @@ interface LeaderboardTableProps {
   lastUpdate?: Date | null
   isLive?: boolean
   hasLiveGames?: boolean
+  liveUpdatesEnabled?: boolean
 }
 
 export default function LeaderboardTable({ 
@@ -44,7 +45,8 @@ export default function LeaderboardTable({
   loading = false,
   lastUpdate = null,
   isLive = false,
-  hasLiveGames = false
+  hasLiveGames = false,
+  liveUpdatesEnabled = false
 }: LeaderboardTableProps) {
   const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
@@ -145,16 +147,20 @@ export default function LeaderboardTable({
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <span>{getTitle()}</span>
-            {isLive && (
-              <div className="flex items-center space-x-1">
-                <div className={`w-1.5 h-1.5 rounded-full ${
-                  hasLiveGames ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'
-                }`}></div>
-                <span className={`text-xs font-medium ${
-                  hasLiveGames ? 'text-green-600' : 'text-yellow-600'
-                }`}>
-                  {hasLiveGames ? 'LIVE' : 'READY'}
-                </span>
+            {(isLive || liveUpdatesEnabled) && (
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1">
+                  <div className={`w-1.5 h-1.5 rounded-full ${
+                    liveUpdatesEnabled ? 'bg-green-500 animate-pulse' : 
+                    hasLiveGames ? 'bg-blue-500 animate-pulse' : 'bg-yellow-500'
+                  }`}></div>
+                  <span className={`text-xs font-medium ${
+                    liveUpdatesEnabled ? 'text-green-600' : 
+                    hasLiveGames ? 'text-blue-600' : 'text-yellow-600'
+                  }`}>
+                    {liveUpdatesEnabled ? 'AUTO-UPDATE' : hasLiveGames ? 'LIVE GAMES' : 'READY'}
+                  </span>
+                </div>
               </div>
             )}
           </div>

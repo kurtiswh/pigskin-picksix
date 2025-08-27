@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EmergencyLeaderboardService, EmergencyLeaderboardEntry } from '@/services/leaderboardService.emergency'
 import { ProductionLeaderboardService, ProductionLeaderboardEntry } from '@/services/leaderboardService.production'
 import { EmergencyWeeklyLeaderboardService, EmergencyWeeklyLeaderboardEntry } from '@/services/weeklyLeaderboardService.emergency'
 import { ProductionWeeklyLeaderboardService, ProductionWeeklyLeaderboardEntry } from '@/services/weeklyLeaderboardService.production'
+import { liveUpdateService, LiveUpdateStatus, LiveUpdateResult } from '@/services/liveUpdateService'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function TabbedLeaderboard() {
@@ -19,12 +21,15 @@ export default function TabbedLeaderboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [strategy, setStrategy] = useState('')
+  const [liveUpdateStatus, setLiveUpdateStatus] = useState<LiveUpdateStatus | null>(null)
+  const [lastUnifiedUpdate, setLastUnifiedUpdate] = useState<LiveUpdateResult | null>(null)
   
   // Check if current user is admin
   const isAdmin = user?.is_admin === true
 
   useEffect(() => {
     loadSeasonData()
+    updateLiveStatus()
   }, [season])
 
   useEffect(() => {
@@ -32,6 +37,69 @@ export default function TabbedLeaderboard() {
       loadWeeklyData()
     }
   }, [selectedWeek, season, activeTab])
+
+  useEffect(() => {
+    // Set up periodic live status updates and check for auto-start
+    updateLiveStatus()
+    checkAutoStart()
+    
+    const statusInterval = setInterval(updateLiveStatus, 10000) // Update every 10 seconds
+    const refreshInterval = setInterval(checkForAutoRefresh, 30000) // Check for refresh every 30 seconds
+    
+    return () => {
+      clearInterval(statusInterval)
+      clearInterval(refreshInterval)
+    }
+  }, [])
+
+  const updateLiveStatus = () => {
+    setLiveUpdateStatus(liveUpdateService.getStatus())
+  }
+
+  const checkForAutoRefresh = async () => {
+    // Only auto-refresh if live updates are running and we're not already loading
+    if (!liveUpdateStatus?.isRunning || loading) return
+    
+    try {
+      // Check if the live update service indicates leaderboard should be refreshed
+      if (liveUpdateService.shouldRefreshLeaderboard()) {
+        console.log('🔄 [TABBED] Auto-refreshing leaderboard after game/pick updates')
+        
+        // Refresh the current active tab
+        if (activeTab === 'season') {
+          await loadSeasonData()
+          setStrategy('Auto-refreshed after updates')
+        } else if (activeTab === 'weekly') {
+          await loadWeeklyData()
+          setStrategy('Auto-refreshed after updates')
+        }
+        
+        // Acknowledge that we've refreshed
+        liveUpdateService.acknowledgeLeaderboardRefresh()
+      }
+    } catch (error: any) {
+      console.error('❌ [TABBED] Auto-refresh check failed:', error)
+    }
+  }
+
+  const checkAutoStart = async () => {
+    if (!isAdmin) return // Only auto-start for admin users
+    
+    try {
+      const autoStartCheck = await liveUpdateService.shouldAutoStart()
+      if (autoStartCheck.should) {
+        console.log(`🤖 [TABBED] Auto-start conditions met: ${autoStartCheck.reason}`)
+        await liveUpdateService.autoStartIfNeeded()
+        updateLiveStatus()
+        setStrategy(`Auto-started: ${autoStartCheck.reason}`)
+      } else {
+        console.log(`⏸️ [TABBED] No auto-start: ${autoStartCheck.reason}`)
+        setStrategy(`Monitoring: ${autoStartCheck.reason}`)
+      }
+    } catch (error: any) {
+      console.error('❌ [TABBED] Auto-start check failed:', error)
+    }
+  }
 
   const loadSeasonData = async () => {
     const startTime = Date.now()
@@ -139,6 +207,55 @@ export default function TabbedLeaderboard() {
     }
   }
 
+  // Unified update using the live update service
+  const runUnifiedUpdate = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      console.log('🚀 [TABBED] Running unified update (games + picks)...')
+      
+      const result = await liveUpdateService.manualUpdate(season, selectedWeek)
+      setLastUnifiedUpdate(result)
+      
+      if (result.success) {
+        console.log(`✅ [TABBED] Unified update complete: ${result.gamesUpdated} games, ${result.picksProcessed} picks`)
+        setStrategy(`Updated: ${result.gamesUpdated} games, ${result.picksProcessed} picks`)
+      } else {
+        setError('Some updates failed - check console for details')
+        setStrategy('Update failed - check console')
+      }
+
+      // Reload current tab data
+      if (activeTab === 'season') {
+        await loadSeasonData()
+      } else if (activeTab === 'weekly') {
+        await loadWeeklyData()
+      }
+      
+      updateLiveStatus()
+
+    } catch (err: any) {
+      console.error('❌ [TABBED] Unified update error:', err)
+      setError(err.message || 'Failed to update')
+      setStrategy('Update error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Live update control functions
+  const startLiveUpdates = () => {
+    liveUpdateService.startSmartPolling()
+    updateLiveStatus()
+    setStrategy('Live updates started')
+  }
+
+  const stopLiveUpdates = () => {
+    liveUpdateService.stopPolling()
+    updateLiveStatus()
+    setStrategy('Live updates stopped')
+  }
+
   const getCurrentData = () => {
     switch (activeTab) {
       case 'season':
@@ -206,14 +323,47 @@ export default function TabbedLeaderboard() {
             </SelectContent>
           </Select>
           
-          <Button 
-            onClick={activeTab === 'season' ? loadSeasonData : loadWeeklyData} 
-            disabled={loading}
-            variant="outline"
-            size="sm"
-          >
-            {loading ? 'Loading...' : 'Refresh'}
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Live Update Status */}
+            {liveUpdateStatus && (
+              <div className="flex items-center gap-2">
+                {liveUpdateStatus.isRunning ? (
+                  <Badge className="bg-green-100 text-green-800">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></div>
+                    LIVE
+                  </Badge>
+                ) : (
+                  <Badge className="bg-gray-100 text-gray-600">
+                    MANUAL
+                  </Badge>
+                )}
+                
+                {liveUpdateStatus.lastUpdate && (
+                  <span className="text-xs text-gray-500">
+                    Last: {liveUpdateStatus.lastUpdate.toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
+            )}
+            
+            <Button 
+              onClick={runUnifiedUpdate} 
+              disabled={loading}
+              className="bg-pigskin-600 hover:bg-pigskin-700"
+              size="sm"
+            >
+              {loading ? 'Updating...' : '🚀 Refresh All'}
+            </Button>
+            
+            <Button 
+              onClick={activeTab === 'season' ? loadSeasonData : loadWeeklyData} 
+              disabled={loading}
+              variant="outline"
+              size="sm"
+            >
+              {loading ? 'Loading...' : `Refresh ${activeTab}`}
+            </Button>
+          </div>
           
           {strategy && (
             <span className="text-sm text-gray-600">
@@ -222,6 +372,77 @@ export default function TabbedLeaderboard() {
           )}
         </div>
       </div>
+
+      {/* Live Update Controls - Admin Only */}
+      {isAdmin && (
+        <Card className="border-blue-200 mb-6">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium">⚡ Live Updates:</span>
+                {liveUpdateStatus?.isRunning ? (
+                  <Button 
+                    onClick={stopLiveUpdates} 
+                    variant="outline" 
+                    size="sm"
+                    className="border-red-200 text-red-600 hover:bg-red-50"
+                  >
+                    ⏹️ Stop Auto Updates
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={startLiveUpdates} 
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    ▶️ Start Auto Updates
+                  </Button>
+                )}
+              </div>
+              
+              {liveUpdateStatus && (
+                <div className="text-xs text-gray-500">
+                  {liveUpdateStatus.isRunning && liveUpdateStatus.nextUpdate && (
+                    <div>Next update: {liveUpdateStatus.nextUpdate.toLocaleTimeString()}</div>
+                  )}
+                  <div>Total updates: {liveUpdateStatus.totalUpdates}</div>
+                </div>
+              )}
+            </div>
+            
+            {/* Last Update Results */}
+            {lastUnifiedUpdate && (
+              <div className="mt-3 text-sm bg-gray-50 rounded p-3">
+                <div className="font-medium mb-1">Last Unified Update:</div>
+                <div className="grid grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <div className="text-gray-600">Games Updated</div>
+                    <div className="font-semibold text-blue-600">{lastUnifiedUpdate.gamesUpdated}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Picks Processed</div>
+                    <div className="font-semibold text-green-600">{lastUnifiedUpdate.picksProcessed}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Status</div>
+                    <div className={`font-semibold ${lastUnifiedUpdate.success ? 'text-green-600' : 'text-red-600'}`}>
+                      {lastUnifiedUpdate.success ? '✅ Success' : '❌ Failed'}
+                    </div>
+                  </div>
+                </div>
+                {lastUnifiedUpdate.errors.length > 0 && (
+                  <div className="mt-2 text-xs text-red-600">
+                    <div className="font-medium">Errors:</div>
+                    {lastUnifiedUpdate.errors.slice(0, 3).map((error, i) => (
+                      <div key={i}>• {error}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
@@ -235,7 +456,7 @@ export default function TabbedLeaderboard() {
               <CardTitle>Season {season} Standings</CardTitle>
             </CardHeader>
             <CardContent>
-              {renderLeaderboardContent(seasonData)}
+              {renderLeaderboardContent(seasonData, 'season')}
             </CardContent>
           </Card>
         </TabsContent>
@@ -264,7 +485,7 @@ export default function TabbedLeaderboard() {
               <CardTitle>Week {selectedWeek} Results</CardTitle>
             </CardHeader>
             <CardContent>
-              {renderLeaderboardContent(weeklyData)}
+              {renderLeaderboardContent(weeklyData, 'weekly')}
             </CardContent>
           </Card>
         </TabsContent>
@@ -272,7 +493,7 @@ export default function TabbedLeaderboard() {
     </div>
   )
 
-  function renderLeaderboardContent(data: any[]) {
+  function renderLeaderboardContent(data: any[], tabType: 'season' | 'weekly') {
     if (loading) {
       return (
         <div className="flex items-center justify-center py-12">
@@ -300,11 +521,50 @@ export default function TabbedLeaderboard() {
 
     return (
       <div className="overflow-x-auto">
+        {/* Live Status Header */}
+        {liveUpdateStatus?.isRunning && (
+          <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-green-700">Live Updates Active</span>
+                <span className="text-xs text-green-600">
+                  Leaderboard refreshes automatically as games complete
+                </span>
+                {liveUpdateStatus.shouldRefreshLeaderboard && (
+                  <Badge className="bg-blue-100 text-blue-800 animate-pulse">
+                    🔄 Refresh Pending
+                  </Badge>
+                )}
+              </div>
+              <div className="text-right">
+                {liveUpdateStatus.nextUpdate && (
+                  <span className="text-xs text-green-600">
+                    Next check: {liveUpdateStatus.nextUpdate.toLocaleTimeString()}
+                  </span>
+                )}
+                {liveUpdateStatus.lastResult && (
+                  <div className="text-xs text-green-500 mt-1">
+                    Last: {liveUpdateStatus.lastResult.gamesUpdated}g / {liveUpdateStatus.lastResult.picksProcessed}p
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        
         <table className="w-full">
           <thead>
             <tr className="border-b">
               <th className="text-left p-2">Rank</th>
-              <th className="text-left p-2">Name</th>
+              <th className="text-left p-2">
+                <div className="flex items-center gap-1">
+                  Name
+                  {liveUpdateStatus?.isRunning && (
+                    <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></div>
+                  )}
+                </div>
+              </th>
               {isAdmin && <th className="text-left p-2">Source</th>}
               <th className="text-left p-2">Record</th>
               <th className="text-left p-2">Lock Record</th>

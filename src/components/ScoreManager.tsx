@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
 import { updateGameScores, getCompletedGames } from '@/services/collegeFootballApi'
 import { updateGameInDatabase, processCompletedGames, calculatePicksForGame } from '@/services/scoreCalculation'
+import { liveUpdateService, LiveUpdateResult, LiveUpdateStatus } from '@/services/liveUpdateService'
 
 interface Game {
   id: string
@@ -33,10 +35,40 @@ export default function ScoreManager({ season, week }: ScoreManagerProps) {
     picksUpdated: number
     errors: string[]
   } | null>(null)
+  const [liveUpdateStatus, setLiveUpdateStatus] = useState<LiveUpdateStatus | null>(null)
+  const [lastUnifiedUpdate, setLastUnifiedUpdate] = useState<LiveUpdateResult | null>(null)
 
   useEffect(() => {
     loadGames()
+    updateLiveStatus()
+    checkAutoStart()
+    
+    // Set up periodic status updates
+    const statusInterval = setInterval(updateLiveStatus, 10000) // Update every 10 seconds
+    
+    return () => {
+      clearInterval(statusInterval)
+    }
   }, [season, week])
+
+  const updateLiveStatus = () => {
+    setLiveUpdateStatus(liveUpdateService.getStatus())
+  }
+
+  const checkAutoStart = async () => {
+    try {
+      const autoStartCheck = await liveUpdateService.shouldAutoStart()
+      if (autoStartCheck.should) {
+        console.log(`🤖 [SCORE MGR] Auto-start conditions met: ${autoStartCheck.reason}`)
+        await liveUpdateService.autoStartIfNeeded()
+        updateLiveStatus()
+      } else {
+        console.log(`⏸️ [SCORE MGR] No auto-start: ${autoStartCheck.reason}`)
+      }
+    } catch (error: any) {
+      console.error('❌ [SCORE MGR] Auto-start check failed:', error)
+    }
+  }
 
   const loadGames = async () => {
     try {
@@ -61,6 +93,37 @@ export default function ScoreManager({ season, week }: ScoreManagerProps) {
     }
   }
 
+  // NEW: Unified update using the live update service
+  const runUnifiedUpdate = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      setProcessingResults(null)
+
+      console.log('🚀 Running unified update (games + picks)...')
+      
+      const result = await liveUpdateService.manualUpdate(season, week)
+      setLastUnifiedUpdate(result)
+      
+      if (result.success) {
+        console.log(`✅ Unified update complete: ${result.gamesUpdated} games, ${result.picksProcessed} picks`)
+      } else {
+        setError('Some updates failed - check console for details')
+      }
+
+      // Reload games to show updated data
+      await loadGames()
+      updateLiveStatus()
+
+    } catch (err: any) {
+      console.error('Error in unified update:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // LEGACY: Keep old method for compatibility
   const updateScoresFromAPI = async () => {
     try {
       setLoading(true)
@@ -117,6 +180,17 @@ export default function ScoreManager({ season, week }: ScoreManagerProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Live update control functions
+  const startLiveUpdates = () => {
+    liveUpdateService.startSmartPolling()
+    updateLiveStatus()
+  }
+
+  const stopLiveUpdates = () => {
+    liveUpdateService.stopPolling()
+    updateLiveStatus()
   }
 
   const manualScoreUpdate = async (gameId: string, homeScore: number, awayScore: number) => {
@@ -179,14 +253,122 @@ export default function ScoreManager({ season, week }: ScoreManagerProps) {
             Update game scores and calculate pick results for {season} Week {week}
           </p>
         </div>
-        <Button 
-          onClick={updateScoresFromAPI} 
-          disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          {loading ? 'Updating...' : '🔄 Update All Scores'}
-        </Button>
+        <div className="flex items-center gap-3">
+          {/* Live Update Status */}
+          {liveUpdateStatus && (
+            <div className="flex items-center gap-2">
+              {liveUpdateStatus.isRunning ? (
+                <Badge className="bg-green-100 text-green-800">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></div>
+                  LIVE
+                </Badge>
+              ) : (
+                <Badge className="bg-gray-100 text-gray-600">
+                  MANUAL
+                </Badge>
+              )}
+              
+              {liveUpdateStatus.lastUpdate && (
+                <span className="text-xs text-gray-500">
+                  Last: {liveUpdateStatus.lastUpdate.toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+          )}
+          
+          {/* Control Buttons */}
+          <Button 
+            onClick={runUnifiedUpdate} 
+            disabled={loading}
+            className="bg-pigskin-600 hover:bg-pigskin-700"
+          >
+            {loading ? 'Updating...' : '🚀 Refresh All'}
+          </Button>
+        </div>
       </div>
+
+      {/* Live Update Controls */}
+      <Card className="border-blue-200">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <span>⚡</span>
+            Live Update System
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                {liveUpdateStatus?.isRunning ? (
+                  <Button 
+                    onClick={stopLiveUpdates} 
+                    variant="outline" 
+                    className="border-red-200 text-red-600 hover:bg-red-50"
+                  >
+                    ⏹️ Stop Auto Updates
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={startLiveUpdates} 
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    ▶️ Start Auto Updates
+                  </Button>
+                )}
+                
+                <Button 
+                  onClick={updateScoresFromAPI} 
+                  disabled={loading}
+                  variant="outline"
+                  className="text-sm"
+                >
+                  Legacy Update
+                </Button>
+              </div>
+              
+              {liveUpdateStatus && (
+                <div className="mt-2 text-xs text-gray-500">
+                  {liveUpdateStatus.isRunning && liveUpdateStatus.nextUpdate && (
+                    <div>Next update: {liveUpdateStatus.nextUpdate.toLocaleTimeString()}</div>
+                  )}
+                  <div>Total updates: {liveUpdateStatus.totalUpdates}</div>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Live Update Status Details */}
+          {lastUnifiedUpdate && (
+            <div className="text-sm bg-gray-50 rounded p-3">
+              <div className="font-medium mb-1">Last Unified Update:</div>
+              <div className="grid grid-cols-3 gap-4 text-xs">
+                <div>
+                  <div className="text-gray-600">Games Updated</div>
+                  <div className="font-semibold text-blue-600">{lastUnifiedUpdate.gamesUpdated}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600">Picks Processed</div>
+                  <div className="font-semibold text-green-600">{lastUnifiedUpdate.picksProcessed}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600">Status</div>
+                  <div className={`font-semibold ${lastUnifiedUpdate.success ? 'text-green-600' : 'text-red-600'}`}>
+                    {lastUnifiedUpdate.success ? '✅ Success' : '❌ Failed'}
+                  </div>
+                </div>
+              </div>
+              {lastUnifiedUpdate.errors.length > 0 && (
+                <div className="mt-2 text-xs text-red-600">
+                  <div className="font-medium">Errors:</div>
+                  {lastUnifiedUpdate.errors.slice(0, 3).map((error, i) => (
+                    <div key={i}>• {error}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {error && (
         <Card className="border-red-200">
