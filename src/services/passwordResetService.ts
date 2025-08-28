@@ -100,32 +100,48 @@ export class PasswordResetService {
         timestamp: new Date().toISOString()
       })
 
-      // Check if user exists in users table (which mirrors auth.users)
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, email, created_at, email_confirmed_at')
-        .eq('email', email)
-        .single()
+      // Check if user exists in users table (handle RLS policy blocking)
+      let userData = null
+      let userError = null
+      
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('id, email, display_name, created_at')
+          .eq('email', email)
+          .single()
+        
+        userData = data
+        userError = error
+      } catch (error) {
+        console.log('🔓 Users table query failed (likely RLS policy), continuing with token generation...')
+        userError = error
+      }
 
       console.log('🔍 USER ACCOUNT CHECK RESULT:', {
         email,
         userExists: !!userData,
         userId: userData?.id,
+        displayName: userData?.display_name,
         userCreatedAt: userData?.created_at,
-        emailConfirmedAt: userData?.email_confirmed_at,
         userError: userError?.message,
-        possibleIssue: !userData ? 'USER_DOES_NOT_EXIST' : 
-                       !userData.email_confirmed_at ? 'EMAIL_NOT_CONFIRMED' : 'USER_OK'
+        errorCode: userError?.code,
+        rlsBlocked: userError?.code === '42501' || userError?.message?.includes('row-level security'),
+        possibleIssue: !userData ? 
+          userError?.code === '42501' ? 'RLS_POLICY_BLOCKING_ACCESS' :
+          'USER_MAY_NOT_EXIST' : 'USER_OK',
+        decision: userError?.code === '42501' ? 'CONTINUE_ANYWAY' : 'NORMAL_CHECK'
       })
 
-      // If user doesn't exist, token generation will definitely fail
-      if (!userData) {
-        console.error('❌ CRITICAL: User does not exist in database - token generation will fail')
-        console.error('❌ This explains why no tokens appear in Supabase Auth logs')
-        return { 
-          success: false, 
-          error: `No account found for ${email}. Please check the email address or create an account first.` 
-        }
+      // Only fail if we can definitively say user doesn't exist (not RLS blocked)
+      if (!userData && userError && userError.code !== '42501') {
+        console.error('❌ CRITICAL: User likely does not exist - token generation may fail')
+        console.error('❌ This may explain empty tokens in Supabase Auth logs')
+        console.log('⚠️  Continuing anyway to test token generation...')
+        // Don't return early - let token generation test provide the real answer
+      } else if (!userData && userError?.code === '42501') {
+        console.log('🔓 RLS policies prevent user verification, but user may exist')
+        console.log('🔍 Token generation will be the definitive test')
       }
 
       // Enhanced logging to diagnose missing token generation

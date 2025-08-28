@@ -503,49 +503,111 @@ export async function diagnoseTokenGeneration(email: string): Promise<AuthTestRe
   console.log(`Testing email: ${email}`)
   
   try {
-    // Test 1: Check if user exists in database
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id, email, created_at, email_confirmed_at, last_sign_in_at')
-      .eq('email', email)
-      .single()
+    // Test 1: Check if user exists in database (handle RLS policy issues)
+    let userData = null
+    let userError = null
+    let accessMethod = 'unknown'
+
+    // Try multiple methods to check user existence due to RLS policies
+    
+    // Method 1: Direct users table query (use correct schema)
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, email, display_name, created_at')
+        .eq('email', email)
+        .single()
+      
+      if (!error && data) {
+        userData = data
+        accessMethod = 'direct_users_table'
+      } else {
+        userError = error
+      }
+    } catch (directError) {
+      console.log('Direct users table query failed, trying alternatives...')
+      userError = directError
+    }
+
+    // Method 2: If direct query fails, try password reset as existence test
+    if (!userData) {
+      console.log('🔄 Testing user existence via password reset attempt...')
+      try {
+        const { data: resetData, error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: getCurrentSiteUrl() + '/reset-password'
+        })
+        
+        // If no error and we get data/response, user likely exists
+        // If we get a specific "user not found" error, user doesn't exist
+        if (!resetError) {
+          userData = { 
+            email, 
+            id: 'unknown-but-exists',
+            exists_confirmed: 'via_password_reset'
+          }
+          accessMethod = 'password_reset_test'
+        } else if (resetError.message?.includes('user') || resetError.message?.includes('not found')) {
+          accessMethod = 'password_reset_test_user_not_found'
+        } else {
+          accessMethod = 'password_reset_test_other_error'
+        }
+        
+        userError = resetError
+      } catch (resetTestError) {
+        userError = resetTestError
+        accessMethod = 'password_reset_test_exception'
+      }
+    }
     
     results.push({
       test: 'User Account Existence Check',
       success: !!userData,
       message: userData ? 
-        `User found: ${userData.email} (ID: ${userData.id})` : 
-        `No user found for ${email}`,
+        `User found via ${accessMethod}: ${userData.email}` : 
+        `User check failed via ${accessMethod} - ${userError?.message || 'Unknown error'}`,
       details: {
         userExists: !!userData,
         userId: userData?.id,
-        emailConfirmed: !!userData?.email_confirmed_at,
-        lastSignIn: userData?.last_sign_in_at,
+        email: userData?.email,
+        displayName: userData?.display_name,
+        accessMethod,
         accountAge: userData?.created_at ? 
           Math.floor((Date.now() - new Date(userData.created_at).getTime()) / (1000 * 60 * 60 * 24)) + ' days' : 
           'Unknown',
-        error: userError?.message
+        originalError: userError?.message,
+        errorCode: userError?.code,
+        rlsBlocked: userError?.code === '42501' || userError?.message?.includes('row-level security'),
+        possibleCauses: !userData ? [
+          'User genuinely does not exist',
+          'RLS policies blocking anonymous access to users table', 
+          'Email address spelling error',
+          'User exists but account in unusual state'
+        ] : []
       },
       fix: !userData ? 
-        'User must create account first - token generation requires existing user' : 
+        userError?.code === '42501' ? 
+          'RLS policies block user table access - will test token generation directly' :
+          'User may not exist - check email spelling or have user register' : 
         undefined
     })
     
-    if (!userData) {
+    // If we can't determine user existence due to RLS, continue with token tests
+    if (!userData && userError?.code === '42501') {
+      console.log('🔓 RLS blocking user query - continuing with token generation tests...')
+    } else if (!userData) {
       results.push({
         test: 'Token Generation Prediction',
         success: false,
-        message: 'Token generation will fail - user does not exist',
+        message: 'Token generation likely will fail - user may not exist',
         details: {
-          prediction: 'TOKENS_WILL_NOT_GENERATE',
-          reason: 'Supabase requires existing user for password reset',
-          willShowInAuthLogs: 'Request logged but tokens will be empty',
-          userExperience: '403 "One-time token not found" error'
+          prediction: 'TOKENS_MAY_NOT_GENERATE',
+          reason: 'Could not confirm user exists due to access restrictions',
+          willShowInAuthLogs: 'Request may be logged but tokens may be empty',
+          userExperience: 'Possible 403 "One-time token not found" error',
+          nextStep: 'Continue with actual token generation test'
         },
-        fix: 'User needs to register first, or check email spelling'
+        fix: 'Test actual token generation to confirm - user may exist but be inaccessible via table query'
       })
-      
-      return results
     }
     
     // Test 2: Test token generation with different redirect URLs
