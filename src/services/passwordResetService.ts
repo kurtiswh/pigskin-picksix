@@ -170,40 +170,15 @@ export class PasswordResetService {
         suspectedIssue: !error && !data ? 'SILENT FAILURE - NO TOKENS GENERATED' : 'Normal response'
       })
 
-      // DETECT SILENT FAILURE: No error but also no token generation
-      if (!error && (!data || Object.keys(data || {}).length === 0)) {
-        console.error('🚨 SILENT TOKEN GENERATION FAILURE DETECTED!')
-        console.error('🚨 This matches the empty token fields in Supabase Auth logs!')
-        console.error('🚨 Possible causes:')
-        console.error('   1. Redirect URL not in allowed list (but no error thrown)')
-        console.error('   2. Email template misconfiguration')
-        console.error('   3. Supabase quota/rate limiting')
-        console.error('   4. User account in invalid state')
-        console.error('🚨 User will get 403 "One-time token not found" when clicking link')
-        
-        // Try alternative redirect URLs
-        console.log('🔄 Attempting with alternative redirect URLs...')
-        const alternativeUrls = getPasswordResetRedirectUrls().filter(url => url !== redirectUrl)
-        
-        for (const altUrl of alternativeUrls.slice(0, 2)) { // Try first 2 alternatives
-          console.log(`🔄 Trying alternative URL: ${altUrl}`)
-          const { data: altData, error: altError } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: altUrl
-          })
-          
-          if (!altError && altData && Object.keys(altData).length > 0) {
-            console.log('✅ SUCCESS with alternative URL!')
-            console.log('✅ Tokens should be generated now')
-            return { success: true }
-          } else {
-            console.log('❌ Alternative URL also failed')
-          }
-        }
-        
-        return { 
-          success: false, 
-          error: `Failed to generate password reset tokens. This is a configuration issue - please contact support. (User: ${email})` 
-        }
+      // Check for actual failures vs normal Supabase Auth behavior
+      // Note: Supabase auth.resetPasswordForEmail() returns empty object {} on success, not tokens
+      // This is normal behavior - tokens are sent via email, not returned in API response
+      if (!error) {
+        console.log('✅ Password reset email sent successfully via Supabase Auth')
+        console.log('📧 Email should contain valid tokens and redirect link')
+        console.log('⚠️ NOTE: Supabase Auth API returns empty object on success - this is normal')
+        console.log('⚠️ If user reports 403 errors, check redirect URL configuration')
+        return { success: true }
       }
 
       if (error) {
