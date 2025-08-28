@@ -251,6 +251,102 @@ export function logTestResults(results: AuthTestResult[]) {
 }
 
 /**
+ * Test specific token validation scenarios
+ */
+export function testTokenValidationScenarios(testUrl?: string): AuthTestResult[] {
+  const results: AuthTestResult[] = []
+  const url = testUrl || window.location.href
+  
+  try {
+    const urlObj = new URL(url)
+    const hashParams = new URLSearchParams(urlObj.hash.substring(1))
+    const searchParams = new URLSearchParams(urlObj.search)
+    
+    // Test 1: Check for 403 error patterns
+    const accessToken = hashParams.get('access_token')
+    const refreshToken = hashParams.get('refresh_token')
+    const type = hashParams.get('type')
+    const errorParam = searchParams.get('error') || hashParams.get('error')
+    
+    results.push({
+      test: '403 Token Error Analysis',
+      success: !errorParam,
+      message: errorParam 
+        ? `Found error parameter: ${errorParam}`
+        : 'No error parameters detected',
+      details: {
+        hasValidTokens: !!(accessToken && refreshToken),
+        tokenType: type,
+        errorFound: errorParam,
+        tokenLengths: {
+          access: accessToken?.length || 0,
+          refresh: refreshToken?.length || 0
+        },
+        likelyFailureReasons: accessToken && refreshToken && errorParam ? [
+          'Token expired (1 hour limit)',
+          'Token already used',
+          'Domain/URL mismatch',
+          'Multiple clicks on same link'
+        ] : ['Invalid token format or missing tokens']
+      },
+      fix: errorParam ? 
+        'User needs to request a new password reset - this link is invalid' : 
+        'Tokens appear valid - check session validation'
+    })
+    
+    // Test 2: Analyze token format for validity
+    if (accessToken && refreshToken) {
+      const tokenFormatValid = accessToken.length > 20 && refreshToken.length > 20
+      results.push({
+        test: 'Token Format Validation',
+        success: tokenFormatValid,
+        message: tokenFormatValid ? 
+          'Tokens have valid format' : 
+          'Tokens appear to have invalid format',
+        details: {
+          accessTokenLength: accessToken.length,
+          refreshTokenLength: refreshToken.length,
+          accessTokenPrefix: accessToken.substring(0, 8) + '...',
+          refreshTokenPrefix: refreshToken.substring(0, 8) + '...',
+          expectedMinLength: 20
+        }
+      })
+    }
+    
+    // Test 3: Check timing context
+    const currentTime = new Date().toISOString()
+    results.push({
+      test: 'Password Reset Timing Context',
+      success: true,
+      message: 'Timing information captured for analysis',
+      details: {
+        pageLoadTime: currentTime,
+        userAgent: navigator.userAgent,
+        referrer: document.referrer,
+        currentDomain: window.location.origin,
+        notes: [
+          'Password reset links expire after 1 hour',
+          'Links can only be used once',
+          'Multiple tabs/clicks can cause failures',
+          'Domain must match Supabase configuration'
+        ]
+      },
+      fix: 'If user reports working link suddenly failing, check for multiple clicks or expired time'
+    })
+    
+  } catch (error) {
+    results.push({
+      test: 'Token Validation Analysis',
+      success: false,
+      message: `Failed to analyze tokens: ${error}`,
+      details: { error, url }
+    })
+  }
+  
+  return results
+}
+
+/**
  * Quick test function for debugging
  */
 export async function quickAuthTest(email?: string) {
@@ -265,5 +361,7 @@ if (typeof window !== 'undefined') {
   ;(window as any).quickAuthTest = quickAuthTest
   ;(window as any).testPasswordResetEmail = testPasswordResetEmail
   ;(window as any).testUrlParsing = testUrlParsing
+  ;(window as any).testTokenValidationScenarios = testTokenValidationScenarios
   console.log('✅ [AUTH-TEST-UTILS] Global functions registered successfully')
+  console.log('🧪 Available functions: quickAuthTest(), testPasswordResetEmail(), testUrlParsing(), testTokenValidationScenarios()')
 }

@@ -74,6 +74,24 @@ export default function ResetPasswordPage() {
           currentDomain: getCurrentSiteUrl()
         })
 
+        // Enhanced token debugging for 403 "One-time token not found" errors
+        console.log('🔍 ENHANCED TOKEN DEBUG (for 403 error diagnosis):', {
+          timestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent,
+          referrer: document.referrer,
+          origin: window.location.origin,
+          protocol: window.location.protocol,
+          host: window.location.host,
+          hostname: window.location.hostname,
+          port: window.location.port,
+          sameDomain: isSameDomain(window.location.origin, getCurrentSiteUrl()),
+          cookieHeader: document.cookie,
+          hasLocalStorage: !!localStorage,
+          hasSessionStorage: !!sessionStorage,
+          supabaseStorageKeys: Object.keys(localStorage).filter(k => k.includes('supabase')),
+          timezoneOffset: new Date().getTimezoneOffset()
+        })
+
         console.log('🔐 Checking reset tokens...', { 
           type, 
           hasAccessToken: !!accessToken, 
@@ -127,28 +145,69 @@ export default function ResetPasswordPage() {
             userEmail: currentSession?.session?.user?.email
           })
           
+          // Enhanced logging for token validation and session setting
+          console.log('🔐 DETAILED TOKEN VALIDATION:', {
+            accessTokenLength: accessToken?.length,
+            refreshTokenLength: refreshToken?.length,
+            accessTokenPrefix: accessToken?.substring(0, 12) + '...',
+            refreshTokenPrefix: refreshToken?.substring(0, 12) + '...',
+            tokenFromDomain: document.referrer || 'direct_navigation',
+            currentUrl: window.location.href,
+            attemptingSessionAt: new Date().toISOString()
+          })
+
           const { data: sessionData, error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
           })
 
           if (error) {
+            console.error('❌ 403 TOKEN ERROR - This matches user mwang3@uco.edu issue!')
             console.error('❌ Error setting session:', error.message)
+            console.error('❌ Error code:', error.code)
+            console.error('❌ Error status:', error.status)
             console.error('❌ Full session error:', JSON.stringify(error, null, 2))
-            setError('Invalid or expired reset link. Please request a new password reset.')
+            console.error('❌ Token validation context:', {
+              tokenReceived: !!accessToken && !!refreshToken,
+              urlSource: window.location.href,
+              referrerSource: document.referrer,
+              timeBetweenEmailAndClick: 'unknown - need user timing',
+              domainMatch: isSameDomain(window.location.origin, document.referrer),
+              possibleCauses: [
+                '1. Token expired (1 hour limit)',
+                '2. Token already used once',
+                '3. Token generated for different domain',
+                '4. User clicked link after 60 minutes',
+                '5. Multiple clicks on same link'
+              ]
+            })
+
+            // Provide specific guidance for 403 token errors
+            if (error.status === 403 || error.message?.includes('token') || error.message?.includes('expired')) {
+              setError('🚨 INVALID PASSWORD RESET LINK: This link has expired, been used already, or is invalid. Password reset links expire after 1 hour and can only be used once. Please request a new password reset from the login page.')
+            } else {
+              setError('Invalid or expired reset link. Please request a new password reset.')
+            }
             setTokenValid(false)
           } else {
             console.log('✅ Session established for password reset')
             console.log('✅ New session data:', {
               hasSession: !!sessionData?.session,
               userId: sessionData?.session?.user?.id,
-              userEmail: sessionData?.session?.user?.email
+              userEmail: sessionData?.session?.user?.email,
+              sessionEstablishedAt: new Date().toISOString()
             })
             setTokenValid(true)
           }
         } else if (accessToken && refreshToken && !type) {
           // Sometimes Supabase recovery doesn't include type parameter, try anyway
           console.log('🔐 Found tokens without type, attempting recovery session...')
+          console.log('🔍 NO-TYPE TOKEN DEBUG:', {
+            accessTokenLength: accessToken?.length,
+            refreshTokenLength: refreshToken?.length,
+            possibleReasonForNoType: 'Email template or URL generation issue',
+            attemptingSessionAt: new Date().toISOString()
+          })
           
           const { supabase } = await import('@/lib/supabase')
           const { data: sessionData, error } = await supabase.auth.setSession({
@@ -157,11 +216,23 @@ export default function ResetPasswordPage() {
           })
 
           if (error) {
+            console.error('❌ 403 TOKEN ERROR (no type) - Also matches mwang3@uco.edu pattern!')
             console.error('❌ Error setting session (no type):', error.message)
-            setError('Invalid or expired reset link. Please request a new password reset.')
+            console.error('❌ Error details:', JSON.stringify(error, null, 2))
+            console.error('❌ This suggests tokens are valid format but failed validation')
+            
+            if (error.status === 403 || error.message?.includes('token') || error.message?.includes('expired')) {
+              setError('🚨 INVALID PASSWORD RESET LINK: This link has expired, been used already, or is invalid. Password reset links expire after 1 hour and can only be used once. Please request a new password reset from the login page.')
+            } else {
+              setError('Invalid or expired reset link. Please request a new password reset.')
+            }
             setTokenValid(false)
           } else {
             console.log('✅ Session established without type parameter')
+            console.log('✅ Recovery successful despite missing type:', {
+              sessionUserId: sessionData?.session?.user?.id,
+              sessionUserEmail: sessionData?.session?.user?.email
+            })
             setTokenValid(true)
           }
         } else if (customToken) {
