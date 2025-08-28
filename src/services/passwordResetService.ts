@@ -93,9 +93,102 @@ export class PasswordResetService {
       console.log(`⚠️  403 errors occur when redirect URL is not in the allowed list`)
       console.log(`⚠️  400 PKCE errors occur when email template uses wrong flow type`)
       
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      // STEP 1: Check if user exists in auth system before attempting reset
+      console.log('🔍 USER ACCOUNT VALIDATION:', {
+        email,
+        checkingUserExists: true,
+        timestamp: new Date().toISOString()
+      })
+
+      // Check if user exists in users table (which mirrors auth.users)
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, email, created_at, email_confirmed_at')
+        .eq('email', email)
+        .single()
+
+      console.log('🔍 USER ACCOUNT CHECK RESULT:', {
+        email,
+        userExists: !!userData,
+        userId: userData?.id,
+        userCreatedAt: userData?.created_at,
+        emailConfirmedAt: userData?.email_confirmed_at,
+        userError: userError?.message,
+        possibleIssue: !userData ? 'USER_DOES_NOT_EXIST' : 
+                       !userData.email_confirmed_at ? 'EMAIL_NOT_CONFIRMED' : 'USER_OK'
+      })
+
+      // If user doesn't exist, token generation will definitely fail
+      if (!userData) {
+        console.error('❌ CRITICAL: User does not exist in database - token generation will fail')
+        console.error('❌ This explains why no tokens appear in Supabase Auth logs')
+        return { 
+          success: false, 
+          error: `No account found for ${email}. Please check the email address or create an account first.` 
+        }
+      }
+
+      // Enhanced logging to diagnose missing token generation
+      console.log('🔍 PRE-TOKEN-GENERATION DEBUG:', {
+        email,
+        redirectUrl,
+        timestamp: new Date().toISOString(),
+        supabaseProjectUrl: process.env.VITE_SUPABASE_URL,
+        currentOrigin: window.location.origin,
+        userValidated: true,
+        userId: userData.id
+      })
+
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl
       })
+
+      // CRITICAL: Log the full response, not just errors
+      console.log('🔍 POST-TOKEN-GENERATION DEBUG:', {
+        email,
+        hasError: !!error,
+        hasData: !!data,
+        dataContents: data ? JSON.stringify(data, null, 2) : 'NO DATA',
+        errorContents: error ? JSON.stringify(error, null, 2) : 'NO ERROR',
+        timestamp: new Date().toISOString(),
+        suspectedIssue: !error && !data ? 'SILENT FAILURE - NO TOKENS GENERATED' : 'Normal response'
+      })
+
+      // DETECT SILENT FAILURE: No error but also no token generation
+      if (!error && (!data || Object.keys(data || {}).length === 0)) {
+        console.error('🚨 SILENT TOKEN GENERATION FAILURE DETECTED!')
+        console.error('🚨 This matches the empty token fields in Supabase Auth logs!')
+        console.error('🚨 Possible causes:')
+        console.error('   1. Redirect URL not in allowed list (but no error thrown)')
+        console.error('   2. Email template misconfiguration')
+        console.error('   3. Supabase quota/rate limiting')
+        console.error('   4. User account in invalid state')
+        console.error('🚨 User will get 403 "One-time token not found" when clicking link')
+        
+        // Try alternative redirect URLs
+        console.log('🔄 Attempting with alternative redirect URLs...')
+        const alternativeUrls = getPasswordResetRedirectUrls().filter(url => url !== redirectUrl)
+        
+        for (const altUrl of alternativeUrls.slice(0, 2)) { // Try first 2 alternatives
+          console.log(`🔄 Trying alternative URL: ${altUrl}`)
+          const { data: altData, error: altError } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: altUrl
+          })
+          
+          if (!altError && altData && Object.keys(altData).length > 0) {
+            console.log('✅ SUCCESS with alternative URL!')
+            console.log('✅ Tokens should be generated now')
+            return { success: true }
+          } else {
+            console.log('❌ Alternative URL also failed')
+          }
+        }
+        
+        return { 
+          success: false, 
+          error: `Failed to generate password reset tokens. This is a configuration issue - please contact support. (User: ${email})` 
+        }
+      }
 
       if (error) {
         console.error('❌ Supabase Auth password reset error:', error)

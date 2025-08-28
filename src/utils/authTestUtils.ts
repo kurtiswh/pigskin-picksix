@@ -493,6 +493,162 @@ export async function diagnose403Error(userEmail?: string): Promise<AuthTestResu
 }
 
 /**
+ * Diagnose token generation issues for specific emails
+ */
+export async function diagnoseTokenGeneration(email: string): Promise<AuthTestResult[]> {
+  const results: AuthTestResult[] = []
+  
+  console.log('🔍 DIAGNOSING TOKEN GENERATION ISSUES')
+  console.log('=' .repeat(50))
+  console.log(`Testing email: ${email}`)
+  
+  try {
+    // Test 1: Check if user exists in database
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, email, created_at, email_confirmed_at, last_sign_in_at')
+      .eq('email', email)
+      .single()
+    
+    results.push({
+      test: 'User Account Existence Check',
+      success: !!userData,
+      message: userData ? 
+        `User found: ${userData.email} (ID: ${userData.id})` : 
+        `No user found for ${email}`,
+      details: {
+        userExists: !!userData,
+        userId: userData?.id,
+        emailConfirmed: !!userData?.email_confirmed_at,
+        lastSignIn: userData?.last_sign_in_at,
+        accountAge: userData?.created_at ? 
+          Math.floor((Date.now() - new Date(userData.created_at).getTime()) / (1000 * 60 * 60 * 24)) + ' days' : 
+          'Unknown',
+        error: userError?.message
+      },
+      fix: !userData ? 
+        'User must create account first - token generation requires existing user' : 
+        undefined
+    })
+    
+    if (!userData) {
+      results.push({
+        test: 'Token Generation Prediction',
+        success: false,
+        message: 'Token generation will fail - user does not exist',
+        details: {
+          prediction: 'TOKENS_WILL_NOT_GENERATE',
+          reason: 'Supabase requires existing user for password reset',
+          willShowInAuthLogs: 'Request logged but tokens will be empty',
+          userExperience: '403 "One-time token not found" error'
+        },
+        fix: 'User needs to register first, or check email spelling'
+      })
+      
+      return results
+    }
+    
+    // Test 2: Test token generation with different redirect URLs
+    const redirectUrls = getPasswordResetRedirectUrls()
+    
+    for (let i = 0; i < Math.min(3, redirectUrls.length); i++) {
+      const redirectUrl = redirectUrls[i]
+      
+      try {
+        console.log(`🧪 Testing token generation with: ${redirectUrl}`)
+        
+        const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: redirectUrl
+        })
+        
+        const hasTokens = data && Object.keys(data).length > 0
+        const silentFailure = !error && !hasTokens
+        
+        results.push({
+          test: `Token Generation Test ${i + 1}`,
+          success: !error && hasTokens,
+          message: silentFailure ? 
+            'SILENT FAILURE - No error but no tokens generated' :
+            error ? 
+            `Error: ${error.message}` : 
+            'Tokens generated successfully',
+          details: {
+            redirectUrl,
+            hasError: !!error,
+            hasData: !!data,
+            hasTokens,
+            silentFailure,
+            dataKeys: data ? Object.keys(data) : [],
+            errorCode: error?.code,
+            errorStatus: error?.status,
+            prediction: silentFailure ? 'USER_WILL_GET_403_ERROR' : 'SHOULD_WORK'
+          },
+          fix: silentFailure ? 
+            'Redirect URL may not be in Supabase allowed list, or email template misconfigured' :
+            error?.status === 403 ?
+            'Add redirect URL to Supabase Dashboard > Authentication > URL Configuration' :
+            undefined
+        })
+        
+        // If we found a working URL, we can stop testing
+        if (!error && hasTokens) {
+          results.push({
+            test: 'Token Generation Summary',
+            success: true,
+            message: `Working redirect URL found: ${redirectUrl}`,
+            details: { workingUrl: redirectUrl }
+          })
+          break
+        }
+        
+      } catch (testError) {
+        results.push({
+          test: `Token Generation Test ${i + 1}`,
+          success: false,
+          message: `Exception during test: ${testError}`,
+          details: { redirectUrl, exception: testError }
+        })
+      }
+      
+      // Add delay to avoid rate limiting
+      if (i < redirectUrls.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+    }
+    
+    // Test 3: Check Supabase configuration context
+    results.push({
+      test: 'Supabase Configuration Context',
+      success: true,
+      message: 'Current environment configuration',
+      details: {
+        supabaseUrl: process.env.VITE_SUPABASE_URL?.substring(0, 30) + '...',
+        currentDomain: getCurrentSiteUrl(),
+        allRedirectUrls: redirectUrls,
+        commonIssues: [
+          'Redirect URLs not added to Supabase allowed list',
+          'Email template using wrong flow (confirmation vs recovery)',
+          'Domain mismatch (www vs non-www)',
+          'Rate limiting or quota exceeded',
+          'RLS policies blocking token generation'
+        ]
+      },
+      fix: 'Verify all redirect URLs are in Supabase Dashboard > Authentication > URL Configuration'
+    })
+    
+  } catch (error) {
+    results.push({
+      test: 'Token Generation Diagnosis',
+      success: false,
+      message: `Diagnosis failed: ${error}`,
+      details: { error }
+    })
+  }
+  
+  return results
+}
+
+/**
  * Quick test function for debugging
  */
 export async function quickAuthTest(email?: string) {
@@ -510,6 +666,7 @@ if (typeof window !== 'undefined') {
   ;(window as any).testTokenValidationScenarios = testTokenValidationScenarios
   ;(window as any).simulatePasswordResetLink = simulatePasswordResetLink
   ;(window as any).diagnose403Error = diagnose403Error
+  ;(window as any).diagnoseTokenGeneration = diagnoseTokenGeneration
   console.log('✅ [AUTH-TEST-UTILS] Global functions registered successfully')
   console.log('🧪 Available functions:')
   console.log('  - quickAuthTest(email?) - Run comprehensive auth flow test')
@@ -518,4 +675,5 @@ if (typeof window !== 'undefined') {
   console.log('  - testTokenValidationScenarios(url?) - Test token validation scenarios')
   console.log('  - simulatePasswordResetLink(email?) - Show what a valid link looks like')
   console.log('  - diagnose403Error(email?) - Diagnose 403 token errors')
+  console.log('  - diagnoseTokenGeneration(email) - Test why tokens are not generated for specific user')
 }
