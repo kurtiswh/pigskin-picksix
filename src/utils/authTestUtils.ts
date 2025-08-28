@@ -347,6 +347,152 @@ export function testTokenValidationScenarios(testUrl?: string): AuthTestResult[]
 }
 
 /**
+ * Simulate what a password reset email link should look like
+ */
+export function simulatePasswordResetLink(email?: string): string {
+  const baseUrl = getCurrentSiteUrl()
+  // Generate mock tokens for testing
+  const mockAccessToken = 'mock_' + Math.random().toString(36).substring(2, 15)
+  const mockRefreshToken = 'mock_' + Math.random().toString(36).substring(2, 15)
+  
+  const resetUrl = `${baseUrl}/reset-password#access_token=${mockAccessToken}&refresh_token=${mockRefreshToken}&type=recovery`
+  
+  console.log('🔗 SIMULATED PASSWORD RESET LINK:')
+  console.log('=====================================')
+  console.log(`For email: ${email || 'user@example.com'}`)
+  console.log(`URL: ${resetUrl}`)
+  console.log('')
+  console.log('📋 This is what a valid password reset link should contain:')
+  console.log('  1. Base URL matching your domain')
+  console.log('  2. /reset-password path')
+  console.log('  3. Hash fragment (#) not query params (?)')
+  console.log('  4. access_token parameter')
+  console.log('  5. refresh_token parameter')
+  console.log('  6. type=recovery parameter')
+  console.log('')
+  console.log('⚠️  If user\'s link looks different, check Supabase email template')
+  
+  return resetUrl
+}
+
+/**
+ * Comprehensive 403 error diagnostic
+ */
+export async function diagnose403Error(userEmail?: string): Promise<AuthTestResult[]> {
+  const results: AuthTestResult[] = []
+  
+  console.log('🔍 DIAGNOSING 403 "One-time token not found" ERROR')
+  console.log('=' .repeat(50))
+  
+  // Test 1: Check current page state
+  const currentUrl = window.location.href
+  const hasTokens = currentUrl.includes('access_token') || currentUrl.includes('refresh_token')
+  
+  results.push({
+    test: 'Current Page Analysis',
+    success: hasTokens,
+    message: hasTokens ? 
+      'Tokens found in current URL' : 
+      'No tokens in current URL - user may have already processed them or navigated directly',
+    details: {
+      currentUrl,
+      hasTokens,
+      pathname: window.location.pathname,
+      hash: window.location.hash,
+      search: window.location.search
+    },
+    fix: !hasTokens ? 
+      'User needs to click the link from their email, not navigate directly to /reset-password' : 
+      undefined
+  })
+  
+  // Test 2: Check Supabase session state
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    results.push({
+      test: 'Supabase Session Check',
+      success: !!session,
+      message: session ? 
+        `User is authenticated as ${session.user?.email}` : 
+        'No active session - tokens may have failed validation',
+      details: {
+        hasSession: !!session,
+        userEmail: session?.user?.email,
+        userId: session?.user?.id
+      },
+      fix: !session && hasTokens ? 
+        'Tokens present but session failed - likely expired or invalid tokens' : 
+        undefined
+    })
+  } catch (error) {
+    results.push({
+      test: 'Supabase Session Check',
+      success: false,
+      message: `Failed to check session: ${error}`,
+      details: { error }
+    })
+  }
+  
+  // Test 3: Check localStorage for auth remnants
+  const authKeys = Object.keys(localStorage).filter(key => 
+    key.includes('supabase') || key.includes('auth')
+  )
+  
+  results.push({
+    test: 'Local Storage Auth State',
+    success: authKeys.length > 0,
+    message: `Found ${authKeys.length} auth-related keys`,
+    details: {
+      authKeys,
+      possibleIssues: authKeys.length === 0 ? [
+        'Cookies/storage may be blocked',
+        'Private browsing mode',
+        'Browser extensions interfering'
+      ] : []
+    }
+  })
+  
+  // Test 4: Domain and redirect configuration
+  const currentDomain = getCurrentSiteUrl()
+  const redirectUrls = getPasswordResetRedirectUrls()
+  
+  results.push({
+    test: 'Domain Configuration Check',
+    success: true,
+    message: 'Domain configuration for password reset',
+    details: {
+      currentDomain,
+      expectedRedirectUrls: redirectUrls,
+      wwwVariant: currentDomain.includes('www'),
+      criticalNote: '403 errors often occur when email links use different domain than configured'
+    },
+    fix: 'Ensure ALL redirect URLs are added to Supabase Dashboard > Authentication > URL Configuration'
+  })
+  
+  // Test 5: Common 403 error patterns
+  results.push({
+    test: '403 Error Pattern Analysis',
+    success: false,
+    message: 'Common causes of 403 "One-time token not found" errors',
+    details: {
+      likelyCauses: [
+        '1. Token expired (>1 hour old)',
+        '2. Token already used (clicked link multiple times)',
+        '3. Email client modified the link',
+        '4. User forwarded email and someone else clicked first',
+        '5. Browser cached redirect from previous attempt',
+        '6. Domain mismatch between email and site'
+      ],
+      userEmail: userEmail || 'Not provided',
+      timeNow: new Date().toISOString()
+    },
+    fix: 'User should request a fresh password reset and click link immediately (within 1 hour)'
+  })
+  
+  return results
+}
+
+/**
  * Quick test function for debugging
  */
 export async function quickAuthTest(email?: string) {
@@ -362,6 +508,14 @@ if (typeof window !== 'undefined') {
   ;(window as any).testPasswordResetEmail = testPasswordResetEmail
   ;(window as any).testUrlParsing = testUrlParsing
   ;(window as any).testTokenValidationScenarios = testTokenValidationScenarios
+  ;(window as any).simulatePasswordResetLink = simulatePasswordResetLink
+  ;(window as any).diagnose403Error = diagnose403Error
   console.log('✅ [AUTH-TEST-UTILS] Global functions registered successfully')
-  console.log('🧪 Available functions: quickAuthTest(), testPasswordResetEmail(), testUrlParsing(), testTokenValidationScenarios()')
+  console.log('🧪 Available functions:')
+  console.log('  - quickAuthTest(email?) - Run comprehensive auth flow test')
+  console.log('  - testPasswordResetEmail(email) - Test password reset email sending')
+  console.log('  - testUrlParsing(url?) - Parse and analyze URL tokens')
+  console.log('  - testTokenValidationScenarios(url?) - Test token validation scenarios')
+  console.log('  - simulatePasswordResetLink(email?) - Show what a valid link looks like')
+  console.log('  - diagnose403Error(email?) - Diagnose 403 token errors')
 }
