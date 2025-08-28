@@ -1,16 +1,12 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { PasswordResetService } from '@/services/passwordResetService'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { debugDomainInfo, isSameDomain, getCurrentSiteUrl } from '@/utils/domainUtils'
-import { quickAuthTest, testUrlParsing, logTestResults } from '@/utils/authTestUtils'
 
 export default function ResetPasswordPage() {
-  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { user } = useAuth()
   const [password, setPassword] = useState('')
@@ -19,333 +15,43 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [tokenValid, setTokenValid] = useState<boolean | null>(null)
-  const [email, setEmail] = useState('')
-
-  // Handle case where user becomes authenticated after component loads
-  useEffect(() => {
-    if (user && tokenValid === null) {
-      console.log('✅ [RESET] User authenticated via auth context, enabling password reset')
-      console.log('✅ [RESET] Auth context user:', user.email, user.id)
-      setTokenValid(true)
-      return
-    }
-  }, [user, tokenValid])
 
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        // Debug domain information for troubleshooting 403 errors
-        debugDomainInfo('RESET-PAGE-LOAD')
-        
-        // Run comprehensive URL parsing test for troubleshooting
-        const urlTestResults = testUrlParsing()
-        logTestResults(urlTestResults)
-        
-        // Check for password reset tokens in URL (Supabase Auth format)
         const hashParams = new URLSearchParams(window.location.hash.substring(1))
         const accessToken = hashParams.get('access_token')
         const refreshToken = hashParams.get('refresh_token')
         const type = hashParams.get('type')
 
-        // Check for errors in both query params and hash
-        const queryError = searchParams.get('error')
-        const queryErrorCode = searchParams.get('error_code')
-        const queryErrorDesc = searchParams.get('error_description')
-        
-        const hashError = hashParams.get('error')
-        const hashErrorCode = hashParams.get('error_code')
-        const hashErrorDesc = hashParams.get('error_description')
-
-        // Also check for custom token in query params (fallback)
-        const customToken = searchParams.get('token')
-        
-        // IMPORTANT: Check for misrouted password reset codes
-        // Sometimes Supabase sends password reset as ?code= instead of proper recovery flow
-        const possibleResetCode = searchParams.get('code')
-        const errorParam = searchParams.get('error')
-
-        console.log('🔐 FULL URL DEBUG:', {
-          fullUrl: window.location.href,
-          pathname: window.location.pathname,
-          search: window.location.search,
-          hash: window.location.hash,
-          queryParams: Object.fromEntries(searchParams.entries()),
-          hashParams: Object.fromEntries(hashParams.entries()),
-          currentDomain: getCurrentSiteUrl()
-        })
-
-        // Enhanced token debugging for 403 "One-time token not found" errors
-        console.log('🔍 ENHANCED TOKEN DEBUG (for 403 error diagnosis):', {
-          timestamp: new Date().toISOString(),
-          userAgent: navigator.userAgent,
-          referrer: document.referrer,
-          origin: window.location.origin,
-          protocol: window.location.protocol,
-          host: window.location.host,
-          hostname: window.location.hostname,
-          port: window.location.port,
-          sameDomain: isSameDomain(window.location.origin, getCurrentSiteUrl()),
-          cookieHeader: document.cookie,
-          hasLocalStorage: !!localStorage,
-          hasSessionStorage: !!sessionStorage,
-          supabaseStorageKeys: Object.keys(localStorage).filter(k => k.includes('supabase')),
-          timezoneOffset: new Date().getTimezoneOffset()
-        })
-
-        console.log('🔐 Checking reset tokens...', { 
-          type, 
-          hasAccessToken: !!accessToken, 
-          hasCustomToken: !!customToken,
-          hasPossibleResetCode: !!possibleResetCode,
-          queryError,
-          queryErrorCode,
-          hashError,
-          hashErrorCode,
-          errorParam,
-          accessTokenPreview: accessToken ? accessToken.substring(0, 20) + '...' : null,
-          refreshTokenPreview: refreshToken ? refreshToken.substring(0, 20) + '...' : null,
-          resetCodePreview: possibleResetCode ? possibleResetCode.substring(0, 8) + '...' : null
-        })
-
-        // Handle errors - but check if we also have valid tokens
-        if ((queryError || hashError) && (!accessToken || !refreshToken)) {
-          const error = queryError || hashError
-          const errorCode = queryErrorCode || hashErrorCode
-          const errorDesc = queryErrorDesc || hashErrorDesc
-          
-          console.error('❌ Reset link error (no valid tokens):', { error, errorCode, errorDesc })
-          
-          // Provide specific error messages for common issues
-          if (errorCode === 'otp_expired' || error === 'access_denied') {
-            setError('This password reset link has expired or is invalid. Links expire after 1 hour. Please request a new password reset.')
-          } else if (error === 'invalid_request' && errorDesc?.includes('token')) {
-            setError('⚠️ EMAIL CONFIGURATION ISSUE: This error usually means the email template is misconfigured. The admin needs to check Supabase email templates. Please request a new password reset or contact support.')
-          } else if (error === 'invalid_code' || errorCode === '400') {
-            setError('⚠️ INVALID RESET LINK: This link format is not supported. This may be due to email template configuration issues. Please request a new password reset.')
-          } else {
-            setError(`Reset link error: ${errorDesc || error}. Please request a new password reset.`)
-          }
-          setTokenValid(false)
-          return
-        } else if (queryError || hashError) {
-          console.log('⚠️ Found errors but also have tokens, attempting recovery anyway...')
-        }
-
-        // If this is a Supabase password recovery callback, set the session
         if (type === 'recovery' && accessToken && refreshToken) {
-          console.log('🔐 Processing Supabase Auth recovery callback...')
-          
-          const { supabase } = await import('@/lib/supabase')
-          
-          // First check current session
-          const { data: currentSession } = await supabase.auth.getSession()
-          console.log('🔐 Current session before reset:', {
-            hasSession: !!currentSession?.session,
-            userId: currentSession?.session?.user?.id,
-            userEmail: currentSession?.session?.user?.email
-          })
-          
-          // Enhanced logging for token validation and session setting
-          console.log('🔐 DETAILED TOKEN VALIDATION:', {
-            accessTokenLength: accessToken?.length,
-            refreshTokenLength: refreshToken?.length,
-            accessTokenPrefix: accessToken?.substring(0, 12) + '...',
-            refreshTokenPrefix: refreshToken?.substring(0, 12) + '...',
-            tokenFromDomain: document.referrer || 'direct_navigation',
-            currentUrl: window.location.href,
-            attemptingSessionAt: new Date().toISOString()
-          })
-
-          const { data: sessionData, error } = await supabase.auth.setSession({
+          const { error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
           })
 
           if (error) {
-            console.error('❌ 403 TOKEN ERROR - This matches user mwang3@uco.edu issue!')
-            console.error('❌ Error setting session:', error.message)
-            console.error('❌ Error code:', error.code)
-            console.error('❌ Error status:', error.status)
-            console.error('❌ Full session error:', JSON.stringify(error, null, 2))
-            console.error('❌ Token validation context:', {
-              tokenReceived: !!accessToken && !!refreshToken,
-              urlSource: window.location.href,
-              referrerSource: document.referrer,
-              timeBetweenEmailAndClick: 'unknown - need user timing',
-              domainMatch: isSameDomain(window.location.origin, document.referrer),
-              possibleCauses: [
-                '1. Token expired (1 hour limit)',
-                '2. Token already used once',
-                '3. Token generated for different domain',
-                '4. User clicked link after 60 minutes',
-                '5. Multiple clicks on same link'
-              ]
-            })
-
-            // Provide specific guidance for 403 token errors
-            if (error.status === 403 || error.message?.includes('token') || error.message?.includes('expired')) {
-              setError('🚨 INVALID PASSWORD RESET LINK: This link has expired, been used already, or is invalid. Password reset links expire after 1 hour and can only be used once. Please request a new password reset from the login page.')
-            } else {
-              setError('Invalid or expired reset link. Please request a new password reset.')
-            }
+            setError('Invalid or expired reset link. Please request a new password reset.')
             setTokenValid(false)
           } else {
-            console.log('✅ Session established for password reset')
-            console.log('✅ New session data:', {
-              hasSession: !!sessionData?.session,
-              userId: sessionData?.session?.user?.id,
-              userEmail: sessionData?.session?.user?.email,
-              sessionEstablishedAt: new Date().toISOString()
-            })
             setTokenValid(true)
           }
-        } else if (accessToken && refreshToken && !type) {
-          // Sometimes Supabase recovery doesn't include type parameter, try anyway
-          console.log('🔐 Found tokens without type, attempting recovery session...')
-          console.log('🔍 NO-TYPE TOKEN DEBUG:', {
-            accessTokenLength: accessToken?.length,
-            refreshTokenLength: refreshToken?.length,
-            possibleReasonForNoType: 'Email template or URL generation issue',
-            attemptingSessionAt: new Date().toISOString()
-          })
-          
-          const { supabase } = await import('@/lib/supabase')
-          const { data: sessionData, error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken
-          })
-
-          if (error) {
-            console.error('❌ 403 TOKEN ERROR (no type) - Also matches mwang3@uco.edu pattern!')
-            console.error('❌ Error setting session (no type):', error.message)
-            console.error('❌ Error details:', JSON.stringify(error, null, 2))
-            console.error('❌ This suggests tokens are valid format but failed validation')
-            
-            if (error.status === 403 || error.message?.includes('token') || error.message?.includes('expired')) {
-              setError('🚨 INVALID PASSWORD RESET LINK: This link has expired, been used already, or is invalid. Password reset links expire after 1 hour and can only be used once. Please request a new password reset from the login page.')
-            } else {
-              setError('Invalid or expired reset link. Please request a new password reset.')
-            }
-            setTokenValid(false)
-          } else {
-            console.log('✅ Session established without type parameter')
-            console.log('✅ Recovery successful despite missing type:', {
-              sessionUserId: sessionData?.session?.user?.id,
-              sessionUserEmail: sessionData?.session?.user?.email
-            })
-            setTokenValid(true)
-          }
-        } else if (customToken) {
-          // Handle custom token (our simplified system)
-          console.log('🔐 Processing custom password reset token...')
-          
-          // Get email from URL parameters
-          const emailFromUrl = searchParams.get('email')
-          
-          // For our simplified system, validate token format and extract email
-          if (customToken && customToken.length >= 16) {
-            console.log('✅ Custom reset token format valid, proceeding with reset')
-            if (emailFromUrl) {
-              setEmail(emailFromUrl)
-              console.log('✅ Email extracted from URL:', emailFromUrl)
-            }
-            setTokenValid(true)
-          } else {
-            console.error('❌ Custom token format invalid')
-            setError('Invalid reset token format. Please request a new password reset.')
-            setTokenValid(false)
-          }
-        } else if (possibleResetCode) {
-          // Handle password reset code (production misconfiguration workaround)
-          console.log('🔄 [RESET] Processing password reset code from production')
-          console.log('⚠️  [RESET] This indicates Supabase email template is using confirmation flow instead of recovery flow')
-          console.log('💡 [RESET] Code value:', possibleResetCode.substring(0, 8) + '...')
-          
-          // CRITICAL: Check if user is already authenticated via auth context
-          // This prevents the double code exchange that causes PKCE errors
-          if (user) {
-            console.log('✅ [RESET] User already authenticated via auth context - skipping code exchange')
-            console.log('✅ [RESET] Authenticated user:', user.email, user.id)
-            setTokenValid(true)
-            return
-          }
-          
-          // Check if this is actually a PKCE flow that needs additional parameters
-          const allParams = Object.fromEntries(searchParams.entries())
-          console.log('🔍 [RESET] All URL parameters:', allParams)
-          
-          // First check if user is already authenticated from the code
-          console.log('🔍 [RESET] Checking current auth state...')
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-          
-          if (session?.user) {
-            console.log('✅ [RESET] User is already authenticated from password reset code!')
-            console.log('✅ [RESET] User ID:', session.user.id)
-            console.log('✅ [RESET] User email:', session.user.email)
-            setTokenValid(true)
-            return
-          }
-          
-          // If not authenticated, try to exchange the code for a session
-          console.log('🔄 [RESET] User not authenticated, attempting code exchange...')
-          try {
-            const { data, error } = await supabase.auth.exchangeCodeForSession(possibleResetCode)
-            
-            if (error) {
-              console.error('❌ [RESET] Failed to exchange password reset code:', error.message)
-              console.error('❌ [RESET] Error code:', error.code)
-              console.error('❌ [RESET] Error status:', error.status)
-              console.error('❌ [RESET] Full error:', JSON.stringify(error, null, 2))
-              
-              // Provide specific error messages based on the error type
-              if (error.code === 'validation_failed' && error.message?.includes('code verifier')) {
-                console.error('🚨 [RESET] PKCE VALIDATION FAILED - This is the 400 error from your logs!')
-                setError('🚨 EMAIL TEMPLATE CONFIGURATION ERROR: The password reset email is using the wrong flow type (confirmation instead of recovery). This causes PKCE validation failures. The admin needs to fix the Supabase email template configuration. Please contact support or request a new reset after the template is fixed.')
-              } else if (error.message?.includes('both auth code and code verifier should be non-empty')) {
-                console.error('🚨 [RESET] PKCE AUTH CODE ERROR - This matches your 400 error!')
-                setError('🚨 EMAIL TEMPLATE ISSUE: The reset link is missing required PKCE parameters. This happens when the email template uses confirmation flow instead of recovery flow. Please contact support - the email template needs to be reconfigured.')
-              } else if (error.message?.includes('expired') || error.code === 'otp_expired') {
-                setError('This password reset link has expired. Please request a new password reset.')
-              } else if (error.message?.includes('invalid') || error.code === 'invalid_code') {
-                setError('This password reset link is invalid. Please request a new password reset.')
-              } else {
-                setError(`Unable to process password reset link (${error.code}). Please request a new password reset.`)
-              }
-              setTokenValid(false)
-            } else if (data.session?.user) {
-              console.log('✅ [RESET] Successfully exchanged code for session - user can now reset password')
-              setTokenValid(true)
-            } else {
-              console.error('❌ [RESET] Code exchange returned no session')
-              setError('Unable to validate reset link. Please request a new password reset.')
-              setTokenValid(false)
-            }
-          } catch (err: any) {
-            console.error('❌ [RESET] Exception handling password reset code:', err)
-            setError('Failed to process reset link. Please request a new password reset.')
-            setTokenValid(false)
-          }
-        } else if (type === 'recovery') {
-          setError('Invalid reset link format. Please request a new password reset.')
-          setTokenValid(false)
         } else {
           setError('No reset token provided. Please use the link from your email.')
           setTokenValid(false)
         }
       } catch (err: any) {
-        console.error('Error in auth callback:', err)
         setError('Failed to verify reset token. Please try again.')
         setTokenValid(false)
       }
     }
 
-    // Add small delay to allow auth context to process first
-    const timer = setTimeout(() => {
+    if (user) {
+      setTokenValid(true)
+    } else {
       handleAuthCallback()
-    }, 100)
-    
-    return () => clearTimeout(timer)
-  }, [searchParams, user])
+    }
+  }, [user])
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -364,48 +70,16 @@ export default function ResetPasswordPage() {
     setError('')
 
     try {
-      console.log('🔐 Updating password...')
-      
-      // Check if we have a custom token or Supabase session
-      const customToken = searchParams.get('token')
-      
-      if (customToken) {
-        // Use custom password reset service
-        console.log('🔐 Using custom password reset service...')
-        
-        // For custom tokens, we need the email address
-        if (!email) {
-          setError('Email address is required. Please enter the email address you used for password reset.')
-          return
-        }
-        
-        const result = await PasswordResetService.completePasswordReset(customToken, password, email)
+      const { error } = await supabase.auth.updateUser({
+        password: password
+      })
 
-        if (result.success) {
-          console.log('✅ Password reset completed successfully!')
-          setSuccess(true)
-        } else {
-          throw new Error(result.error || 'Failed to reset password')
-        }
-      } else {
-        // Use Supabase Auth (default)
-        console.log('🔐 Using Supabase Auth password update...')
-        const { supabase } = await import('@/lib/supabase')
-        
-        const { error } = await supabase.auth.updateUser({
-          password: password
-        })
-
-        if (error) {
-          console.error('❌ Password update error:', error.message)
-          throw error
-        }
-
-        console.log('✅ Password updated successfully!')
-        setSuccess(true)
+      if (error) {
+        throw error
       }
+
+      setSuccess(true)
       
-      // Redirect to login after 3 seconds
       setTimeout(() => {
         navigate('/login', { 
           state: { message: 'Password reset successful! Please log in with your new password.' }
@@ -413,18 +87,7 @@ export default function ResetPasswordPage() {
       }, 3000)
 
     } catch (err: any) {
-      console.error('Error resetting password:', err)
-      
-      let errorMessage = err.message || 'Failed to reset password'
-      
-      // Handle common error cases
-      if (err.message?.includes('rate_limit') || err.message?.includes('429')) {
-        errorMessage = 'Password reset is temporarily rate limited. Please wait and try again.'
-      } else if (err.message?.includes('session')) {
-        errorMessage = 'Your reset session has expired. Please request a new password reset link.'
-      }
-      
-      setError(errorMessage)
+      setError(err.message || 'Failed to reset password')
     } finally {
       setLoading(false)
     }
@@ -508,65 +171,39 @@ export default function ResetPasswordPage() {
                   {error}
                 </div>
               )}
-              
-              {email && (
-                <div className="p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm">
-                  <strong>Resetting password for:</strong> {email}
-                </div>
-              )}
 
-              {/* Email input for custom token resets - only show if email not provided */}
-              {searchParams.get('token') && !email && (
-                <div>
-                  <label className="block text-sm font-medium text-charcoal-700 mb-2">
-                    Email Address
-                  </label>
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your email address"
-                    required
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-charcoal-500 mt-1">
-                    Enter the email address you used for password reset
-                  </p>
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-charcoal-700 mb-2">
+                  New Password
+                </label>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your new password"
+                  required
+                  minLength={6}
+                  disabled={loading}
+                />
+                <p className="text-xs text-charcoal-500 mt-1">
+                  Must be at least 6 characters long
+                </p>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-charcoal-700 mb-2">
-                New Password
-              </label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your new password"
-                required
-                minLength={6}
-                disabled={loading}
-              />
-              <p className="text-xs text-charcoal-500 mt-1">
-                Must be at least 6 characters long
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-charcoal-700 mb-2">
-                Confirm New Password
-              </label>
-              <Input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm your new password"
-                required
-                minLength={6}
-                disabled={loading}
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-charcoal-700 mb-2">
+                  Confirm New Password
+                </label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm your new password"
+                  required
+                  minLength={6}
+                  disabled={loading}
+                />
+              </div>
 
               <Button
                 type="submit"

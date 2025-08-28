@@ -346,15 +346,15 @@ export default function UserManagement() {
 
   const sendPasswordReset = async (userId: string, email: string, displayName: string) => {
     try {
-      const { PasswordResetService } = await import('@/services/passwordResetService')
-      const result = await PasswordResetService.sendPasswordReset(email)
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      })
       
-      if (result.success) {
-        alert(`✅ Password reset email sent to ${email}`)
-      } else {
-        alert(`❌ Failed to send password reset: ${result.error}`)
-        throw new Error(result.error)
+      if (error) {
+        throw new Error(error.message)
       }
+      
+      alert(`✅ Password reset email sent to ${email}`)
     } catch (err: any) {
       console.error('Error sending password reset:', err)
       alert(`❌ Error sending password reset: ${err.message}`)
