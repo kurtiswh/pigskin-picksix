@@ -13,6 +13,7 @@ import ProfilePage from './pages/ProfilePage'
 import BlogPage from './pages/BlogPage'
 import BlogPostPage from './pages/BlogPostPage'
 import BlogEditorPage from './pages/BlogEditorPage'
+import GamesPage from './pages/GamesPage'
 
 function App() {
   console.log('🚀 [STARTUP] App component rendering')
@@ -30,6 +31,8 @@ function App() {
             <Route path="/picks" element={<PickSheetPage />} />
             <Route path="/anonymous-picks" element={<AnonymousPicksPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/games" element={<GamesPage />} />
+            <Route path="/games/:season/:week" element={<GamesPage />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/blog" element={<BlogPage />} />

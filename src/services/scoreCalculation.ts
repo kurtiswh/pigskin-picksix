@@ -20,6 +20,14 @@ export interface GameResult {
   away_team: string
   spread: number
   status: 'completed' | 'in_progress' | 'scheduled'
+  // Live timing data from CFBD scoreboard API
+  game_period?: number | null
+  game_clock?: string | null
+  api_period?: number | null
+  api_clock?: string | null
+  api_home_points?: number | null
+  api_away_points?: number | null
+  api_completed?: boolean | null
 }
 
 /**
@@ -40,25 +48,46 @@ export function calculatePickResult(
   const actualMargin = homeScore - awayScore
   
   // Calculate spread result
+  // Spread logic: if home team is favored, spread is negative (e.g., -6.5)
+  // Home team must win by MORE than the spread to cover
+  // Away team covers if they lose by LESS than the spread or win outright
   let result: 'win' | 'loss' | 'push'
   
   if (pickedHome) {
-    // User picked home team
-    if (actualMargin > spread) {
+    // User picked home team - home team must cover the spread
+    // For home favorite (negative spread): actualMargin must be greater than |spread|
+    // For home underdog (positive spread): home team just needs to win or lose by less than spread
+    if (actualMargin > Math.abs(spread)) {
       result = 'win' // Home team covered the spread
-    } else if (actualMargin === spread) {
+    } else if (actualMargin === Math.abs(spread)) {
       result = 'push' // Exactly hit the spread
     } else {
       result = 'loss' // Home team didn't cover
     }
   } else {
-    // User picked away team
-    if (actualMargin < spread) {
-      result = 'win' // Away team covered the spread
-    } else if (actualMargin === spread) {
-      result = 'push' // Exactly hit the spread
+    // User picked away team - away team must cover the spread
+    // For away favorite (home spread is positive): away must win by more than spread
+    // For away underdog (home spread is negative): away covers if they lose by less than |spread| or win
+    if (spread < 0) {
+      // Home team is favored, away team is underdog
+      // Away team covers if they lose by less than the spread or win outright
+      if (actualMargin < Math.abs(spread)) {
+        result = 'win' // Away team covered the spread
+      } else if (actualMargin === Math.abs(spread)) {
+        result = 'push' // Exactly hit the spread
+      } else {
+        result = 'loss' // Away team didn't cover
+      }
     } else {
-      result = 'loss' // Away team didn't cover
+      // Away team is favored, home team is underdog
+      // Away team must win by more than the spread
+      if (Math.abs(actualMargin) > spread) {
+        result = 'win' // Away team covered the spread
+      } else if (Math.abs(actualMargin) === spread) {
+        result = 'push' // Exactly hit the spread
+      } else {
+        result = 'loss' // Away team didn't cover
+      }
     }
   }
   
@@ -78,22 +107,21 @@ export function calculatePickResult(
     // Calculate how much the team beat the spread by
     let coverMargin = 0
     if (pickedHome) {
-      // Home team covered: actual margin exceeded the spread
-      // If spread is -5 (home favored by 5), and actual margin is 18
-      // Cover margin = 18 - 5 = 13
+      // Home team covered the spread
+      // Cover margin = how much better they did than the spread required
       coverMargin = actualMargin - Math.abs(spread)
     } else {
-      // Away team covered: they got points and either won or lost by less
-      // If spread is -5 (away gets +5), and actual margin is 18 (away lost by 18)
-      // But if away actually won by 18, actual margin would be -18
-      // Cover margin = Math.abs(spread) + Math.abs(actualMargin) if away won
-      // Cover margin = Math.abs(spread) - Math.abs(actualMargin) if away lost by less than spread
-      if (actualMargin < 0) {
-        // Away team actually won
-        coverMargin = Math.abs(actualMargin) + Math.abs(spread)
-      } else {
-        // Away team lost but by less than the spread
+      // Away team covered the spread
+      if (spread < 0) {
+        // Home team was favored, away team was underdog
+        // Away team covers if they lose by less than |spread| or win
+        // Cover margin = how much better they did than needed
         coverMargin = Math.abs(spread) - actualMargin
+      } else {
+        // Away team was favored, home team was underdog  
+        // Away team needed to win by more than spread
+        // Cover margin = how much they exceeded the required margin
+        coverMargin = Math.abs(actualMargin) - spread
       }
     }
     
@@ -116,7 +144,7 @@ export function calculatePickResult(
   
   const displayCoverMargin = result === 'win' ? 
     (pickedHome ? actualMargin - Math.abs(spread) : 
-     actualMargin < 0 ? Math.abs(actualMargin) + Math.abs(spread) : Math.abs(spread) - actualMargin) : 0
+     spread < 0 ? Math.abs(spread) - actualMargin : Math.abs(actualMargin) - spread) : 0
   
   console.log(`Pick result: ${selectedTeam} | ${result} | ${totalPoints} pts (${basePoints} base + ${bonusPoints} bonus)${isLock ? ' [LOCK]' : ''} | Cover margin: ${displayCoverMargin}`)
   
@@ -173,6 +201,33 @@ export function testScoringCalculations() {
   // Cover by exactly 29 - should get 5 bonus
   const test3c = calculatePickResult('HOME', 'HOME', 'AWAY', 39, 5, -5, false) // 34 - (-5) = 39, but actual margin is 34, cover by 34 - 5 = 29  
   console.log('Cover by 29:', test3c)
+  
+  // Test 4: Nebraska vs Cincinnati scenario (the actual bug)
+  console.log('\n🏈 Testing Nebraska vs Cincinnati ATS bug:')
+  
+  // Nebraska picks should LOSE ATS (Nebraska didn't cover 6.5 spread)
+  const nebraskaPick = calculatePickResult(
+    'NEBRASKA', // selected team
+    'NEBRASKA', // home team
+    'CINCINNATI', // away team
+    20, // home score (Nebraska)
+    17, // away score (Cincinnati)
+    -6.5, // spread (Nebraska favored by 6.5)
+    false // not a lock
+  )
+  console.log('Nebraska pick result (should be LOSS):', nebraskaPick)
+  
+  // Cincinnati picks should WIN ATS (Cincinnati covered as underdog)
+  const cincinnatiPick = calculatePickResult(
+    'CINCINNATI', // selected team
+    'NEBRASKA', // home team
+    'CINCINNATI', // away team
+    20, // home score (Nebraska) 
+    17, // away score (Cincinnati)
+    -6.5, // spread (Nebraska favored by 6.5)
+    false // not a lock
+  )
+  console.log('Cincinnati pick result (should be WIN):', cincinnatiPick)
 }
 
 /**
@@ -180,19 +235,33 @@ export function testScoringCalculations() {
  */
 export async function updateGameInDatabase(gameResult: GameResult): Promise<void> {
   try {
+    // Build update object with live timing data if available
+    const updateData: any = {
+      home_score: gameResult.home_score,
+      away_score: gameResult.away_score,
+      status: gameResult.status,
+      updated_at: new Date().toISOString()
+    }
+
+    // Add live timing data if provided
+    if (gameResult.game_period !== undefined) updateData.game_period = gameResult.game_period
+    if (gameResult.game_clock !== undefined) updateData.game_clock = gameResult.game_clock
+    if (gameResult.api_period !== undefined) updateData.api_period = gameResult.api_period
+    if (gameResult.api_clock !== undefined) updateData.api_clock = gameResult.api_clock
+    if (gameResult.api_home_points !== undefined) updateData.api_home_points = gameResult.api_home_points
+    if (gameResult.api_away_points !== undefined) updateData.api_away_points = gameResult.api_away_points
+    if (gameResult.api_completed !== undefined) updateData.api_completed = gameResult.api_completed
+
     const { error } = await supabase
       .from('games')
-      .update({
-        home_score: gameResult.home_score,
-        away_score: gameResult.away_score,
-        status: gameResult.status,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', gameResult.game_id)
     
     if (error) throw error
     
-    console.log(`✅ Updated game ${gameResult.game_id}: ${gameResult.away_team} ${gameResult.away_score} - ${gameResult.home_score} ${gameResult.home_team}`)
+    const liveInfo = gameResult.game_period && gameResult.game_clock ? 
+      ` (Q${gameResult.game_period} ${gameResult.game_clock})` : ''
+    console.log(`✅ Updated game ${gameResult.game_id}: ${gameResult.away_team} ${gameResult.away_score} - ${gameResult.home_score} ${gameResult.home_team}${liveInfo}`)
   } catch (error) {
     console.error(`❌ Error updating game ${gameResult.game_id}:`, error)
     throw error

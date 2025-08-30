@@ -55,6 +55,13 @@ export interface CFBGame {
   away_ranking?: number
   game_importance?: number // calculated importance score
   custom_lock_time?: string // custom lock time set by admin
+  // Live game data
+  period?: number // Current quarter (1-4)
+  clock?: string // Time remaining in quarter (e.g., "14:23")
+  possession?: string // Team with possession
+  down?: number // Current down (1-4)
+  distance?: number // Yards to go
+  yard_line?: number // Field position
 }
 
 export interface CFBTeam {
@@ -539,8 +546,144 @@ function getMockGames(season: number, week: number): CFBGame[] {
   return mockGames
 }
 
+// CFBD Scoreboard API Response Interface
+export interface CFBScoreboardGame {
+  id: number
+  startDate: string
+  startTimeTBD: boolean
+  tv?: string
+  neutralSite: boolean
+  conferenceGame: boolean
+  status: string // 'scheduled', 'in_progress', 'completed', etc.
+  period: number | null // Current quarter (1-4)
+  clock: string | null // Time remaining (e.g., "14:23")
+  situation: string | null
+  possession: string | null
+  lastPlay: string | null
+  venue: {
+    name: string
+    city: string
+    state: string
+  }
+  homeTeam: {
+    id: number
+    name: string
+    conference: string
+    classification: string
+    points: number | null
+    lineScores: number[] | null
+    winProbability: number | null
+  }
+  awayTeam: {
+    id: number
+    name: string
+    conference: string
+    classification: string
+    points: number | null
+    lineScores: number[] | null
+    winProbability: number | null
+  }
+  weather?: {
+    temperature: number
+    description: string
+    windSpeed: number
+    windDirection: number
+  }
+  betting?: {
+    spread: number
+    overUnder: number
+    homeMoneyline: number
+    awayMoneyline: number
+  }
+}
+
 /**
- * Update game scores from API and return updated games
+ * Convert CFBD Scoreboard game to our CFBGame format
+ */
+function convertScoreboardGame(scoreboardGame: CFBScoreboardGame, week: number, season: number): CFBGame {
+  return {
+    id: scoreboardGame.id,
+    week,
+    season,
+    season_type: 'regular',
+    start_date: scoreboardGame.startDate,
+    completed: scoreboardGame.status === 'completed',
+    home_team: scoreboardGame.homeTeam.name,
+    away_team: scoreboardGame.awayTeam.name,
+    home_conference: scoreboardGame.homeTeam.conference,
+    away_conference: scoreboardGame.awayTeam.conference,
+    venue: scoreboardGame.venue?.name,
+    home_points: scoreboardGame.homeTeam.points,
+    away_points: scoreboardGame.awayTeam.points,
+    home_line_scores: scoreboardGame.homeTeam.lineScores || undefined,
+    away_line_scores: scoreboardGame.awayTeam.lineScores || undefined,
+    spread: scoreboardGame.betting?.spread,
+    // Live game data from scoreboard API
+    period: scoreboardGame.period,
+    clock: scoreboardGame.clock,
+    possession: scoreboardGame.possession,
+  }
+}
+
+/**
+ * Fetch live games with real clock data from CFBD Scoreboard API
+ */
+export async function getScoreboardGames(
+  season: number,
+  week: number,
+  seasonType: 'regular' | 'postseason' = 'regular',
+  timeoutMs: number = 8000
+): Promise<CFBGame[]> {
+  try {
+    const url = `${BASE_URL}/scoreboard?year=${season}&week=${week}&classification=fbs`
+    console.log('🏈 Fetching CFBD scoreboard games:', url)
+    
+    // Add timeout to prevent hanging
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    
+    const response = await fetch(url, {
+      headers: getHeaders(),
+      signal: controller.signal
+    })
+    
+    clearTimeout(timeoutId)
+    
+    if (response.status === 429) {
+      console.warn('⚠️ CFBD API quota exceeded for scoreboard request, falling back to regular games API')
+      return getGames(season, week, seasonType)
+    }
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    const scoreboardData: CFBScoreboardGame[] = await response.json()
+    console.log(`✅ Loaded ${scoreboardData.length} games from scoreboard API`)
+    
+    // Convert scoreboard games to CFBGame format
+    const games = scoreboardData.map(game => convertScoreboardGame(game, week, season))
+    
+    // Log live games found
+    const liveGames = games.filter(g => g.period !== null && g.clock !== null)
+    if (liveGames.length > 0) {
+      console.log(`🔴 Found ${liveGames.length} live games with clock data:`)
+      liveGames.forEach(game => {
+        console.log(`  ${game.away_team} @ ${game.home_team} - Q${game.period} ${game.clock}`)
+      })
+    }
+    
+    return games
+    
+  } catch (error) {
+    console.error('❌ Error fetching scoreboard games:', error)
+    console.log('⚠️ Falling back to regular games API')
+    return getGames(season, week, seasonType)
+  }
+}
+
+/**
+ * Update game scores from API and return updated games with real live data
  */
 export async function updateGameScores(gameIds: number[]): Promise<CFBGame[]> {
   try {
@@ -554,17 +697,47 @@ export async function updateGameScores(gameIds: number[]): Promise<CFBGame[]> {
     const currentSeason = new Date().getFullYear()
     const currentWeek = getCurrentWeek(currentSeason)
     
-    // Fetch current games with scores
-    const games = await getGames(currentSeason, currentWeek, 'regular')
+    // Use scoreboard API for real live data
+    const games = await getScoreboardGames(currentSeason, currentWeek, 'regular')
     
     // Filter to only the games we're tracking
     const trackedGames = games.filter(game => gameIds.includes(game.id))
     
-    console.log(`✅ Updated ${trackedGames.length} tracked games`)
+    console.log(`✅ Updated ${trackedGames.length} tracked games with real live data from CFBD scoreboard`)
     return trackedGames
     
   } catch (error) {
     console.error('❌ Error updating game scores:', error)
+    throw error
+  }
+}
+
+/**
+ * Get live games with real clock data from CFBD Scoreboard API
+ */
+export async function getLiveGames(
+  season: number,
+  week: number,
+  seasonType: 'regular' | 'postseason' = 'regular'
+): Promise<CFBGame[]> {
+  try {
+    console.log(`🔴 Fetching live games for ${season} week ${week}`)
+    
+    // Use scoreboard API to get real live data
+    const games = await getScoreboardGames(season, week, seasonType)
+    
+    // Filter to games with live data (in progress with period/clock)
+    const liveGames = games.filter(game => 
+      game.status !== 'scheduled' && 
+      game.status !== 'completed' &&
+      (game.period !== null || game.clock !== null || game.home_points !== null)
+    )
+    
+    console.log(`✅ Found ${liveGames.length} live games with real clock data`)
+    return liveGames
+    
+  } catch (error) {
+    console.error('❌ Error fetching live games:', error)
     throw error
   }
 }

@@ -87,6 +87,17 @@ export default function Layout({ children }: LayoutProps) {
               </Link>
 
               <Link
+                to="/games"
+                className={`text-sm font-medium transition-colors ${
+                  isActive('/games')
+                    ? 'text-gold-300'
+                    : 'text-pigskin-100 hover:text-white'
+                }`}
+              >
+                Games
+              </Link>
+
+              <Link
                 to="/blog"
                 className={`text-sm font-medium transition-colors ${
                   isActive('/blog')
@@ -216,6 +227,18 @@ export default function Layout({ children }: LayoutProps) {
                   }`}
                 >
                   Leaderboard
+                </Link>
+
+                <Link
+                  to="/games"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`text-sm font-medium transition-colors ${
+                    isActive('/games')
+                      ? 'text-gold-300'
+                      : 'text-pigskin-100 hover:text-white'
+                  }`}
+                >
+                  Games
                 </Link>
 
                 <Link

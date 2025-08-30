@@ -8,6 +8,7 @@
 import { supabase } from '@/lib/supabase'
 import { getCompletedGames, updateGameScores } from './collegeFootballApi'
 import { updateGameInDatabase, calculatePicksForGame, processCompletedGames } from './scoreCalculation'
+import { ENV } from '@/lib/env'
 
 export interface LiveUpdateResult {
   success: boolean
@@ -152,33 +153,105 @@ export class LiveUpdateService {
 
       // Step 2: Fetch latest scores from College Football API
       console.log('📡 Fetching latest scores from API...')
-      const gameIds = currentGames.map(game => parseInt(game.id.slice(-8), 16))
+      
+      // Use improved approach: Get all CFBD games and match by team names
+      // The UUID-to-integer conversion doesn't match CFBD IDs, so we'll use team matching
+      console.log(`🎯 Fetching all CFBD live games for team matching...`)
       
       let updatedApiGames
       try {
-        updatedApiGames = await updateGameScores(gameIds)
+        // Get all CFBD scoreboard games (not filtered by IDs)
+        const response = await fetch(
+          `https://api.collegefootballdata.com/scoreboard?year=${season}&week=${week}&classification=fbs`,
+          {
+            headers: {
+              'Authorization': `Bearer ${ENV.CFBD_API_KEY}`
+            }
+          }
+        )
+        
+        if (!response.ok) {
+          throw new Error(`CFBD API error: ${response.status}`)
+        }
+        
+        const scoreboardData = await response.json()
+        console.log(`📊 CFBD API returned ${scoreboardData.length} total games`)
+        
+        // Convert to our game format and filter for live games
+        updatedApiGames = scoreboardData
+          .filter(game => game.status === 'in_progress' || game.period !== null || game.clock !== null)
+          .map(game => ({
+            id: game.id,
+            home_team: game.homeTeam.name,
+            away_team: game.awayTeam.name,
+            home_points: game.homeTeam.points || 0,
+            away_points: game.awayTeam.points || 0,
+            completed: game.status === 'completed',
+            status: game.status,
+            period: game.period,
+            clock: game.clock,
+            spread: game.betting?.spread || 0
+          }))
+        
+        console.log(`🔴 Found ${updatedApiGames.length} live/completed games from CFBD:`)
+        updatedApiGames.forEach(apiGame => {
+          const liveInfo = apiGame.period && apiGame.clock ? ` - Q${apiGame.period} ${apiGame.clock}` : ''
+          console.log(`   ${apiGame.away_team} @ ${apiGame.home_team}${liveInfo}`)
+        })
+        
       } catch (apiError: any) {
+        console.error('❌ CFBD API fetch failed:', apiError.message)
         errors.push(`API fetch failed: ${apiError.message}`)
-        // Continue with database update processing if API fails
         updatedApiGames = []
       }
 
       // Step 3: Update games in database that have changed
       const newlyCompletedGames: string[] = []
+      
+      console.log(`🔄 Attempting to match ${updatedApiGames.length} API games with database games`)
 
       for (const apiGame of updatedApiGames) {
-        const dbGame = currentGames.find(g => parseInt(g.id.slice(-8), 16) === apiGame.id)
-        if (!dbGame) continue
+        console.log(`\n🎯 Processing API game: ${apiGame.away_team} @ ${apiGame.home_team} (ID: ${apiGame.id})`)
+        
+        // Use improved team name matching (the UUID conversion doesn't work)
+        let dbGame = currentGames.find(g => {
+          // Exact match first
+          if (g.home_team.toLowerCase() === apiGame.home_team.toLowerCase() &&
+              g.away_team.toLowerCase() === apiGame.away_team.toLowerCase()) {
+            return true
+          }
+          
+          // Flexible matching: check if main team names are contained
+          const normalizeTeamName = (name) => name.toLowerCase().replace(/\s+(tigers|bulldogs|eagles|bears|wildcats|rams|lions|panthers|hawks)\s*$/, '').trim()
+          const dbHome = normalizeTeamName(g.home_team)
+          const dbAway = normalizeTeamName(g.away_team)
+          const apiHome = normalizeTeamName(apiGame.home_team)
+          const apiAway = normalizeTeamName(apiGame.away_team)
+          
+          // Check if core team names match (handle cases like "Georgia Tech" vs "Georgia Tech Yellow Jackets")
+          return (dbHome.includes(apiHome.split(' ')[0]) || apiHome.includes(dbHome.split(' ')[0])) &&
+                 (dbAway.includes(apiAway.split(' ')[0]) || apiAway.includes(dbAway.split(' ')[0]))
+        })
+        
+        if (!dbGame) {
+          console.log(`❌ No database game found matching ${apiGame.away_team} @ ${apiGame.home_team}`)
+          console.log(`   This game is not in our Week ${week} selection`)
+          continue
+        }
+        
+        console.log(`✅ Found matching database game: ${dbGame.away_team} @ ${dbGame.home_team}`)
 
         // Check if this is a newly completed game
         const wasCompleted = dbGame.status === 'completed'
         const isNowCompleted = apiGame.completed
 
-        // Only update if scores or status have changed
+        // Check if scores, status, or live timing data have changed
         const hasChanges = 
           dbGame.home_score !== apiGame.home_points ||
           dbGame.away_score !== apiGame.away_points ||
-          dbGame.status !== (apiGame.completed ? 'completed' : 'in_progress')
+          dbGame.status !== (apiGame.completed ? 'completed' : 'in_progress') ||
+          dbGame.game_period !== apiGame.period ||
+          dbGame.game_clock !== apiGame.clock
 
         if (hasChanges) {
           try {
@@ -189,7 +262,15 @@ export class LiveUpdateService {
               home_team: apiGame.home_team,
               away_team: apiGame.away_team,
               spread: apiGame.spread || dbGame.spread,
-              status: apiGame.completed ? 'completed' : 'in_progress'
+              status: apiGame.completed ? 'completed' : 'in_progress',
+              // Add live timing data from CFBD scoreboard API
+              game_period: apiGame.period,
+              game_clock: apiGame.clock,
+              api_period: apiGame.period,
+              api_clock: apiGame.clock,
+              api_home_points: apiGame.home_points,
+              api_away_points: apiGame.away_points,
+              api_completed: apiGame.completed
             })
 
             gamesUpdated++
