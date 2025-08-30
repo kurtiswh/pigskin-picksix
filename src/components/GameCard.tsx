@@ -2,6 +2,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Game, Pick } from '@/types'
+import PickStatisticsBar from '@/components/PickStatisticsBar'
 
 interface GameCardProps {
   game: Game
@@ -11,6 +12,7 @@ interface GameCardProps {
   onRemovePick?: (gameId: string) => void
   disabled?: boolean
   isMaxPicks?: boolean
+  showPickStats?: boolean
 }
 
 export default function GameCard({ 
@@ -20,7 +22,8 @@ export default function GameCard({
   onToggleLock, 
   onRemovePick,
   disabled = false,
-  isMaxPicks = false 
+  isMaxPicks = false,
+  showPickStats = false 
 }: GameCardProps) {
   const isPicked = !!userPick
   const selectedTeam = userPick?.selected_team
@@ -305,6 +308,23 @@ export default function GameCard({
             </div>
           </button>
         </div>
+
+        {/* Pick Statistics */}
+        {showPickStats && game.total_picks !== undefined && game.total_picks > 0 && (
+          <div className="mt-3 pt-3 border-t border-stone-200">
+            <PickStatisticsBar
+              homeTeam={game.home_team}
+              awayTeam={game.away_team}
+              homeTeamPicks={game.home_team_picks || 0}
+              homeTeamLocks={game.home_team_locks || 0}
+              awayTeamPicks={game.away_team_picks || 0}
+              awayTeamLocks={game.away_team_locks || 0}
+              totalPicks={game.total_picks}
+              compact={true}
+              className="text-xs"
+            />
+          </div>
+        )}
 
         {/* Lock Button */}
         {isPicked && (

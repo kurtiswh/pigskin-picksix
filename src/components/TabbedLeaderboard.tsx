@@ -312,6 +312,24 @@ export default function TabbedLeaderboard() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-pigskin-600">Leaderboard</h1>
         
+        {/* Important Notice Banner */}
+        <div className="mt-4 mb-6 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <svg className="h-6 w-6 text-yellow-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-yellow-800 mb-1">⚠️ IMPORTANT NOTICE</h3>
+              <p className="text-yellow-700 font-medium">
+                LEADERBOARD IS NOT UP TO DATE. FOR WEEK ONE, WE HAVE TO MANUALLY VALIDATE DATA. 
+                UNTIL THIS PROCESS IS COMPLETED, YOU MAY NOT APPEAR ON THE LEADERBOARD AND YOUR PICKS MAY NOT BE CORRECT.
+              </p>
+            </div>
+          </div>
+        </div>
+        
         <div className="mt-4 flex items-center gap-4">
           <Select value={season.toString()} onValueChange={(value) => setSeason(parseInt(value))}>
             <SelectTrigger className="w-32">

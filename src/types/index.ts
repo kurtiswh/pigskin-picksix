@@ -57,6 +57,13 @@ export interface Game {
   venue?: string
   created_at: string
   updated_at: string
+  // Pick statistics
+  home_team_picks?: number
+  home_team_locks?: number
+  away_team_picks?: number
+  away_team_locks?: number
+  total_picks?: number
+  pick_stats_updated_at?: string
 }
 
 export interface Pick {

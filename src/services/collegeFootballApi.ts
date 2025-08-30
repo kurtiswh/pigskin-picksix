@@ -601,13 +601,16 @@ export interface CFBScoreboardGame {
  * Convert CFBD Scoreboard game to our CFBGame format
  */
 function convertScoreboardGame(scoreboardGame: CFBScoreboardGame, week: number, season: number): CFBGame {
+  // API-based completion detection - use only official status fields
+  const isCompleted = scoreboardGame.status === 'completed' || scoreboardGame.status === 'final'
+
   return {
     id: scoreboardGame.id,
     week,
     season,
     season_type: 'regular',
     start_date: scoreboardGame.startDate,
-    completed: scoreboardGame.status === 'completed',
+    completed: isCompleted,
     home_team: scoreboardGame.homeTeam.name,
     away_team: scoreboardGame.awayTeam.name,
     home_conference: scoreboardGame.homeTeam.conference,

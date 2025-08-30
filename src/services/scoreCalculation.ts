@@ -269,86 +269,143 @@ export async function updateGameInDatabase(gameResult: GameResult): Promise<void
 }
 
 /**
- * Calculate and update pick results for a completed game
+ * Calculate and update pick results for a completed game with deadlock protection
  */
-export async function calculatePicksForGame(gameId: string): Promise<PickResult[]> {
-  try {
-    console.log(`🎯 Calculating picks for game ${gameId}`)
-    
-    // Get game details
-    const { data: game, error: gameError } = await supabase
-      .from('games')
-      .select('*')
-      .eq('id', gameId)
-      .single()
-    
-    if (gameError) throw gameError
-    if (!game || game.home_score === null || game.away_score === null) {
-      throw new Error('Game not found or scores not available')
-    }
-    
-    // Get all picks for this game
-    const { data: picks, error: picksError } = await supabase
-      .from('picks')
-      .select('*')
-      .eq('game_id', gameId)
-    
-    if (picksError) throw picksError
-    if (!picks || picks.length === 0) {
-      console.log(`No picks found for game ${gameId}`)
-      return []
-    }
-    
-    const results: PickResult[] = []
-    
-    // Calculate result for each pick
-    for (const pick of picks) {
-      const { result, points, bonusPoints } = calculatePickResult(
-        pick.selected_team,
-        game.home_team,
-        game.away_team,
-        game.home_score,
-        game.away_score,
-        game.spread,
-        pick.is_lock
-      )
+export async function calculatePicksForGame(gameId: string, maxRetries: number = 3): Promise<PickResult[]> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🎯 Calculating picks for game ${gameId} (attempt ${attempt}/${maxRetries})`)
       
-      // Update pick in database
-      const { error: updateError } = await supabase
+      // Get game details
+      const { data: game, error: gameError } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', gameId)
+        .single()
+      
+      if (gameError) throw gameError
+      if (!game || game.home_score === null || game.away_score === null) {
+        throw new Error('Game not found or scores not available')
+      }
+      
+      // Get all picks for this game that haven't been processed yet
+      const { data: picks, error: picksError } = await supabase
         .from('picks')
-        .update({
+        .select('*')
+        .eq('game_id', gameId)
+        .is('result', null) // Only get unprocessed picks
+      
+      if (picksError) throw picksError
+      if (!picks || picks.length === 0) {
+        console.log(`No unprocessed picks found for game ${gameId}`)
+        return []
+      }
+      
+      console.log(`Found ${picks.length} unprocessed picks for game ${gameId}`)
+      
+      const results: PickResult[] = []
+      const updates: { id: string; result: string; points_earned: number }[] = []
+      
+      // Calculate results for all picks first (no database operations)
+      for (const pick of picks) {
+        const { result, points, bonusPoints } = calculatePickResult(
+          pick.selected_team,
+          game.home_team,
+          game.away_team,
+          game.home_score,
+          game.away_score,
+          game.spread,
+          pick.is_lock
+        )
+        
+        updates.push({
+          id: pick.id,
+          result,
+          points_earned: points
+        })
+        
+        results.push({
+          pick_id: pick.id,
           result,
           points_earned: points,
-          updated_at: new Date().toISOString()
+          bonus_points: bonusPoints
         })
-        .eq('id', pick.id)
+      }
       
-      if (updateError) {
-        console.error(`❌ Error updating pick ${pick.id}:`, updateError)
+      // Batch update all picks in smaller chunks to avoid deadlocks
+      const CHUNK_SIZE = 10
+      const chunks = []
+      for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
+        chunks.push(updates.slice(i, i + CHUNK_SIZE))
+      }
+      
+      console.log(`Processing ${chunks.length} chunks of picks for game ${gameId}`)
+      
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i]
+        const chunkIds = chunk.map(u => u.id)
+        
+        // Process this chunk with a brief delay between chunks to reduce contention
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200))
+        }
+        
+        // Update picks in this chunk
+        for (const update of chunk) {
+          const { error: updateError } = await supabase
+            .from('picks')
+            .update({
+              result: update.result,
+              points_earned: update.points_earned,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', update.id)
+            .is('result', null) // Only update if still unprocessed
+          
+          if (updateError) {
+            console.error(`❌ Error updating pick ${update.id}:`, updateError)
+            // Remove failed update from results
+            const resultIndex = results.findIndex(r => r.pick_id === update.id)
+            if (resultIndex >= 0) {
+              results.splice(resultIndex, 1)
+            }
+          }
+        }
+        
+        console.log(`✅ Processed chunk ${i + 1}/${chunks.length} for game ${gameId}`)
+      }
+      
+      console.log(`✅ Updated ${results.length} picks for game ${gameId}`)
+      return results
+      
+    } catch (error: any) {
+      // Check if this is a deadlock error
+      if (error.code === '40P01' && attempt < maxRetries) {
+        const backoffTime = Math.min(1000 * Math.pow(2, attempt - 1) + Math.random() * 1000, 10000)
+        console.log(`🔄 Deadlock detected for game ${gameId}, retrying in ${backoffTime}ms (attempt ${attempt}/${maxRetries})`)
+        await new Promise(resolve => setTimeout(resolve, backoffTime))
         continue
       }
       
-      results.push({
-        pick_id: pick.id,
-        result,
-        points_earned: points,
-        bonus_points: bonusPoints
-      })
+      console.error(`❌ Error calculating picks for game ${gameId} (attempt ${attempt}):`, error)
+      
+      if (attempt === maxRetries) {
+        throw error
+      }
     }
-    
-    console.log(`✅ Updated ${results.length} picks for game ${gameId}`)
-    return results
-    
-  } catch (error) {
-    console.error(`❌ Error calculating picks for game ${gameId}:`, error)
-    throw error
   }
+  
+  throw new Error(`Failed to process picks for game ${gameId} after ${maxRetries} attempts`)
 }
 
 /**
- * Process all completed games and update pick results
+ * Process all completed games and update pick results (with deadlock protection)
  */
-export async function processCompletedGames(season: number, week: number): Promise<{
+export async function processCompletedGames(
+  season: number, 
+  week: number,
+  excludeGameIds: string[] = []
+): Promise<{
   gamesProcessed: number
   picksUpdated: number
   errors: string[]
@@ -356,8 +413,8 @@ export async function processCompletedGames(season: number, week: number): Promi
   try {
     console.log(`🔄 Processing completed games for ${season} week ${week}`)
     
-    // Get completed games from database that haven't been processed
-    const { data: completedGames, error: gamesError } = await supabase
+    // Get completed games that have unprocessed picks (haven't been fully processed)
+    let gamesQuery = supabase
       .from('games')
       .select('*')
       .eq('season', season)
@@ -366,37 +423,73 @@ export async function processCompletedGames(season: number, week: number): Promi
       .not('home_score', 'is', null)
       .not('away_score', 'is', null)
     
+    // Only add the exclusion filter if there are games to exclude
+    if (excludeGameIds.length > 0) {
+      gamesQuery = gamesQuery.not('id', 'in', `(${excludeGameIds.map(id => `'${id}'`).join(',')})`)
+    }
+    
+    const { data: completedGames, error: gamesError } = await gamesQuery
+    
     if (gamesError) throw gamesError
     
     if (!completedGames || completedGames.length === 0) {
-      console.log('No completed games to process')
+      console.log('No additional completed games to process')
+      return { gamesProcessed: 0, picksUpdated: 0, errors: [] }
+    }
+    
+    // Filter games that actually have unprocessed picks
+    const gamesWithUnprocessedPicks: typeof completedGames = []
+    for (const game of completedGames) {
+      const { data: unprocessedPicks, error } = await supabase
+        .from('picks')
+        .select('id')
+        .eq('game_id', game.id)
+        .is('result', null)
+        .limit(1)
+      
+      if (!error && unprocessedPicks && unprocessedPicks.length > 0) {
+        gamesWithUnprocessedPicks.push(game)
+      }
+    }
+    
+    console.log(`Found ${gamesWithUnprocessedPicks.length} completed games with unprocessed picks`)
+    
+    if (gamesWithUnprocessedPicks.length === 0) {
       return { gamesProcessed: 0, picksUpdated: 0, errors: [] }
     }
     
     let totalPicksUpdated = 0
     const errors: string[] = []
     
-    // Process each completed game
-    for (const game of completedGames) {
+    // Process each game with a delay to reduce contention
+    for (let i = 0; i < gamesWithUnprocessedPicks.length; i++) {
+      const game = gamesWithUnprocessedPicks[i]
+      
+      // Add delay between games to prevent concurrent processing
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 500))
+      }
+      
       try {
         const pickResults = await calculatePicksForGame(game.id)
         totalPicksUpdated += pickResults.length
-      } catch (error) {
-        const errorMsg = `Failed to process game ${game.id}: ${error}`
+        console.log(`✅ Processed ${pickResults.length} picks for game ${game.id}`)
+      } catch (error: any) {
+        const errorMsg = `Failed to process game ${game.id}: ${error.message}`
         console.error(errorMsg)
         errors.push(errorMsg)
       }
     }
     
-    console.log(`✅ Processed ${completedGames.length} games, updated ${totalPicksUpdated} picks`)
+    console.log(`✅ Processed ${gamesWithUnprocessedPicks.length} games, updated ${totalPicksUpdated} picks`)
     
     return {
-      gamesProcessed: completedGames.length,
+      gamesProcessed: gamesWithUnprocessedPicks.length,
       picksUpdated: totalPicksUpdated,
       errors
     }
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error processing completed games:', error)
     throw error
   }

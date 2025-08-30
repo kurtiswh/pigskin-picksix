@@ -117,6 +117,12 @@ export type Database = {
           status: 'scheduled' | 'in_progress' | 'completed'
           created_at: string
           updated_at: string
+          home_team_picks: number
+          home_team_locks: number
+          away_team_picks: number
+          away_team_locks: number
+          total_picks: number
+          pick_stats_updated_at: string | null
         }
         Insert: {
           id?: string
@@ -131,6 +137,12 @@ export type Database = {
           status?: 'scheduled' | 'in_progress' | 'completed'
           created_at?: string
           updated_at?: string
+          home_team_picks?: number
+          home_team_locks?: number
+          away_team_picks?: number
+          away_team_locks?: number
+          total_picks?: number
+          pick_stats_updated_at?: string | null
         }
         Update: {
           id?: string
@@ -144,6 +156,12 @@ export type Database = {
           kickoff_time?: string
           status?: 'scheduled' | 'in_progress' | 'completed'
           updated_at?: string
+          home_team_picks?: number
+          home_team_locks?: number
+          away_team_picks?: number
+          away_team_locks?: number
+          total_picks?: number
+          pick_stats_updated_at?: string | null
         }
       }
       picks: {

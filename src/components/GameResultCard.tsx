@@ -28,6 +28,13 @@ interface Game {
   api_clock?: string
   api_period?: number
   api_completed?: boolean
+  // Pick statistics (new columns from migration 078)
+  home_team_picks?: number
+  home_team_locks?: number
+  away_team_picks?: number
+  away_team_locks?: number
+  total_picks?: number
+  pick_stats_updated_at?: string
 }
 
 interface PickStats {
@@ -109,20 +116,69 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
     try {
       setLoading(true)
       
-      // Get pick statistics for this game
-      const { data: picks, error } = await supabase
-        .from('picks')
-        .select(`
-          selected_team,
-          is_lock,
-          result,
-          points_earned
-        `)
-        .eq('game_id', game.id)
+      // Debug logging
+      console.log('🎯 Loading pick stats for game:', {
+        gameId: game.id,
+        teams: `${game.away_team} @ ${game.home_team}`,
+        status: game.status,
+        showPickStats,
+        totalPicks: game.total_picks,
+        homeTeamPicks: game.home_team_picks,
+        homeTeamLocks: game.home_team_locks,
+        awayTeamPicks: game.away_team_picks,
+        awayTeamLocks: game.away_team_locks
+      })
+      
+      // Use pre-calculated statistics from the games table if available
+      if (game.total_picks !== undefined && game.total_picks >= 0) {
+        // Use the new pick statistics columns from migration 078
+        const homePicks = (game.home_team_picks || 0) + (game.home_team_locks || 0)
+        const awayPicks = (game.away_team_picks || 0) + (game.away_team_locks || 0)
+        const totalPicks = game.total_picks || 0
+        const lockPicks = (game.home_team_locks || 0) + (game.away_team_locks || 0)
+        const homeLockPicks = game.home_team_locks || 0
+        const awayLockPicks = game.away_team_locks || 0
 
-      if (error) throw error
+        // Determine winner and spread coverage for completed games
+        let winnerTeam = null
+        let spreadCovered = null
+        let pointsAwarded = 0
 
-      if (!picks || picks.length === 0) {
+        if (game.status === 'completed' && game.home_score !== null && game.away_score !== null) {
+          const homeScore = game.home_score
+          const awayScore = game.away_score
+          const margin = homeScore - awayScore
+          
+          // Determine ATS winner (considering spread)
+          if (margin + game.spread > 0) {
+            winnerTeam = game.home_team
+            spreadCovered = true
+          } else if (margin + game.spread < 0) {
+            winnerTeam = game.away_team
+            spreadCovered = true
+          } else {
+            // Push
+            spreadCovered = false
+          }
+
+          // For completed games, we could query for points awarded if needed
+          // For now, we'll leave it as 0 since it's not critical for the display
+          pointsAwarded = 0
+        }
+
+        setPickStats({
+          total_picks: totalPicks,
+          home_picks: homePicks,
+          away_picks: awayPicks,
+          lock_picks: lockPicks,
+          home_lock_picks: homeLockPicks,
+          away_lock_picks: awayLockPicks,
+          points_awarded: pointsAwarded,
+          winner_team: winnerTeam,
+          spread_covered: spreadCovered
+        })
+      } else {
+        // Fallback to empty stats if new columns aren't available
         setPickStats({
           total_picks: 0,
           home_picks: 0,
@@ -134,54 +190,7 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
           winner_team: null,
           spread_covered: null
         })
-        return
       }
-
-      // Calculate statistics
-      const totalPicks = picks.length
-      const homePicks = picks.filter(p => p.selected_team === game.home_team).length
-      const awayPicks = picks.filter(p => p.selected_team === game.away_team).length
-      const lockPicks = picks.filter(p => p.is_lock).length
-      const homeLockPicks = picks.filter(p => p.is_lock && p.selected_team === game.home_team).length
-      const awayLockPicks = picks.filter(p => p.is_lock && p.selected_team === game.away_team).length
-      
-      // Calculate winner and spread coverage
-      let winnerTeam = null
-      let spreadCovered = null
-      let pointsAwarded = 0
-
-      if (game.status === 'completed' && game.home_score !== null && game.away_score !== null) {
-        const homeScore = game.home_score
-        const awayScore = game.away_score
-        const margin = homeScore - awayScore
-        
-        // Determine ATS winner (considering spread)
-        if (margin + game.spread > 0) {
-          winnerTeam = game.home_team
-          spreadCovered = true
-        } else if (margin + game.spread < 0) {
-          winnerTeam = game.away_team
-          spreadCovered = true
-        } else {
-          // Push
-          spreadCovered = false
-        }
-
-        // Calculate total points awarded
-        pointsAwarded = picks.reduce((sum, pick) => sum + (pick.points_earned || 0), 0)
-      }
-
-      setPickStats({
-        total_picks: totalPicks,
-        home_picks: homePicks,
-        away_picks: awayPicks,
-        lock_picks: lockPicks,
-        home_lock_picks: homeLockPicks,
-        away_lock_picks: awayLockPicks,
-        points_awarded: pointsAwarded,
-        winner_team: winnerTeam,
-        spread_covered: spreadCovered
-      })
 
     } catch (err: any) {
       console.error('Error loading pick stats:', err)

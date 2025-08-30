@@ -180,23 +180,34 @@ export class LiveUpdateService {
         // Convert to our game format and filter for live games
         updatedApiGames = scoreboardData
           .filter(game => game.status === 'in_progress' || game.period !== null || game.clock !== null)
-          .map(game => ({
-            id: game.id,
-            home_team: game.homeTeam.name,
-            away_team: game.awayTeam.name,
-            home_points: game.homeTeam.points || 0,
-            away_points: game.awayTeam.points || 0,
-            completed: game.status === 'completed',
-            status: game.status,
-            period: game.period,
-            clock: game.clock,
-            spread: game.betting?.spread || 0
-          }))
+          .map(game => {
+            // API-based completion detection - use only official status fields
+            const isCompleted = game.status === 'completed' || game.status === 'final'
+            
+            // Log when we detect completion for debugging
+            if (isCompleted && game.status !== 'completed') {
+              console.log(`🎯 Detected game completion: ${game.awayTeam.name} @ ${game.homeTeam.name} (Q${game.period} ${game.clock})`)
+            }
+            
+            return {
+              id: game.id,
+              home_team: game.homeTeam.name,
+              away_team: game.awayTeam.name,
+              home_points: game.homeTeam.points || 0,
+              away_points: game.awayTeam.points || 0,
+              completed: isCompleted,
+              status: isCompleted ? 'completed' : game.status,
+              period: game.period,
+              clock: game.clock,
+              spread: game.betting?.spread || 0
+            }
+          })
         
         console.log(`🔴 Found ${updatedApiGames.length} live/completed games from CFBD:`)
         updatedApiGames.forEach(apiGame => {
           const liveInfo = apiGame.period && apiGame.clock ? ` - Q${apiGame.period} ${apiGame.clock}` : ''
-          console.log(`   ${apiGame.away_team} @ ${apiGame.home_team}${liveInfo}`)
+          const completionInfo = apiGame.completed ? ' ✅ COMPLETED' : ''
+          console.log(`   ${apiGame.away_team} @ ${apiGame.home_team}${liveInfo}${completionInfo}`)
         })
         
       } catch (apiError: any) {
@@ -302,12 +313,14 @@ export class LiveUpdateService {
       }
 
       // Step 5: Also process any other completed games that might need pick updates
+      // Exclude games we just processed to avoid duplicate work and race conditions
       try {
-        const processResult = await processCompletedGames(season, week)
+        const processResult = await processCompletedGames(season, week, newlyCompletedGames)
         // Add any additional picks that were processed
-        const additionalPicks = processResult.picksUpdated - picksProcessed
+        const additionalPicks = processResult.picksUpdated
         if (additionalPicks > 0) {
           picksProcessed += additionalPicks
+          console.log(`🔄 Processed ${additionalPicks} additional picks from other completed games`)
         }
         errors.push(...processResult.errors)
       } catch (processError: any) {

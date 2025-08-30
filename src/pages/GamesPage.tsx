@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import GameResultCard from '@/components/GameResultCard'
 import GameStatsOverview from '@/components/GameStatsOverview'
+import GamePickStatistics from '@/components/GamePickStatistics'
 import { supabase } from '@/lib/supabase'
 import { liveUpdateService } from '@/services/liveUpdateService'
 import { getCurrentWeek } from '@/services/collegeFootballApi'
@@ -32,12 +33,19 @@ interface Game {
   api_period: number | null
   api_clock: string | null
   api_completed: boolean | null
+  // Pick statistics
+  home_team_picks?: number
+  home_team_locks?: number
+  away_team_picks?: number
+  away_team_locks?: number
+  total_picks?: number
+  pick_stats_updated_at?: string
 }
 
 interface WeekSettings {
   week: number
   season: number
-  picks_close: string
+  deadline: string
   picks_open: boolean
 }
 
@@ -63,8 +71,19 @@ export default function GamesPage() {
   
   const isAdmin = user?.is_admin === true
   const isPickDeadlinePassed = weekSettings 
-    ? new Date() > new Date(weekSettings.picks_close)
+    ? new Date() > new Date(weekSettings.deadline)
     : false
+
+  // Debug logging for pick deadline
+  useEffect(() => {
+    console.log('🔍 Pick deadline check:', {
+      weekSettings,
+      currentTime: new Date(),
+      deadline: weekSettings ? new Date(weekSettings.deadline) : 'No deadline',
+      isPickDeadlinePassed,
+      showPickStats: isPickDeadlinePassed
+    })
+  }, [weekSettings, isPickDeadlinePassed])
 
   useEffect(() => {
     loadGames()
@@ -154,7 +173,7 @@ export default function GamesPage() {
     try {
       const { data, error } = await supabase
         .from('week_settings')
-        .select('week, season, picks_close, picks_open')
+        .select('week, season, deadline, picks_open')
         .eq('season', currentSeason)
         .eq('week', currentWeek)
         .single()
@@ -291,7 +310,7 @@ export default function GamesPage() {
                 {isPickDeadlinePassed ? "Picks Closed" : "Picks Open"}
               </Badge>
               <span className="text-xs text-charcoal-500">
-                Deadline: {new Date(weekSettings.picks_close).toLocaleDateString('en-US', {
+                Deadline: {new Date(weekSettings.deadline).toLocaleDateString('en-US', {
                   weekday: 'short',
                   month: 'short', 
                   day: 'numeric',
