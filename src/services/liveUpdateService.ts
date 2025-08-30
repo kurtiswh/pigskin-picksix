@@ -7,7 +7,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { getCompletedGames, updateGameScores } from './collegeFootballApi'
-import { updateGameInDatabase, calculatePicksForGame, processCompletedGames } from './scoreCalculation'
+import { updateGameInDatabase, processCompletedGames } from './scoreCalculation'
 import { ENV } from '@/lib/env'
 
 export interface LiveUpdateResult {
@@ -56,9 +56,9 @@ export class LiveUpdateService {
 
   /**
    * Start automatic polling for live updates
-   * @param intervalMs - Polling interval in milliseconds (default: 5 minutes)
+   * @param intervalMs - Polling interval in milliseconds (default: 10 minutes)
    */
-  startPolling(intervalMs: number = 5 * 60 * 1000): void {
+  startPolling(intervalMs: number = 10 * 60 * 1000): void {
     if (this.isPolling) {
       console.log('🔄 Live updates already running')
       return
@@ -297,35 +297,19 @@ export class LiveUpdateService {
         }
       }
 
-      // Step 4: Process picks for newly completed games
+      // Step 4: Skip pick processing - completion-only trigger handles this
       if (newlyCompletedGames.length > 0) {
-        console.log(`🎯 Processing picks for ${newlyCompletedGames.length} newly completed games`)
-
-        for (const gameId of newlyCompletedGames) {
-          try {
-            const pickResults = await calculatePicksForGame(gameId)
-            picksProcessed += pickResults.length
-            console.log(`✅ Processed ${pickResults.length} picks for game ${gameId}`)
-          } catch (pickError: any) {
-            errors.push(`Pick processing failed for game ${gameId}: ${pickError.message}`)
-          }
-        }
+        console.log(`✅ ${newlyCompletedGames.length} games completed - scoring handled by completion-only trigger`)
+        // Note: Pick processing now handled by completion-only trigger (Migration 093)
+        // This eliminates race condition between status update and pick calculation
+        picksProcessed = 0 // Trigger handles this, no direct processing needed
       }
 
-      // Step 5: Also process any other completed games that might need pick updates
-      // Exclude games we just processed to avoid duplicate work and race conditions
-      try {
-        const processResult = await processCompletedGames(season, week, newlyCompletedGames)
-        // Add any additional picks that were processed
-        const additionalPicks = processResult.picksUpdated
-        if (additionalPicks > 0) {
-          picksProcessed += additionalPicks
-          console.log(`🔄 Processed ${additionalPicks} additional picks from other completed games`)
-        }
-        errors.push(...processResult.errors)
-      } catch (processError: any) {
-        errors.push(`Additional pick processing failed: ${processError.message}`)
-      }
+      // Step 5: Skip additional pick processing - completion-only trigger handles all scoring
+      // Note: Removed competing pick processing logic to eliminate race conditions
+      // All scoring is now handled by the completion-only trigger when games.status = 'completed'
+      console.log('⚡ Pick scoring delegated to completion-only trigger - no race conditions')
+      picksProcessed = 0 // All handled by trigger
 
       const duration = Date.now() - startTime
       console.log(`✅ Unified update complete: ${gamesUpdated} games updated, ${picksProcessed} picks processed in ${duration}ms`)
@@ -451,6 +435,7 @@ export class LiveUpdateService {
 
   /**
    * Smart polling that adjusts frequency based on game day and active games
+   * Optimized for 5,000 API calls/month budget
    */
   async startSmartPolling(): Promise<void> {
     const isGameDay = this.isGameDay()
@@ -460,20 +445,24 @@ export class LiveUpdateService {
     let description
     
     if (hasActive) {
-      // Active games - update every 2 minutes
-      intervalMs = 2 * 60 * 1000
-      description = `${activeCount} active games`
-    } else if (isGameDay) {
-      // Game day but no active games - check every 5 minutes
+      // Active games - update every 5 minutes for real-time updates
+      // Budget: 12 calls/hour only when games are live
       intervalMs = 5 * 60 * 1000
-      description = 'game day monitoring'
+      description = `${activeCount} active games (live updates)`
+    } else if (isGameDay) {
+      // Game day but no active games - check every 30 minutes
+      // Budget: 2 calls/hour on game days only
+      intervalMs = 30 * 60 * 1000
+      description = 'game day monitoring (waiting for games)'
     } else {
-      // Regular day - check every 15 minutes
-      intervalMs = 15 * 60 * 1000
-      description = 'background monitoring'
+      // Regular day - NO AUTOMATIC POLLING (admin manual only)
+      // Budget: 0 calls/hour on non-game days
+      console.log('📴 No automatic polling on non-game days - manual updates only')
+      return
     }
     
     console.log(`🧠 Starting smart polling: ${intervalMs / 1000}s intervals (${description})`)
+    console.log(`📊 API Budget: ~${Math.round(60 / (intervalMs / (60 * 1000)))} calls/hour`)
     this.startPolling(intervalMs)
   }
 

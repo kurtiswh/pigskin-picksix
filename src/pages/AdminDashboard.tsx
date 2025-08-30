@@ -10,6 +10,7 @@ import AdminGameSelector from '@/components/AdminGameSelector'
 import WeekControls from '@/components/WeekControls'
 import UserManagement from '@/components/UserManagement'
 import ApiStatusWidget from '@/components/ApiStatusWidget'
+import ApiQuotaWidget from '@/components/ApiQuotaWidget'
 import ScoreManager from '@/components/ScoreManager'
 import AdminNotifications from '@/components/AdminNotifications'
 import AnonymousPicksAdmin from '@/components/AnonymousPicksAdmin'
@@ -915,15 +916,18 @@ export default function AdminDashboard() {
               )}
             </div>
             
-            {/* API Status Widget */}
-            <ApiStatusWidget 
-              season={currentSeason}
-              onWeekChange={(week) => {
-                setCurrentWeek(week)
-                // Clear games when week changes to force reload
-                setCfbGames([])
-              }}
-            />
+            {/* API Widgets */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <ApiStatusWidget 
+                season={currentSeason}
+                onWeekChange={(week) => {
+                  setCurrentWeek(week)
+                  // Clear games when week changes to force reload
+                  setCfbGames([])
+                }}
+              />
+              <ApiQuotaWidget />
+            </div>
             
             {cfbGames.length > 0 ? (
               <AdminGameSelector

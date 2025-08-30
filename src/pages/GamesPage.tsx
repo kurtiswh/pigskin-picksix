@@ -224,9 +224,16 @@ export default function GamesPage() {
   }
 
   const runManualUpdate = async () => {
+    // Restrict manual API updates to admin users only
+    if (!isAdmin) {
+      console.warn('⚠️ Manual API updates are restricted to admin users only')
+      alert('Manual API updates are restricted to admin users to preserve API quota.')
+      return
+    }
+    
     try {
       setLoading(true)
-      console.log(`🔄 Running manual update for Week ${currentWeek}, Season ${currentSeason}...`)
+      console.log(`🔄 Admin manual update for Week ${currentWeek}, Season ${currentSeason}...`)
       const result = await liveUpdateService.manualUpdate(currentSeason, currentWeek)
       
       if (result.success) {

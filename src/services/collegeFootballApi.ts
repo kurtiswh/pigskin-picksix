@@ -4,6 +4,7 @@
  */
 
 import { ENV } from '@/lib/env'
+import { ApiQuotaService } from './apiQuotaService'
 
 const BASE_URL = 'https://api.collegefootballdata.com'
 
@@ -121,6 +122,13 @@ export async function getGames(
   timeoutMs: number = 10000
 ): Promise<CFBGame[]> {
   try {
+    // Check API quota before making call
+    const quotaCheck = ApiQuotaService.canMakeApiCall(1)
+    if (!quotaCheck.allowed) {
+      console.warn('⚠️ CFBD API quota exceeded, using mock data:', quotaCheck.reason)
+      return getMockGames(season, week)
+    }
+    
     const url = `${BASE_URL}/games?year=${season}&week=${week}&seasonType=${seasonType}`
     console.log('🏈 Fetching CFB games:', url)
     
@@ -148,6 +156,9 @@ export async function getGames(
     
     const data = await response.json()
     console.log(`✅ Fetched ${data.length} games for ${season} week ${week}`)
+    
+    // Record successful API call
+    ApiQuotaService.recordApiCall(1)
     
     // Transform the API response to match our interface
     return data.map((game: any) => ({
@@ -188,6 +199,13 @@ export async function getBettingLines(
   timeoutMs: number = 8000
 ): Promise<CFBBetting[]> {
   try {
+    // Check API quota before making call
+    const quotaCheck = ApiQuotaService.canMakeApiCall(1)
+    if (!quotaCheck.allowed) {
+      console.warn('⚠️ CFBD API quota exceeded for betting lines, skipping spreads:', quotaCheck.reason)
+      return [] // Return empty array, games will work without spreads
+    }
+
     const url = `${BASE_URL}/lines?year=${season}&week=${week}&seasonType=${seasonType}`
     console.log('💰 Fetching CFB betting lines:', url)
     
@@ -216,6 +234,9 @@ export async function getBettingLines(
     const data = await response.json()
     console.log(`✅ Fetched betting lines for ${data.length} games`)
     
+    // Record successful API call
+    ApiQuotaService.recordApiCall(1)
+    
     return data
   } catch (error) {
     console.error('❌ Error fetching betting lines:', error)
@@ -228,6 +249,13 @@ export async function getBettingLines(
  */
 export async function getTeams(season: number): Promise<CFBTeam[]> {
   try {
+    // Check API quota before making call
+    const quotaCheck = ApiQuotaService.canMakeApiCall(1)
+    if (!quotaCheck.allowed) {
+      console.warn('⚠️ CFBD API quota exceeded for teams:', quotaCheck.reason)
+      return [] // Return empty array
+    }
+
     const url = `${BASE_URL}/teams?year=${season}`
     console.log('🏫 Fetching CFB teams:', url)
     
@@ -241,6 +269,9 @@ export async function getTeams(season: number): Promise<CFBTeam[]> {
     
     const data = await response.json()
     console.log(`✅ Fetched ${data.length} teams for ${season}`)
+    
+    // Record successful API call
+    ApiQuotaService.recordApiCall(1)
     
     return data
   } catch (error) {
@@ -259,6 +290,13 @@ export async function getRankings(
   timeoutMs: number = 6000
 ): Promise<CFBRanking[]> {
   try {
+    // Check API quota before making call
+    const quotaCheck = ApiQuotaService.canMakeApiCall(1)
+    if (!quotaCheck.allowed) {
+      console.warn('⚠️ CFBD API quota exceeded for rankings:', quotaCheck.reason)
+      return [] // Return empty array, games will work without rankings
+    }
+
     const url = `${BASE_URL}/rankings?year=${season}&week=${week}&seasonType=${seasonType}`
     console.log('🏆 Fetching CFB rankings:', url)
     
@@ -279,6 +317,9 @@ export async function getRankings(
     
     const data = await response.json()
     console.log(`✅ Fetched rankings for ${season} week ${week}`)
+    
+    // Record successful API call
+    ApiQuotaService.recordApiCall(1)
     
     return data
   } catch (error) {
@@ -638,6 +679,13 @@ export async function getScoreboardGames(
   timeoutMs: number = 8000
 ): Promise<CFBGame[]> {
   try {
+    // Check API quota before making call
+    const quotaCheck = ApiQuotaService.canMakeApiCall(1)
+    if (!quotaCheck.allowed) {
+      console.warn('⚠️ CFBD API quota exceeded for scoreboard request, falling back to regular games API')
+      return getGames(season, week, seasonType)
+    }
+    
     const url = `${BASE_URL}/scoreboard?year=${season}&week=${week}&classification=fbs`
     console.log('🏈 Fetching CFBD scoreboard games:', url)
     
@@ -663,6 +711,9 @@ export async function getScoreboardGames(
     
     const scoreboardData: CFBScoreboardGame[] = await response.json()
     console.log(`✅ Loaded ${scoreboardData.length} games from scoreboard API`)
+    
+    // Record successful API call
+    ApiQuotaService.recordApiCall(1)
     
     // Convert scoreboard games to CFBGame format
     const games = scoreboardData.map(game => convertScoreboardGame(game, week, season))
@@ -777,6 +828,18 @@ export async function testApiConnection(timeoutMs: number = 5000): Promise<{
       return { connected: false, error: 'No API key configured' }
     }
     
+    // Check API quota before making test call
+    const quotaCheck = ApiQuotaService.canMakeApiCall(1)
+    if (!quotaCheck.allowed) {
+      console.warn('⚠️ API quota exceeded for connection test:', quotaCheck.reason)
+      return { 
+        connected: false, 
+        error: quotaCheck.reason, 
+        quotaExceeded: true,
+        status: 429 
+      }
+    }
+    
     // Add timeout to API connection test
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
@@ -821,6 +884,10 @@ export async function testApiConnection(timeoutMs: number = 5000): Promise<{
     }
     
     console.log('✅ CFBD API connection successful')
+    
+    // Record successful API call
+    ApiQuotaService.recordApiCall(1)
+    
     return { connected: true }
     
   } catch (error) {
