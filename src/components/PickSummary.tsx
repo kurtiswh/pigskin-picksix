@@ -161,7 +161,36 @@ export default function PickSummary({
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-sm">{getSpreadDisplay(pick)}</div>
-                      {!disabled && (
+                      
+                      {/* Points and Result Display */}
+                      {pick.result && pick.points_earned !== null && (
+                        <div className="mt-1 space-y-1">
+                          {pick.result === 'win' && (
+                            <div className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded">
+                              ✅ +{pick.points_earned} pts
+                            </div>
+                          )}
+                          {pick.result === 'push' && (
+                            <div className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded">
+                              ⚖️ +{pick.points_earned} pts
+                            </div>
+                          )}
+                          {pick.result === 'loss' && (
+                            <div className="text-xs bg-red-100 text-red-800 px-1.5 py-0.5 rounded">
+                              ❌ +{pick.points_earned} pts
+                            </div>
+                          )}
+                          
+                          {/* Lock Bonus Indicator */}
+                          {pick.is_lock && pick.result === 'win' && (
+                            <div className="text-xs bg-gold-100 text-gold-800 px-1.5 py-0.5 rounded font-medium">
+                              🔒 LOCK
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {!disabled && !pick.result && (
                         <button
                           onClick={() => onRemovePick(pick.game_id)}
                           className="text-xs text-red-500 hover:text-red-700 mt-1"
@@ -194,6 +223,34 @@ export default function PickSummary({
               <span>Choose 1 Lock pick ({hasLock ? '1' : '0'}/1)</span>
             </div>
           </div>
+
+          {/* Weekly Points Summary */}
+          {picks.some(p => p.result && p.points_earned !== null) && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+              <div className="font-medium text-blue-800 text-sm">Week Summary:</div>
+              <div className="space-y-1 text-xs">
+                {picks.filter(p => p.result && p.points_earned !== null).map(pick => {
+                  const game = getGameInfo(pick.game_id)
+                  return (
+                    <div key={pick.game_id} className="flex justify-between items-center text-blue-700">
+                      <span>{game?.away_team} @ {game?.home_team} {pick.is_lock ? '🔒' : ''}</span>
+                      <span className={cn(
+                        "font-medium",
+                        pick.result === 'win' ? "text-green-700" : 
+                        pick.result === 'push' ? "text-yellow-700" : "text-red-700"
+                      )}>
+                        {pick.result === 'win' ? '✅' : pick.result === 'push' ? '⚖️' : '❌'} +{pick.points_earned} pts
+                      </span>
+                    </div>
+                  )
+                })}
+                <div className="border-t border-blue-300 pt-1 mt-2 flex justify-between items-center font-bold text-blue-800">
+                  <span>Total Points:</span>
+                  <span>{picks.reduce((total, pick) => total + (pick.points_earned || 0), 0)} pts</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Submit Button */}
           <Button

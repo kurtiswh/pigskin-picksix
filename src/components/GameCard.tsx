@@ -349,10 +349,46 @@ export default function GameCard({
         {/* Pick Status */}
         <div className="mt-2 text-center">
           {isPicked ? (
-            <div className="text-sm text-pigskin-600 font-medium">
-              Pick: {selectedTeam} {selectedTeam && getSpreadDisplay(selectedTeam)}
-              {isLock && " (LOCK)"}
-              {isGameLocked && " - LOCKED"}
+            <div className="space-y-1">
+              <div className="text-sm text-pigskin-600 font-medium">
+                Pick: {selectedTeam} {selectedTeam && getSpreadDisplay(selectedTeam)}
+                {isLock && " (LOCK)"}
+                {isGameLocked && " - LOCKED"}
+              </div>
+              
+              {/* Win/Loss Result Indicator */}
+              {userPick?.result && (
+                <div className="flex items-center justify-center space-x-2">
+                  {userPick.result === 'win' && (
+                    <div className="flex items-center space-x-1 text-green-700 bg-green-100 px-2 py-1 rounded text-xs font-medium">
+                      <span>✅</span>
+                      <span>WIN</span>
+                      <span>+{userPick.points_earned || 0} pts</span>
+                    </div>
+                  )}
+                  {userPick.result === 'push' && (
+                    <div className="flex items-center space-x-1 text-yellow-700 bg-yellow-100 px-2 py-1 rounded text-xs font-medium">
+                      <span>⚖️</span>
+                      <span>PUSH</span>
+                      <span>+{userPick.points_earned || 0} pts</span>
+                    </div>
+                  )}
+                  {userPick.result === 'loss' && (
+                    <div className="flex items-center space-x-1 text-red-700 bg-red-100 px-2 py-1 rounded text-xs font-medium">
+                      <span>❌</span>
+                      <span>LOSS</span>
+                      <span>+{userPick.points_earned || 0} pts</span>
+                    </div>
+                  )}
+                  
+                  {/* Lock Bonus Indicator */}
+                  {userPick.is_lock && userPick.result === 'win' && (
+                    <div className="text-xs bg-gold-100 text-gold-800 px-2 py-1 rounded font-medium">
+                      🔒 LOCK BONUS
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-sm text-charcoal-400">

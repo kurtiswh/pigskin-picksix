@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { liveUpdateService } from '@/services/liveUpdateService'
 import { getCurrentWeek } from '@/services/collegeFootballApi'
 import { useAuth } from '@/hooks/useAuth'
+import type { Pick } from '@/types'
 
 interface Game {
   id: string
@@ -40,6 +41,9 @@ interface Game {
   away_team_locks?: number
   total_picks?: number
   pick_stats_updated_at?: string
+  // Scoring fields
+  base_points?: number
+  margin_bonus?: number
 }
 
 interface WeekSettings {
@@ -62,6 +66,7 @@ export default function GamesPage() {
   )
   const [games, setGames] = useState<Game[]>([])
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
+  const [userPicks, setUserPicks] = useState<Pick[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [offline, setOffline] = useState(false)
@@ -88,6 +93,7 @@ export default function GamesPage() {
   useEffect(() => {
     loadGames()
     loadWeekSettings()
+    loadUserPicks()
     updateLiveStatus()
     
     // Set up live status monitoring
@@ -182,6 +188,30 @@ export default function GamesPage() {
       setWeekSettings(data)
     } catch (err: any) {
       console.error('Error loading week settings:', err)
+    }
+  }
+
+  const loadUserPicks = async () => {
+    if (!user) {
+      setUserPicks([])
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('picks')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('season', currentSeason)
+        .eq('week', currentWeek)
+
+      if (error) throw error
+      
+      console.log(`📊 Loaded ${data?.length || 0} user picks for Week ${currentWeek}, Season ${currentSeason}`)
+      setUserPicks(data || [])
+    } catch (err: any) {
+      console.error('Error loading user picks:', err)
+      setUserPicks([])
     }
   }
 
@@ -403,20 +433,24 @@ export default function GamesPage() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {games.map((game, index) => (
-              <GameResultCard
-                key={game.id}
-                game={{
-                  ...game,
-                  isLive: game.status === 'in_progress',
-                  quarter: game.game_period || game.api_period,
-                  clock: game.game_clock || game.api_clock
-                }}
-                gameNumber={index + 1}
-                showPickStats={isPickDeadlinePassed}
-                isAdmin={isAdmin}
-              />
-            ))}
+            {games.map((game, index) => {
+              const userPick = userPicks.find(pick => pick.game_id === game.id)
+              return (
+                <GameResultCard
+                  key={game.id}
+                  game={{
+                    ...game,
+                    isLive: game.status === 'in_progress',
+                    quarter: game.game_period || game.api_period,
+                    clock: game.game_clock || game.api_clock
+                  }}
+                  gameNumber={index + 1}
+                  showPickStats={isPickDeadlinePassed}
+                  isAdmin={isAdmin}
+                  userPick={userPick}
+                />
+              )
+            })}
           </div>
         )}
       </div>

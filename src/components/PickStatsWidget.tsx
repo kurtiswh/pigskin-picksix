@@ -65,21 +65,6 @@ export default function PickStatsWidget({ stats, game, loading }: PickStatsWidge
     return ""
   }
 
-  const getPointsDisplay = () => {
-    if (game.status !== 'completed') return null
-    
-    const pointsPerPick = stats.total_picks > 0 ? Math.round(stats.points_awarded / stats.total_picks) : 0
-    return (
-      <div className="text-center">
-        <div className="text-sm font-medium text-charcoal-700">
-          Points Awarded: {stats.points_awarded}
-        </div>
-        <div className="text-xs text-charcoal-500">
-          ({pointsPerPick} avg per pick)
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="border-t pt-3 space-y-3">
@@ -153,23 +138,6 @@ export default function PickStatsWidget({ stats, game, loading }: PickStatsWidge
         </div>
       )}
 
-      {/* Points Awarded (for completed games) */}
-      {getPointsDisplay()}
-
-      {/* Result Summary */}
-      {stats.winner_team && (
-        <div className="text-center p-2 bg-stone-50 rounded">
-          <div className="text-sm">
-            {stats.spread_covered !== null && (
-              <span className={`font-medium ${
-                stats.spread_covered ? 'text-green-600' : 'text-yellow-600'
-              }`}>
-                {stats.winner_team} {stats.spread_covered ? 'COVERED' : 'PUSHED'}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

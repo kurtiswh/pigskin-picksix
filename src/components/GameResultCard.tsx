@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { supabase } from '@/lib/supabase'
 import PickStatsWidget from './PickStatsWidget'
+import type { Pick } from '@/types'
 
 interface Game {
   id: string
@@ -35,6 +36,9 @@ interface Game {
   away_team_locks?: number
   total_picks?: number
   pick_stats_updated_at?: string
+  // Scoring fields
+  base_points?: number
+  margin_bonus?: number
 }
 
 interface PickStats {
@@ -58,11 +62,12 @@ interface GameResultCardProps {
   gameNumber?: number
   showPickStats: boolean
   isAdmin?: boolean
+  userPick?: Pick
 }
 
 
 
-export default function GameResultCard({ game, gameNumber = 1, showPickStats, isAdmin }: GameResultCardProps) {
+export default function GameResultCard({ game, gameNumber = 1, showPickStats, isAdmin, userPick }: GameResultCardProps) {
   const [pickStats, setPickStats] = useState<PickStats | null>(null)
   const [loading, setLoading] = useState(false)
   
@@ -161,9 +166,10 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
             spreadCovered = false
           }
 
-          // For completed games, we could query for points awarded if needed
-          // For now, we'll leave it as 0 since it's not critical for the display
-          pointsAwarded = 0
+          // Calculate points awarded from base_points + margin_bonus
+          const basePoints = game.base_points || 0
+          const marginBonus = game.margin_bonus || 0
+          pointsAwarded = basePoints + marginBonus
         }
 
         setPickStats({
@@ -241,9 +247,13 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
     let atsWinner
     const adjustedMargin = margin + game.spread
     if (adjustedMargin > 0) {
-      atsWinner = `${game.home_team} +${Math.abs(game.spread)}`
+      // Home team covered - show their actual spread
+      const homeSpread = game.spread > 0 ? `+${game.spread}` : `${game.spread}`
+      atsWinner = `${game.home_team} ${homeSpread}`
     } else if (adjustedMargin < 0) {
-      atsWinner = `${game.away_team} +${Math.abs(game.spread)}`
+      // Away team covered - show their actual spread  
+      const awaySpread = game.spread < 0 ? `+${Math.abs(game.spread)}` : `-${game.spread}`
+      atsWinner = `${game.away_team} ${awaySpread}`
     } else {
       atsWinner = 'Push'
     }
@@ -252,6 +262,80 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
   }
 
   const winner = getWinnerDisplay()
+
+  const getUserPickInfo = () => {
+    if (!userPick) return null
+
+    const isUserPickCorrect = userPick.result === 'win'
+    const isUserPickPush = userPick.result === 'push'
+    const isUserPickWrong = userPick.result === 'loss'
+    
+    return {
+      selectedTeam: userPick.selected_team,
+      isLock: userPick.is_lock,
+      result: userPick.result,
+      isCorrect: isUserPickCorrect,
+      isPush: isUserPickPush,
+      isWrong: isUserPickWrong,
+      pointsEarned: userPick.points_earned || 0
+    }
+  }
+
+  const userPickInfo = getUserPickInfo()
+
+  const getTeamPickIndicator = (teamName: string) => {
+    if (!userPickInfo || userPickInfo.selectedTeam !== teamName) return null
+
+    const isCompleted = currentStatus === 'completed'
+    
+    if (!isCompleted) {
+      // Show pick indicator for non-completed games
+      return (
+        <div className="flex items-center space-x-1">
+          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-medium">
+            MY PICK
+          </span>
+          {userPickInfo.isLock && (
+            <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded font-medium">
+              🔒
+            </span>
+          )}
+        </div>
+      )
+    }
+
+    // Show result indicator for completed games
+    let bgColor = 'bg-gray-100'
+    let textColor = 'text-gray-800'
+    let icon = ''
+    let text = 'MY PICK'
+
+    if (userPickInfo.isCorrect) {
+      bgColor = 'bg-green-100'
+      textColor = 'text-green-800'
+      icon = '✅'
+      text = `WIN ${userPickInfo.isLock ? '(LOCK)' : ''}`
+    } else if (userPickInfo.isPush) {
+      bgColor = 'bg-yellow-100'
+      textColor = 'text-yellow-800'
+      icon = '⚖️'
+      text = `PUSH ${userPickInfo.isLock ? '(LOCK)' : ''}`
+    } else if (userPickInfo.isWrong) {
+      bgColor = 'bg-red-100'
+      textColor = 'text-red-800'
+      icon = '❌'
+      text = `LOSS ${userPickInfo.isLock ? '(LOCK)' : ''}`
+    }
+
+    return (
+      <div className="flex items-center space-x-1">
+        <span className={`text-xs ${bgColor} ${textColor} px-2 py-0.5 rounded font-medium flex items-center space-x-1`}>
+          {icon && <span>{icon}</span>}
+          <span>{text}</span>
+        </span>
+      </div>
+    )
+  }
 
   return (
     <Card className="hover:shadow-md transition-shadow h-full">
@@ -283,6 +367,11 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
                   </span>
                 )}
               </div>
+            </div>
+            
+            {/* Center section - User pick indicator */}
+            <div className="flex items-center space-x-2">
+              {getTeamPickIndicator(game.away_team)}
             </div>
             
             {/* Away score and spread */}
@@ -321,6 +410,11 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
               </div>
             </div>
             
+            {/* Center section - User pick indicator */}
+            <div className="flex items-center space-x-2">
+              {getTeamPickIndicator(game.home_team)}
+            </div>
+            
             {/* Home score and spread */}
             <div className="text-right">
               <div className="text-2xl font-bold">
@@ -355,6 +449,9 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
             <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-center">
               <div className="text-sm font-medium text-green-800">
                 ATS Winner: {winner.atsWinner}
+              </div>
+              <div className="text-sm text-green-700 mt-1">
+                Points Awarded: {(game.base_points || 0) + (game.margin_bonus || 0)}
               </div>
             </div>
           )}
