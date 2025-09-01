@@ -485,6 +485,44 @@ export class LiveUpdateService {
   }
 
   /**
+   * Check if all scheduled games for the current week are completed
+   */
+  private async areAllGamesCompleted(): Promise<{ allCompleted: boolean; completedCount: number; totalCount: number }> {
+    try {
+      const { data: activeWeek } = await supabase
+        .from('week_settings')
+        .select('week, season')
+        .eq('picks_open', true)
+        .single()
+
+      if (!activeWeek) {
+        return { allCompleted: true, completedCount: 0, totalCount: 0 }
+      }
+
+      const { data: games, error } = await supabase
+        .from('games')
+        .select('id, status')
+        .eq('season', activeWeek.season)
+        .eq('week', activeWeek.week)
+
+      if (error || !games) {
+        console.error('Error checking game completion status:', error)
+        return { allCompleted: false, completedCount: 0, totalCount: 0 }
+      }
+
+      const totalCount = games.length
+      const completedCount = games.filter(game => game.status === 'completed').length
+      const allCompleted = totalCount > 0 && completedCount === totalCount
+
+      return { allCompleted, completedCount, totalCount }
+
+    } catch (error) {
+      console.error('Error checking for completed games:', error)
+      return { allCompleted: false, completedCount: 0, totalCount: 0 }
+    }
+  }
+
+  /**
    * Check if there are games approaching kickoff time that should trigger live updates
    */
   private async hasApproachingGames(): Promise<{ hasApproaching: boolean; approachingCount: number; nextKickoff: Date | null }> {
@@ -560,6 +598,14 @@ export class LiveUpdateService {
         return
       }
 
+      // Check if all games are completed before proceeding
+      const { allCompleted, completedCount, totalCount } = await this.areAllGamesCompleted()
+      if (allCompleted && totalCount > 0) {
+        console.log(`🏁 All ${totalCount} games completed - automatically stopping live updates`)
+        this.stopPolling()
+        return
+      }
+
       // Check for active games
       const { hasActive, activeCount } = await this.hasActiveGames()
       if (hasActive) {
@@ -580,13 +626,21 @@ export class LiveUpdateService {
         this.status.errors = [...this.status.errors, ...result.errors].slice(-10) // Keep last 10 errors
       }
 
+      // Check again after update if all games are now completed
+      const { allCompleted: nowAllCompleted, completedCount: nowCompleted, totalCount: nowTotal } = await this.areAllGamesCompleted()
+      if (nowAllCompleted && nowTotal > 0) {
+        console.log(`🏁 All ${nowTotal} games now completed after update - automatically stopping live updates`)
+        this.stopPolling()
+        return
+      }
+
       // Set next update time
       if (this.isPolling && this.pollingInterval) {
         const intervalMs = 5 * 60 * 1000 // 5 minutes default
         this.status.nextUpdate = new Date(Date.now() + intervalMs)
       }
 
-      console.log(`🔄 Auto-update completed: ${result.gamesUpdated} games, ${result.picksProcessed} picks`)
+      console.log(`🔄 Auto-update completed: ${result.gamesUpdated} games, ${result.picksProcessed} picks (${nowCompleted}/${nowTotal} completed)`)
 
     } catch (error: any) {
       console.error('❌ Auto-update failed:', error)
@@ -596,12 +650,44 @@ export class LiveUpdateService {
   }
 
   /**
-   * Check if it's during a typical game day (Saturday)
+   * Check if there are games scheduled today that warrant monitoring
    */
-  private isGameDay(): boolean {
-    const now = new Date()
-    const dayOfWeek = now.getDay() // 0 = Sunday, 6 = Saturday
-    return dayOfWeek === 6 // Saturday
+  private async isGameDay(): Promise<boolean> {
+    try {
+      const { data: activeWeek } = await supabase
+        .from('week_settings')
+        .select('week, season')
+        .eq('picks_open', true)
+        .single()
+
+      if (!activeWeek) {
+        return false
+      }
+
+      const { data: games, error } = await supabase
+        .from('games')
+        .select('id, kickoff_time, status')
+        .eq('season', activeWeek.season)
+        .eq('week', activeWeek.week)
+        .in('status', ['scheduled', 'in_progress'])
+
+      if (error || !games) {
+        return false
+      }
+
+      const now = new Date()
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000)
+
+      // Check if any games are scheduled for today
+      return games.some(game => {
+        const kickoffTime = new Date(game.kickoff_time)
+        return kickoffTime >= today && kickoffTime < tomorrow
+      })
+    } catch (error) {
+      console.error('Error checking for scheduled games:', error)
+      return false
+    }
   }
 
   /**
@@ -609,7 +695,7 @@ export class LiveUpdateService {
    * Optimized for 5,000 API calls/month budget
    */
   async startSmartPolling(): Promise<void> {
-    const isGameDay = this.isGameDay()
+    const isGameDay = await this.isGameDay()
     const { hasActive, activeCount } = await this.hasActiveGames()
     const { hasApproaching, approachingCount, nextKickoff } = await this.hasApproachingGames()
     
@@ -654,7 +740,7 @@ export class LiveUpdateService {
       return // Already running
     }
 
-    const isGameDay = this.isGameDay()
+    const isGameDay = await this.isGameDay()
     const { hasActive } = await this.hasActiveGames()
     const { hasApproaching, approachingCount, nextKickoff } = await this.hasApproachingGames()
 
@@ -668,10 +754,10 @@ export class LiveUpdateService {
       console.log(`🚀 Auto-starting live updates - ${approachingCount} games approaching kickoff${nextKickoffText}`)
       await this.startSmartPolling()
     } else if (isGameDay) {
-      console.log(`🚀 Auto-starting live updates - Game day (Saturday)`)
+      console.log(`🚀 Auto-starting live updates - Game day (games scheduled today)`)
       await this.startSmartPolling()
     } else {
-      console.log('⏳ No auto-start needed - no active/approaching games and not game day')
+      console.log('⏳ No auto-start needed - no active/approaching games and no games scheduled today')
     }
   }
 
@@ -679,7 +765,7 @@ export class LiveUpdateService {
    * Check if auto-start conditions are met
    */
   async shouldAutoStart(): Promise<{ should: boolean; reason: string }> {
-    const isGameDay = this.isGameDay()
+    const isGameDay = await this.isGameDay()
     const { hasActive, activeCount } = await this.hasActiveGames()
     const { hasApproaching, approachingCount, nextKickoff } = await this.hasApproachingGames()
 
@@ -695,10 +781,10 @@ export class LiveUpdateService {
     }
     
     if (isGameDay) {
-      return { should: true, reason: 'Game day (Saturday)' }
+      return { should: true, reason: 'Games scheduled today' }
     }
 
-    return { should: false, reason: 'No active games, not game day' }
+    return { should: false, reason: 'No active games, no games scheduled today' }
   }
 
   /**

@@ -37,6 +37,13 @@ export default function ScoreManager({ season, week }: ScoreManagerProps) {
   } | null>(null)
   const [liveUpdateStatus, setLiveUpdateStatus] = useState<LiveUpdateStatus | null>(null)
   const [lastUnifiedUpdate, setLastUnifiedUpdate] = useState<LiveUpdateResult | null>(null)
+  const [manualOperationLoading, setManualOperationLoading] = useState<string | null>(null)
+  const [manualOperationResult, setManualOperationResult] = useState<{
+    operation: string
+    success: boolean
+    message: string
+    details?: string
+  } | null>(null)
 
   useEffect(() => {
     loadGames()
@@ -191,6 +198,334 @@ export default function ScoreManager({ season, week }: ScoreManagerProps) {
   const stopLiveUpdates = () => {
     liveUpdateService.stopPolling()
     updateLiveStatus()
+  }
+
+  // Manual scoring operations
+  const runManualPicksScoring = async () => {
+    try {
+      setManualOperationLoading('picks')
+      setError('')
+      setManualOperationResult(null)
+
+      console.log(`🔄 Running optimized picks scoring for ${season} Week ${week}...`)
+
+      // Try to use the new optimized batch function first
+      const { data: batchResult, error: batchError } = await supabase.rpc('process_picks_for_week_with_timeout', {
+        week_param: week,
+        season_param: season,
+        max_games_per_batch: 3
+      })
+
+      if (!batchError && batchResult && batchResult.length > 0) {
+        const result = batchResult[0]
+        const hasErrors = result.errors && result.errors.length > 0
+
+        setManualOperationResult({
+          operation: 'Picks Scoring',
+          success: !hasErrors,
+          message: hasErrors ? 
+            `Completed with ${result.errors.length} errors out of ${result.total_games} games` :
+            `Successfully updated picks scoring for ${season} Week ${week}`,
+          details: `Games processed: ${result.games_processed}/${result.total_games}, Picks updated: ${result.total_picks_updated}, Anonymous picks updated: ${result.total_anon_picks_updated}${hasErrors ? `\nErrors: ${result.errors.join('; ')}` : ''}`
+        })
+
+        console.log('✅ Optimized picks scoring completed:', result)
+        return
+      }
+
+      // Fallback to the original method if the new function doesn't exist or fails
+      console.log('⚠️ Optimized function not available, falling back to original method...')
+
+      // First, get list of completed games for this week
+      const { data: completedGames, error: gamesError } = await supabase.rpc('get_completed_games_for_week', {
+        week_param: week,
+        season_param: season
+      })
+
+      if (gamesError) throw gamesError
+
+      if (!completedGames || completedGames.length === 0) {
+        setManualOperationResult({
+          operation: 'Picks Scoring',
+          success: true,
+          message: `No completed games found for ${season} Week ${week}`,
+          details: 'All games may already be processed or none are completed yet'
+        })
+        return
+      }
+
+      console.log(`📋 Found ${completedGames.length} completed games to process`)
+      
+      let totalPicksUpdated = 0
+      let totalAnonPicksUpdated = 0
+      let gamesProcessed = 0
+      const errors: string[] = []
+
+      // Process each game individually using the optimized function if available
+      for (const game of completedGames) {
+        console.log(`  Processing: ${game.away_team} @ ${game.home_team}...`)
+        
+        try {
+          // Update progress in UI by setting a temporary result
+          setManualOperationResult({
+            operation: 'Picks Scoring',
+            success: true,
+            message: `Processing ${game.away_team} @ ${game.home_team}... (${gamesProcessed + 1}/${completedGames.length})`,
+            details: `Games processed: ${gamesProcessed}, Total picks updated: ${totalPicksUpdated}`
+          })
+
+          // Try to use optimized function first, fallback to original if it doesn't exist
+          let gameResult, gameError
+          
+          // First try the optimized function
+          const optimizedResult = await supabase.rpc('calculate_pick_results_for_game_optimized', {
+            game_id_param: game.game_id
+          })
+          
+          if (optimizedResult.error && optimizedResult.error.message.includes('does not exist')) {
+            // Fallback to original function if optimized doesn't exist
+            const fallbackResult = await supabase.rpc('calculate_pick_results_for_game', {
+              game_id_param: game.game_id
+            })
+            gameResult = fallbackResult.data
+            gameError = fallbackResult.error
+          } else {
+            gameResult = optimizedResult.data
+            gameError = optimizedResult.error
+          }
+
+          if (gameError) {
+            errors.push(`${game.away_team} @ ${game.home_team}: ${gameError.message}`)
+            console.warn(`⚠️ Error processing game: ${gameError.message}`)
+          } else if (gameResult && gameResult.length > 0) {
+            const result = gameResult[0]
+            if (result.game_processed) {
+              totalPicksUpdated += result.picks_updated || 0
+              totalAnonPicksUpdated += result.anonymous_picks_updated || 0
+              gamesProcessed += 1
+              console.log(`    ✅ Updated ${result.picks_updated} picks, ${result.anonymous_picks_updated} anonymous picks`)
+            } else {
+              errors.push(`${game.away_team} @ ${game.home_team}: ${result.operation_status}`)
+            }
+          }
+        } catch (gameErr: any) {
+          errors.push(`${game.away_team} @ ${game.home_team}: ${gameErr.message}`)
+          console.warn(`⚠️ Exception processing game: ${gameErr.message}`)
+        }
+        
+        // Small delay to prevent overwhelming the database
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+
+      // Final result
+      setManualOperationResult({
+        operation: 'Picks Scoring',
+        success: errors.length === 0,
+        message: errors.length === 0 ? 
+          `Successfully updated picks scoring for ${season} Week ${week}` :
+          `Completed with ${errors.length} errors out of ${completedGames.length} games`,
+        details: `Games processed: ${gamesProcessed}/${completedGames.length}, Picks updated: ${totalPicksUpdated}, Anonymous picks updated: ${totalAnonPicksUpdated}${errors.length > 0 ? `\nErrors: ${errors.join('; ')}` : ''}`
+      })
+
+      console.log('✅ Manual picks scoring completed:', { gamesProcessed, totalPicksUpdated, totalAnonPicksUpdated, errors: errors.length })
+
+    } catch (err: any) {
+      console.error('❌ Manual picks scoring failed:', err)
+      setManualOperationResult({
+        operation: 'Picks Scoring',
+        success: false,
+        message: 'Failed to update picks scoring',
+        details: err.message.includes('statement timeout') ? 
+          'Database timeout - Apply migration 111 for optimized processing' : err.message
+      })
+      setError(err.message)
+    } finally {
+      setManualOperationLoading(null)
+    }
+  }
+
+  const runManualAnonymousPicksScoring = async () => {
+    try {
+      setManualOperationLoading('anonymous_picks')
+      setError('')
+      setManualOperationResult(null)
+
+      console.log(`🔄 Running timeout-resistant anonymous picks scoring for ${season} Week ${week}...`)
+
+      // Use the new batch approach for anonymous picks too
+      const { data: completedGames, error: gamesError } = await supabase.rpc('get_completed_games_for_week', {
+        week_param: week,
+        season_param: season
+      })
+
+      if (gamesError) throw gamesError
+
+      if (!completedGames || completedGames.length === 0) {
+        setManualOperationResult({
+          operation: 'Anonymous Picks Scoring',
+          success: true,
+          message: `No completed games found for ${season} Week ${week}`,
+          details: 'All games may already be processed or none are completed yet'
+        })
+        return
+      }
+
+      console.log(`📋 Processing anonymous picks for ${completedGames.length} completed games`)
+      
+      let totalAnonPicksUpdated = 0
+      let gamesProcessed = 0
+      const errors: string[] = []
+
+      // Process each game individually using the same function (it handles both pick types)
+      for (const game of completedGames) {
+        console.log(`  Processing anonymous picks for: ${game.away_team} @ ${game.home_team}...`)
+        
+        try {
+          // Update progress in UI
+          setManualOperationResult({
+            operation: 'Anonymous Picks Scoring',
+            success: true,
+            message: `Processing ${game.away_team} @ ${game.home_team}... (${gamesProcessed + 1}/${completedGames.length})`,
+            details: `Games processed: ${gamesProcessed}, Anonymous picks updated: ${totalAnonPicksUpdated}`
+          })
+
+          const { data: gameResult, error: gameError } = await supabase.rpc('calculate_pick_results_for_game', {
+            game_id_param: game.game_id
+          })
+
+          if (gameError) {
+            errors.push(`${game.away_team} @ ${game.home_team}: ${gameError.message}`)
+            console.warn(`⚠️ Error processing game: ${gameError.message}`)
+          } else if (gameResult && gameResult.length > 0) {
+            const result = gameResult[0]
+            if (result.game_processed) {
+              totalAnonPicksUpdated += result.anonymous_picks_updated || 0
+              gamesProcessed += 1
+              console.log(`    ✅ Updated ${result.anonymous_picks_updated} anonymous picks`)
+            } else {
+              errors.push(`${game.away_team} @ ${game.home_team}: ${result.operation_status}`)
+            }
+          }
+        } catch (gameErr: any) {
+          errors.push(`${game.away_team} @ ${game.home_team}: ${gameErr.message}`)
+          console.warn(`⚠️ Exception processing game: ${gameErr.message}`)
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+
+      setManualOperationResult({
+        operation: 'Anonymous Picks Scoring',
+        success: errors.length === 0,
+        message: errors.length === 0 ? 
+          `Successfully updated anonymous picks scoring for ${season} Week ${week}` :
+          `Completed with ${errors.length} errors out of ${completedGames.length} games`,
+        details: `Games processed: ${gamesProcessed}/${completedGames.length}, Anonymous picks updated: ${totalAnonPicksUpdated}${errors.length > 0 ? `\nErrors: ${errors.join('; ')}` : ''}`
+      })
+
+      console.log('✅ Manual anonymous picks scoring completed:', { gamesProcessed, totalAnonPicksUpdated, errors: errors.length })
+
+    } catch (err: any) {
+      console.error('❌ Manual anonymous picks scoring failed:', err)
+      setManualOperationResult({
+        operation: 'Anonymous Picks Scoring',
+        success: false,
+        message: 'Failed to update anonymous picks scoring',
+        details: err.message.includes('statement timeout') ? 
+          'Database timeout - try using the new individual game processing' : err.message
+      })
+      setError(err.message)
+    } finally {
+      setManualOperationLoading(null)
+    }
+  }
+
+  const runManualLeaderboardRecalculation = async () => {
+    try {
+      setManualOperationLoading('leaderboard')
+      setError('')
+      setManualOperationResult(null)
+
+      console.log(`🔄 Running manual leaderboard recalculation for ${season} Week ${week}...`)
+
+      // Call the combined leaderboard recalculation function
+      const { data, error } = await supabase.rpc('recalculate_leaderboards_for_week', {
+        week_param: week,
+        season_param: season
+      })
+
+      if (error) throw error
+
+      // Handle structured return data
+      const result = data && data.length > 0 ? data[0] : null
+
+      setManualOperationResult({
+        operation: 'Leaderboard Recalculation',
+        success: true,
+        message: `Successfully recalculated leaderboards for ${season} Week ${week}`,
+        details: result ? 
+          `Weekly entries: ${result.weekly_entries}, Season entries: ${result.season_entries}` : 
+          'Updated both weekly and season leaderboards'
+      })
+
+      console.log('✅ Manual leaderboard recalculation completed')
+
+    } catch (err: any) {
+      console.error('❌ Manual leaderboard recalculation failed:', err)
+      setManualOperationResult({
+        operation: 'Leaderboard Recalculation',
+        success: false,
+        message: 'Failed to recalculate leaderboards',
+        details: err.message
+      })
+      setError(err.message)
+    } finally {
+      setManualOperationLoading(null)
+    }
+  }
+
+  const runManualGameStatsUpdate = async () => {
+    try {
+      setManualOperationLoading('game_stats')
+      setError('')
+      setManualOperationResult(null)
+
+      console.log(`🔄 Running manual game stats update for ${season} Week ${week}...`)
+
+      // Call the function to recalculate game statistics for all games in the week
+      const { data, error } = await supabase.rpc('calculate_week_game_statistics', {
+        week_param: week,
+        season_param: season
+      })
+
+      if (error) throw error
+
+      // Handle structured return data
+      const result = data && data.length > 0 ? data[0] : null
+
+      setManualOperationResult({
+        operation: 'Game Stats Update',
+        success: true,
+        message: `Successfully updated game stats for ${season} Week ${week}`,
+        details: result ? 
+          `Games processed: ${result.processed_games}, Stats calculated: ${result.calculated_stats}` : 
+          'Operation completed'
+      })
+
+      console.log('✅ Manual game stats update completed')
+
+    } catch (err: any) {
+      console.error('❌ Manual game stats update failed:', err)
+      setManualOperationResult({
+        operation: 'Game Stats Update',
+        success: false,
+        message: 'Failed to update game stats',
+        details: err.message
+      })
+      setError(err.message)
+    } finally {
+      setManualOperationLoading(null)
+    }
   }
 
   const manualScoreUpdate = async (gameId: string, homeScore: number, awayScore: number) => {
@@ -365,6 +700,134 @@ export default function ScoreManager({ season, week }: ScoreManagerProps) {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Manual Scoring Operations */}
+      <Card className="border-amber-200">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <span>🛠️</span>
+            Manual Scoring Operations
+          </CardTitle>
+          <p className="text-sm text-gray-600">
+            Manually trigger scoring calculations and leaderboard updates
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Button 
+              onClick={runManualPicksScoring}
+              disabled={manualOperationLoading !== null}
+              variant="outline"
+              className="flex items-center justify-center gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+            >
+              {manualOperationLoading === 'picks' ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <span>🎯</span>
+                  Update Picks Scoring
+                </>
+              )}
+            </Button>
+
+            <Button 
+              onClick={runManualAnonymousPicksScoring}
+              disabled={manualOperationLoading !== null}
+              variant="outline"
+              className="flex items-center justify-center gap-2 border-purple-200 text-purple-700 hover:bg-purple-50"
+            >
+              {manualOperationLoading === 'anonymous_picks' ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <span>🎭</span>
+                  Update Anonymous Picks
+                </>
+              )}
+            </Button>
+
+            <Button 
+              onClick={runManualLeaderboardRecalculation}
+              disabled={manualOperationLoading !== null}
+              variant="outline"
+              className="flex items-center justify-center gap-2 border-green-200 text-green-700 hover:bg-green-50"
+            >
+              {manualOperationLoading === 'leaderboard' ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <span>🏆</span>
+                  Recalculate Leaderboards
+                </>
+              )}
+            </Button>
+
+            <Button 
+              onClick={runManualGameStatsUpdate}
+              disabled={manualOperationLoading !== null}
+              variant="outline"
+              className="flex items-center justify-center gap-2 border-orange-200 text-orange-700 hover:bg-orange-50"
+            >
+              {manualOperationLoading === 'game_stats' ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <span>📊</span>
+                  Update Game Stats
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Manual Operation Result */}
+          {manualOperationResult && (
+            <div className={`text-sm rounded-lg p-3 ${
+              manualOperationResult.success 
+                ? 'bg-green-50 border border-green-200' 
+                : 'bg-red-50 border border-red-200'
+            }`}>
+              <div className="flex items-start gap-2">
+                <span className={`text-lg ${
+                  manualOperationResult.success ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {manualOperationResult.success ? '✅' : '❌'}
+                </span>
+                <div className="flex-1">
+                  <div className={`font-medium ${
+                    manualOperationResult.success ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    {manualOperationResult.operation}
+                  </div>
+                  <div className={`${
+                    manualOperationResult.success ? 'text-green-700' : 'text-red-700'
+                  }`}>
+                    {manualOperationResult.message}
+                  </div>
+                  {manualOperationResult.details && (
+                    <div className={`text-xs mt-1 ${
+                      manualOperationResult.success ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {manualOperationResult.details}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
