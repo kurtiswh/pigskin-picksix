@@ -1,7 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { UserWithPayment } from '@/types'
+import { Badge } from '@/components/ui/badge'
+import { UserWithPayment, UserEmail, UserMergeHistory } from '@/types'
+import { UserMergeService } from '@/services/userMergeService'
 
 interface UserDetailsModalProps {
   user: UserWithPayment | null
@@ -25,6 +27,9 @@ export default function UserDetailsModal({
   const [loading, setLoading] = useState(false)
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>('')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [userEmails, setUserEmails] = useState<UserEmail[]>([])
+  const [mergeHistory, setMergeHistory] = useState<UserMergeHistory[]>([])
+  const [emailsLoading, setEmailsLoading] = useState(true)
 
   // Initialize selected payment status when user changes
   React.useEffect(() => {
@@ -35,6 +40,32 @@ export default function UserDetailsModal({
       setHasUnsavedChanges(false)
     }
   }, [user, currentSeason])
+
+  // Load user emails and merge history when user changes
+  useEffect(() => {
+    if (user) {
+      loadUserData()
+    }
+  }, [user])
+
+  const loadUserData = async () => {
+    if (!user) return
+    
+    setEmailsLoading(true)
+    try {
+      const [emails, history] = await Promise.all([
+        UserMergeService.getUserEmails(user.id),
+        UserMergeService.getUserMergeHistory(user.id)
+      ])
+      
+      setUserEmails(emails)
+      setMergeHistory(history)
+    } catch (error) {
+      console.error('Error loading user data:', error)
+    } finally {
+      setEmailsLoading(false)
+    }
+  }
 
   if (!user) return null
 
@@ -189,6 +220,114 @@ export default function UserDetailsModal({
               </div>
             </div>
           </div>
+
+          {/* Email Addresses */}
+          <div>
+            <h4 className="font-semibold mb-3">Email Addresses</h4>
+            {emailsLoading ? (
+              <div className="text-center py-4">
+                <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <p className="text-sm text-gray-600 mt-2">Loading emails...</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {/* Primary email from user record */}
+                <div className="border rounded p-3 text-sm bg-blue-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium">{user.email}</span>
+                    <div className="flex gap-2">
+                      <Badge variant="default" className="bg-blue-600">Primary</Badge>
+                      <Badge variant="outline" className="text-green-600 border-green-300">Account</Badge>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600">Main account email address</p>
+                </div>
+                
+                {/* Additional emails from user_emails table */}
+                {userEmails.map((emailRecord) => (
+                  <div key={emailRecord.id} className="border rounded p-3 text-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">{emailRecord.email}</span>
+                      <div className="flex gap-2">
+                        <Badge 
+                          variant={emailRecord.is_primary ? "default" : "outline"}
+                          className={
+                            emailRecord.email_type === 'leaguesafe' ? 'bg-green-600 text-white' :
+                            emailRecord.email_type === 'merged' ? 'bg-purple-600 text-white' :
+                            emailRecord.email_type === 'alternate' ? 'bg-gray-600 text-white' :
+                            emailRecord.is_primary ? 'bg-blue-600' : ''
+                          }
+                        >
+                          {emailRecord.email_type === 'leaguesafe' ? 'LeagueSafe' :
+                           emailRecord.email_type === 'merged' ? 'Merged' :
+                           emailRecord.email_type === 'alternate' ? 'Alternate' :
+                           'Primary'}
+                        </Badge>
+                        {emailRecord.is_verified && (
+                          <Badge variant="outline" className="text-green-600 border-green-300">
+                            Verified
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    {emailRecord.source && (
+                      <p className="text-xs text-gray-600">Source: {emailRecord.source}</p>
+                    )}
+                    {emailRecord.notes && (
+                      <p className="text-xs text-gray-600 mt-1">Notes: {emailRecord.notes}</p>
+                    )}
+                    {emailRecord.season_used && emailRecord.season_used.length > 0 && (
+                      <p className="text-xs text-gray-600 mt-1">
+                        Used in seasons: {emailRecord.season_used.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                ))}
+                
+                {userEmails.length === 0 && (
+                  <p className="text-sm text-gray-500 py-2">No additional email addresses found</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Merge History */}
+          {mergeHistory.length > 0 && (
+            <div>
+              <h4 className="font-semibold mb-3">Account Merge History</h4>
+              <div className="space-y-2">
+                {mergeHistory.map((merge) => (
+                  <div key={merge.id} className="border rounded p-3 text-sm bg-purple-50">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">
+                        Merged: {merge.source_user_display_name}
+                      </span>
+                      <Badge variant="outline" className="text-purple-600 border-purple-300">
+                        {merge.merge_type}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 mb-2 text-xs">
+                      <div>Picks: {merge.picks_merged}</div>
+                      <div>Payments: {merge.payments_merged}</div>
+                      <div>Anonymous Picks: {merge.anonymous_picks_merged}</div>
+                      <div>Emails: {merge.emails_merged}</div>
+                    </div>
+                    <p className="text-xs text-gray-600">
+                      From: {merge.source_user_email} • {new Date(merge.merged_at).toLocaleDateString()}
+                    </p>
+                    {merge.merge_reason && (
+                      <p className="text-xs text-gray-600 mt-1">Reason: {merge.merge_reason}</p>
+                    )}
+                    {merge.conflicts_detected && (
+                      <Badge variant="destructive" className="mt-2 text-xs">
+                        Conflicts Detected
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Payment History */}
           {user.season_payment_history && user.season_payment_history.length > 0 && (

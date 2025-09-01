@@ -235,6 +235,15 @@ export function testScoringCalculations() {
  */
 export async function updateGameInDatabase(gameResult: GameResult): Promise<void> {
   try {
+    // Get current game state first to detect status changes
+    const { data: currentGame, error: getCurrentError } = await supabase
+      .from('games')
+      .select('id, status, game_period, game_clock')
+      .eq('id', gameResult.game_id)
+      .single()
+
+    if (getCurrentError) throw getCurrentError
+
     // Build update object with live timing data if available
     const updateData: any = {
       home_score: gameResult.home_score,
@@ -243,7 +252,17 @@ export async function updateGameInDatabase(gameResult: GameResult): Promise<void
       updated_at: new Date().toISOString()
     }
 
-    // Add live timing data if provided
+    // Handle transition from scheduled to in_progress - set default Q1 15:00
+    if (currentGame.status === 'scheduled' && gameResult.status === 'in_progress') {
+      // If no live data provided, use default Q1 15:00 for newly started games
+      if (!gameResult.game_period && !gameResult.api_period) {
+        updateData.game_period = 1
+        updateData.game_clock = '15:00'
+        console.log(`🏈 Game starting: Default Q1 15:00 set for ${gameResult.away_team} @ ${gameResult.home_team}`)
+      }
+    }
+
+    // Add live timing data if provided (this will override defaults if API has data)
     if (gameResult.game_period !== undefined) updateData.game_period = gameResult.game_period
     if (gameResult.game_clock !== undefined) updateData.game_clock = gameResult.game_clock
     if (gameResult.api_period !== undefined) updateData.api_period = gameResult.api_period

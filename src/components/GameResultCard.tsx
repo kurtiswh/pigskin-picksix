@@ -55,7 +55,6 @@ interface PickStats {
 
 interface GameResultCardProps {
   game: Game & {
-    isLive?: boolean
     quarter?: number | null
     clock?: string | null
   }
@@ -71,21 +70,18 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
   const [pickStats, setPickStats] = useState<PickStats | null>(null)
   const [loading, setLoading] = useState(false)
   
-  // Use props directly for pure rendering
-  const isLive = game.isLive || false
+  // Use database status directly as single source of truth
   const homeScore = game.home_score
   const awayScore = game.away_score
+  const currentStatus = game.status
   
-  // Determine current status from props and game data
-  const currentStatus = isLive ? 'in_progress' : game.status
-  
-  // Build game time display from props
+  // Build game time display based on database status
   const gameTimeDisplay = (() => {
     if (currentStatus === 'completed') {
       return 'Final'
     }
     
-    if (isLive) {
+    if (currentStatus === 'in_progress') {
       // Use quarter/clock from props if available
       if (game.quarter && game.clock) {
         return `${game.quarter}Q ${game.clock}`
@@ -206,12 +202,12 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
   }
 
   const getStatusBadge = () => {
-    // Use isLive prop for pure rendering
+    // Use database status directly
     if (currentStatus === 'completed') {
       return <Badge variant="default" className="bg-green-600">Final</Badge>
     }
     
-    if (isLive) {
+    if (currentStatus === 'in_progress') {
       return <Badge variant="default" className="bg-red-600 animate-pulse">🔴 Live</Badge>
     }
     
@@ -361,11 +357,6 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
               {/* Team name */}
               <div className="flex items-center space-x-2">
                 <span className="font-semibold text-lg">{game.away_team}</span>
-                {!game.neutral_site && (
-                  <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
-                    AWAY
-                  </span>
-                )}
               </div>
             </div>
             
@@ -398,15 +389,6 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
               {/* Team name */}
               <div className="flex items-center space-x-2">
                 <span className="font-semibold text-lg">{game.home_team}</span>
-                {!game.neutral_site ? (
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                    HOME
-                  </span>
-                ) : (
-                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
-                    NEUTRAL
-                  </span>
-                )}
               </div>
             </div>
             
@@ -437,7 +419,7 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
               {/* Venue */}
               {game.venue && (
                 <div className="flex items-center">
-                  <span>📍 {game.venue}</span>
+                  <span>📍 {game.venue}{game.neutral_site ? ' • NEUTRAL SITE' : ''}</span>
                 </div>
               )}
             </div>

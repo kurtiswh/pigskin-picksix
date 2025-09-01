@@ -1,7 +1,19 @@
 export interface UserEmail {
+  id?: string
+  user_id?: string
   email: string
-  type: 'primary' | 'leaguesafe' | 'alternate'
-  verified: boolean
+  email_type: 'primary' | 'leaguesafe' | 'alternate' | 'merged'
+  is_primary: boolean
+  is_verified: boolean
+  verified_at?: string | null
+  source?: string | null
+  source_user_id?: string | null
+  added_at?: string
+  added_by?: string | null
+  season_used?: number[] | null
+  notes?: string | null
+  created_at?: string
+  updated_at?: string
 }
 
 export interface UserPreferences {
@@ -21,7 +33,8 @@ export interface User {
   created_at: string
   updated_at: string
   preferences?: UserPreferences
-  all_emails?: UserEmail[]
+  emails?: UserEmail[]
+  merge_history?: UserMergeHistory[]
 }
 
 export interface UserProfile extends User {
@@ -37,6 +50,22 @@ export interface UserProfile extends User {
     lock_losses: number
     current_season_points: number
   }
+  pickSets?: UserPickSet[]
+}
+
+export interface UserPickSet {
+  season: number
+  week: number
+  pickType: 'authenticated' | 'anonymous'
+  isActive: boolean
+  pickCount: number
+  wins: number
+  losses: number
+  pushes: number
+  points: number
+  lockWins?: number
+  lockLosses?: number
+  conflictStatus?: 'no_conflict' | 'resolved_conflict' | 'active_conflict'
 }
 
 export interface Game {
@@ -78,6 +107,29 @@ export interface Pick {
   submitted_at?: string
   result?: 'win' | 'loss' | 'push'
   points_earned?: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AnonymousPick {
+  id: string
+  email: string
+  name: string
+  week: number
+  season: number
+  game_id: string
+  home_team: string
+  away_team: string
+  selected_team: string
+  is_lock: boolean
+  confidence?: number
+  assigned_user_id?: string
+  show_on_leaderboard: boolean
+  validation_status: 'pending' | 'validated' | 'auto-validated' | 'rejected'
+  result?: 'win' | 'loss' | 'push'
+  points_earned?: number
+  submitted: boolean
+  is_active_pick_set: boolean
   created_at: string
   updated_at: string
 }

@@ -55,6 +55,16 @@ interface ExistingPickSet {
   submittedAt: string
   source: 'authenticated' | 'anonymous'
   pickCount: number
+  picks?: {
+    id: string
+    game_id: string
+    selected_team: string
+    is_lock: boolean
+    result: 'win' | 'loss' | 'push' | null
+    points_earned: number | null
+    home_team: string
+    away_team: string
+  }[]
 }
 
 interface AnonymousPicksAdminProps {
@@ -85,6 +95,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
   const [selectedWeek, setSelectedWeek] = useState(currentWeek)
   const [selectedSeason, setSelectedSeason] = useState(currentSeason)
   const [statusFilter, setStatusFilter] = useState<ValidationStatus | 'all'>('all')
+  const [detectedDuplicates, setDetectedDuplicates] = useState<{ duplicateGroups: PickSet[][], totalDuplicates: number }>({ duplicateGroups: [], totalDuplicates: 0 })
   const [conflictResolution, setConflictResolution] = useState<{
     pickSet: PickSet
     assignedUserId: string
@@ -134,8 +145,142 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     setAutoProcessingComplete(false)
   }, [selectedWeek, selectedSeason])
 
+  // Content-based duplicate detection for pick sets from the same email address
+  const detectContentBasedDuplicates = (pickSets: PickSet[]): { duplicateGroups: PickSet[][], totalDuplicates: number } => {
+    console.log('🔍 Running enhanced content-based duplicate detection...')
+    
+    // Group pick sets by email address
+    const pickSetsByEmail = new Map<string, PickSet[]>()
+    // Also group pick sets by assigned user_id for cross-email duplicate detection
+    const pickSetsByUserId = new Map<string, PickSet[]>()
+    // NEW: Group anonymous pick sets by content signature for cross-email detection
+    const anonymousPicksByContent = new Map<string, PickSet[]>()
+    
+    for (const pickSet of pickSets) {
+      // Group by email (original logic)
+      if (!pickSetsByEmail.has(pickSet.email)) {
+        pickSetsByEmail.set(pickSet.email, [])
+      }
+      pickSetsByEmail.get(pickSet.email)!.push(pickSet)
+      
+      // Group by assigned user_id (for assigned anonymous picks)
+      if (pickSet.assignedUserId) {
+        if (!pickSetsByUserId.has(pickSet.assignedUserId)) {
+          pickSetsByUserId.set(pickSet.assignedUserId, [])
+        }
+        pickSetsByUserId.get(pickSet.assignedUserId)!.push(pickSet)
+      }
+      
+      // NEW: Group unassigned anonymous picks by content signature for cross-email detection
+      if (!pickSet.assignedUserId) {
+        // Create content signature for anonymous picks to detect cross-email duplicates
+        const sortedPicks = [...pickSet.picks].sort((a, b) => a.game_id.localeCompare(b.game_id))
+        const contentSignature = sortedPicks.map(pick => 
+          `${pick.game_id}:${pick.selected_team}:${pick.is_lock ? 'LOCK' : 'REG'}`
+        ).join('|')
+        
+        if (!anonymousPicksByContent.has(contentSignature)) {
+          anonymousPicksByContent.set(contentSignature, [])
+        }
+        anonymousPicksByContent.get(contentSignature)!.push(pickSet)
+      }
+    }
+    
+    const duplicateGroups: PickSet[][] = []
+    let totalDuplicates = 0
+    const processedPairs = new Set<string>() // Track processed pairs to avoid double-reporting
+    
+    // Helper function to process a group of pick sets for duplicates
+    const processGroupForDuplicates = (groupPickSets: PickSet[], groupType: string, groupKey: string) => {
+      if (groupPickSets.length <= 1) return // Skip if only one pick set in this group
+      
+      // Create a signature for each pick set based on actual pick content
+      const pickSetSignatures = groupPickSets.map(pickSet => {
+        // Sort picks by game_id to normalize order, then create content signature
+        const sortedPicks = [...pickSet.picks].sort((a, b) => a.game_id.localeCompare(b.game_id))
+        const contentSignature = sortedPicks.map(pick => 
+          `${pick.game_id}:${pick.selected_team}:${pick.is_lock ? 'LOCK' : 'REG'}`
+        ).join('|')
+        
+        return {
+          pickSet,
+          signature: contentSignature,
+          lockPick: sortedPicks.find(p => p.is_lock)?.selected_team || null
+        }
+      })
+      
+      // Find duplicate signatures within this group
+      const signatureGroups = new Map<string, typeof pickSetSignatures>()
+      
+      for (const item of pickSetSignatures) {
+        if (!signatureGroups.has(item.signature)) {
+          signatureGroups.set(item.signature, [])
+        }
+        signatureGroups.get(item.signature)!.push(item)
+      }
+      
+      // Report duplicates
+      for (const [signature, group] of signatureGroups) {
+        if (group.length > 1) {
+          // Create a unique identifier for this duplicate group to avoid double-reporting
+          const groupIds = group.map(item => `${item.pickSet.email}-${item.pickSet.submittedAt}`).sort().join('|')
+          if (processedPairs.has(groupIds)) {
+            console.log(`⏭️ Skipping already processed duplicate group: ${groupIds}`)
+            continue
+          }
+          processedPairs.add(groupIds)
+          
+          console.log(`🚨 DUPLICATE CONTENT detected via ${groupType} (${groupKey}):`)
+          console.log(`   Content signature: ${signature}`)
+          console.log(`   Number of duplicates: ${group.length}`)
+          group.forEach((item, index) => {
+            console.log(`   ${index + 1}. ${item.pickSet.email} - Submitted: ${item.pickSet.submittedAt} (Status: ${item.pickSet.validationStatus}, User ID: ${item.pickSet.assignedUserId || 'unassigned'})`)
+          })
+          
+          const duplicatePickSets = group.map(item => item.pickSet)
+          duplicateGroups.push(duplicatePickSets)
+          totalDuplicates += duplicatePickSets.length - 1 // Don't count the "original" as a duplicate
+        }
+      }
+    }
+    
+    // Check each email address for content-based duplicates (original logic)
+    console.log('📧 Checking for duplicates within same email addresses...')
+    for (const [email, emailPickSets] of pickSetsByEmail) {
+      processGroupForDuplicates(emailPickSets, 'email', email)
+    }
+    
+    // Check each assigned user_id for content-based duplicates (new logic for Walker case)
+    console.log('👤 Checking for duplicates within same assigned user_id...')
+    for (const [userId, userPickSets] of pickSetsByUserId) {
+      processGroupForDuplicates(userPickSets, 'user_id', userId)
+    }
+    
+    // NEW: Check anonymous picks for cross-email duplicates by content
+    console.log('🔍 Checking for cross-email duplicates in anonymous picks by content signature...')
+    for (const [signature, contentPickSets] of anonymousPicksByContent) {
+      if (contentPickSets.length > 1) {
+        // Filter to only different emails to avoid duplicate reporting
+        const emailSet = new Set(contentPickSets.map(ps => ps.email))
+        if (emailSet.size > 1) {
+          processGroupForDuplicates(contentPickSets, 'anonymous_content', signature.substring(0, 50) + '...')
+        }
+      }
+    }
+    
+    if (duplicateGroups.length > 0) {
+      console.log(`⚠️ SUMMARY: Found ${duplicateGroups.length} groups of content-based duplicates (${totalDuplicates} duplicate pick sets)`)
+    } else {
+      console.log('✅ No content-based duplicates detected')
+    }
+    
+    return { duplicateGroups, totalDuplicates }
+  }
+
   const processValidatedUsers = async () => {
-    const validatedPickSets = pickSets.filter(ps => ps.isValidated && !ps.assignedUserId && !ps.autoAssigned)
+    // Fix: Auto-validated picks should be processed even if they don't have assignedUserId yet
+    // The whole point is to assign them a user ID
+    const validatedPickSets = pickSets.filter(ps => ps.isValidated && !ps.autoAssigned)
     
     for (const pickSet of validatedPickSets) {
       try {
@@ -268,6 +413,11 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         }
       })
       
+      // Detect content-based duplicates within the same email address
+      const duplicateInfo = detectContentBasedDuplicates(pickSetsArray)
+      console.log('🔍 Content-based duplicate detection results:', duplicateInfo)
+      setDetectedDuplicates(duplicateInfo)
+      
       setPickSets(pickSetsArray)
       setUsers(usersData)
     } catch (err: any) {
@@ -296,16 +446,17 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
     if (existingPickSets.length === 0) {
       // No conflicts - safe to assign and add to leaderboard
+      // The database triggers will automatically handle precedence
       if (autoMode && pickSet.isValidated) {
         console.log(`✅ Auto-assigning validated user ${pickSet.email} - no conflicts found`)
         
         // Update validation status to auto_validated first
         await handleUpdateValidationStatus(pickSet, 'auto_validated', 'Auto-assigned - no conflicts found')
         
-        // Then assign the pick set
+        // Then assign the pick set with is_active_pick_set = true
         await confirmAssignment(pickSet, userId, 'new')
         
-        // Update local state to show as auto-assigned
+        // Update local state to show as auto-assigned (confirmAssignment already set assignedUserId and showOnLeaderboard based on payment status)
         setPickSets(prev => 
           prev.map(ps => 
             ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
@@ -318,26 +469,31 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         await confirmAssignment(pickSet, userId, 'new')
       }
     } else {
-      // Conflicts found
+      // Conflicts found - database triggers should handle precedence automatically
+      // but admin can override if needed
       console.log(`⚠️ Conflicts found for ${pickSet.email}:`, existingPickSets.length, 'existing pick sets')
       console.log('📋 Existing pick sets details:', existingPickSets)
+      console.log('💡 Database triggers will handle precedence (authenticated > anonymous) automatically')
       
       if (autoMode && pickSet.isValidated) {
-        // For auto-mode validated users, mark as duplicate conflict and update status
-        console.log(`🔄 Auto-mode: Marking validated user ${pickSet.email} with conflicts for manual review`)
+        // For auto-mode validated users, still assign but mark as having conflicts for admin review
+        console.log(`🔄 Auto-mode: Assigning validated user ${pickSet.email} with conflicts - precedence will be handled by database`)
         
-        // Update validation status to duplicate_conflict
-        await handleUpdateValidationStatus(pickSet, 'duplicate_conflict', `Conflicts found: ${existingPickSets.length} existing pick sets`)
+        // Update validation status to show conflicts were detected
+        await handleUpdateValidationStatus(pickSet, 'auto_validated', `Conflicts detected: ${existingPickSets.length} existing pick sets. Database precedence rules applied.`)
+        
+        // Proceed with assignment - database triggers will handle the precedence
+        await confirmAssignment(pickSet, userId, 'new')
         
         setPickSets(prev => 
           prev.map(ps => 
             ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
-              ? { ...ps, autoAssigned: false, hasConflicts: true, validationStatus: 'duplicate_conflict' as ValidationStatus, processingNotes: `Conflicts found: ${existingPickSets.length} existing pick sets` }
+              ? { ...ps, autoAssigned: true, hasConflicts: true, validationStatus: 'auto_validated' as ValidationStatus, processingNotes: `Auto-assigned with conflicts - precedence handled by database` }
               : ps
           )
         )
       } else {
-        // For manual mode, show conflict resolution dialog
+        // For manual mode, show conflict resolution dialog to allow admin override
         setConflictResolution({
           pickSet,
           assignedUserId: userId,
@@ -357,11 +513,11 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
       const results: ExistingPickSet[] = []
 
-      // Check for existing pick sets
+      // Check for existing pick sets with detailed pick information
 
-      // Check authenticated picks (only submitted ones)
+      // Check authenticated picks (only submitted ones) with game details
       const authPicksResponse = await fetch(
-        `${supabaseUrl}/rest/v1/picks?user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&submitted=eq.true&select=submitted_at`,
+        `${supabaseUrl}/rest/v1/picks?user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&submitted=eq.true&select=*,games(home_team,away_team)`,
         {
         method: 'GET',
         headers: {
@@ -375,15 +531,25 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         const authPicks = await authPicksResponse.json()
         console.log(`📊 Found ${authPicks.length} authenticated picks for user ${userId}`)
         if (authPicks.length > 0) {
-          // Group by submitted_at to get pick sets
+          // Group by submitted_at to get pick sets with full pick details
           const submissionTimes = [...new Set(authPicks.map(p => p.submitted_at))]
           console.log(`📅 Authenticated submission times:`, submissionTimes)
           for (const submittedAt of submissionTimes) {
-            const pickCount = authPicks.filter(p => p.submitted_at === submittedAt).length
+            const picksForSubmission = authPicks.filter(p => p.submitted_at === submittedAt)
             results.push({
               submittedAt,
               source: 'authenticated',
-              pickCount
+              pickCount: picksForSubmission.length,
+              picks: picksForSubmission.map(p => ({
+                id: p.id,
+                game_id: p.game_id,
+                selected_team: p.selected_team,
+                is_lock: p.is_lock,
+                result: p.result,
+                points_earned: p.points_earned,
+                home_team: p.games?.home_team || 'Unknown',
+                away_team: p.games?.away_team || 'Unknown'
+              }))
             })
           }
         }
@@ -393,7 +559,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
       // Check other anonymous picks assigned to this user that are on leaderboard
       const anonPicksResponse = await fetch(
-        `${supabaseUrl}/rest/v1/anonymous_picks?assigned_user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&show_on_leaderboard=eq.true&select=submitted_at`,
+        `${supabaseUrl}/rest/v1/anonymous_picks?assigned_user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&show_on_leaderboard=eq.true&select=*`,
         {
           method: 'GET',
           headers: {
@@ -408,15 +574,25 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         const anonPicks = await anonPicksResponse.json()
         console.log(`📊 Found ${anonPicks.length} assigned anonymous picks for user ${userId}`)
         if (anonPicks.length > 0) {
-          // Group by submitted_at to get pick sets
+          // Group by submitted_at to get pick sets with full pick details
           const submissionTimes = [...new Set(anonPicks.map(p => p.submitted_at))]
           console.log(`📅 Anonymous submission times:`, submissionTimes)
           for (const submittedAt of submissionTimes) {
-            const pickCount = anonPicks.filter(p => p.submitted_at === submittedAt).length
+            const picksForSubmission = anonPicks.filter(p => p.submitted_at === submittedAt)
             results.push({
               submittedAt,
               source: 'anonymous',
-              pickCount
+              pickCount: picksForSubmission.length,
+              picks: picksForSubmission.map(p => ({
+                id: p.id,
+                game_id: p.game_id,
+                selected_team: p.selected_team,
+                is_lock: p.is_lock,
+                result: p.result,
+                points_earned: p.points_earned,
+                home_team: p.home_team,
+                away_team: p.away_team
+              }))
             })
           }
         }
@@ -458,6 +634,17 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
         console.log(`📝 Updating ${pickSet.picks.length} picks for assignment...`)
         
+        // Check payment status before setting leaderboard visibility
+        console.log('💳 Checking payment status for leaderboard eligibility...')
+        const { isPaid, paymentStatus } = await checkUserPaymentStatus(userId)
+        const showOnLeaderboard = isPaid
+        
+        if (!isPaid) {
+          console.log(`⚠️ User payment status: ${paymentStatus} - will not show on leaderboard by default`)
+        } else {
+          console.log('✅ User has paid - will show on leaderboard by default')
+        }
+        
         // Use API key for now to avoid hanging on auth session
         const authToken = apiKey
         console.log('🔑 Using API key for database updates')
@@ -473,7 +660,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
             },
             body: JSON.stringify({
               assigned_user_id: userId,
-              show_on_leaderboard: true  // Default to showing on leaderboard when assigned
+              show_on_leaderboard: showOnLeaderboard  // Only show on leaderboard if user has paid
             })
           })
 
@@ -494,15 +681,79 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         setPickSets(prev => 
           prev.map(ps => 
             ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
-              ? { ...ps, assignedUserId: userId, showOnLeaderboard: true }
+              ? { ...ps, assignedUserId: userId, showOnLeaderboard }
+              : ps
+          )
+        )
+
+        // Update validation status to manually_validated since this was a manual admin action
+        await handleUpdateValidationStatus(pickSet, 'manually_validated', `Manually assigned by admin - ${keepPickSet === 'new' ? 'new pick set selected' : 'existing pick set kept'}`)
+        
+        // Update local state to reflect manual validation
+        setPickSets(prev => 
+          prev.map(ps => 
+            ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
+              ? { ...ps, validationStatus: 'manually_validated' as ValidationStatus, processingNotes: `Manually assigned by admin - ${keepPickSet === 'new' ? 'new pick set selected' : 'existing pick set kept'}` }
               : ps
           )
         )
 
         console.log('✅ Pick set assigned successfully')
+      } else if (keepPickSet === 'existing') {
+        // Admin chose to keep existing picks - mark anonymous picks as NOT for leaderboard
+        console.log('👥 Keeping existing pick set - marking anonymous picks as inactive...', { email: pickSet.email, userId })
+        
+        // Check payment status to determine if we should assign user_id even though not showing on leaderboard
+        const { isPaid, paymentStatus } = await checkUserPaymentStatus(userId)
+        console.log(`💳 User payment status: ${paymentStatus} - assigning user_id but not showing on leaderboard`)
+        
+        for (const pick of pickSet.picks) {
+          console.log(`🔄 Updating pick ${pick.id} as inactive...`)
+          const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
+            method: 'PATCH',
+            headers: {
+              'apikey': apiKey || '',
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              assigned_user_id: userId,
+              show_on_leaderboard: false  // Explicitly set to false since existing picks are primary
+            })
+          })
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            console.error(`❌ Failed to update pick ${pick.id}:`, response.status, errorText)
+            throw new Error(`Failed to mark pick as inactive: ${response.status} - ${errorText}`)
+          } else {
+            console.log(`✅ Successfully marked pick ${pick.id} as inactive`)
+          }
+        }
+
+        // Update local state
+        setPickSets(prev => 
+          prev.map(ps => 
+            ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
+              ? { ...ps, assignedUserId: userId, showOnLeaderboard: false }
+              : ps
+          )
+        )
+
+        // Update validation status
+        await handleUpdateValidationStatus(pickSet, 'manually_validated', `Manually marked as inactive - existing pick set kept as primary`)
+        
+        // Update local state to reflect manual validation
+        setPickSets(prev => 
+          prev.map(ps => 
+            ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
+              ? { ...ps, validationStatus: 'manually_validated' as ValidationStatus, processingNotes: `Manually marked as inactive - existing pick set kept as primary` }
+              : ps
+          )
+        )
+
+        console.log('✅ Anonymous picks marked as inactive successfully')
       }
-      // Note: If keepPickSet === 'existing', we just don't assign the anonymous picks
-      // The existing authenticated picks remain the active ones
 
       setConflictResolution(null)
     } catch (err: any) {
@@ -629,12 +880,62 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     }
   }
 
+  // Helper function to check if user has paid for the season
+  const checkUserPaymentStatus = async (userId: string): Promise<{ isPaid: boolean; paymentStatus: string }> => {
+    try {
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      const currentSeason = 2025 // TODO: Make this dynamic
+
+      const response = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?user_id=eq.${userId}&season=eq.${currentSeason}`, {
+        method: 'GET',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        console.error('Failed to check payment status:', response.status)
+        return { isPaid: false, paymentStatus: 'Unable to verify' }
+      }
+
+      const payments = await response.json()
+      if (payments && payments.length > 0) {
+        const payment = payments[0]
+        const isPaid = payment.status === 'Paid' && payment.is_matched === true
+        return { isPaid, paymentStatus: payment.status }
+      }
+
+      return { isPaid: false, paymentStatus: 'Not found' }
+    } catch (error) {
+      console.error('Error checking payment status:', error)
+      return { isPaid: false, paymentStatus: 'Error checking' }
+    }
+  }
+
   const handleToggleLeaderboard = async (pickSet: PickSet, showOnLeaderboard: boolean) => {
     try {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
 
       console.log('📊 Toggling leaderboard visibility for pick set...', { email: pickSet.email, showOnLeaderboard })
+
+      // If enabling leaderboard visibility, check payment status first
+      if (showOnLeaderboard && pickSet.assignedUserId) {
+        console.log('💳 Checking payment status for leaderboard eligibility...')
+        const { isPaid, paymentStatus } = await checkUserPaymentStatus(pickSet.assignedUserId)
+        
+        if (!isPaid) {
+          const errorMessage = `Cannot add to leaderboard: User has not paid for the season (Payment status: ${paymentStatus}). Only paid users can appear on the leaderboard.`
+          console.error('❌ Payment verification failed:', errorMessage)
+          setError(errorMessage)
+          return
+        }
+        
+        console.log('✅ Payment verified - user is eligible for leaderboard')
+      }
 
       for (const pick of pickSet.picks) {
         const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
@@ -782,6 +1083,69 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
             <div className="flex items-center space-x-2 text-red-700">
               <span>⚠️</span>
               <span>{error}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Content-Based Duplicate Detection Warning */}
+      {detectedDuplicates.totalDuplicates > 0 && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-3">
+              <span className="text-orange-600 text-xl">🔍</span>
+              <div className="flex-1">
+                <div className="font-semibold text-orange-800 mb-2">
+                  Content-Based Duplicates Detected
+                </div>
+                <div className="text-sm text-orange-700 mb-3">
+                  Found <strong>{detectedDuplicates.totalDuplicates}</strong> duplicate pick sets across <strong>{detectedDuplicates.duplicateGroups.length}</strong> groups. 
+                  These are picks from the same email address with identical game selections and lock picks.
+                </div>
+                <div className="space-y-2">
+                  {detectedDuplicates.duplicateGroups.map((group, groupIndex) => {
+                    // Determine if this is a cross-email duplicate (Walker case)
+                    const uniqueEmails = [...new Set(group.map(ps => ps.email))]
+                    const isCrossEmailDuplicate = uniqueEmails.length > 1
+                    const commonUserId = group.find(ps => ps.assignedUserId)?.assignedUserId
+                    
+                    return (
+                      <div key={groupIndex} className="bg-white rounded p-3 border border-orange-200">
+                        <div className="font-medium text-orange-800 mb-1">
+                          Duplicate Group {groupIndex + 1}: {isCrossEmailDuplicate ? `User ID: ${commonUserId}` : group[0].email}
+                          {isCrossEmailDuplicate && (
+                            <span className="ml-2 text-xs bg-red-100 text-red-700 px-2 py-1 rounded">CROSS-EMAIL</span>
+                          )}
+                        </div>
+                        {isCrossEmailDuplicate && (
+                          <div className="text-xs text-orange-600 mb-2 italic">
+                            ⚠️ Same user matched to different email addresses with identical picks
+                          </div>
+                        )}
+                        <div className="text-xs text-orange-600 space-y-1">
+                          {group.map((pickSet, index) => (
+                            <div key={index} className="flex justify-between items-center">
+                              <div className="flex flex-col">
+                                <span>Submission {index + 1}: {pickSet.email}</span>
+                                <span className="text-orange-500">{new Date(pickSet.submittedAt).toLocaleString()}</span>
+                              </div>
+                              <div className="flex flex-col items-end">
+                                <span className="font-medium">Status: {pickSet.validationStatus}</span>
+                                {pickSet.assignedUserId && (
+                                  <span className="text-orange-500">User: {pickSet.assignedUserId.slice(0, 8)}...</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="text-xs text-orange-600 mt-2 italic">
+                  💡 Review these duplicates manually to determine which pick sets should be kept or removed.
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1086,7 +1450,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                 <div className="font-medium">Existing Pick Sets:</div>
                 {conflictResolution.existingPickSets.map((existing, index) => (
                   <div key={index} className="border rounded p-3 bg-gray-50">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-3">
                       <div>
                         <div className="font-medium">
                           {existing.source === 'authenticated' ? '🔐 Authenticated' : '👤 Anonymous'} Pick Set
@@ -1106,11 +1470,59 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                         } : null)}
                       />
                     </div>
+                    {existing.picks && existing.picks.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <div className="text-xs font-medium text-charcoal-700 mb-2">PICK DETAILS:</div>
+                        <div className="space-y-1">
+                          {existing.picks.map((pick, pickIndex) => (
+                            <div key={pickIndex} className="flex justify-between items-center text-xs bg-white rounded px-2 py-1">
+                              <div className="flex items-center space-x-2">
+                                <span className={`font-medium ${
+                                  pick.is_lock ? 'text-amber-600' : 'text-charcoal-700'
+                                }`}>
+                                  {pick.is_lock ? '🔒' : '🏈'} {pick.away_team} @ {pick.home_team}
+                                </span>
+                                <span className="text-charcoal-600">→ {pick.selected_team}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                {pick.result && (
+                                  <span className={`font-bold ${
+                                    pick.result === 'win' ? 'text-green-600' : 
+                                    pick.result === 'loss' ? 'text-red-600' : 'text-yellow-600'
+                                  }`}>
+                                    {pick.result === 'win' ? '✅' : pick.result === 'loss' ? '❌' : '🟡'}
+                                  </span>
+                                )}
+                                {pick.points_earned !== null && (
+                                  <span className={`font-medium ${
+                                    pick.points_earned > 0 ? 'text-green-600' : 'text-red-600'
+                                  }`}>
+                                    {pick.points_earned}pts
+                                  </span>
+                                )}
+                                {pick.result === null && pick.points_earned === null && (
+                                  <span className="text-gray-500">pending</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {existing.picks.some(p => p.result !== null) && (
+                          <div className="mt-2 pt-2 border-t border-gray-200">
+                            <div className="text-xs text-charcoal-600">
+                              Total Points: <span className="font-bold">
+                                {existing.picks.reduce((sum, pick) => sum + (pick.points_earned || 0), 0)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
 
                 <div className="border rounded p-3 bg-blue-50">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-3">
                     <div>
                       <div className="font-medium">🆕 New Anonymous Pick Set</div>
                       <div className="text-sm text-charcoal-600">
@@ -1127,6 +1539,29 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                         selectedPickSet: e.target.value as 'new' | 'existing'
                       } : null)}
                     />
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <div className="text-xs font-medium text-blue-700 mb-2">NEW PICK DETAILS:</div>
+                    <div className="space-y-1">
+                      {conflictResolution.pickSet.picks.map((pick, pickIndex) => {
+                        // Use team names directly from the pick object
+                        return (
+                          <div key={pickIndex} className="flex justify-between items-center text-xs bg-white rounded px-2 py-1">
+                            <div className="flex items-center space-x-2">
+                              <span className={`font-medium ${
+                                pick.is_lock ? 'text-amber-600' : 'text-charcoal-700'
+                              }`}>
+                                {pick.is_lock ? '🔒' : '🏈'} {pick.away_team} @ {pick.home_team}
+                              </span>
+                              <span className="text-charcoal-600">→ {pick.selected_team}</span>
+                            </div>
+                            <div className="text-gray-500">
+                              new pick
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1178,7 +1613,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                     set.source === 'new_anonymous' ? 'bg-green-50 border-green-200' : 'bg-gray-50'
                   }`}>
                     <div className="flex items-center justify-between mb-3">
-                      <div>
+                      <div className="flex-1">
                         <div className="font-medium">
                           {set.source === 'authenticated' ? '🔐 Authenticated Picks' : 
                            set.source === 'anonymous' ? '👤 Other Anonymous Picks' : 
@@ -1188,20 +1623,81 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                         <div className="text-sm text-charcoal-600">
                           {set.pickCount} picks • Submitted: {new Date(set.submittedAt).toLocaleString()}
                         </div>
+                        {'picks' in set && set.picks && set.picks.some(p => p.result !== null) && (
+                          <div className="text-sm font-medium text-blue-600 mt-1">
+                            Total Points: {set.picks.reduce((sum, pick) => sum + (pick.points_earned || 0), 0)}
+                          </div>
+                        )}
                       </div>
                     </div>
                     
-                    {set.source === 'new_anonymous' && 'pickSet' in set && (
-                      <div className="grid grid-cols-2 gap-2">
-                        {set.pickSet.picks.map(pick => (
-                          <div key={pick.id} className="text-sm bg-white p-2 rounded border">
-                            <div className="font-medium">{pick.away_team} @ {pick.home_team}</div>
-                            <div className="text-charcoal-600">
-                              Pick: <span className="font-medium">{pick.selected_team}</span>
-                              {pick.is_lock && <Badge className="ml-1 text-xs bg-gold-500">LOCK</Badge>}
+                    {/* Display picks for existing sets with results */}
+                    {'picks' in set && set.picks && set.picks.length > 0 && (
+                      <div className="mt-3">
+                        <div className="text-xs font-medium text-charcoal-700 mb-2">PICK DETAILS:</div>
+                        <div className="grid gap-2">
+                          {set.picks.map((pick, pickIndex) => (
+                            <div key={pickIndex} className="text-sm bg-white p-2 rounded border flex justify-between items-center">
+                              <div className="flex-1">
+                                <div className="font-medium flex items-center gap-2">
+                                  {pick.is_lock && <Badge className="text-xs bg-amber-500">LOCK</Badge>}
+                                  {pick.away_team} @ {pick.home_team}
+                                </div>
+                                <div className="text-charcoal-600">
+                                  Pick: <span className="font-medium">{pick.selected_team}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                {pick.result && (
+                                  <span className={`font-bold text-lg ${
+                                    pick.result === 'win' ? 'text-green-600' : 
+                                    pick.result === 'loss' ? 'text-red-600' : 'text-yellow-600'
+                                  }`}>
+                                    {pick.result === 'win' ? '✅' : pick.result === 'loss' ? '❌' : '🟡'}
+                                  </span>
+                                )}
+                                {pick.points_earned !== null && (
+                                  <span className={`font-bold ${
+                                    pick.points_earned > 0 ? 'text-green-600' : 'text-red-600'
+                                  }`}>
+                                    {pick.points_earned}pts
+                                  </span>
+                                )}
+                                {pick.result === null && pick.points_earned === null && (
+                                  <span className="text-gray-500 text-xs">pending</span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Display picks for new anonymous sets */}
+                    {set.source === 'new_anonymous' && 'pickSet' in set && (
+                      <div className="mt-3">
+                        <div className="text-xs font-medium text-green-700 mb-2">NEW PICK DETAILS:</div>
+                        <div className="grid gap-2">
+                          {set.pickSet.picks.map(pick => {
+                            // Use team names directly from the pick object
+                            return (
+                              <div key={pick.id} className="text-sm bg-white p-2 rounded border flex justify-between items-center">
+                                <div className="flex-1">
+                                  <div className="font-medium flex items-center gap-2">
+                                    {pick.is_lock && <Badge className="text-xs bg-amber-500">LOCK</Badge>}
+                                    {pick.away_team} @ {pick.home_team}
+                                  </div>
+                                  <div className="text-charcoal-600">
+                                    Pick: <span className="font-medium">{pick.selected_team}</span>
+                                  </div>
+                                </div>
+                                <div className="text-green-600 text-xs font-medium">
+                                  new pick
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>

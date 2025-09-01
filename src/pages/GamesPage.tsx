@@ -447,7 +447,6 @@ export default function GamesPage() {
                   key={game.id}
                   game={{
                     ...game,
-                    isLive: game.status === 'in_progress',
                     quarter: game.game_period || game.api_period,
                     clock: game.game_clock || game.api_clock
                   }}

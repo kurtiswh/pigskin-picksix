@@ -154,13 +154,27 @@ export class LiveUpdateService {
       // Step 2: Fetch latest scores from College Football API
       console.log('📡 Fetching latest scores from API...')
       
-      // Use improved approach: Get all CFBD games and match by team names
-      // The UUID-to-integer conversion doesn't match CFBD IDs, so we'll use team matching
-      console.log(`🎯 Fetching all CFBD live games for team matching...`)
+      // Filter out already completed games from database to avoid unnecessary processing
+      const nonCompletedGames = currentGames.filter(g => g.status !== 'completed')
+      console.log(`📊 Found ${nonCompletedGames.length} non-completed games to check (skipping ${currentGames.length - nonCompletedGames.length} completed)`)
+      
+      if (nonCompletedGames.length === 0) {
+        console.log('✅ All games already completed - no updates needed')
+        return {
+          success: true,
+          gamesUpdated: 0,
+          picksProcessed: 0,
+          errors: [],
+          lastUpdate: new Date()
+        }
+      }
+      
+      // Optimized approach: Only fetch CFBD games for non-completed database games
+      console.log(`🎯 Fetching CFBD games for ${nonCompletedGames.length} non-completed database games...`)
       
       let updatedApiGames
       try {
-        // Get all CFBD scoreboard games (not filtered by IDs)
+        // Get all CFBD scoreboard games (we still need all to match by team names)
         const response = await fetch(
           `https://api.collegefootballdata.com/scoreboard?year=${season}&week=${week}&classification=fbs`,
           {
@@ -177,37 +191,76 @@ export class LiveUpdateService {
         const scoreboardData = await response.json()
         console.log(`📊 CFBD API returned ${scoreboardData.length} total games`)
         
-        // Convert to our game format and filter for live games
-        updatedApiGames = scoreboardData
-          .filter(game => game.status === 'in_progress' || game.period !== null || game.clock !== null)
-          .map(game => {
-            // API-based completion detection - use only official status fields
-            const isCompleted = game.status === 'completed' || game.status === 'final'
-            
-            // Log when we detect completion for debugging
-            if (isCompleted && game.status !== 'completed') {
-              console.log(`🎯 Detected game completion: ${game.awayTeam.name} @ ${game.homeTeam.name} (Q${game.period} ${game.clock})`)
+        // Convert ALL games to our format with timing validation
+        updatedApiGames = scoreboardData.map(game => {
+          // Enhanced status determination with timing validation
+          let gameStatus: string
+          
+          // Get the game's scheduled start time and current time
+          const gameStartTime = new Date(game.startDate)
+          const currentTime = new Date()
+          const isGameInFuture = gameStartTime.getTime() > currentTime.getTime()
+          
+          if (game.status === 'completed' || game.status === 'final') {
+            // CRITICAL FIX: Never mark future games as completed
+            if (isGameInFuture) {
+              console.warn(`🚨 API reports game as ${game.status} but it's scheduled for the future: ${game.awayTeam.name} @ ${game.homeTeam.name} at ${gameStartTime.toLocaleString()}`)
+              gameStatus = 'scheduled'
+            } else {
+              gameStatus = 'completed'
             }
-            
-            return {
-              id: game.id,
-              home_team: game.homeTeam.name,
-              away_team: game.awayTeam.name,
-              home_points: game.homeTeam.points || 0,
-              away_points: game.awayTeam.points || 0,
-              completed: isCompleted,
-              status: isCompleted ? 'completed' : game.status,
-              period: game.period,
-              clock: game.clock,
-              spread: game.betting?.spread || 0
+          } else if (game.status === 'in_progress') {
+            // In-progress games should also not be in the future
+            if (isGameInFuture) {
+              console.warn(`🚨 API reports game as in_progress but it's scheduled for the future: ${game.awayTeam.name} @ ${game.homeTeam.name} at ${gameStartTime.toLocaleString()}`)
+              gameStatus = 'scheduled'
+            } else {
+              gameStatus = 'in_progress'
             }
-          })
+          } else {
+            gameStatus = 'scheduled'
+          }
+          
+          const isCompleted = gameStatus === 'completed'
+          
+          // Simple logging for status changes
+          if (gameStatus === 'in_progress') {
+            console.log(`🏈 Live game: ${game.awayTeam.name} @ ${game.homeTeam.name} - ${game.awayTeam.points || 0}-${game.homeTeam.points || 0}`)
+          } else if (gameStatus === 'completed') {
+            console.log(`✅ Completed game: ${game.awayTeam.name} @ ${game.homeTeam.name} - ${game.awayTeam.points || 0}-${game.homeTeam.points || 0}`)
+          }
+          
+          return {
+            id: game.id,
+            home_team: game.homeTeam.name,
+            away_team: game.awayTeam.name,
+            home_points: game.homeTeam.points || 0,
+            away_points: game.awayTeam.points || 0,
+            completed: isCompleted,
+            status: gameStatus,
+            period: game.period,
+            clock: game.clock,
+            spread: game.betting?.spread || 0
+          }
+        })
         
-        console.log(`🔴 Found ${updatedApiGames.length} live/completed games from CFBD:`)
-        updatedApiGames.forEach(apiGame => {
+        // Log summary of API games by status
+        const statusCounts = updatedApiGames.reduce((acc, game) => {
+          acc[game.status] = (acc[game.status] || 0) + 1
+          return acc
+        }, {} as Record<string, number>)
+        
+        console.log(`📊 API game status breakdown:`)
+        Object.entries(statusCounts).forEach(([status, count]) => {
+          console.log(`   ${status}: ${count} games`)
+        })
+        
+        // Log details for non-scheduled games
+        updatedApiGames.filter(g => g.status !== 'scheduled').forEach(apiGame => {
           const liveInfo = apiGame.period && apiGame.clock ? ` - Q${apiGame.period} ${apiGame.clock}` : ''
-          const completionInfo = apiGame.completed ? ' ✅ COMPLETED' : ''
-          console.log(`   ${apiGame.away_team} @ ${apiGame.home_team}${liveInfo}${completionInfo}`)
+          const scoreInfo = ` (${apiGame.away_points}-${apiGame.home_points})`
+          const statusEmoji = apiGame.status === 'completed' ? '✅' : '🔴'
+          console.log(`   ${statusEmoji} ${apiGame.away_team} @ ${apiGame.home_team}${scoreInfo}${liveInfo}`)
         })
         
       } catch (apiError: any) {
@@ -223,9 +276,12 @@ export class LiveUpdateService {
 
       for (const apiGame of updatedApiGames) {
         console.log(`\n🎯 Processing API game: ${apiGame.away_team} @ ${apiGame.home_team} (ID: ${apiGame.id})`)
+        console.log(`   API Status: ${apiGame.status}, Completed: ${apiGame.completed}`)
+        console.log(`   API Scores: ${apiGame.away_points}-${apiGame.home_points}`)
+        console.log(`   API Period/Clock: Q${apiGame.period} ${apiGame.clock}`)
         
-        // Use improved team name matching (the UUID conversion doesn't work)
-        let dbGame = currentGames.find(g => {
+        // Only match against non-completed database games
+        let dbGame = nonCompletedGames.find(g => {
           // Exact match first
           if (g.home_team.toLowerCase() === apiGame.home_team.toLowerCase() &&
               g.away_team.toLowerCase() === apiGame.away_team.toLowerCase()) {
@@ -251,21 +307,68 @@ export class LiveUpdateService {
         }
         
         console.log(`✅ Found matching database game: ${dbGame.away_team} @ ${dbGame.home_team}`)
+        console.log(`   DB Status: ${dbGame.status}, DB Scores: ${dbGame.away_score}-${dbGame.home_score}`)
+        console.log(`   DB Winner ATS: ${dbGame.winner_against_spread || 'Not set'}`)
 
         // Check if this is a newly completed game
         const wasCompleted = dbGame.status === 'completed'
         const isNowCompleted = apiGame.completed
+        
+        // IMPORTANT: Never allow status changes FROM completed status
+        // This prevents API errors from corrupting final game results
+        if (wasCompleted) {
+          console.log(`⚠️  SKIPPING STATUS UPDATE: Game already completed - ${dbGame.away_team} @ ${dbGame.home_team}`)
+          console.log(`   Database shows 'completed', API shows '${apiGame.status}' - keeping completed status`)
+          continue // Skip processing this game entirely
+        }
+        
+        if (!wasCompleted && isNowCompleted) {
+          console.log(`🎉 GAME COMPLETION DETECTED: ${dbGame.away_team} @ ${dbGame.home_team}`)
+          console.log(`   Will update status from '${dbGame.status}' to 'completed'`)
+        }
 
-        // Check if scores, status, or live timing data have changed
+        // Enhanced status validation using database game's kickoff time
+        // This prevents future games from being marked as completed even if API is wrong
+        let finalStatus = apiGame.status
+        
+        // Additional safety check: Validate against database kickoff time
+        if (dbGame.kickoff_time) {
+          const kickoffTime = new Date(dbGame.kickoff_time)
+          const currentTime = new Date()
+          const isGameInFuture = kickoffTime.getTime() > currentTime.getTime()
+          
+          if (isGameInFuture && (finalStatus === 'completed' || finalStatus === 'in_progress')) {
+            console.warn(`🚨 SAFETY CHECK: Preventing future game from being marked as ${finalStatus}`)
+            console.warn(`   Game: ${dbGame.away_team} @ ${dbGame.home_team}`)
+            console.warn(`   Kickoff: ${kickoffTime.toLocaleString()}`)
+            console.warn(`   Current: ${currentTime.toLocaleString()}`)
+            console.warn(`   Forcing status to 'scheduled'`)
+            finalStatus = 'scheduled'
+          }
+        }
+        
+        // Use API timing data directly
+        const finalPeriod = apiGame.period
+        const finalClock = apiGame.clock
+        
         const hasChanges = 
           dbGame.home_score !== apiGame.home_points ||
           dbGame.away_score !== apiGame.away_points ||
-          dbGame.status !== (apiGame.completed ? 'completed' : 'in_progress') ||
-          dbGame.game_period !== apiGame.period ||
-          dbGame.game_clock !== apiGame.clock
+          dbGame.status !== finalStatus ||
+          dbGame.game_period !== finalPeriod ||
+          dbGame.game_clock !== finalClock
 
         if (hasChanges) {
+          console.log(`🔄 Updating game: ${dbGame.away_team} @ ${dbGame.home_team}`)
+          console.log(`   Scores: ${apiGame.away_points}-${apiGame.home_points}`)
+          console.log(`   Status: ${finalStatus}`)
+          if (finalPeriod && finalClock) {
+            console.log(`   Timing: Q${finalPeriod} ${finalClock}`)
+          }
+          
           try {
+            const updateStartTime = Date.now()
+            
             await updateGameInDatabase({
               game_id: dbGame.id,
               home_score: apiGame.home_points || 0,
@@ -273,10 +376,11 @@ export class LiveUpdateService {
               home_team: apiGame.home_team,
               away_team: apiGame.away_team,
               spread: apiGame.spread || dbGame.spread,
-              status: apiGame.completed ? 'completed' : 'in_progress',
-              // Add live timing data from CFBD scoreboard API
-              game_period: apiGame.period,
-              game_clock: apiGame.clock,
+              status: finalStatus,
+              // Use calculated timing data (with defaults for newly started games)
+              game_period: finalPeriod,
+              game_clock: finalClock,
+              // Keep API data separate for debugging
               api_period: apiGame.period,
               api_clock: apiGame.clock,
               api_home_points: apiGame.home_points,
@@ -284,14 +388,22 @@ export class LiveUpdateService {
               api_completed: apiGame.completed
             })
 
+            const updateDuration = Date.now() - updateStartTime
+            console.log(`   ✅ Update successful in ${updateDuration}ms`)
+            
             gamesUpdated++
 
             // Track newly completed games for pick processing
             if (!wasCompleted && isNowCompleted) {
               newlyCompletedGames.push(dbGame.id)
+              console.log(`   🎯 Added to completed games list - trigger will handle scoring`)
             }
 
           } catch (updateError: any) {
+            console.error(`   ❌ Update failed: ${updateError.message}`)
+            if (updateError.message.includes('timeout')) {
+              console.error(`   🚨 DATABASE TIMEOUT - Check triggers and database load`)
+            }
             errors.push(`Game update failed for ${dbGame.id}: ${updateError.message}`)
           }
         }
@@ -373,6 +485,65 @@ export class LiveUpdateService {
   }
 
   /**
+   * Check if there are games approaching kickoff time that should trigger live updates
+   */
+  private async hasApproachingGames(): Promise<{ hasApproaching: boolean; approachingCount: number; nextKickoff: Date | null }> {
+    try {
+      const { data: activeWeek } = await supabase
+        .from('week_settings')
+        .select('week, season')
+        .eq('picks_open', true)
+        .single()
+
+      if (!activeWeek) {
+        return { hasApproaching: false, approachingCount: 0, nextKickoff: null }
+      }
+
+      const { data: games, error } = await supabase
+        .from('games')
+        .select('id, status, kickoff_time')
+        .eq('season', activeWeek.season)
+        .eq('week', activeWeek.week)
+        .in('status', ['scheduled', 'in_progress']) // Include both scheduled and in_progress games
+
+      if (error) {
+        console.error('Error checking approaching games:', error)
+        return { hasApproaching: false, approachingCount: 0, nextKickoff: null }
+      }
+
+      const now = new Date()
+      const approachingGames = games?.filter(game => {
+        const kickoffTime = new Date(game.kickoff_time)
+        const minutesUntilKickoff = (kickoffTime.getTime() - now.getTime()) / (1000 * 60)
+        const minutesSinceKickoff = (now.getTime() - kickoffTime.getTime()) / (1000 * 60)
+        
+        // Games are "approaching" if:
+        // 1. Kickoff is within the next 30 minutes, OR
+        // 2. Game started within the last 4 hours (could be live)
+        return minutesUntilKickoff <= 30 || (minutesSinceKickoff >= 0 && minutesSinceKickoff <= 240)
+      }) || []
+
+      const nextKickoff = games && games.length > 0 
+        ? games
+            .filter(g => g.status === 'scheduled')
+            .map(g => new Date(g.kickoff_time))
+            .filter(kickoff => kickoff.getTime() > now.getTime())
+            .sort((a, b) => a.getTime() - b.getTime())[0] || null
+        : null
+
+      return { 
+        hasApproaching: approachingGames.length > 0, 
+        approachingCount: approachingGames.length,
+        nextKickoff
+      }
+
+    } catch (error) {
+      console.error('Error checking for approaching games:', error)
+      return { hasApproaching: false, approachingCount: 0, nextKickoff: null }
+    }
+  }
+
+  /**
    * Automatic polling update - detects current active week and games
    */
   private async runUpdate(): Promise<void> {
@@ -440,6 +611,7 @@ export class LiveUpdateService {
   async startSmartPolling(): Promise<void> {
     const isGameDay = this.isGameDay()
     const { hasActive, activeCount } = await this.hasActiveGames()
+    const { hasApproaching, approachingCount, nextKickoff } = await this.hasApproachingGames()
     
     let intervalMs
     let description
@@ -449,8 +621,16 @@ export class LiveUpdateService {
       // Budget: 12 calls/hour only when games are live
       intervalMs = 5 * 60 * 1000
       description = `${activeCount} active games (live updates)`
+    } else if (hasApproaching) {
+      // Approaching games - update every 10 minutes to catch kickoffs
+      // Budget: 6 calls/hour when games are approaching
+      intervalMs = 10 * 60 * 1000
+      const nextKickoffText = nextKickoff 
+        ? ` (next at ${nextKickoff.toLocaleTimeString()})` 
+        : ''
+      description = `${approachingCount} games approaching kickoff${nextKickoffText}`
     } else if (isGameDay) {
-      // Game day but no active games - check every 30 minutes
+      // Game day but no active/approaching games - check every 30 minutes
       // Budget: 2 calls/hour on game days only
       intervalMs = 30 * 60 * 1000
       description = 'game day monitoring (waiting for games)'
@@ -467,7 +647,7 @@ export class LiveUpdateService {
   }
 
   /**
-   * Auto-start polling if there are active games or it's game day
+   * Auto-start polling if there are active games, approaching games, or it's game day
    */
   async autoStartIfNeeded(): Promise<void> {
     if (this.isPolling) {
@@ -476,12 +656,22 @@ export class LiveUpdateService {
 
     const isGameDay = this.isGameDay()
     const { hasActive } = await this.hasActiveGames()
+    const { hasApproaching, approachingCount, nextKickoff } = await this.hasApproachingGames()
 
-    if (hasActive || isGameDay) {
-      console.log(`🚀 Auto-starting live updates (Active games: ${hasActive}, Game day: ${isGameDay})`)
+    if (hasActive) {
+      console.log(`🚀 Auto-starting live updates - ${hasActive} active games`)
+      await this.startSmartPolling()
+    } else if (hasApproaching) {
+      const nextKickoffText = nextKickoff 
+        ? ` (next at ${nextKickoff.toLocaleTimeString()})` 
+        : ''
+      console.log(`🚀 Auto-starting live updates - ${approachingCount} games approaching kickoff${nextKickoffText}`)
+      await this.startSmartPolling()
+    } else if (isGameDay) {
+      console.log(`🚀 Auto-starting live updates - Game day (Saturday)`)
       await this.startSmartPolling()
     } else {
-      console.log('⏳ No auto-start needed - no active games and not game day')
+      console.log('⏳ No auto-start needed - no active/approaching games and not game day')
     }
   }
 
@@ -491,9 +681,17 @@ export class LiveUpdateService {
   async shouldAutoStart(): Promise<{ should: boolean; reason: string }> {
     const isGameDay = this.isGameDay()
     const { hasActive, activeCount } = await this.hasActiveGames()
+    const { hasApproaching, approachingCount, nextKickoff } = await this.hasApproachingGames()
 
     if (hasActive) {
       return { should: true, reason: `${activeCount} games in progress` }
+    }
+    
+    if (hasApproaching) {
+      const nextKickoffText = nextKickoff 
+        ? ` (next kickoff: ${nextKickoff.toLocaleTimeString()})` 
+        : ''
+      return { should: true, reason: `${approachingCount} games approaching kickoff${nextKickoffText}` }
     }
     
     if (isGameDay) {

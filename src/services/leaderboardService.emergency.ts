@@ -10,6 +10,21 @@ export interface EmergencyLeaderboardEntry {
   pick_source?: 'authenticated' | 'anonymous' | 'mixed'
 }
 
+export interface UserWeeklyBreakdown {
+  user_id: string
+  display_name: string
+  weeks: WeeklyPerformance[]
+}
+
+export interface WeeklyPerformance {
+  week: number
+  points: number
+  record: string // "W-L-P" format
+  lock_record: string // "W-L" format
+  picks_made: number
+  best_week?: boolean // Flag for highlighting best performance
+}
+
 /**
  * Emergency Leaderboard Service - Works with any database structure
  * 
@@ -220,5 +235,112 @@ export class EmergencyLeaderboardService {
       season_record: `${stats.total_wins}-${stats.total_losses}-${stats.total_pushes}`,
       lock_record: `${stats.lock_wins}-${stats.lock_losses}`
     }))
+  }
+
+  /**
+   * Get detailed weekly breakdown for a specific user
+   */
+  static async getUserWeeklyBreakdown(userId: string, season: number): Promise<UserWeeklyBreakdown | null> {
+    console.log('🚨 [EMERGENCY] Loading weekly breakdown for user', userId, 'season', season)
+
+    try {
+      // Query picks grouped by week for this user
+      const query = supabase
+        .from('picks')
+        .select(`
+          week,
+          result,
+          points_earned,
+          is_lock,
+          users!inner(display_name)
+        `)
+        .eq('user_id', userId)
+        .eq('season', season)
+        .not('result', 'is', null)
+        .order('week')
+
+      const { data: picks, error } = await Promise.race([
+        query,
+        this.createTimeout(this.QUERY_TIMEOUT)
+      ])
+
+      if (error) {
+        console.log('❌ [BREAKDOWN] Direct picks query failed:', error.message)
+        return null
+      }
+
+      if (!picks || picks.length === 0) {
+        console.log('❌ [BREAKDOWN] No picks found for user')
+        return null
+      }
+
+      // Group picks by week and calculate weekly stats
+      const weeklyStatsMap = new Map<number, {
+        wins: number
+        losses: number  
+        pushes: number
+        lock_wins: number
+        lock_losses: number
+        points: number
+        picks_made: number
+      }>()
+
+      picks.forEach(pick => {
+        if (!weeklyStatsMap.has(pick.week)) {
+          weeklyStatsMap.set(pick.week, {
+            wins: 0,
+            losses: 0,
+            pushes: 0,
+            lock_wins: 0,
+            lock_losses: 0,
+            points: 0,
+            picks_made: 0
+          })
+        }
+
+        const weekStats = weeklyStatsMap.get(pick.week)!
+        weekStats.picks_made++
+        weekStats.points += pick.points_earned || 0
+
+        if (pick.result === 'win') {
+          weekStats.wins++
+          if (pick.is_lock) weekStats.lock_wins++
+        } else if (pick.result === 'loss') {
+          weekStats.losses++
+          if (pick.is_lock) weekStats.lock_losses++
+        } else if (pick.result === 'push') {
+          weekStats.pushes++
+        }
+      })
+
+      // Convert to WeeklyPerformance array
+      const weeks: WeeklyPerformance[] = Array.from(weeklyStatsMap.entries()).map(([week, stats]) => ({
+        week,
+        points: stats.points,
+        record: `${stats.wins}-${stats.losses}-${stats.pushes}`,
+        lock_record: `${stats.lock_wins}-${stats.lock_losses}`,
+        picks_made: stats.picks_made
+      }))
+
+      // Mark best week (highest points)
+      if (weeks.length > 0) {
+        const bestWeekIndex = weeks.reduce((bestIdx, week, idx) => 
+          week.points > weeks[bestIdx].points ? idx : bestIdx, 0
+        )
+        weeks[bestWeekIndex].best_week = true
+      }
+
+      console.log('✅ [BREAKDOWN] Found', weeks.length, 'weeks of data for user')
+      
+      return {
+        user_id: userId,
+        display_name: picks[0]?.users?.display_name || 'Unknown User',
+        weeks: weeks.sort((a, b) => a.week - b.week)
+      }
+
+    } catch (error) {
+      console.log('❌ [BREAKDOWN] Error loading weekly breakdown:', error.message)
+      return null
+    }
   }
 }

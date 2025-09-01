@@ -37,6 +37,8 @@ export class LeaderboardService {
 
   /**
    * Get leaderboard data for the entire season
+   * Uses season_leaderboard view that automatically respects pick set precedence
+   * (authenticated picks take precedence over anonymous picks via is_active_pick_set)
    */
   static async getSeasonLeaderboard(season: number): Promise<LeaderboardEntry[]> {
     console.log('🏆 LeaderboardService.getSeasonLeaderboard: Starting for season', season)
@@ -49,8 +51,8 @@ export class LeaderboardService {
         .from('season_leaderboard')
         .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks, is_verified, pick_source')
         .eq('season', season)
-        // Modified verification filter: show verified users OR users with anonymous picks
-        .or('is_verified.eq.true,pick_source.eq.anonymous,pick_source.eq.mixed')
+        // Trust the view to handle pick set precedence - no additional filtering needed
+        // The view already respects is_active_pick_set from our trigger system
         .order('season_rank', { ascending: true })
         .limit(100) // Reasonable limit to prevent excessive data transfer
 
@@ -62,34 +64,13 @@ export class LeaderboardService {
       }
       
       if (!seasonData || seasonData.length === 0) {
-        console.log('🏆 LeaderboardService.getSeasonLeaderboard: No verified users found for season', season)
-        
-        // Try fallback query without is_verified filter in case data population is the issue
-        console.log('🔄 Attempting fallback query without verification filter...')
-        const { data: fallbackData, error: fallbackError } = await Promise.race([
-          supabase
-            .from('season_leaderboard')
-            .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks, is_verified, pick_source')
-            .eq('season', season)
-            .order('season_rank', { ascending: true })
-            .limit(20),
-          this.createTimeoutPromise<any>(5000) // Shorter timeout for fallback
-        ])
-        
-        if (fallbackError) {
-          throw new Error(`Fallback query failed: ${fallbackError.message}`)
-        }
-        
-        if (fallbackData && fallbackData.length > 0) {
-          console.log('🔄 Fallback found', fallbackData.length, 'total entries (including unverified)')
-          // Return all data but log the verification issue
-          console.warn('⚠️ Returning unverified users due to data population issue')
-        }
-        
-        return this.formatSeasonData(fallbackData || [])
+        console.log('🏆 LeaderboardService.getSeasonLeaderboard: No season leaderboard data found for season', season)
+        console.log('💡 This may indicate the leaderboard triggers haven\'t populated the views yet')
+        return []
       }
       
-      console.log('🏆 LeaderboardService.getSeasonLeaderboard: ✅ Found', seasonData.length, 'verified season entries')
+      console.log('🏆 LeaderboardService.getSeasonLeaderboard: ✅ Found', seasonData.length, 'season entries')
+      console.log('📊 Pick source distribution:', this.analyzePickSources(seasonData))
       return this.formatSeasonData(seasonData)
 
     } catch (error) {
@@ -127,6 +108,8 @@ export class LeaderboardService {
 
   /**
    * Get leaderboard data for a specific week
+   * Uses weekly_leaderboard view that automatically respects pick set precedence
+   * (authenticated picks take precedence over anonymous picks via is_active_pick_set)
    */
   static async getWeeklyLeaderboard(season: number, week: number): Promise<LeaderboardEntry[]> {
     console.log('📊 LeaderboardService.getWeeklyLeaderboard:', { season, week })
@@ -140,8 +123,8 @@ export class LeaderboardService {
         .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, picks_made, is_verified, pick_source')
         .eq('season', season)
         .eq('week', week)
-        // Modified verification filter: show verified users OR users with anonymous picks
-        .or('is_verified.eq.true,pick_source.eq.anonymous,pick_source.eq.mixed')
+        // Trust the view to handle pick set precedence - no additional filtering needed
+        // The view already respects is_active_pick_set from our trigger system
         .order('weekly_rank', { ascending: true })
         .limit(100) // Reasonable limit to prevent excessive data transfer
 
@@ -153,34 +136,13 @@ export class LeaderboardService {
       }
 
       if (!weeklyData || weeklyData.length === 0) {
-        console.log('📊 LeaderboardService.getWeeklyLeaderboard: No verified weekly data found for season', season, 'week', week)
-        
-        // Try fallback query without is_verified filter
-        console.log('🔄 Attempting fallback query without verification filter...')
-        const { data: fallbackData, error: fallbackError } = await Promise.race([
-          supabase
-            .from('weekly_leaderboard')
-            .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, picks_made, is_verified, pick_source')
-            .eq('season', season)
-            .eq('week', week)
-            .order('weekly_rank', { ascending: true })
-            .limit(20),
-          this.createTimeoutPromise<any>(5000) // Shorter timeout for fallback
-        ])
-        
-        if (fallbackError) {
-          throw new Error(`Fallback query failed: ${fallbackError.message}`)
-        }
-        
-        if (fallbackData && fallbackData.length > 0) {
-          console.log('🔄 Fallback found', fallbackData.length, 'total weekly entries (including unverified)')
-          console.warn('⚠️ Returning unverified users due to data population issue')
-        }
-        
-        return this.formatWeeklyData(fallbackData || [])
+        console.log('📊 LeaderboardService.getWeeklyLeaderboard: No weekly leaderboard data found for season', season, 'week', week)
+        console.log('💡 This may indicate the leaderboard triggers haven\'t populated the weekly view yet')
+        return []
       }
 
-      console.log('📊 LeaderboardService.getWeeklyLeaderboard: ✅ Found', weeklyData.length, 'verified weekly entries')
+      console.log('📊 LeaderboardService.getWeeklyLeaderboard: ✅ Found', weeklyData.length, 'weekly entries')
+      console.log('📊 Pick source distribution:', this.analyzePickSources(weeklyData))
       return this.formatWeeklyData(weeklyData)
 
     } catch (error) {
@@ -214,6 +176,19 @@ export class LeaderboardService {
 
     console.log('✅ Generated weekly leaderboard:', leaderboardEntries.length, 'entries')
     return leaderboardEntries
+  }
+
+  /**
+   * Analyze pick source distribution for debugging and monitoring
+   */
+  private static analyzePickSources(data: any[]): {[key: string]: number} {
+    const distribution = data.reduce((acc: {[key: string]: number}, entry) => {
+      const source = entry.pick_source || 'unknown'
+      acc[source] = (acc[source] || 0) + 1
+      return acc
+    }, {})
+    
+    return distribution
   }
 
 }

@@ -11,6 +11,28 @@ export interface EmergencyWeeklyLeaderboardEntry {
   pick_source?: 'authenticated' | 'anonymous' | 'mixed'
 }
 
+export interface WeeklyPickDetail {
+  game_id: string
+  game_name: string  // "Team A @ Team B"
+  selected_team: string
+  is_lock: boolean
+  result: 'win' | 'loss' | 'push' | null
+  points_earned: number
+  game_status: 'scheduled' | 'in_progress' | 'completed'
+  kickoff_time: string
+}
+
+export interface UserWeeklyPicks {
+  user_id: string
+  display_name: string
+  week: number
+  season: number
+  picks: WeeklyPickDetail[]
+  total_points: number
+  weekly_record: string
+  lock_record: string
+}
+
 /**
  * Emergency Weekly Leaderboard Service - Works with any database structure
  * 
@@ -226,5 +248,88 @@ export class EmergencyWeeklyLeaderboardService {
       week: week,
       pick_source: 'authenticated'
     }))
+  }
+
+  /**
+   * Get detailed weekly picks for a specific user
+   */
+  static async getUserWeeklyPicks(userId: string, season: number, week: number): Promise<UserWeeklyPicks | null> {
+    console.log('🚨 [WEEKLY EMERGENCY] Loading picks for user', userId, 'season', season, 'week', week)
+
+    try {
+      // Query picks with game details for this user/week/season
+      const query = supabase
+        .from('picks')
+        .select(`
+          game_id,
+          selected_team,
+          is_lock,
+          result,
+          points_earned,
+          users!inner(display_name),
+          games!inner(
+            home_team,
+            away_team,
+            status,
+            kickoff_time
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('season', season)
+        .eq('week', week)
+        .order('games(kickoff_time)')
+
+      const { data: picks, error } = await Promise.race([
+        query,
+        this.createTimeout(this.QUERY_TIMEOUT)
+      ])
+
+      if (error) {
+        console.log('❌ [WEEKLY PICKS] Direct picks query failed:', error.message)
+        return null
+      }
+
+      if (!picks || picks.length === 0) {
+        console.log('❌ [WEEKLY PICKS] No picks found for user')
+        return null
+      }
+
+      // Format the pick details
+      const pickDetails: WeeklyPickDetail[] = picks.map(pick => ({
+        game_id: pick.game_id,
+        game_name: `${pick.games.away_team} @ ${pick.games.home_team}`,
+        selected_team: pick.selected_team,
+        is_lock: pick.is_lock,
+        result: pick.result,
+        points_earned: pick.points_earned || 0,
+        game_status: pick.games.status,
+        kickoff_time: pick.games.kickoff_time
+      }))
+
+      // Calculate summary statistics
+      const totalPoints = pickDetails.reduce((sum, pick) => sum + pick.points_earned, 0)
+      const wins = pickDetails.filter(p => p.result === 'win').length
+      const losses = pickDetails.filter(p => p.result === 'loss').length
+      const pushes = pickDetails.filter(p => p.result === 'push').length
+      const lockWins = pickDetails.filter(p => p.result === 'win' && p.is_lock).length
+      const lockLosses = pickDetails.filter(p => p.result === 'loss' && p.is_lock).length
+
+      console.log('✅ [WEEKLY PICKS] Found', pickDetails.length, 'picks for user')
+      
+      return {
+        user_id: userId,
+        display_name: picks[0]?.users?.display_name || 'Unknown User',
+        week: week,
+        season: season,
+        picks: pickDetails,
+        total_points: totalPoints,
+        weekly_record: `${wins}-${losses}-${pushes}`,
+        lock_record: `${lockWins}-${lockLosses}`
+      }
+
+    } catch (error) {
+      console.log('❌ [WEEKLY PICKS] Error loading weekly picks:', error.message)
+      return null
+    }
   }
 }

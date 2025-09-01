@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 interface Game {
   id: string
@@ -30,6 +31,46 @@ interface PickStatsWidgetProps {
   loading?: boolean
 }
 
+// Custom segmented progress bar component
+function SegmentedProgressBar({ 
+  totalValue, 
+  lockValue, 
+  regularValue, 
+  className 
+}: {
+  totalValue: number
+  lockValue: number
+  regularValue: number
+  className?: string
+}) {
+  if (totalValue === 0) return null
+  
+  const lockPercentage = (lockValue / totalValue) * 100
+  const regularPercentage = (regularValue / totalValue) * 100
+  
+  return (
+    <div className={cn("relative h-2 w-full overflow-hidden rounded-full bg-stone-200", className)}>
+      {/* Lock section (left side, gold color) */}
+      {lockValue > 0 && (
+        <div
+          className="absolute top-0 left-0 h-full bg-gold-500 transition-all"
+          style={{ width: `${lockPercentage}%` }}
+        />
+      )}
+      {/* Regular picks section (fills remaining space) */}
+      {regularValue > 0 && (
+        <div
+          className="absolute top-0 h-full bg-pigskin-500 transition-all"
+          style={{ 
+            left: `${lockPercentage}%`,
+            width: `${regularPercentage}%`
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
 export default function PickStatsWidget({ stats, game, loading }: PickStatsWidgetProps) {
   if (loading) {
     return (
@@ -51,12 +92,9 @@ export default function PickStatsWidget({ stats, game, loading }: PickStatsWidge
   const homePickPercentage = Math.round((stats.home_picks / stats.total_picks) * 100)
   const awayPickPercentage = Math.round((stats.away_picks / stats.total_picks) * 100)
   
-  const homeLockPercentage = stats.lock_picks > 0 
-    ? Math.round((stats.home_lock_picks / stats.lock_picks) * 100) 
-    : 0
-  const awayLockPercentage = stats.lock_picks > 0 
-    ? Math.round((stats.away_lock_picks / stats.lock_picks) * 100) 
-    : 0
+  // Calculate regular picks (non-lock picks)
+  const homeRegularPicks = stats.home_picks - stats.home_lock_picks
+  const awayRegularPicks = stats.away_picks - stats.away_lock_picks
 
   const getWinnerIndicator = (team: string) => {
     if (stats.winner_team === team) {
@@ -65,17 +103,21 @@ export default function PickStatsWidget({ stats, game, loading }: PickStatsWidge
     return ""
   }
 
-
   return (
     <div className="border-t pt-3 space-y-3">
       <div className="text-sm font-medium text-charcoal-700 text-center">
         Pick Statistics
       </div>
 
-      {/* Pick Distribution */}
+      {/* Pick Distribution with combined locks */}
       <div className="space-y-2">
-        <div className="text-xs font-medium text-charcoal-600">
-          Pick Distribution ({stats.total_picks} total)
+        <div className="text-xs font-medium text-charcoal-600 flex items-center justify-between">
+          <span>Pick Distribution ({stats.total_picks} total)</span>
+          {stats.lock_picks > 0 && (
+            <span className="text-charcoal-500">
+              🔒 {stats.lock_picks} locks
+            </span>
+          )}
         </div>
         
         <div className="space-y-2">
@@ -88,10 +130,17 @@ export default function PickStatsWidget({ stats, game, loading }: PickStatsWidge
             <div className="flex items-center space-x-2">
               <span className="text-charcoal-600">{stats.away_picks}</span>
               <span className="text-charcoal-500">({awayPickPercentage}%)</span>
+              {stats.away_lock_picks > 0 && (
+                <span className="text-xs text-charcoal-500">
+                  {stats.away_lock_picks} 🔒
+                </span>
+              )}
             </div>
           </div>
-          <Progress 
-            value={awayPickPercentage} 
+          <SegmentedProgressBar
+            totalValue={stats.total_picks}
+            lockValue={stats.away_lock_picks}
+            regularValue={awayRegularPicks}
             className="h-2"
           />
 
@@ -104,39 +153,35 @@ export default function PickStatsWidget({ stats, game, loading }: PickStatsWidge
             <div className="flex items-center space-x-2">
               <span className="text-charcoal-600">{stats.home_picks}</span>
               <span className="text-charcoal-500">({homePickPercentage}%)</span>
+              {stats.home_lock_picks > 0 && (
+                <span className="text-xs text-charcoal-500">
+                  {stats.home_lock_picks} 🔒
+                </span>
+              )}
             </div>
           </div>
-          <Progress 
-            value={homePickPercentage} 
+          <SegmentedProgressBar
+            totalValue={stats.total_picks}
+            lockValue={stats.home_lock_picks}
+            regularValue={homeRegularPicks}
             className="h-2"
           />
         </div>
+        
+        {/* Legend for the colors */}
+        {stats.lock_picks > 0 && (
+          <div className="flex items-center justify-center gap-4 text-xs text-charcoal-500 pt-1">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-2 bg-gold-500 rounded-sm"></div>
+              <span>Lock Picks</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-2 bg-pigskin-500 rounded-sm"></div>
+              <span>Regular Picks</span>
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Lock Distribution (if any locks exist) */}
-      {stats.lock_picks > 0 && (
-        <div className="space-y-2">
-          <div className="text-xs font-medium text-charcoal-600">
-            Lock Distribution ({stats.lock_picks} total) 🔒
-          </div>
-          
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="flex items-center justify-between">
-              <span>{game.away_team}</span>
-              <Badge variant="outline" className="text-xs">
-                {stats.away_lock_picks} ({awayLockPercentage}%)
-              </Badge>
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <span>{game.home_team}</span>
-              <Badge variant="outline" className="text-xs">
-                {stats.home_lock_picks} ({homeLockPercentage}%)
-              </Badge>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   )

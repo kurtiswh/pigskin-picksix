@@ -4,12 +4,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { EmergencyLeaderboardService, EmergencyLeaderboardEntry } from '@/services/leaderboardService.emergency'
+import { EmergencyLeaderboardService, EmergencyLeaderboardEntry, UserWeeklyBreakdown } from '@/services/leaderboardService.emergency'
 import { ProductionLeaderboardService, ProductionLeaderboardEntry } from '@/services/leaderboardService.production'
-import { EmergencyWeeklyLeaderboardService, EmergencyWeeklyLeaderboardEntry } from '@/services/weeklyLeaderboardService.emergency'
+import { EmergencyWeeklyLeaderboardService, EmergencyWeeklyLeaderboardEntry, UserWeeklyPicks } from '@/services/weeklyLeaderboardService.emergency'
 import { ProductionWeeklyLeaderboardService, ProductionWeeklyLeaderboardEntry } from '@/services/weeklyLeaderboardService.production'
 import { liveUpdateService, LiveUpdateStatus, LiveUpdateResult } from '@/services/liveUpdateService'
 import { useAuth } from '@/hooks/useAuth'
+import { ExpandableLeaderboardRow, LeaderboardRowContent } from '@/components/ExpandableLeaderboardRow'
+import { SeasonExpandedDetails } from '@/components/SeasonExpandedDetails'
+import { WeeklyExpandedDetails } from '@/components/WeeklyExpandedDetails'
 
 export default function TabbedLeaderboard() {
   const { user } = useAuth()
@@ -23,6 +26,11 @@ export default function TabbedLeaderboard() {
   const [strategy, setStrategy] = useState('')
   const [liveUpdateStatus, setLiveUpdateStatus] = useState<LiveUpdateStatus | null>(null)
   const [lastUnifiedUpdate, setLastUnifiedUpdate] = useState<LiveUpdateResult | null>(null)
+  
+  // State for expandable rows
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [expandedData, setExpandedData] = useState<Map<string, any>>(new Map())
+  const [loadingExpansions, setLoadingExpansions] = useState<Set<string>>(new Set())
   
   // Check if current user is admin
   const isAdmin = user?.is_admin === true
@@ -209,10 +217,17 @@ export default function TabbedLeaderboard() {
 
   // Unified update using the live update service
   const runUnifiedUpdate = async () => {
+    // Restrict manual API updates to admin users only
+    if (!isAdmin) {
+      console.warn('⚠️ Manual API updates are restricted to admin users only')
+      setError('Manual API updates are restricted to admin users to preserve API quota.')
+      return
+    }
+    
     try {
       setLoading(true)
       setError('')
-      console.log('🚀 [TABBED] Running unified update (games + picks)...')
+      console.log('🚀 [TABBED] Admin running unified update (games + picks)...')
       
       const result = await liveUpdateService.manualUpdate(season, selectedWeek)
       setLastUnifiedUpdate(result)
@@ -304,6 +319,52 @@ export default function TabbedLeaderboard() {
             <span>🔐</span> Auth
           </span>
         )
+    }
+  }
+
+  // Handle row expansion
+  const handleRowToggle = async (userId: string, tabType: 'season' | 'weekly') => {
+    const rowKey = `${userId}-${tabType}`
+    const isExpanded = expandedRows.has(rowKey)
+    
+    if (isExpanded) {
+      // Collapse row
+      const newExpanded = new Set(expandedRows)
+      newExpanded.delete(rowKey)
+      setExpandedRows(newExpanded)
+      return
+    }
+    
+    // Expand row - load data if not already loaded
+    const newExpanded = new Set(expandedRows)
+    newExpanded.add(rowKey)
+    setExpandedRows(newExpanded)
+    
+    if (!expandedData.has(rowKey)) {
+      const newLoading = new Set(loadingExpansions)
+      newLoading.add(rowKey)
+      setLoadingExpansions(newLoading)
+      
+      try {
+        let data
+        if (tabType === 'season') {
+          data = await EmergencyLeaderboardService.getUserWeeklyBreakdown(userId, season)
+        } else {
+          data = await EmergencyWeeklyLeaderboardService.getUserWeeklyPicks(userId, season, selectedWeek)
+        }
+        
+        if (data) {
+          const newExpandedData = new Map(expandedData)
+          newExpandedData.set(rowKey, data)
+          setExpandedData(newExpandedData)
+        }
+      } catch (error) {
+        console.error('Failed to load expanded data:', error)
+      } finally {
+        const newLoading = new Set(loadingExpansions)
+        newLoading.delete(rowKey)
+        setLoadingExpansions(newLoading)
+      }
     }
   }
 
@@ -571,37 +632,67 @@ export default function TabbedLeaderboard() {
           </div>
         )}
         
-        <table className="w-full">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left p-2">Rank</th>
-              <th className="text-left p-2">
-                <div className="flex items-center gap-1">
-                  Name
-                  {liveUpdateStatus?.isRunning && (
-                    <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></div>
-                  )}
+        {/* Header row */}
+        <div className="border-b bg-gray-50">
+          <div className="grid grid-cols-12 gap-2 p-2 text-sm font-medium text-gray-700">
+            <div className="col-span-1">Rank</div>
+            <div className="col-span-3">
+              <div className="flex items-center gap-1">
+                Name
+                {liveUpdateStatus?.isRunning && (
+                  <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></div>
+                )}
+              </div>
+            </div>
+            {isAdmin && <div className="col-span-2">Source</div>}
+            <div className={`col-span-2 ${isAdmin ? '' : 'col-span-2'}`}>Record</div>
+            <div className="col-span-2">Lock Record</div>
+            <div className="col-span-2">Points</div>
+          </div>
+        </div>
+
+        {/* Expandable rows */}
+        <div className="space-y-1">
+          {data.map((entry) => {
+            const tabType = activeTab === 'season' ? 'season' : 'weekly'
+            const rowKey = `${entry.user_id}-${tabType}`
+            const isExpanded = expandedRows.has(rowKey)
+            const isLoadingExpansion = loadingExpansions.has(rowKey)
+            const expansionData = expandedData.get(rowKey)
+            
+            return (
+              <ExpandableLeaderboardRow
+                key={entry.user_id}
+                isLoading={isLoadingExpansion}
+                expandedContent={
+                  expansionData ? (
+                    tabType === 'season' ? (
+                      <SeasonExpandedDetails data={expansionData} />
+                    ) : (
+                      <WeeklyExpandedDetails data={expansionData} />
+                    )
+                  ) : null
+                }
+              >
+                <div
+                  className="cursor-pointer"
+                  onClick={() => handleRowToggle(entry.user_id, tabType)}
+                >
+                  <LeaderboardRowContent
+                    rank={entry.season_rank || entry.weekly_rank}
+                    displayName={entry.display_name}
+                    record={entry.season_record || entry.weekly_record}
+                    lockRecord={entry.lock_record}
+                    points={entry.total_points}
+                    sourceBadge={isAdmin ? getSourceBadge(entry.pick_source) : undefined}
+                    isExpanded={isExpanded}
+                    isAdmin={isAdmin}
+                  />
                 </div>
-              </th>
-              {isAdmin && <th className="text-left p-2">Source</th>}
-              <th className="text-left p-2">Record</th>
-              <th className="text-left p-2">Lock Record</th>
-              <th className="text-left p-2">Points</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((entry) => (
-              <tr key={entry.user_id} className="border-b hover:bg-gray-50">
-                <td className="p-2 font-semibold">#{entry.season_rank || entry.weekly_rank}</td>
-                <td className="p-2">{entry.display_name}</td>
-                {isAdmin && <td className="p-2">{getSourceBadge(entry.pick_source)}</td>}
-                <td className="p-2">{entry.season_record || entry.weekly_record}</td>
-                <td className="p-2">{entry.lock_record}</td>
-                <td className="p-2 font-semibold">{entry.total_points}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+              </ExpandableLeaderboardRow>
+            )
+          })}
+        </div>
       </div>
     )
   }

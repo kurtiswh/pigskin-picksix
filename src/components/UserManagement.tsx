@@ -10,6 +10,7 @@ import { ENV } from '@/lib/env'
 import LeagueSafeUpload from './LeagueSafeUpload'
 import PaymentMatcher from './PaymentMatcher'
 import UserDetailsModal from './UserDetailsModal'
+import UserMergeModal from './UserMergeModal'
 
 interface UserStats {
   totalUsers: number
@@ -33,6 +34,9 @@ export default function UserManagement() {
   const [currentSeason, setCurrentSeason] = useState(2024) // Default to 2024 where the data is
   const [matchingPayment, setMatchingPayment] = useState<LeagueSafePayment | null>(null)
   const [selectedUser, setSelectedUser] = useState<UserWithPayment | null>(null)
+  const [showMergeModal, setShowMergeModal] = useState(false)
+  const [selectedUsersForMerge, setSelectedUsersForMerge] = useState<UserWithPayment[]>([])
+  const [mergeMode, setMergeMode] = useState(false)
 
   useEffect(() => {
     // Don't reload data if a modal is open (user details or payment matching)
@@ -344,6 +348,40 @@ export default function UserManagement() {
     }
   }
 
+  const handleMergeUsers = async (sourceUserId: string, targetUserId: string, mergeReason?: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
+      const { UserMergeService } = await import('@/services/userMergeService')
+      await UserMergeService.mergeUsers(sourceUserId, targetUserId, user.id, mergeReason)
+      
+      // Refresh data after merge
+      setShowMergeModal(false)
+      setSelectedUsersForMerge([])
+      setMergeMode(false)
+      await loadUsers()
+      await loadStats()
+    } catch (err: any) {
+      console.error('Error merging users:', err)
+      setError(err.message)
+      throw err
+    }
+  }
+
+  const toggleMergeMode = () => {
+    setMergeMode(!mergeMode)
+    setSelectedUsersForMerge([])
+  }
+
+  const handleUserSelection = (user: UserWithPayment, selected: boolean) => {
+    if (selected) {
+      setSelectedUsersForMerge(prev => [...prev, user])
+    } else {
+      setSelectedUsersForMerge(prev => prev.filter(u => u.id !== user.id))
+    }
+  }
+
   const sendPasswordReset = async (userId: string, email: string, displayName: string) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -502,6 +540,23 @@ export default function UserManagement() {
                 <option value="Manual Registration">Manual Registration</option>
                 <option value="Pending">Pending</option>
               </select>
+              <Button 
+                onClick={toggleMergeMode} 
+                variant={mergeMode ? "default" : "outline"} 
+                size="sm"
+                className={mergeMode ? "bg-blue-600 hover:bg-blue-700" : ""}
+              >
+                {mergeMode ? 'Exit Merge Mode' : 'Merge Users'}
+              </Button>
+              {mergeMode && selectedUsersForMerge.length === 2 && (
+                <Button 
+                  onClick={() => setShowMergeModal(true)}
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  Start Merge
+                </Button>
+              )}
               <Button onClick={loadUsers} variant="outline" size="sm">
                 Refresh
               </Button>
@@ -525,25 +580,62 @@ export default function UserManagement() {
             </div>
           ) : (
             <div className="space-y-2">
-              <div className="text-sm text-charcoal-500 mb-4">
-                Showing {filteredUsers.length} of {users.length} users
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-sm text-charcoal-500">
+                  Showing {filteredUsers.length} of {users.length} users
+                </div>
+                {mergeMode && (
+                  <div className="text-sm text-blue-600">
+                    {selectedUsersForMerge.length === 0 && 'Select 2 users to merge'}
+                    {selectedUsersForMerge.length === 1 && 'Select 1 more user to merge'}
+                    {selectedUsersForMerge.length === 2 && 'Ready to merge - click "Start Merge"'}
+                    {selectedUsersForMerge.length > 2 && 'Too many users selected - maximum 2'}
+                  </div>
+                )}
               </div>
               
               <div className="space-y-2 max-h-96 overflow-y-auto">
-                {filteredUsers.map(user => (
-                  <div
-                    key={user.id}
-                    className={`flex items-center justify-between p-3 border rounded-lg hover:bg-stone-50 cursor-pointer transition-colors ${
-                      user.payment_status === 'No Payment' ? 'border-orange-300 bg-orange-50 hover:bg-orange-100' : 
-                      user.payment_status === 'NotPaid' ? 'border-red-300 bg-red-50 hover:bg-red-100' :
-                      user.payment_status === 'Paid' ? 'border-green-300 bg-green-50 hover:bg-green-100' : 
-                      user.payment_status === 'Manual Registration' ? 'border-blue-300 bg-blue-50 hover:bg-blue-100' :
-                      'border-yellow-300 bg-yellow-50 hover:bg-yellow-100'
-                    }`}
-                    onClick={() => setSelectedUser(user)}
-                  >
+                {filteredUsers.map(user => {
+                  const isSelectedForMerge = selectedUsersForMerge.some(u => u.id === user.id)
+                  const canSelectForMerge = mergeMode && (selectedUsersForMerge.length < 2 || isSelectedForMerge)
+                  
+                  return (
+                    <div
+                      key={user.id}
+                      className={`flex items-center justify-between p-3 border rounded-lg hover:bg-stone-50 cursor-pointer transition-colors ${
+                        isSelectedForMerge ? 'border-blue-500 bg-blue-100 hover:bg-blue-150' :
+                        user.payment_status === 'No Payment' ? 'border-orange-300 bg-orange-50 hover:bg-orange-100' : 
+                        user.payment_status === 'NotPaid' ? 'border-red-300 bg-red-50 hover:bg-red-100' :
+                        user.payment_status === 'Paid' ? 'border-green-300 bg-green-50 hover:bg-green-100' : 
+                        user.payment_status === 'Manual Registration' ? 'border-blue-300 bg-blue-50 hover:bg-blue-100' :
+                        'border-yellow-300 bg-yellow-50 hover:bg-yellow-100'
+                      } ${
+                        mergeMode && !canSelectForMerge ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                      onClick={() => {
+                        if (mergeMode && canSelectForMerge) {
+                          handleUserSelection(user, !isSelectedForMerge)
+                        } else if (!mergeMode) {
+                          setSelectedUser(user)
+                        }
+                      }}
+                    >
                     <div className="flex-1">
                       <div className="flex items-center space-x-3">
+                        {mergeMode && (
+                          <input
+                            type="checkbox"
+                            checked={isSelectedForMerge}
+                            onChange={(e) => {
+                              e.stopPropagation()
+                              if (canSelectForMerge) {
+                                handleUserSelection(user, e.target.checked)
+                              }
+                            }}
+                            disabled={!canSelectForMerge}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                        )}
                         <div>
                           <div className="font-medium">{user.display_name}</div>
                           <div className="text-sm text-charcoal-500">{user.email}</div>
@@ -584,20 +676,23 @@ export default function UserManagement() {
                         {new Date(user.created_at).toLocaleDateString()}
                       </div>
                       
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedUser(user)
-                        }}
-                      >
-                        Manage
-                      </Button>
+                      {!mergeMode && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedUser(user)
+                          }}
+                        >
+                          Manage
+                        </Button>
+                      )}
                     </div>
-                  </div>
-                ))}
+                    </div>
+                  )
+                })}
                 
                 {filteredUsers.length === 0 && (
                   <div className="text-center py-8 text-charcoal-500">
@@ -622,6 +717,20 @@ export default function UserManagement() {
             loadStats()
           }}
           onCancel={() => setMatchingPayment(null)}
+        />
+      )}
+
+      {/* User Merge Modal */}
+      {showMergeModal && selectedUsersForMerge.length === 2 && (
+        <UserMergeModal
+          sourceUser={selectedUsersForMerge[0]}
+          targetUser={selectedUsersForMerge[1]}
+          onMerge={handleMergeUsers}
+          onCancel={() => {
+            setShowMergeModal(false)
+            setSelectedUsersForMerge([])
+            setMergeMode(false)
+          }}
         />
       )}
 
