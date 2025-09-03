@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 import { getActiveWeekSettings } from '@/services/weekService'
 import { LeaderboardEntry, Pick } from '@/types'
+import { LeaderboardService } from '@/services/leaderboardService'
 import Layout from '@/components/Layout'
 
 export default function HomePage() {
@@ -19,6 +20,7 @@ export default function HomePage() {
   const [topPlayers, setTopPlayers] = useState<LeaderboardEntry[]>([])
   const [userPicks, setUserPicks] = useState<Pick[]>([])
   const [loading, setLoading] = useState(true)
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null)
 
   // Check for password recovery tokens and redirect to reset password page
   useEffect(() => {
@@ -73,42 +75,66 @@ export default function HomePage() {
         setDeadline(new Date(weekSettingsData.deadline))
       }
       
-      // Get real leaderboard data (top 5 season leaders)
+      // Get real leaderboard data (top 5 season leaders) using LeaderboardService
       try {
-        const { data: leaderboardData, error: leaderboardError } = await supabase
-          .from('season_leaderboard')
-          .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks')
-          .eq('season', currentSeason)
-          .or('is_verified.eq.true,pick_source.eq.anonymous,pick_source.eq.mixed')
-          .order('season_rank', { ascending: true })
-          .limit(5)
+        console.log('🏆 Fetching season leaderboard preview for homepage')
+        setLeaderboardError(null) // Clear any previous errors
+        const leaderboardData = await LeaderboardService.getSeasonLeaderboard(currentSeason)
         
-        if (leaderboardError) {
-          console.warn('⚠️ Could not fetch leaderboard data:', leaderboardError.message)
-          setTopPlayers([])
-        } else {
-          // Transform the data to match LeaderboardEntry interface
-          const transformedLeaderboard: LeaderboardEntry[] = leaderboardData.map(player => ({
-            user_id: player.user_id,
-            display_name: player.display_name,
-            season_record: `${player.total_wins || 0}-${player.total_losses || 0}-${player.total_pushes || 0}`,
-            lock_record: `${player.lock_wins || 0}-${player.lock_losses || 0}`,
-            season_points: player.total_points || 0,
-            season_rank: player.season_rank,
-            total_picks: player.total_picks || 0,
-            total_wins: player.total_wins || 0,
-            total_losses: player.total_losses || 0,
-            total_pushes: player.total_pushes || 0,
-            lock_wins: player.lock_wins || 0,
-            lock_losses: player.lock_losses || 0
-          }))
+        if (leaderboardData && leaderboardData.length > 0) {
+          // Get top 5 players with points (exclude players with 0 total points)
+          const playersWithPoints = leaderboardData.filter(player => (player.season_points || 0) > 0)
+          const topPlayersSlice = playersWithPoints.length > 0 
+            ? playersWithPoints.slice(0, 5)
+            : leaderboardData.slice(0, 5) // Show top 5 even if no points yet
           
-          setTopPlayers(transformedLeaderboard)
-          console.log('✅ Real leaderboard data loaded:', transformedLeaderboard.length, 'players')
+          setTopPlayers(topPlayersSlice)
+          console.log('✅ Season leaderboard preview loaded:', topPlayersSlice.length, 'players')
+          console.log('📊 Top player data:', topPlayersSlice[0])
+        } else {
+          console.warn('⚠️ No leaderboard data returned')
+          setTopPlayers([])
         }
-      } catch (leaderboardException) {
-        console.warn('⚠️ Exception fetching leaderboard:', leaderboardException)
+      } catch (leaderboardException: any) {
+        console.warn('⚠️ Exception fetching season leaderboard:', leaderboardException)
+        setLeaderboardError(leaderboardException.message || 'Failed to load leaderboard')
         setTopPlayers([])
+        
+        // Fallback: try direct database query if service fails
+        try {
+          console.log('🔄 Attempting fallback leaderboard query')
+          const { data: fallbackData } = await supabase
+            .from('season_leaderboard')
+            .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes')
+            .eq('season', currentSeason)
+            .order('season_rank', { ascending: true })
+            .limit(5)
+          
+          if (fallbackData && fallbackData.length > 0) {
+            const transformedFallback: LeaderboardEntry[] = fallbackData.map(player => ({
+              user_id: player.user_id,
+              display_name: player.display_name,
+              season_record: `${player.total_wins || 0}-${player.total_losses || 0}-${player.total_pushes || 0}`,
+              lock_record: '0-0', // Simplified for fallback
+              season_points: player.total_points || 0,
+              season_rank: player.season_rank || 999,
+              total_picks: 0,
+              total_wins: player.total_wins || 0,
+              total_losses: player.total_losses || 0,
+              total_pushes: player.total_pushes || 0,
+              lock_wins: 0,
+              lock_losses: 0
+            }))
+            setTopPlayers(transformedFallback)
+            setLeaderboardError(null) // Clear error if fallback works
+            console.log('✅ Fallback leaderboard data loaded:', transformedFallback.length, 'players')
+          } else {
+            setLeaderboardError('No leaderboard data available')
+          }
+        } catch (fallbackError: any) {
+          console.error('❌ Fallback leaderboard fetch failed:', fallbackError)
+          setLeaderboardError('Failed to load leaderboard data')
+        }
       }
       
     } catch (error) {
@@ -294,22 +320,41 @@ export default function HomePage() {
                           index === 1 ? 'bg-stone-400 text-white' :
                           index === 2 ? 'bg-amber-600 text-white' : 'bg-stone-200 text-charcoal-700'
                         }`}>
-                          {index + 1}
+                          {player.season_rank || (index + 1)}
                         </span>
                         <span className="font-medium">{player.display_name}</span>
                       </div>
                       <div className="text-right">
-                        <div className="font-semibold">{player.total_points || 0} pts</div>
+                        <div className="font-semibold">{player.season_points || 0} pts</div>
                         <div className="text-sm text-charcoal-500">
-                          {player.total_wins || 0}-{player.total_losses || 0}-{player.total_pushes || 0}
+                          {player.season_record || `${player.total_wins || 0}-${player.total_losses || 0}-${player.total_pushes || 0}`}
                         </div>
                       </div>
                     </div>
                   ))}
-                  {topPlayers.length === 0 && (
-                    <p className="text-center text-charcoal-500 py-4">
-                      No picks submitted yet this season
-                    </p>
+                  {topPlayers.length === 0 && !leaderboardError && (
+                    <div className="text-center text-charcoal-500 py-4">
+                      <div className="text-lg mb-2">🏈</div>
+                      <p>Season hasn't started yet</p>
+                      <p className="text-sm">Check back after Week 1 games are completed</p>
+                    </div>
+                  )}
+                  {leaderboardError && (
+                    <div className="text-center text-red-500 py-4">
+                      <div className="text-lg mb-2">⚠️</div>
+                      <p className="text-sm mb-2">{leaderboardError}</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => {
+                          setLoading(true)
+                          fetchHomePageData()
+                        }}
+                        className="text-xs"
+                      >
+                        Try Again
+                      </Button>
+                    </div>
                   )}
                   <Link to="/leaderboard" className="block">
                     <Button variant="outline" className="w-full mt-4">

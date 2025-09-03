@@ -205,7 +205,7 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
 
       console.log('🚀 Running unified update (games + picks)...')
       
-      const result = await liveUpdateService.manualUpdate(season, week)
+      const result = await liveUpdateService.manualUpdate(season, selectedWeek)
       setLastUnifiedUpdate(result)
       
       if (result.success) {
@@ -274,7 +274,7 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
       await loadGames()
 
       // Process any newly completed games
-      const results = await processCompletedGames(season, week)
+      const results = await processCompletedGames(season, selectedWeek)
       setProcessingResults(results)
 
     } catch (err: any) {
@@ -303,11 +303,11 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
       setError('')
       setManualOperationResult(null)
 
-      console.log(`🔄 Running optimized picks scoring for ${season} Week ${week}...`)
+      console.log(`🔄 Running optimized picks scoring for ${season} Week ${selectedWeek}...`)
 
       // Try to use the new optimized batch function first
       const { data: batchResult, error: batchError } = await supabase.rpc('process_picks_for_week_with_timeout', {
-        week_param: week,
+        week_param: selectedWeek,
         season_param: season,
         max_games_per_batch: 3
       })
@@ -321,7 +321,7 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
           success: !hasErrors,
           message: hasErrors ? 
             `Completed with ${result.errors.length} errors out of ${result.total_games} games` :
-            `Successfully updated picks scoring for ${season} Week ${week}`,
+            `Successfully updated picks scoring for ${season} Week ${selectedWeek}`,
           details: `Games processed: ${result.games_processed}/${result.total_games}, Picks updated: ${result.total_picks_updated}, Anonymous picks updated: ${result.total_anon_picks_updated}${hasErrors ? `\nErrors: ${result.errors.join('; ')}` : ''}`
         })
 
@@ -334,7 +334,7 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
 
       // First, get list of completed games for this week
       const { data: completedGames, error: gamesError } = await supabase.rpc('get_completed_games_for_week', {
-        week_param: week,
+        week_param: selectedWeek,
         season_param: season
       })
 
@@ -344,7 +344,7 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
         setManualOperationResult({
           operation: 'Picks Scoring',
           success: true,
-          message: `No completed games found for ${season} Week ${week}`,
+          message: `No completed games found for ${season} Week ${selectedWeek}`,
           details: 'All games may already be processed or none are completed yet'
         })
         return
@@ -418,7 +418,7 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
         operation: 'Picks Scoring',
         success: errors.length === 0,
         message: errors.length === 0 ? 
-          `Successfully updated picks scoring for ${season} Week ${week}` :
+          `Successfully updated picks scoring for ${season} Week ${selectedWeek}` :
           `Completed with ${errors.length} errors out of ${completedGames.length} games`,
         details: `Games processed: ${gamesProcessed}/${completedGames.length}, Picks updated: ${totalPicksUpdated}, Anonymous picks updated: ${totalAnonPicksUpdated}${errors.length > 0 ? `\nErrors: ${errors.join('; ')}` : ''}`
       })
@@ -446,11 +446,11 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
       setError('')
       setManualOperationResult(null)
 
-      console.log(`🔄 Running timeout-resistant anonymous picks scoring for ${season} Week ${week}...`)
+      console.log(`🔄 Running timeout-resistant anonymous picks scoring for ${season} Week ${selectedWeek}...`)
 
       // Use the new batch approach for anonymous picks too
       const { data: completedGames, error: gamesError } = await supabase.rpc('get_completed_games_for_week', {
-        week_param: week,
+        week_param: selectedWeek,
         season_param: season
       })
 
@@ -460,7 +460,7 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
         setManualOperationResult({
           operation: 'Anonymous Picks Scoring',
           success: true,
-          message: `No completed games found for ${season} Week ${week}`,
+          message: `No completed games found for ${season} Week ${selectedWeek}`,
           details: 'All games may already be processed or none are completed yet'
         })
         return
@@ -514,7 +514,7 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
         operation: 'Anonymous Picks Scoring',
         success: errors.length === 0,
         message: errors.length === 0 ? 
-          `Successfully updated anonymous picks scoring for ${season} Week ${week}` :
+          `Successfully updated anonymous picks scoring for ${season} Week ${selectedWeek}` :
           `Completed with ${errors.length} errors out of ${completedGames.length} games`,
         details: `Games processed: ${gamesProcessed}/${completedGames.length}, Anonymous picks updated: ${totalAnonPicksUpdated}${errors.length > 0 ? `\nErrors: ${errors.join('; ')}` : ''}`
       })
@@ -542,11 +542,11 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
       setError('')
       setManualOperationResult(null)
 
-      console.log(`🔄 Running manual leaderboard recalculation for ${season} Week ${week}...`)
+      console.log(`🔄 Running manual leaderboard recalculation for ${season} Week ${selectedWeek}...`)
 
       // Call the combined leaderboard recalculation function
       const { data, error } = await supabase.rpc('recalculate_leaderboards_for_week', {
-        week_param: week,
+        week_param: selectedWeek,
         season_param: season
       })
 
@@ -558,7 +558,7 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
       setManualOperationResult({
         operation: 'Leaderboard Recalculation',
         success: true,
-        message: `Successfully recalculated leaderboards for ${season} Week ${week}`,
+        message: `Successfully recalculated leaderboards for ${season} Week ${selectedWeek}`,
         details: result ? 
           `Weekly entries: ${result.weekly_entries}, Season entries: ${result.season_entries}` : 
           'Updated both weekly and season leaderboards'
@@ -586,36 +586,46 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
       setError('')
       setManualOperationResult(null)
 
-      console.log(`🔄 Running manual game stats update for ${season} Week ${week}...`)
+      console.log(`🔄 Running manual pick count update for ${season} Week ${selectedWeek}...`)
 
-      // Call the function to recalculate game statistics for all games in the week
-      const { data, error } = await supabase.rpc('calculate_week_game_statistics', {
-        week_param: week,
+      // Call the new function to update pick counts for all games in the week
+      console.log('Calling supabase.rpc with params:', { week_param: selectedWeek, season_param: season })
+      const { data, error } = await supabase.rpc('update_week_game_pick_counts', {
+        week_param: selectedWeek,
         season_param: season
       })
 
-      if (error) throw error
+      console.log('RPC Response:', { data, error })
+
+      if (error) {
+        console.error('RPC Error Details:', error)
+        throw error
+      }
 
       // Handle structured return data
       const result = data && data.length > 0 ? data[0] : null
+      console.log('Processed result:', result)
 
       setManualOperationResult({
-        operation: 'Game Stats Update',
+        operation: 'Pick Count Update',
         success: true,
-        message: `Successfully updated game stats for ${season} Week ${week}`,
+        message: `Successfully updated pick counts for ${season} Week ${selectedWeek}`,
         details: result ? 
-          `Games processed: ${result.processed_games}, Stats calculated: ${result.calculated_stats}` : 
+          `Games processed: ${result.games_processed}, Games updated: ${result.games_updated}` : 
           'Operation completed'
       })
 
-      console.log('✅ Manual game stats update completed')
+      console.log('✅ Manual pick count update completed')
+
+      // Reload games to show updated pick counts
+      await loadGames()
 
     } catch (err: any) {
-      console.error('❌ Manual game stats update failed:', err)
+      console.error('❌ Manual pick count update failed:', err)
       setManualOperationResult({
-        operation: 'Game Stats Update',
+        operation: 'Pick Count Update',
         success: false,
-        message: 'Failed to update game stats',
+        message: 'Failed to update pick counts',
         details: err.message
       })
       setError(err.message)
@@ -979,12 +989,12 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
               {manualOperationLoading === 'game_stats' ? (
                 <>
                   <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
-                  Processing...
+                  Updating...
                 </>
               ) : (
                 <>
-                  <span>📊</span>
-                  Update Game Stats
+                  <span>🎯</span>
+                  Update Pick Counts
                 </>
               )}
             </Button>
