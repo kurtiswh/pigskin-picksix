@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { UserWithPayment, UserEmail, UserMergeHistory } from '@/types'
 import { UserMergeService } from '@/services/userMergeService'
+import { supabase } from '@/lib/supabase'
 
 interface UserDetailsModalProps {
   user: UserWithPayment | null
@@ -12,6 +14,7 @@ interface UserDetailsModalProps {
   onSendPasswordReset: (userId: string, email: string, displayName: string) => Promise<void>
   onDeleteUser: (userId: string) => Promise<void>
   onUpdatePaymentStatus: (userId: string, newStatus: string) => Promise<void>
+  onRefresh?: () => Promise<void>
   currentSeason?: number
 }
 
@@ -22,7 +25,8 @@ export default function UserDetailsModal({
   onSendPasswordReset,
   onDeleteUser,
   onUpdatePaymentStatus,
-  currentSeason = 2024
+  onRefresh,
+  currentSeason = 2025
 }: UserDetailsModalProps) {
   const [loading, setLoading] = useState(false)
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>('')
@@ -30,14 +34,18 @@ export default function UserDetailsModal({
   const [userEmails, setUserEmails] = useState<UserEmail[]>([])
   const [mergeHistory, setMergeHistory] = useState<UserMergeHistory[]>([])
   const [emailsLoading, setEmailsLoading] = useState(true)
+  const [leaguesafeEmail, setLeaguesafeEmail] = useState<string>('')
+  const [hasLeaguesafeEmailChanged, setHasLeaguesafeEmailChanged] = useState(false)
 
-  // Initialize selected payment status when user changes
+  // Initialize selected payment status and leaguesafe email when user changes
   React.useEffect(() => {
     if (user) {
       const currentSeasonPayment = user.season_payment_history?.find((p: any) => p.season === currentSeason)
       const currentStatus = currentSeasonPayment?.status || (currentSeason === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
       setSelectedPaymentStatus(currentStatus)
       setHasUnsavedChanges(false)
+      setLeaguesafeEmail(user.leaguesafe_email || '')
+      setHasLeaguesafeEmailChanged(false)
     }
   }, [user, currentSeason])
 
@@ -147,6 +155,12 @@ export default function UserDetailsModal({
       console.log('✅ onUpdatePaymentStatus completed successfully')
       setHasUnsavedChanges(false)
       clearTimeout(timeoutId)
+      
+      // Refresh the parent component data if refresh function is provided
+      if (onRefresh) {
+        console.log('🔄 Refreshing parent component data...')
+        await onRefresh()
+      }
     } catch (error) {
       console.error('❌ Error in handleSavePaymentStatus:', error)
       clearTimeout(timeoutId)
@@ -178,6 +192,67 @@ export default function UserDetailsModal({
             <div>
               <h4 className="font-semibold text-sm text-gray-600 mb-1">Display Name</h4>
               <p>{user.display_name}</p>
+            </div>
+            <div className="md:col-span-2">
+              <h4 className="font-semibold text-sm text-gray-600 mb-1">LeagueSafe Email</h4>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="email"
+                  value={leaguesafeEmail}
+                  onChange={(e) => {
+                    setLeaguesafeEmail(e.target.value)
+                    setHasLeaguesafeEmailChanged(e.target.value !== (user.leaguesafe_email || ''))
+                  }}
+                  placeholder="Enter LeagueSafe email"
+                  className="text-sm"
+                  disabled={loading}
+                />
+                {hasLeaguesafeEmailChanged && (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        setLoading(true)
+                        try {
+                          const { error } = await supabase
+                            .from('users')
+                            .update({ leaguesafe_email: leaguesafeEmail || null })
+                            .eq('id', user.id)
+                          
+                          if (error) throw error
+                          
+                          setHasLeaguesafeEmailChanged(false)
+                          if (onRefresh) await onRefresh()
+                          alert('LeagueSafe email updated successfully')
+                        } catch (err: any) {
+                          console.error('Error updating LeagueSafe email:', err)
+                          alert(`Failed to update LeagueSafe email: ${err.message}`)
+                        } finally {
+                          setLoading(false)
+                        }
+                      }}
+                      disabled={loading}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setLeaguesafeEmail(user.leaguesafe_email || '')
+                        setHasLeaguesafeEmailChanged(false)
+                      }}
+                      disabled={loading}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {user.leaguesafe_email && !hasLeaguesafeEmailChanged && (
+                <p className="text-xs text-gray-500 mt-1">Current: {user.leaguesafe_email}</p>
+              )}
             </div>
             <div>
               <h4 className="font-semibold text-sm text-gray-600 mb-1">User ID</h4>

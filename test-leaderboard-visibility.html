@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Leaderboard Visibility Functions</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #4B3621;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        input, select {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+        }
+        button {
+            background: #4B3621;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #5d4530;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .warning {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏈 Leaderboard Visibility Testing Tool</h1>
+        <p>Test the new resilient leaderboard system functions directly</p>
+    </div>
+
+    <div class="container">
+        <h2>Setup</h2>
+        <div class="test-section">
+            <div>
+                <label>Supabase URL:</label>
+                <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
+            </div>
+            <div>
+                <label>Anon Key:</label>
+                <input type="password" id="supabaseKey" placeholder="Your anon key">
+            </div>
+            <div>
+                <label>Admin Email:</label>
+                <input type="email" id="adminEmail" placeholder="admin@example.com">
+            </div>
+            <div>
+                <label>Admin Password:</label>
+                <input type="password" id="adminPassword" placeholder="Your password">
+            </div>
+            <button onclick="initializeSupabase()">Initialize & Login</button>
+            <div id="setupResult" class="result" style="display:none;"></div>
+        </div>
+    </div>
+
+    <div class="container" id="testContainer" style="display:none;">
+        <h2>Test Functions</h2>
+        
+        <div class="test-section">
+            <h3>1. Toggle Picks Visibility</h3>
+            <div>
+                <label>User ID:</label>
+                <input type="text" id="toggleUserId" placeholder="UUID of user">
+            </div>
+            <div>
+                <label>Season:</label>
+                <input type="number" id="toggleSeason" value="2024">
+            </div>
+            <div>
+                <label>Week (optional):</label>
+                <input type="number" id="toggleWeek" placeholder="Leave empty for all weeks">
+            </div>
+            <div>
+                <label>Visibility:</label>
+                <select id="toggleVisibility">
+                    <option value="true">Show on Leaderboard</option>
+                    <option value="false">Hide from Leaderboard</option>
+                </select>
+            </div>
+            <button onclick="testToggleVisibility()">Toggle Visibility</button>
+            <div id="toggleResult" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. Diagnose Leaderboard Health</h3>
+            <div>
+                <label>Season:</label>
+                <input type="number" id="diagnoseSeason" value="2024">
+            </div>
+            <button onclick="testDiagnose()">Run Diagnostic</button>
+            <div id="diagnoseResult" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Manual Refresh User Leaderboards</h3>
+            <div>
+                <label>User ID:</label>
+                <input type="text" id="refreshUserId" placeholder="UUID of user">
+            </div>
+            <div>
+                <label>Season:</label>
+                <input type="number" id="refreshSeason" value="2024">
+            </div>
+            <div>
+                <label>Week (optional):</label>
+                <input type="number" id="refreshWeek" placeholder="Leave empty for season only">
+            </div>
+            <button onclick="testManualRefresh()">Refresh Leaderboards</button>
+            <div id="refreshResult" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Rebuild Season Leaderboard</h3>
+            <div>
+                <label>Season:</label>
+                <input type="number" id="rebuildSeason" value="2024">
+            </div>
+            <div>
+                <label>User ID (optional):</label>
+                <input type="text" id="rebuildUserId" placeholder="Leave empty for all users">
+            </div>
+            <div>
+                <label>Force Rebuild:</label>
+                <select id="forceRebuild">
+                    <option value="false">No (Update existing)</option>
+                    <option value="true">Yes (Clear and rebuild)</option>
+                </select>
+            </div>
+            <button onclick="testRebuildSeason()">Rebuild Season Leaderboard</button>
+            <div id="rebuildResult" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. Check User's Current Visibility</h3>
+            <div>
+                <label>User ID:</label>
+                <input type="text" id="checkUserId" placeholder="UUID of user">
+            </div>
+            <div>
+                <label>Season:</label>
+                <input type="number" id="checkSeason" value="2024">
+            </div>
+            <button onclick="checkUserVisibility()">Check Visibility Status</button>
+            <div id="checkResult" class="result" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script>
+        let supabase = null;
+
+        async function initializeSupabase() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+            const email = document.getElementById('adminEmail').value;
+            const password = document.getElementById('adminPassword').value;
+
+            if (!url || !key || !email || !password) {
+                showResult('setupResult', 'Please fill in all fields', 'error');
+                return;
+            }
+
+            try {
+                // Initialize Supabase client
+                supabase = window.supabase.createClient(url, key);
+                
+                // Sign in as admin
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+                if (error) throw error;
+
+                showResult('setupResult', 'Successfully initialized and logged in as ' + email, 'success');
+                document.getElementById('testContainer').style.display = 'block';
+                
+            } catch (error) {
+                showResult('setupResult', 'Error: ' + error.message, 'error');
+            }
+        }
+
+        async function testToggleVisibility() {
+            if (!supabase) {
+                alert('Please initialize Supabase first');
+                return;
+            }
+
+            const userId = document.getElementById('toggleUserId').value;
+            const season = parseInt(document.getElementById('toggleSeason').value);
+            const week = document.getElementById('toggleWeek').value ? parseInt(document.getElementById('toggleWeek').value) : null;
+            const visibility = document.getElementById('toggleVisibility').value === 'true';
+
+            if (!userId || !season) {
+                showResult('toggleResult', 'Please provide User ID and Season', 'error');
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase.rpc('toggle_picks_leaderboard_visibility', {
+                    target_user_id: userId,
+                    target_season: season,
+                    target_week: week,
+                    show_on_leaderboard: visibility
+                });
+
+                if (error) throw error;
+                
+                showResult('toggleResult', JSON.stringify(data, null, 2), data.success ? 'success' : 'warning');
+            } catch (error) {
+                showResult('toggleResult', 'Error: ' + error.message, 'error');
+            }
+        }
+
+        async function testDiagnose() {
+            if (!supabase) {
+                alert('Please initialize Supabase first');
+                return;
+            }
+
+            const season = parseInt(document.getElementById('diagnoseSeason').value);
+
+            try {
+                const { data, error } = await supabase.rpc('diagnose_leaderboard_health', {
+                    target_season: season
+                });
+
+                if (error) throw error;
+                
+                showResult('diagnoseResult', JSON.stringify(data, null, 2), data.success ? 'success' : 'warning');
+            } catch (error) {
+                showResult('diagnoseResult', 'Error: ' + error.message, 'error');
+            }
+        }
+
+        async function testManualRefresh() {
+            if (!supabase) {
+                alert('Please initialize Supabase first');
+                return;
+            }
+
+            const userId = document.getElementById('refreshUserId').value;
+            const season = parseInt(document.getElementById('refreshSeason').value);
+            const week = document.getElementById('refreshWeek').value ? parseInt(document.getElementById('refreshWeek').value) : null;
+
+            if (!userId || !season) {
+                showResult('refreshResult', 'Please provide User ID and Season', 'error');
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase.rpc('manual_refresh_user_leaderboards', {
+                    target_user_id: userId,
+                    target_season: season,
+                    target_week: week
+                });
+
+                if (error) throw error;
+                
+                showResult('refreshResult', JSON.stringify(data, null, 2), data.success ? 'success' : 'warning');
+            } catch (error) {
+                showResult('refreshResult', 'Error: ' + error.message, 'error');
+            }
+        }
+
+        async function testRebuildSeason() {
+            if (!supabase) {
+                alert('Please initialize Supabase first');
+                return;
+            }
+
+            const season = parseInt(document.getElementById('rebuildSeason').value);
+            const userId = document.getElementById('rebuildUserId').value || null;
+            const forceRebuild = document.getElementById('forceRebuild').value === 'true';
+
+            if (!season) {
+                showResult('rebuildResult', 'Please provide Season', 'error');
+                return;
+            }
+
+            if (forceRebuild && !confirm('Force rebuild will clear existing data. Are you sure?')) {
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase.rpc('rebuild_season_leaderboard', {
+                    target_season: season,
+                    target_user_id: userId,
+                    force_rebuild: forceRebuild
+                });
+
+                if (error) throw error;
+                
+                showResult('rebuildResult', JSON.stringify(data, null, 2), data.success ? 'success' : 'warning');
+            } catch (error) {
+                showResult('rebuildResult', 'Error: ' + error.message, 'error');
+            }
+        }
+
+        async function checkUserVisibility() {
+            if (!supabase) {
+                alert('Please initialize Supabase first');
+                return;
+            }
+
+            const userId = document.getElementById('checkUserId').value;
+            const season = parseInt(document.getElementById('checkSeason').value);
+
+            if (!userId || !season) {
+                showResult('checkResult', 'Please provide User ID and Season', 'error');
+                return;
+            }
+
+            try {
+                // Check picks visibility
+                const { data: picks, error: picksError } = await supabase
+                    .from('picks')
+                    .select('week, show_on_leaderboard')
+                    .eq('user_id', userId)
+                    .eq('season', season)
+                    .order('week');
+
+                if (picksError) throw picksError;
+
+                // Check leaderboard presence
+                const { data: seasonLB, error: seasonError } = await supabase
+                    .from('season_leaderboard')
+                    .select('total_points, season_rank')
+                    .eq('user_id', userId)
+                    .eq('season', season)
+                    .single();
+
+                const { data: weeklyLB, error: weeklyError } = await supabase
+                    .from('weekly_leaderboard')
+                    .select('week, total_points, weekly_rank')
+                    .eq('user_id', userId)
+                    .eq('season', season);
+
+                const result = {
+                    picks_visibility: picks.reduce((acc, p) => {
+                        if (!acc[p.show_on_leaderboard ? 'visible' : 'hidden']) {
+                            acc[p.show_on_leaderboard ? 'visible' : 'hidden'] = [];
+                        }
+                        acc[p.show_on_leaderboard ? 'visible' : 'hidden'].push(p.week);
+                        return acc;
+                    }, {}),
+                    season_leaderboard: seasonLB || 'Not found',
+                    weekly_leaderboard: weeklyLB || 'Not found',
+                    total_picks: picks.length,
+                    visible_picks: picks.filter(p => p.show_on_leaderboard).length,
+                    hidden_picks: picks.filter(p => !p.show_on_leaderboard).length
+                };
+
+                showResult('checkResult', JSON.stringify(result, null, 2), 'success');
+            } catch (error) {
+                showResult('checkResult', 'Error: ' + error.message, 'error');
+            }
+        }
+
+        function showResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = 'result ' + type;
+            element.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

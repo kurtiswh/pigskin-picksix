@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { getCurrentWeek } from '@/services/collegeFootballApi'
+import { getActiveWeek } from '@/services/weekService'
 import { getWeekDataDirect } from '@/lib/supabase-direct'
 import { ENV } from '@/lib/env'
 import { Game, WeekSettings } from '@/types'
@@ -32,11 +32,20 @@ export default function AnonymousPicksPage() {
   const [submitted, setSubmitted] = useState(false)
   
   const currentSeason = new Date().getFullYear()
-  const currentWeek = getCurrentWeek(currentSeason)
+  const [currentWeek, setCurrentWeek] = useState(1)
 
   useEffect(() => {
-    fetchGamesData()
-  }, [])
+    // Get the active week when component mounts
+    getActiveWeek(currentSeason).then(activeWeek => {
+      setCurrentWeek(activeWeek)
+    })
+  }, [currentSeason])
+
+  useEffect(() => {
+    if (currentWeek > 0) {
+      fetchGamesData()
+    }
+  }, [currentWeek])
 
   const validateEmail = async (emailToCheck: string) => {
     try {

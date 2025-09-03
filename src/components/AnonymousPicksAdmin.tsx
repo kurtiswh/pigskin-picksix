@@ -111,6 +111,9 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     allSets: (ExistingPickSet | {source: 'new_anonymous', submittedAt: string, pickCount: number, pickSet: PickSet})[]
     currentAssignment?: PickSet
   } | null>(null)
+  
+  // Track which picksets are being processed to show local loading
+  const [processingPickSets, setProcessingPickSets] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     loadData()
@@ -305,6 +308,710 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     // This was used for debugging - can be removed if not needed
   }
 
+  // Comprehensive auto-assignment function for unassigned picks
+  const autoAssignAllUnassignedPicks = async () => {
+    try {
+      setLoading(true)
+      console.log('🚀 Starting comprehensive auto-assignment for all unassigned picks...')
+      
+      // Find all truly unassigned pick sets
+      const unassignedPickSets = pickSets.filter(ps => !ps.assignedUserId)
+      console.log(`📋 Found ${unassignedPickSets.length} unassigned pick sets`)
+      
+      if (unassignedPickSets.length === 0) {
+        console.log('✅ No unassigned pick sets found')
+        return
+      }
+      
+      let successCount = 0
+      let errorCount = 0
+      const results: string[] = []
+      
+      for (const pickSet of unassignedPickSets) {
+        try {
+          console.log(`🔍 Processing pick set: ${pickSet.email} (${pickSet.picks.length} picks)`)
+          
+          // Find user by email (case insensitive)
+          const matchingUser = users.find(u => u.email.toLowerCase() === pickSet.email.toLowerCase())
+          
+          if (matchingUser) {
+            console.log(`✅ Found matching user: ${pickSet.email} -> ${matchingUser.display_name} (${matchingUser.id})`)
+            
+            // Check for existing pick sets for this user/week/season
+            const existingPickSets = await checkExistingPickSets(matchingUser.id, selectedWeek, selectedSeason)
+            
+            if (existingPickSets.length === 0) {
+              // No conflicts - safe to auto-assign
+              console.log(`🎯 Auto-assigning ${pickSet.email} - no conflicts`)
+              
+              // Update validation status to auto_validated
+              await handleUpdateValidationStatus(pickSet, 'auto_validated', 'Auto-assigned by comprehensive assignment process')
+              
+              // Assign the pick set
+              await confirmAssignment(pickSet, matchingUser.id, 'new')
+              
+              successCount++
+              results.push(`✅ ${pickSet.email} -> ${matchingUser.display_name}`)
+              
+              // Update local state
+              setPickSets(prev => 
+                prev.map(ps => 
+                  ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
+                    ? { 
+                        ...ps, 
+                        assignedUserId: matchingUser.id, 
+                        autoAssigned: true, 
+                        validationStatus: 'auto_validated' as ValidationStatus,
+                        processingNotes: 'Auto-assigned by comprehensive assignment process'
+                      }
+                    : ps
+                )
+              )
+            } else {
+              // Conflicts found - still assign but mark as having conflicts
+              console.log(`⚠️ Auto-assigning ${pickSet.email} with ${existingPickSets.length} conflicts - precedence will be handled by database`)
+              
+              // Update validation status to show conflicts
+              await handleUpdateValidationStatus(pickSet, 'auto_validated', `Auto-assigned with conflicts: ${existingPickSets.length} existing pick sets. Database precedence rules applied.`)
+              
+              // Assign the pick set
+              await confirmAssignment(pickSet, matchingUser.id, 'new')
+              
+              successCount++
+              results.push(`⚠️ ${pickSet.email} -> ${matchingUser.display_name} (with conflicts)`)
+              
+              // Update local state
+              setPickSets(prev => 
+                prev.map(ps => 
+                  ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
+                    ? { 
+                        ...ps, 
+                        assignedUserId: matchingUser.id, 
+                        autoAssigned: true, 
+                        hasConflicts: true,
+                        validationStatus: 'auto_validated' as ValidationStatus,
+                        processingNotes: `Auto-assigned with conflicts: ${existingPickSets.length} existing pick sets`
+                      }
+                    : ps
+                )
+              )
+            }
+          } else {
+            console.log(`❌ No matching user found for email: ${pickSet.email}`)
+            
+            // Update validation status to indicate no matching user
+            await handleUpdateValidationStatus(pickSet, 'pending_validation', 'No matching user found - manual assignment required')
+            
+            errorCount++
+            results.push(`❌ ${pickSet.email} - No matching user`)
+            
+            // Update local state
+            setPickSets(prev => 
+              prev.map(ps => 
+                ps.email === pickSet.email && ps.submittedAt === pickSet.submittedAt
+                  ? { 
+                      ...ps, 
+                      validationStatus: 'pending_validation' as ValidationStatus,
+                      processingNotes: 'No matching user found - manual assignment required'
+                    }
+                  : ps
+              )
+            )
+          }
+        } catch (error) {
+          console.error(`❌ Error processing ${pickSet.email}:`, error)
+          errorCount++
+          results.push(`❌ ${pickSet.email} - Error: ${error.message}`)
+        }
+      }
+      
+      console.log('🏁 Comprehensive auto-assignment complete:')
+      console.log(`✅ Successfully assigned: ${successCount}`)
+      console.log(`❌ Errors: ${errorCount}`)
+      console.log('📋 Results:', results)
+      
+      // Show summary to user
+      if (successCount > 0 || errorCount > 0) {
+        alert(`Auto-assignment complete!\n\nSuccessfully assigned: ${successCount}\nErrors: ${errorCount}\n\nCheck console for details.`)
+      }
+      
+    } catch (error) {
+      console.error('❌ Error in comprehensive auto-assignment:', error)
+      setError(`Auto-assignment failed: ${error.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Comprehensive diagnostic function to understand the database state
+  const runDatabaseDiagnostic = async () => {
+    try {
+      setLoading(true)
+      console.log('🔍 Running comprehensive database diagnostic...')
+      
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
+      // 1. Check total count for this week/season
+      console.log(`📊 DIAGNOSTIC 1: Total count for week ${selectedWeek}, season ${selectedSeason}`)
+      const totalCountResponse = await fetch(
+        `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&select=count`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'count=exact'
+          }
+        }
+      )
+      
+      if (totalCountResponse.ok) {
+        const countHeaders = totalCountResponse.headers.get('Content-Range')
+        console.log(`✅ Total picks found: ${countHeaders}`)
+      }
+      
+      // 2. Check all weeks/seasons to see what data exists
+      console.log(`📊 DIAGNOSTIC 2: Checking all weeks/seasons`)
+      const allDataResponse = await fetch(
+        `${supabaseUrl}/rest/v1/anonymous_picks?select=week,season,count&order=week.asc,season.asc`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'count=exact'
+          }
+        }
+      )
+      
+      if (allDataResponse.ok) {
+        const allData = await allDataResponse.json()
+        const weekSeasonCounts = new Map<string, number>()
+        for (const row of allData) {
+          const key = `Week ${row.week}, Season ${row.season}`
+          weekSeasonCounts.set(key, (weekSeasonCounts.get(key) || 0) + 1)
+        }
+        
+        console.log('📋 Data distribution by week/season:')
+        for (const [key, count] of Array.from(weekSeasonCounts.entries()).slice(0, 10)) {
+          console.log(`  - ${key}: ${count} picks`)
+        }
+      }
+      
+      // 3. Sample a few records to see their structure
+      console.log(`📊 DIAGNOSTIC 3: Sample records structure`)
+      const sampleResponse = await fetch(
+        `${supabaseUrl}/rest/v1/anonymous_picks?limit=5&select=*`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+      
+      if (sampleResponse.ok) {
+        const sampleData = await sampleResponse.json()
+        console.log('📝 Sample record structure:')
+        if (sampleData.length > 0) {
+          const sample = sampleData[0]
+          console.log('  Fields present:', Object.keys(sample))
+          console.log('  Sample values:', {
+            id: sample.id,
+            email: sample.email,
+            week: sample.week,
+            season: sample.season,
+            validation_status: sample.validation_status,
+            show_on_leaderboard: sample.show_on_leaderboard,
+            assigned_user_id: sample.assigned_user_id,
+            is_validated: sample.is_validated
+          })
+        }
+      }
+      
+      // 4. Specific check for NULL validation_status
+      console.log(`📊 DIAGNOSTIC 4: Checking for NULL validation_status`)
+      const nullValidationResponse = await fetch(
+        `${supabaseUrl}/rest/v1/anonymous_picks?validation_status=is.null&select=id,email,week,season`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+      
+      if (nullValidationResponse.ok) {
+        const nullValidationData = await nullValidationResponse.json()
+        console.log(`📊 Records with NULL validation_status: ${nullValidationData.length}`)
+        if (nullValidationData.length > 0) {
+          nullValidationData.slice(0, 5).forEach((pick, i) => {
+            console.log(`  ${i+1}. ${pick.email} - Week ${pick.week}, Season ${pick.season}`)
+          })
+        }
+      }
+      
+      // 5. Specific check for NULL show_on_leaderboard
+      console.log(`📊 DIAGNOSTIC 5: Checking for NULL show_on_leaderboard`)
+      const nullLeaderboardResponse = await fetch(
+        `${supabaseUrl}/rest/v1/anonymous_picks?show_on_leaderboard=is.null&select=id,email,week,season`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+      
+      if (nullLeaderboardResponse.ok) {
+        const nullLeaderboardData = await nullLeaderboardResponse.json()
+        console.log(`📊 Records with NULL show_on_leaderboard: ${nullLeaderboardData.length}`)
+        if (nullLeaderboardData.length > 0) {
+          nullLeaderboardData.slice(0, 5).forEach((pick, i) => {
+            console.log(`  ${i+1}. ${pick.email} - Week ${pick.week}, Season ${pick.season}`)
+          })
+        }
+      }
+      
+      // 6. Check for unassigned picks specifically
+      console.log(`📊 DIAGNOSTIC 6: Checking for unassigned picks`)
+      const unassignedResponse = await fetch(
+        `${supabaseUrl}/rest/v1/anonymous_picks?assigned_user_id=is.null&select=id,email,week,season,validation_status,show_on_leaderboard`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+      
+      if (unassignedResponse.ok) {
+        const unassignedData = await unassignedResponse.json()
+        console.log(`📊 Total unassigned picks: ${unassignedData.length}`)
+        
+        // Count by week/season
+        const unassignedByWeek = new Map<string, number>()
+        for (const pick of unassignedData) {
+          const key = `Week ${pick.week}, Season ${pick.season}`
+          unassignedByWeek.set(key, (unassignedByWeek.get(key) || 0) + 1)
+        }
+        
+        console.log('📋 Unassigned picks by week/season:')
+        for (const [key, count] of Array.from(unassignedByWeek.entries()).slice(0, 10)) {
+          console.log(`  - ${key}: ${count} unassigned picks`)
+        }
+        
+        if (unassignedData.length > 0) {
+          console.log('📝 First 5 unassigned picks:')
+          unassignedData.slice(0, 5).forEach((pick, i) => {
+            console.log(`  ${i+1}. ${pick.email} - Week ${pick.week}, Season ${pick.season}, validation: ${pick.validation_status}, leaderboard: ${pick.show_on_leaderboard}`)
+          })
+        }
+      }
+      
+      alert('Database diagnostic complete! Check the browser console for detailed results.')
+      
+    } catch (error) {
+      console.error('❌ Error in database diagnostic:', error)
+      setError(`Diagnostic failed: ${error.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Function to fix anonymous picks that are missing required fields
+  const fixMissingPickFields = async () => {
+    try {
+      setLoading(true)
+      console.log('🔧 Starting fix for anonymous picks missing required fields...')
+      
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
+      // Find picks that are missing validation_status or other required fields
+      const problematicPicksResponse = await fetch(
+        `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&or=(validation_status.is.null,show_on_leaderboard.is.null)&select=id,email,name,validation_status,show_on_leaderboard,assigned_user_id`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+      
+      if (problematicPicksResponse.ok) {
+        const problematicPicks = await problematicPicksResponse.json()
+        console.log(`🔍 Found ${problematicPicks.length} picks with missing required fields`)
+        
+        if (problematicPicks.length > 0) {
+          // Group by email to fix all picks for each email at once
+          const picksByEmail = new Map<string, any[]>()
+          for (const pick of problematicPicks) {
+            if (!picksByEmail.has(pick.email)) {
+              picksByEmail.set(pick.email, [])
+            }
+            picksByEmail.get(pick.email)!.push(pick)
+          }
+          
+          console.log(`📧 ${picksByEmail.size} unique emails need field fixes`)
+          
+          let fixedCount = 0
+          for (const [email, picks] of picksByEmail) {
+            try {
+              // Update all picks for this email
+              for (const pick of picks) {
+                const updateData: any = {}
+                
+                // Set validation_status if missing
+                if (!pick.validation_status) {
+                  updateData.validation_status = 'pending_validation'
+                }
+                
+                // Set show_on_leaderboard if missing
+                if (pick.show_on_leaderboard === null || pick.show_on_leaderboard === undefined) {
+                  // Only show on leaderboard if assigned to a user
+                  updateData.show_on_leaderboard = pick.assigned_user_id ? true : false
+                }
+                
+                if (Object.keys(updateData).length > 0) {
+                  const updateResponse = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
+                    method: 'PATCH',
+                    headers: {
+                      'apikey': apiKey || '',
+                      'Authorization': `Bearer ${apiKey || ''}`,
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updateData)
+                  })
+                  
+                  if (updateResponse.ok) {
+                    fixedCount++
+                    console.log(`✅ Fixed pick ${pick.id} for ${email}`)
+                  } else {
+                    console.error(`❌ Failed to fix pick ${pick.id} for ${email}:`, updateResponse.status)
+                  }
+                }
+              }
+            } catch (error) {
+              console.error(`❌ Error fixing picks for ${email}:`, error)
+            }
+          }
+          
+          console.log(`🏁 Fixed ${fixedCount} picks with missing fields`)
+          alert(`Fixed ${fixedCount} anonymous picks with missing required fields.\n\nReload the data to see the changes.`)
+        } else {
+          alert('No picks found with missing required fields.')
+        }
+      } else {
+        console.error('❌ Failed to query problematic picks:', problematicPicksResponse.status)
+        alert('Failed to query picks for field fixes.')
+      }
+    } catch (error) {
+      console.error('❌ Error in fix missing pick fields:', error)
+      setError(`Field fix failed: ${error.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Function to load only unassigned picks
+  const loadUnassignedPicksOnly = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      console.log('🔍 Loading ONLY unassigned anonymous picks...')
+      
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
+      console.log(`🎯 Query: unassigned picks for week ${selectedWeek}, season ${selectedSeason}`)
+      
+      // Load ONLY unassigned anonymous picks for the selected week/season
+      const picksResponse = await fetch(
+        `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&assigned_user_id=is.null&select=*&order=submitted_at.desc&limit=1000`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      if (!picksResponse.ok) {
+        throw new Error(`Failed to load unassigned picks: ${picksResponse.status}`)
+      }
+
+      const picksData = await picksResponse.json()
+      console.log('✅ Loaded UNASSIGNED picks only:', picksData.length)
+      
+      if (picksData.length === 0) {
+        alert('No unassigned picks found for the selected week/season.')
+        return
+      }
+      
+      // Debug: Analyze the unassigned picks
+      console.log('🔍 Analyzing unassigned picks...')
+      const uniqueEmails = [...new Set(picksData.map(p => p.email))]
+      console.log(`📧 Unique emails: ${uniqueEmails.length}`)
+      uniqueEmails.slice(0, 10).forEach(email => {
+        const pickCount = picksData.filter(p => p.email === email).length
+        console.log(`  - ${email}: ${pickCount} picks`)
+      })
+      
+      // Load users for assignment
+      const usersResponse = await fetch(`${supabaseUrl}/rest/v1/users?select=id,email,display_name,is_admin&order=display_name.asc`, {
+        method: 'GET',
+        headers: {
+          'apikey': apiKey || '',
+          'Authorization': `Bearer ${apiKey || ''}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!usersResponse.ok) {
+        throw new Error(`Failed to load users: ${usersResponse.status}`)
+      }
+
+      const usersData = await usersResponse.json()
+      console.log('✅ Loaded users for assignment:', usersData.length)
+
+      // Group picks into pick sets
+      const pickSetMap = new Map<string, PickSet>()
+      
+      console.log('🔄 Starting pick set grouping (unassigned only)...')
+      
+      for (const pick of picksData) {
+        const submittedDate = new Date(pick.submitted_at)
+        submittedDate.setSeconds(0, 0)
+        const roundedSubmittedAt = submittedDate.toISOString()
+        
+        const key = `${pick.email}-${roundedSubmittedAt}`
+        
+        if (!pickSetMap.has(key)) {
+          pickSetMap.set(key, {
+            email: pick.email,
+            name: pick.name,
+            submittedAt: roundedSubmittedAt,
+            isValidated: pick.is_validated,
+            picks: [],
+            assignedUserId: pick.assigned_user_id, // Should be null for all
+            showOnLeaderboard: pick.show_on_leaderboard,
+            validationStatus: pick.validation_status || 'pending_validation',
+            processingNotes: pick.processing_notes
+          })
+        }
+        
+        pickSetMap.get(key)!.picks.push(pick)
+      }
+      
+      console.log(`🔄 Grouping complete. Created ${pickSetMap.size} unassigned pick set groups`)
+
+      const pickSetsArray = Array.from(pickSetMap.values())
+        .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+
+      console.log('✅ Final unassigned pick sets:', pickSetsArray.length)
+      
+      // Show detailed breakdown
+      console.log('📋 Unassigned pick sets breakdown:')
+      pickSetsArray.slice(0, 10).forEach((ps, i) => {
+        console.log(`  ${i+1}. ${ps.email} (${ps.name}): ${ps.picks.length} picks, validation: ${ps.validationStatus}`)
+      })
+      
+      // Set the data - this will replace any existing data with ONLY unassigned picks
+      setPickSets(pickSetsArray)
+      setUsers(usersData)
+      setDetectedDuplicates({ duplicateGroups: [], totalDuplicates: 0 }) // Clear duplicates for simplicity
+      
+      alert(`Loaded ${pickSetsArray.length} unassigned pick sets with ${picksData.length} total picks.\nCheck the console for details.`)
+      
+    } catch (err: any) {
+      console.error('❌ Error loading unassigned picks:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Function to recalculate anonymous picks scoring for specific games
+  const recalculateAnonymousPicksScoring = async (gameIds?: string[]) => {
+    try {
+      setLoading(true)
+      console.log('🔄 Starting anonymous picks scoring recalculation...')
+      
+      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+      const apiKey = ENV.SUPABASE_ANON_KEY
+      
+      // If specific game IDs provided, use those; otherwise recalculate for current week/season
+      let gameFilter = ''
+      if (gameIds && gameIds.length > 0) {
+        gameFilter = `&game_id=in.(${gameIds.join(',')})`
+        console.log(`🎯 Recalculating for specific games: ${gameIds.length} games`)
+      } else {
+        gameFilter = `&week=eq.${selectedWeek}&season=eq.${selectedSeason}`
+        console.log(`🎯 Recalculating for week ${selectedWeek}, season ${selectedSeason}`)
+      }
+      
+      // Get all anonymous picks that need recalculation
+      const picksResponse = await fetch(
+        `${supabaseUrl}/rest/v1/anonymous_picks?select=id,game_id,selected_team,is_lock,games(home_team,away_team,home_score,away_score,spread,status)${gameFilter}`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+
+      if (!picksResponse.ok) {
+        throw new Error(`Failed to fetch picks for recalculation: ${picksResponse.status}`)
+      }
+
+      const picks = await picksResponse.json()
+      console.log(`📊 Found ${picks.length} anonymous picks to recalculate`)
+
+      if (picks.length === 0) {
+        alert('No anonymous picks found to recalculate.')
+        return
+      }
+
+      let updatedCount = 0
+      let errorCount = 0
+
+      for (const pick of picks) {
+        try {
+          const game = pick.games
+          if (!game || game.status !== 'completed') {
+            console.log(`⏭️ Skipping pick ${pick.id} - game not completed`)
+            continue
+          }
+
+          // Calculate the result
+          const homeScore = game.home_score || 0
+          const awayScore = game.away_score || 0
+          const spread = game.spread || 0
+
+          // Calculate ATS result - spread is applied to the home team
+          // If spread is negative, home team is favored by that amount
+          // If spread is positive, away team is favored by that amount
+          const homeScoreATS = homeScore + spread
+          const awayScoreATS = awayScore
+          
+          const isPush = homeScoreATS === awayScoreATS
+          const homeWinsATS = homeScoreATS > awayScoreATS
+          const awayWinsATS = awayScoreATS > homeScoreATS
+
+          let result: 'win' | 'loss' | 'push'
+          let points_earned: number
+
+          if (isPush) {
+            result = 'push'
+            points_earned = 10
+          } else if (
+            (pick.selected_team === game.home_team && homeWinsATS) ||
+            (pick.selected_team === game.away_team && awayWinsATS)
+          ) {
+            result = 'win'
+            points_earned = pick.is_lock ? 40 : 20
+          } else {
+            result = 'loss'
+            points_earned = 0
+          }
+
+          console.log(`📊 Game calculation: ${game.away_team} @ ${game.home_team}`)
+          console.log(`   Score: ${awayScore}-${homeScore}, Spread: ${spread}`)
+          console.log(`   ATS: Away ${awayScoreATS} vs Home ${homeScoreATS}`)
+          console.log(`   Pick: ${pick.selected_team} -> ${result} (${points_earned} pts)`)
+
+          console.log(`🔄 Updating pick ${pick.id}: ${pick.selected_team} -> ${result} (${points_earned} pts)`)
+
+          // Update the pick with new result and points
+          const updateResponse = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
+            method: 'PATCH',
+            headers: {
+              'apikey': apiKey || '',
+              'Authorization': `Bearer ${apiKey || ''}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              result: result,
+              points_earned: points_earned
+            })
+          })
+
+          if (updateResponse.ok) {
+            updatedCount++
+            console.log(`✅ Updated pick ${pick.id}`)
+          } else {
+            console.error(`❌ Failed to update pick ${pick.id}:`, updateResponse.status)
+            errorCount++
+          }
+
+        } catch (error) {
+          console.error(`❌ Error processing pick ${pick.id}:`, error)
+          errorCount++
+        }
+      }
+
+      console.log('🏁 Recalculation complete!')
+      console.log(`✅ Updated: ${updatedCount} picks`)
+      console.log(`❌ Errors: ${errorCount} picks`)
+
+      alert(`Anonymous picks recalculation complete!\n\nUpdated: ${updatedCount} picks\nErrors: ${errorCount} picks\n\nCheck console for details.`)
+
+      // Reload data to show updated results
+      if (!gameIds) {
+        await loadData()
+      }
+
+    } catch (error) {
+      console.error('❌ Error in anonymous picks recalculation:', error)
+      setError(`Recalculation failed: ${error.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Function to recalculate specific games (takes list of game IDs)
+  const recalculateSpecificGames = async () => {
+    const gameIdsInput = prompt(
+      'Enter game IDs to recalculate (comma-separated):\n\nExample: 5ce6d309-1e0b-4de9-9673-1125d005008a,a52a8db8-9216-4ffd-af04-faa463557ce0'
+    )
+
+    if (!gameIdsInput) {
+      return
+    }
+
+    const gameIds = gameIdsInput
+      .split(',')
+      .map(id => id.trim())
+      .filter(id => id.length > 0)
+
+    if (gameIds.length === 0) {
+      alert('No valid game IDs provided.')
+      return
+    }
+
+    console.log('🎯 Recalculating specific games:', gameIds)
+    await recalculateAnonymousPicksScoring(gameIds)
+  }
+
   const loadData = async () => {
     try {
       setLoading(true)
@@ -314,10 +1021,31 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       const apiKey = ENV.SUPABASE_ANON_KEY
 
       console.log('📋 Loading anonymous picks and users...')
+      console.log(`🔍 Query parameters: week=${selectedWeek}, season=${selectedSeason}`)
+
+      // First, let's check the total count of anonymous picks for debugging
+      const countResponse = await fetch(
+        `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&select=count`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey || '',
+            'Authorization': `Bearer ${apiKey || ''}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'count=exact'
+          }
+        }
+      )
+
+      if (countResponse.ok) {
+        const countResult = await countResponse.json()
+        console.log(`📊 Total anonymous picks in database for week ${selectedWeek}, season ${selectedSeason}: ${countResult.length}`)
+      }
 
       // Load anonymous picks for the selected week/season (including assignment columns)
+      // Note: Increasing limit to handle all picks - Supabase defaults to 1000 max
       const picksResponse = await fetch(
-        `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&select=*&order=submitted_at.desc`,
+        `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&select=*&order=submitted_at.desc&limit=2000`,
         {
           method: 'GET',
           headers: {
@@ -335,15 +1063,48 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       const picksData = await picksResponse.json()
       console.log('✅ Loaded anonymous picks:', picksData.length)
       
-      // Debug: Check if assignment columns are present
+      // Debug: Check if assignment columns are present and analyze the data
+      console.log('🔍 Analyzing loaded picks data...')
+      
       const samplePick = picksData[0]
       if (samplePick) {
         console.log('📝 Sample pick data:', {
           id: samplePick.id,
           email: samplePick.email,
+          name: samplePick.name,
+          week: samplePick.week,
+          season: samplePick.season,
           assigned_user_id: samplePick.assigned_user_id,
-          show_on_leaderboard: samplePick.show_on_leaderboard
+          show_on_leaderboard: samplePick.show_on_leaderboard,
+          validation_status: samplePick.validation_status,
+          is_validated: samplePick.is_validated,
+          processing_notes: samplePick.processing_notes,
+          submitted_at: samplePick.submitted_at
         })
+      }
+      
+      // Debug: Count picks by assignment status
+      const assignedPicks = picksData.filter(p => p.assigned_user_id)
+      const unassignedPicks = picksData.filter(p => !p.assigned_user_id)
+      const validatedPicks = picksData.filter(p => p.is_validated)
+      const pendingValidationPicks = picksData.filter(p => p.validation_status === 'pending_validation')
+      
+      console.log('📊 Pick status breakdown:')
+      console.log(`  - Total picks loaded: ${picksData.length}`)
+      console.log(`  - Assigned picks: ${assignedPicks.length}`)
+      console.log(`  - Unassigned picks: ${unassignedPicks.length}`)
+      console.log(`  - Validated picks (is_validated=true): ${validatedPicks.length}`)
+      console.log(`  - Pending validation picks: ${pendingValidationPicks.length}`)
+      
+      // Debug: Show unique emails for unassigned picks
+      const unassignedEmails = [...new Set(unassignedPicks.map(p => p.email))]
+      console.log(`📧 Unique emails with unassigned picks: ${unassignedEmails.length}`)
+      unassignedEmails.slice(0, 10).forEach(email => {
+        const pickCount = unassignedPicks.filter(p => p.email === email).length
+        console.log(`  - ${email}: ${pickCount} picks`)
+      })
+      if (unassignedEmails.length > 10) {
+        console.log(`  - ... and ${unassignedEmails.length - 10} more emails`)
       }
 
       // Load all users for assignment
@@ -367,6 +1128,9 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       // Round to nearest minute to group picks from same form submission
       const pickSetMap = new Map<string, PickSet>()
       
+      console.log('🔄 Starting pick set grouping process...')
+      console.log(`📊 Processing ${picksData.length} individual picks`)
+      
       for (const pick of picksData) {
         // Round submitted_at to nearest minute to group picks from same form submission
         const submittedDate = new Date(pick.submitted_at)
@@ -383,6 +1147,8 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
             isValidated: pick.is_validated,
             picks: [],
             assignedUserId: pick.assigned_user_id,
+            // For admin interface, we want to see all picksets regardless of leaderboard status
+            // The actual leaderboard visibility will be determined when picks are assigned
             showOnLeaderboard: pick.show_on_leaderboard,
             validationStatus: pick.validation_status || 'pending_validation',
             processingNotes: pick.processing_notes
@@ -391,27 +1157,52 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         
         pickSetMap.get(key)!.picks.push(pick)
       }
+      
+      console.log(`🔄 Grouping complete. Created ${pickSetMap.size} unique pick set groups`)
+      console.log('📋 Sample pick set keys:')
+      Array.from(pickSetMap.keys()).slice(0, 5).forEach((key, i) => {
+        const pickCount = pickSetMap.get(key)!.picks.length
+        console.log(`  ${i+1}. "${key}" -> ${pickCount} picks`)
+      })
 
       const pickSetsArray = Array.from(pickSetMap.values())
         .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
 
       console.log('✅ Grouped into pick sets:', pickSetsArray.length)
       
+      // Debug: Analyze pick sets more thoroughly
+      console.log('🔍 Detailed pick set analysis:')
+      
+      const assignedPickSets = pickSetsArray.filter(ps => ps.assignedUserId)
+      const unassignedPickSets = pickSetsArray.filter(ps => !ps.assignedUserId)
+      
+      console.log(`📊 Pick set breakdown:`)
+      console.log(`  - Total pick sets: ${pickSetsArray.length}`)
+      console.log(`  - Assigned pick sets: ${assignedPickSets.length}`)
+      console.log(`  - Unassigned pick sets: ${unassignedPickSets.length}`)
+      
       // Debug: Show pick set sizes to identify splitting issues
-      pickSetsArray.forEach(ps => {
-        if (ps.picks.length !== 6) {
-          console.warn(`⚠️ Pick set ${ps.email} has ${ps.picks.length} picks (expected 6) - submitted at ${ps.submittedAt}`)
-        }
+      const incompleteSets = pickSetsArray.filter(ps => ps.picks.length !== 6)
+      if (incompleteSets.length > 0) {
+        console.warn(`⚠️ Found ${incompleteSets.length} incomplete pick sets:`)
+        incompleteSets.forEach(ps => {
+          console.warn(`  - ${ps.email}: ${ps.picks.length} picks (submitted ${ps.submittedAt})`)
+        })
+      }
+      
+      // Debug: Show first few unassigned pick sets
+      console.log('📋 First 10 unassigned pick sets:')
+      unassignedPickSets.slice(0, 10).forEach(ps => {
+        console.log(`  - ${ps.email} (${ps.name}): ${ps.picks.length} picks, validation: ${ps.validationStatus}, validated: ${ps.isValidated}`)
       })
       
       // Debug: Show assignment status of pick sets
-      pickSetsArray.forEach(ps => {
-        if (ps.assignedUserId) {
-          console.log(`📌 Pick set ${ps.email} is assigned to user ${ps.assignedUserId}, leaderboard: ${ps.showOnLeaderboard}`)
-        } else {
-          console.log(`📌 Pick set ${ps.email} is unassigned`)
-        }
-      })
+      if (assignedPickSets.length > 0) {
+        console.log('📋 First 5 assigned pick sets:')
+        assignedPickSets.slice(0, 5).forEach(ps => {
+          console.log(`  - ${ps.email} -> ${ps.assignedUserId}, leaderboard: ${ps.showOnLeaderboard}`)
+        })
+      }
       
       // Detect content-based duplicates within the same email address
       const duplicateInfo = detectContentBasedDuplicates(pickSetsArray)
@@ -609,8 +1400,12 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
   }
 
   const confirmAssignment = async (pickSet: PickSet, userId: string, keepPickSet: 'new' | 'existing') => {
+    const pickSetKey = `${pickSet.email}-${pickSet.submittedAt}`
+    
     try {
-      setLoading(true)
+      // Use local loading state instead of global loading to prevent page reload feeling
+      setProcessingPickSets(prev => new Set(prev).add(pickSetKey))
+      console.log('🎯 Starting assignment without full page reload...')
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
 
@@ -756,11 +1551,17 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       }
 
       setConflictResolution(null)
+      console.log('🎉 Assignment completed successfully - no page reload!')
     } catch (err: any) {
       console.error('❌ Error confirming assignment:', err)
       setError(err.message)
     } finally {
-      setLoading(false)
+      // Clear local loading state for this pickset
+      setProcessingPickSets(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(pickSetKey)
+        return newSet
+      })
     }
   }
 
@@ -904,7 +1705,8 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       const payments = await response.json()
       if (payments && payments.length > 0) {
         const payment = payments[0]
-        const isPaid = payment.status === 'Paid' && payment.is_matched === true
+        // Check if status is Paid or Manual Registration (both are considered valid payment statuses)
+        const isPaid = payment.status === 'Paid' || payment.status === 'Manual Registration'
         return { isPaid, paymentStatus: payment.status }
       }
 
@@ -1045,10 +1847,76 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end">
-              <Button onClick={loadData} className="w-full">
-                Load Picks
-              </Button>
+            <div className="space-y-2">
+              <div className="flex items-end space-x-2">
+                <Button onClick={loadData} className="flex-1">
+                  Load All Picks
+                </Button>
+                <Button 
+                  onClick={loadUnassignedPicksOnly} 
+                  className="flex-1 bg-orange-600 hover:bg-orange-700"
+                  disabled={loading}
+                >
+                  Load Unassigned Only
+                </Button>
+                <Button 
+                  onClick={runDatabaseDiagnostic} 
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  disabled={loading}
+                >
+                  Run Diagnostic
+                </Button>
+              </div>
+              <div className="flex items-end space-x-2">
+                <Button 
+                  onClick={fixMissingPickFields} 
+                  className="flex-1 bg-yellow-600 hover:bg-yellow-700"
+                  disabled={loading}
+                >
+                  Fix Missing Fields
+                </Button>
+                <Button 
+                  onClick={autoAssignAllUnassignedPicks} 
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  disabled={loading}
+                >
+                  Auto-Assign All
+                </Button>
+              </div>
+              <div className="flex items-end space-x-2">
+                <Button 
+                  onClick={() => recalculateAnonymousPicksScoring()} 
+                  className="flex-1 bg-purple-600 hover:bg-purple-700"
+                  disabled={loading}
+                >
+                  Recalc All Games
+                </Button>
+                <Button 
+                  onClick={recalculateSpecificGames} 
+                  className="flex-1 bg-red-600 hover:bg-red-700"
+                  disabled={loading}
+                >
+                  Recalc Specific Games
+                </Button>
+              </div>
+            </div>
+            
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+              <div className="text-blue-800 font-medium">🔍 Admin Tools</div>
+              <div className="text-blue-700 mt-1 space-y-2">
+                <div>
+                  <strong>Loading:</strong> "Load Unassigned Only" 🎯 | "Run Diagnostic" 📊 | "Load All Picks" 📋
+                </div>
+                <div>
+                  <strong>Fixing:</strong> "Fix Missing Fields" 🔧 | "Auto-Assign All" ✅
+                </div>
+                <div>
+                  <strong>Recalculation:</strong> "Recalc All Games" 🔄 (current week/season) | "Recalc Specific Games" 🎯 (enter game IDs)
+                </div>
+                <div className="text-xs italic">
+                  💡 Use "Recalc Specific Games" for the games you identified with scoring issues. Enter the game IDs comma-separated.
+                </div>
+              </div>
             </div>
           </div>
           
@@ -1160,11 +2028,23 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
           <CardContent>
             <div className="space-y-4">
               {unassignedPickSets.map((pickSet, index) => (
-                <div key={`${pickSet.email}-${pickSet.submittedAt}`} className="border rounded-lg p-4 bg-yellow-50">
+                <div key={`${pickSet.email}-${pickSet.submittedAt}`} className={`border rounded-lg p-4 ${
+                  processingPickSets.has(`${pickSet.email}-${pickSet.submittedAt}`) 
+                    ? 'bg-blue-50 border-blue-300' 
+                    : 'bg-yellow-50'
+                }`}>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-2">
-                        <div className="font-semibold text-lg">{pickSet.name} ({pickSet.email})</div>
+                        <div className="font-semibold text-lg">
+                          {processingPickSets.has(`${pickSet.email}-${pickSet.submittedAt}`) && (
+                            <span className="inline-block animate-spin mr-2">⏳</span>
+                          )}
+                          {pickSet.name} ({pickSet.email})
+                          {processingPickSets.has(`${pickSet.email}-${pickSet.submittedAt}`) && (
+                            <span className="ml-2 text-blue-600 text-sm font-normal">Processing...</span>
+                          )}
+                        </div>
                         <div className="flex items-center space-x-2">
                           {getValidationStatusBadge(pickSet.validationStatus)}
                           <Badge variant="outline">{pickSet.picks.length} picks</Badge>
@@ -1283,14 +2163,19 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                                 .map(user => (
                                   <button
                                     key={user.id}
-                                    className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm border-b border-gray-100 last:border-b-0"
+                                    className={`w-full text-left px-3 py-2 hover:bg-gray-100 text-sm border-b border-gray-100 last:border-b-0 ${
+                                      processingPickSets.has(`${pickSet.email}-${pickSet.submittedAt}`) ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
                                     onClick={() => {
-                                      handleAssignPickSet(pickSet, user.id)
-                                      setUserSearch(prev => ({
-                                        ...prev,
-                                        [`${pickSet.email}-${pickSet.submittedAt}`]: ''
-                                      }))
+                                      if (!processingPickSets.has(`${pickSet.email}-${pickSet.submittedAt}`)) {
+                                        handleAssignPickSet(pickSet, user.id)
+                                        setUserSearch(prev => ({
+                                          ...prev,
+                                          [`${pickSet.email}-${pickSet.submittedAt}`]: ''
+                                        }))
+                                      }
                                     }}
+                                    disabled={processingPickSets.has(`${pickSet.email}-${pickSet.submittedAt}`)}
                                   >
                                     <div className="font-medium">{user.display_name}</div>
                                     <div className="text-gray-500 text-xs">{user.email}</div>

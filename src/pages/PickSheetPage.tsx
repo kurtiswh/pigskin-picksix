@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { getCurrentWeek } from '@/services/collegeFootballApi'
+import { getActiveWeek } from '@/services/weekService'
 import { getWeekDataDirect } from '@/lib/supabase-direct'
 import { ENV } from '@/lib/env'
 import { Game, Pick, WeekSettings } from '@/types'
@@ -31,7 +31,7 @@ export default function PickSheetPage() {
   const [isTogglingLock, setIsTogglingLock] = useState(false)
   
   const currentSeason = new Date().getFullYear()
-  const currentWeek = getCurrentWeek(currentSeason) // Dynamic current week
+  const [currentWeek, setCurrentWeek] = useState(1)
 
   // Check if user has unsaved changes
   const hasUnsavedChanges = useCallback(() => {
@@ -39,10 +39,17 @@ export default function PickSheetPage() {
   }, [picks])
 
   useEffect(() => {
-    if (user) {
+    // Get the active week when component mounts
+    getActiveWeek(currentSeason).then(activeWeek => {
+      setCurrentWeek(activeWeek)
+    })
+  }, [currentSeason])
+
+  useEffect(() => {
+    if (user && currentWeek > 0) {
       fetchPickSheetData()
     }
-  }, [user])
+  }, [user, currentWeek])
 
   // Warning for page navigation/refresh with unsaved changes
   useEffect(() => {

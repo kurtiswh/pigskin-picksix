@@ -8,6 +8,8 @@ export interface EmergencyLeaderboardEntry {
   season_record: string
   lock_record: string
   pick_source?: 'authenticated' | 'anonymous' | 'mixed'
+  payment_status?: 'Paid' | 'NotPaid' | 'Pending'
+  is_verified?: boolean
 }
 
 export interface UserWeeklyBreakdown {
@@ -89,8 +91,7 @@ export class EmergencyLeaderboardService {
       .select('user_id, display_name, season_rank, total_points, total_wins, total_losses, total_pushes, lock_wins, lock_losses, pick_source')
       .eq('season', season)
       .order('season_rank', { ascending: true })
-      .limit(200)
-
+      
     const { data, error } = await Promise.race([
       query,
       this.createTimeout(this.QUERY_TIMEOUT)
@@ -113,8 +114,7 @@ export class EmergencyLeaderboardService {
       .select('user_id, display_name, season_rank, total_points, total_wins, total_losses, total_pushes, lock_wins, lock_losses, pick_source')
       .eq('season', season)
       .order('season_rank', { ascending: true })
-      .limit(200)
-
+      
     const { data, error } = await Promise.race([
       query,
       this.createTimeout(this.QUERY_TIMEOUT)

@@ -10,7 +10,7 @@ import GameStatsOverview from '@/components/GameStatsOverview'
 import GamePickStatistics from '@/components/GamePickStatistics'
 import { supabase } from '@/lib/supabase'
 import { liveUpdateService } from '@/services/liveUpdateService'
-import { getCurrentWeek } from '@/services/collegeFootballApi'
+import { getActiveWeek } from '@/services/weekService'
 import { useAuth } from '@/hooks/useAuth'
 import type { Pick } from '@/types'
 
@@ -62,7 +62,7 @@ export default function GamesPage() {
     urlSeason ? parseInt(urlSeason) : 2025
   )
   const [currentWeek, setCurrentWeek] = useState(
-    urlWeek ? parseInt(urlWeek) : getCurrentWeek(2025)
+    urlWeek ? parseInt(urlWeek) : 1
   )
   const [games, setGames] = useState<Game[]>([])
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
@@ -89,6 +89,15 @@ export default function GamesPage() {
       showPickStats: isPickDeadlinePassed
     })
   }, [weekSettings, isPickDeadlinePassed])
+
+  useEffect(() => {
+    // If no week in URL, get the active week first
+    if (!urlWeek) {
+      getActiveWeek(currentSeason).then(activeWeek => {
+        setCurrentWeek(activeWeek)
+      })
+    }
+  }, [currentSeason, urlWeek])
 
   useEffect(() => {
     loadGames()

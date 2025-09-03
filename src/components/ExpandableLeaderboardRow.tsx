@@ -22,6 +22,10 @@ interface LeaderboardRowContentProps {
   isLoading: boolean
   canExpand: boolean
   onToggle: () => void
+  paymentStatus?: 'Paid' | 'NotPaid' | 'Pending'
+  pickSource?: 'authenticated' | 'anonymous' | 'mixed'
+  isAdmin?: boolean
+  isTied?: boolean  // New prop to indicate if this rank is tied
 }
 
 export function ExpandableLeaderboardRow({ 
@@ -106,30 +110,77 @@ export function LeaderboardRowContent({
   isExpanded,
   isLoading,
   canExpand,
-  onToggle 
+  onToggle,
+  paymentStatus,
+  pickSource,
+  isAdmin,
+  isTied = false
 }: LeaderboardRowContentProps) {
+  const getPaymentBadge = () => {
+    // Only show payment indicators for unpaid users
+    if (!paymentStatus || paymentStatus === 'Paid') return null
+    
+    const badges = {
+      'Pending': { text: 'Payment Pending', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+      'NotPaid': { text: 'Payment Due', className: 'bg-red-100 text-red-700 border-red-200' }
+    }
+    
+    const badge = badges[paymentStatus]
+    return badge ? (
+      <Badge className={`${badge.className} text-xs px-2 py-0 h-5`}>
+        {badge.text}
+      </Badge>
+    ) : null
+  }
+  
+  const getSourceBadge = () => {
+    if (!pickSource || !isAdmin) return null
+    
+    const sources = {
+      'authenticated': { text: 'Auth', className: 'bg-blue-100 text-blue-800 border-blue-200' },
+      'anonymous': { text: 'Anon', className: 'bg-purple-100 text-purple-800 border-purple-200' },
+      'mixed': { text: 'Mixed', className: 'bg-orange-100 text-orange-800 border-orange-200' }
+    }
+    
+    const source = sources[pickSource]
+    return source ? (
+      <Badge className={`${source.className} text-xs px-2 py-0 h-5`}>
+        {source.text}
+      </Badge>
+    ) : null
+  }
+  
   return (
     <div className="flex items-center justify-between w-full">
       <div className="flex items-center space-x-4">
         {/* Rank */}
         <div className="flex items-center min-w-[3rem]">
-          {rank <= 3 ? (
-            <div className="flex items-center space-x-1">
-              <Trophy className={`w-4 h-4 ${
-                rank === 1 ? 'text-yellow-500' : 
-                rank === 2 ? 'text-gray-400' : 
-                'text-amber-600'
-              }`} />
-              <span className="font-bold text-lg">{rank}</span>
-            </div>
-          ) : (
-            <span className="font-semibold text-gray-700">{rank}</span>
-          )}
+          <div className="flex items-center space-x-1">
+            {rank <= 3 ? (
+              <>
+                <Trophy className={`w-4 h-4 ${
+                  rank === 1 ? 'text-yellow-500' : 
+                  rank === 2 ? 'text-gray-400' : 
+                  'text-amber-600'
+                }`} />
+                <span className="font-bold text-lg">{rank}</span>
+              </>
+            ) : (
+              <span className="font-semibold text-gray-700">{rank}</span>
+            )}
+            {isTied && (
+              <span className="text-xs font-bold text-blue-600 uppercase ml-0.5" title="Tied rank - same points as other players">
+                T
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Name */}
-        <div className="flex-1">
+        {/* Name and Badges */}
+        <div className="flex-1 flex items-center gap-2">
           <h3 className="font-semibold text-gray-900 truncate">{displayName}</h3>
+          {getPaymentBadge()}
+          {getSourceBadge()}
         </div>
       </div>
 

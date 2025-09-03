@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { getWeekDataDirect, saveGamesDirect, unsaveGamesDirect } from '@/lib/supabase-direct'
 import { Game, WeekSettings } from '@/types'
 import { getGamesWithSpreads, getGamesFast, getCurrentWeek, testApiConnection, CFBGame } from '@/services/collegeFootballApi'
+import { getActiveWeek } from '@/services/weekService'
 import { ENV } from '@/lib/env'
 import AdminGameSelector from '@/components/AdminGameSelector'
 import WeekControls from '@/components/WeekControls'
@@ -13,7 +14,11 @@ import ApiStatusWidget from '@/components/ApiStatusWidget'
 import ApiQuotaWidget from '@/components/ApiQuotaWidget'
 import ScoreManager from '@/components/ScoreManager'
 import AdminNotifications from '@/components/AdminNotifications'
-import AnonymousPicksAdmin from '@/components/AnonymousPicksAdmin'
+import AnonymousPicksAdminWrapper from '@/components/AnonymousPicksAdminWrapper'
+import PickSetManager from '@/components/PickSetManager'
+import LeaderboardVisibilityControl from '@/components/LeaderboardVisibilityControl'
+import CustomPickCombinationManager from '@/components/CustomPickCombinationManager'
+import { GameCompletionTest } from '@/components/GameCompletionTest'
 import '@/utils/emailTesting' // Load email testing utilities for console access
 import { testPickConfirmationEmail, processTestEmailQueue, testNotificationScheduling, registerGlobalEmailTesting } from '@/utils/emailTesting'
 import Layout from '@/components/Layout'
@@ -24,7 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth()
-  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'anonymous' | 'notifications'>('games')
+  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'anonymous' | 'notifications' | 'duplicates' | 'leaderboard' | 'combinations'>('games')
   const [cfbGames, setCfbGames] = useState<CFBGame[]>([])
   const [savedGames, setSavedGames] = useState<CFBGame[]>([]) // Games actually saved to database
   const [tempSelectedGames, setTempSelectedGames] = useState<CFBGame[]>([]) // UI-only selections
@@ -33,7 +38,8 @@ export default function AdminDashboard() {
   const [error, setError] = useState('')
   
   const currentSeason = new Date().getFullYear()
-  const [currentWeek, setCurrentWeek] = useState(getCurrentWeek(currentSeason))
+  const [currentWeek, setCurrentWeek] = useState(1)
+  const [gameSelectionWeek, setGameSelectionWeek] = useState(getCurrentWeek(currentSeason))
   const maxGames = 15
 
 
@@ -45,7 +51,20 @@ export default function AdminDashboard() {
 
 
   useEffect(() => {
-    if (user?.is_admin) {
+    // Set appropriate week based on context
+    if (activeTab === 'games') {
+      // For game selection, allow advancing to calculated week
+      setCurrentWeek(gameSelectionWeek)
+    } else {
+      // For other tabs, use active week (stays on current until next opens)
+      getActiveWeek(currentSeason).then(activeWeek => {
+        setCurrentWeek(activeWeek)
+      })
+    }
+  }, [activeTab, gameSelectionWeek, currentSeason])
+
+  useEffect(() => {
+    if (user?.is_admin && currentWeek > 0) {
       loadWeekData()
     }
   }, [user, currentWeek]) // Reload when week changes
@@ -890,6 +909,36 @@ export default function AdminDashboard() {
           >
             📧 Notifications
           </button>
+          <button
+            onClick={() => setActiveTab('duplicates')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'duplicates'
+                ? 'bg-pigskin-500 text-white'
+                : 'text-charcoal-600 hover:text-pigskin-700'
+            }`}
+          >
+            🎯 Pick Sets
+          </button>
+          <button
+            onClick={() => setActiveTab('leaderboard')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'leaderboard'
+                ? 'bg-pigskin-500 text-white'
+                : 'text-charcoal-600 hover:text-pigskin-700'
+            }`}
+          >
+            📊 Leaderboard
+          </button>
+          <button
+            onClick={() => setActiveTab('combinations')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'combinations'
+                ? 'bg-pigskin-500 text-white'
+                : 'text-charcoal-600 hover:text-pigskin-700'
+            }`}
+          >
+            🎯 Combinations
+          </button>
         </div>
 
         {/* Error Display */}
@@ -973,6 +1022,17 @@ export default function AdminDashboard() {
         {activeTab === 'scores' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-pigskin-900">Score Updates</h2>
+            
+            {/* New Game Completion Testing */}
+            <Card className="border-orange-200 bg-orange-50/50">
+              <CardHeader>
+                <CardTitle className="text-orange-800">🧪 Game Completion Testing (Migration 114)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <GameCompletionTest />
+              </CardContent>
+            </Card>
+            
             <ScoreManager 
               season={currentSeason}
               week={currentWeek}
@@ -990,7 +1050,7 @@ export default function AdminDashboard() {
         {activeTab === 'anonymous' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-pigskin-900">Anonymous Picks Management</h2>
-            <AnonymousPicksAdmin 
+            <AnonymousPicksAdminWrapper 
               currentWeek={currentWeek}
               currentSeason={currentSeason}
             />
@@ -1004,6 +1064,21 @@ export default function AdminDashboard() {
               currentWeek={currentWeek}
               currentSeason={currentSeason}
             />
+          </div>
+        )}
+        {activeTab === 'duplicates' && (
+          <div className="space-y-6">
+            <PickSetManager />
+          </div>
+        )}
+        {activeTab === 'leaderboard' && (
+          <div className="space-y-6">
+            <LeaderboardVisibilityControl season={currentSeason} />
+          </div>
+        )}
+        {activeTab === 'combinations' && (
+          <div className="space-y-6">
+            <CustomPickCombinationManager />
           </div>
         )}
       </main>

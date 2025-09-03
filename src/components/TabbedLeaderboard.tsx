@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Input } from '@/components/ui/input'
 import { EmergencyLeaderboardService, EmergencyLeaderboardEntry, UserWeeklyBreakdown } from '@/services/leaderboardService.emergency'
 import { ProductionLeaderboardService, ProductionLeaderboardEntry } from '@/services/leaderboardService.production'
 import { EmergencyWeeklyLeaderboardService, EmergencyWeeklyLeaderboardEntry, UserWeeklyPicks } from '@/services/weeklyLeaderboardService.emergency'
@@ -31,6 +32,9 @@ export default function TabbedLeaderboard() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [expandedData, setExpandedData] = useState<Map<string, any>>(new Map())
   const [loadingExpansions, setLoadingExpansions] = useState<Set<string>>(new Set())
+  
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('')
   
   // Check if current user is admin
   const isAdmin = user?.is_admin === true
@@ -293,34 +297,6 @@ export default function TabbedLeaderboard() {
     }
   }
 
-  const getSourceBadge = (source?: 'authenticated' | 'anonymous' | 'mixed') => {
-    switch (source) {
-      case 'authenticated':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-            <span>🔐</span> Auth
-          </span>
-        )
-      case 'anonymous':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-            <span>👤</span> Anon
-          </span>
-        )
-      case 'mixed':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-            <span>🔄</span> Mixed
-          </span>
-        )
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-            <span>🔐</span> Auth
-          </span>
-        )
-    }
-  }
 
   // Handle row expansion
   const handleRowToggle = async (userId: string, tabType: 'season' | 'weekly') => {
@@ -384,8 +360,7 @@ export default function TabbedLeaderboard() {
             <div className="flex-1">
               <h3 className="text-lg font-bold text-yellow-800 mb-1">⚠️ IMPORTANT NOTICE</h3>
               <p className="text-yellow-700 font-medium">
-                LEADERBOARD IS NOT UP TO DATE. FOR WEEK ONE, WE HAVE TO MANUALLY VALIDATE DATA. 
-                UNTIL THIS PROCESS IS COMPLETED, YOU MAY NOT APPEAR ON THE LEADERBOARD AND YOUR PICKS MAY NOT BE CORRECT.
+                LEADERBOARD & PAYMENTS ARE STILL BEING PROCESSED. UNTIL THIS PROCESS IS COMPLETED, YOU MAY NOT APPEAR ON THE LEADERBOARD AND YOUR PICKS MAY NOT BE CORRECT.
               </p>
             </div>
           </div>
@@ -401,6 +376,13 @@ export default function TabbedLeaderboard() {
               <SelectItem value="2024">2024</SelectItem>
             </SelectContent>
           </Select>
+          
+          <Input
+            placeholder="Search players..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-xs"
+          />
           
           <div className="flex items-center gap-2">
             {/* Live Update Status */}
@@ -653,17 +635,30 @@ export default function TabbedLeaderboard() {
 
         {/* Expandable rows */}
         <div className="space-y-1">
-          {data.map((entry) => {
+          {data
+            .filter((entry) => 
+              searchTerm === '' || 
+              entry.display_name.toLowerCase().includes(searchTerm.toLowerCase())
+            )
+            .map((entry) => {
             const tabType = activeTab === 'season' ? 'season' : 'weekly'
             const rowKey = `${entry.user_id}-${tabType}`
             const isExpanded = expandedRows.has(rowKey)
             const isLoadingExpansion = loadingExpansions.has(rowKey)
             const expansionData = expandedData.get(rowKey)
+            const currentRank = entry.season_rank || entry.weekly_rank
+            
+            // Check if this rank is tied (appears more than once in the data)
+            const isTied = data.filter(e => {
+              const compareRank = activeTab === 'season' ? e.season_rank : e.weekly_rank
+              return compareRank === currentRank
+            }).length > 1
             
             return (
               <ExpandableLeaderboardRow
                 key={entry.user_id}
                 isLoading={isLoadingExpansion}
+                className={isTied && currentRank > 3 ? 'bg-blue-50/50 border-l-2 border-l-blue-300' : ''}
                 expandedContent={
                   expansionData ? (
                     tabType === 'season' ? (
@@ -684,15 +679,39 @@ export default function TabbedLeaderboard() {
                     record={entry.season_record || entry.weekly_record}
                     lockRecord={entry.lock_record}
                     points={entry.total_points}
-                    sourceBadge={isAdmin ? getSourceBadge(entry.pick_source) : undefined}
+                    paymentStatus={entry.payment_status}
+                    pickSource={entry.pick_source}
                     isExpanded={isExpanded}
+                    isLoading={isLoadingExpansion}
+                    canExpand={false}
+                    onToggle={() => {}}
                     isAdmin={isAdmin}
+                    isTied={isTied}
                   />
                 </div>
               </ExpandableLeaderboardRow>
             )
           })}
         </div>
+        
+        {/* Tie Legend - Only show if there are actual ties */}
+        {data.some((entry, _, arr) => {
+          const currentRank = activeTab === 'season' ? entry.season_rank : entry.weekly_rank
+          return arr.filter(e => {
+            const compareRank = activeTab === 'season' ? e.season_rank : e.weekly_rank
+            return compareRank === currentRank
+          }).length > 1
+        }) && (
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center gap-2 text-sm text-blue-800">
+              <span className="font-bold text-blue-600 text-xs uppercase">T</span>
+              <span>= Tied rank (same points as other players)</span>
+              <span className="ml-auto text-xs text-blue-600">
+                Next rank skips tied positions (e.g., 1, 1, 3, 4...)
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

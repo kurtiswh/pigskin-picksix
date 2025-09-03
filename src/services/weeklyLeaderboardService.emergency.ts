@@ -9,6 +9,8 @@ export interface EmergencyWeeklyLeaderboardEntry {
   lock_record: string
   week: number
   pick_source?: 'authenticated' | 'anonymous' | 'mixed'
+  payment_status?: 'Paid' | 'NotPaid' | 'Pending'
+  is_verified?: boolean
 }
 
 export interface WeeklyPickDetail {
@@ -100,8 +102,7 @@ export class EmergencyWeeklyLeaderboardService {
       .eq('week', week)
       .or('is_verified.eq.true,pick_source.eq.anonymous,pick_source.eq.mixed')
       .order('weekly_rank', { ascending: true })
-      .limit(200)
-
+      
     const { data, error } = await Promise.race([
       query,
       this.createTimeout(this.QUERY_TIMEOUT)
@@ -124,8 +125,7 @@ export class EmergencyWeeklyLeaderboardService {
       .eq('season', season)
       .eq('week', week)
       .order('weekly_rank', { ascending: true })
-      .limit(200)
-
+      
     const { data, error } = await Promise.race([
       query,
       this.createTimeout(this.QUERY_TIMEOUT)
@@ -252,12 +252,44 @@ export class EmergencyWeeklyLeaderboardService {
 
   /**
    * Get detailed weekly picks for a specific user
+   * Implements the same prioritization logic as leaderboard:
+   * 1. Try authenticated picks first
+   * 2. Fall back to anonymous picks if no authenticated picks found
    */
   static async getUserWeeklyPicks(userId: string, season: number, week: number): Promise<UserWeeklyPicks | null> {
     console.log('🚨 [WEEKLY EMERGENCY] Loading picks for user', userId, 'season', season, 'week', week)
 
     try {
-      // Query picks with game details for this user/week/season
+      // Strategy 1: Try authenticated picks first
+      console.log('📊 [WEEKLY PICKS] Trying authenticated picks first...')
+      const authenticatedResult = await this.getAuthenticatedUserPicks(userId, season, week)
+      if (authenticatedResult) {
+        console.log('✅ [WEEKLY PICKS] Found authenticated picks:', authenticatedResult.picks.length, 'picks')
+        return authenticatedResult
+      }
+
+      // Strategy 2: Fall back to anonymous picks
+      console.log('📊 [WEEKLY PICKS] No authenticated picks found, trying anonymous picks...')
+      const anonymousResult = await this.getAnonymousUserPicks(userId, season, week)
+      if (anonymousResult) {
+        console.log('✅ [WEEKLY PICKS] Found anonymous picks:', anonymousResult.picks.length, 'picks')
+        return anonymousResult
+      }
+
+      console.log('❌ [WEEKLY PICKS] No picks found for user (tried both authenticated and anonymous)')
+      return null
+
+    } catch (error) {
+      console.log('❌ [WEEKLY PICKS] Error loading weekly picks:', error.message)
+      return null
+    }
+  }
+
+  /**
+   * Get authenticated picks from the picks table
+   */
+  private static async getAuthenticatedUserPicks(userId: string, season: number, week: number): Promise<UserWeeklyPicks | null> {
+    try {
       const query = supabase
         .from('picks')
         .select(`
@@ -284,13 +316,7 @@ export class EmergencyWeeklyLeaderboardService {
         this.createTimeout(this.QUERY_TIMEOUT)
       ])
 
-      if (error) {
-        console.log('❌ [WEEKLY PICKS] Direct picks query failed:', error.message)
-        return null
-      }
-
-      if (!picks || picks.length === 0) {
-        console.log('❌ [WEEKLY PICKS] No picks found for user')
+      if (error || !picks || picks.length === 0) {
         return null
       }
 
@@ -314,8 +340,6 @@ export class EmergencyWeeklyLeaderboardService {
       const lockWins = pickDetails.filter(p => p.result === 'win' && p.is_lock).length
       const lockLosses = pickDetails.filter(p => p.result === 'loss' && p.is_lock).length
 
-      console.log('✅ [WEEKLY PICKS] Found', pickDetails.length, 'picks for user')
-      
       return {
         user_id: userId,
         display_name: picks[0]?.users?.display_name || 'Unknown User',
@@ -326,9 +350,122 @@ export class EmergencyWeeklyLeaderboardService {
         weekly_record: `${wins}-${losses}-${pushes}`,
         lock_record: `${lockWins}-${lockLosses}`
       }
-
     } catch (error) {
-      console.log('❌ [WEEKLY PICKS] Error loading weekly picks:', error.message)
+      console.log('❌ [AUTHENTICATED PICKS] Error:', error.message)
+      return null
+    }
+  }
+
+  /**
+   * Get anonymous picks from the anonymous_picks table
+   */
+  private static async getAnonymousUserPicks(userId: string, season: number, week: number): Promise<UserWeeklyPicks | null> {
+    try {
+      // Get user display name first
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('display_name')
+        .eq('id', userId)
+        .single()
+
+      if (userError) {
+        console.log('❌ [ANONYMOUS PICKS] User lookup failed:', userError.message)
+        return null
+      }
+
+      const query = supabase
+        .from('anonymous_picks')
+        .select(`
+          game_id,
+          selected_team,
+          is_lock,
+          games!inner(
+            home_team,
+            away_team,
+            status,
+            kickoff_time,
+            home_score,
+            away_score,
+            spread
+          )
+        `)
+        .eq('assigned_user_id', userId)
+        .eq('season', season)
+        .eq('week', week)
+        .eq('show_on_leaderboard', true)
+        .order('games(kickoff_time)')
+
+      const { data: picks, error } = await Promise.race([
+        query,
+        this.createTimeout(this.QUERY_TIMEOUT)
+      ])
+
+      if (error || !picks || picks.length === 0) {
+        return null
+      }
+
+      // Format the pick details and calculate results for anonymous picks
+      const pickDetails: WeeklyPickDetail[] = picks.map(pick => {
+        let result: 'win' | 'loss' | 'push' | null = null
+        let points_earned = 0
+
+        if (pick.games.status === 'completed') {
+          const homeScore = pick.games.home_score || 0
+          const awayScore = pick.games.away_score || 0
+          const spread = pick.games.spread || 0
+
+          // Calculate if the pick won
+          const homeWins = (homeScore + spread) > awayScore
+          const awayWins = (awayScore - spread) > homeScore
+          const isPush = (homeScore + spread) === awayScore
+
+          if (isPush) {
+            result = 'push'
+            points_earned = 10
+          } else if (
+            (pick.selected_team === pick.games.home_team && homeWins) ||
+            (pick.selected_team === pick.games.away_team && awayWins)
+          ) {
+            result = 'win'
+            points_earned = pick.is_lock ? 40 : 20
+          } else {
+            result = 'loss'
+            points_earned = 0
+          }
+        }
+
+        return {
+          game_id: pick.game_id,
+          game_name: `${pick.games.away_team} @ ${pick.games.home_team}`,
+          selected_team: pick.selected_team,
+          is_lock: pick.is_lock,
+          result: result,
+          points_earned: points_earned,
+          game_status: pick.games.status,
+          kickoff_time: pick.games.kickoff_time
+        }
+      })
+
+      // Calculate summary statistics
+      const totalPoints = pickDetails.reduce((sum, pick) => sum + pick.points_earned, 0)
+      const wins = pickDetails.filter(p => p.result === 'win').length
+      const losses = pickDetails.filter(p => p.result === 'loss').length
+      const pushes = pickDetails.filter(p => p.result === 'push').length
+      const lockWins = pickDetails.filter(p => p.result === 'win' && p.is_lock).length
+      const lockLosses = pickDetails.filter(p => p.result === 'loss' && p.is_lock).length
+
+      return {
+        user_id: userId,
+        display_name: userData?.display_name || 'Unknown User',
+        week: week,
+        season: season,
+        picks: pickDetails,
+        total_points: totalPoints,
+        weekly_record: `${wins}-${losses}-${pushes}`,
+        lock_record: `${lockWins}-${lockLosses}`
+      }
+    } catch (error) {
+      console.log('❌ [ANONYMOUS PICKS] Error:', error.message)
       return null
     }
   }

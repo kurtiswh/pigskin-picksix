@@ -26,7 +26,8 @@ interface ScoreManagerProps {
   week: number
 }
 
-export default function ScoreManager({ season, week }: ScoreManagerProps) {
+export default function ScoreManager({ season, week: initialWeek }: ScoreManagerProps) {
+  const [selectedWeek, setSelectedWeek] = useState(initialWeek)
   const [games, setGames] = useState<Game[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -44,22 +45,117 @@ export default function ScoreManager({ season, week }: ScoreManagerProps) {
     message: string
     details?: string
   } | null>(null)
+  const [statusData, setStatusData] = useState<{
+    lastScoresUpdate: Date | null
+    lastPicksUpdate: Date | null
+    lastLeaderboardUpdate: Date | null
+    pendingScores: number
+    pendingPicks: number
+    pendingAnonPicks: number
+    totalGames: number
+  }>({
+    lastScoresUpdate: null,
+    lastPicksUpdate: null,
+    lastLeaderboardUpdate: null,
+    pendingScores: 0,
+    pendingPicks: 0,
+    pendingAnonPicks: 0,
+    totalGames: 0
+  })
 
   useEffect(() => {
     loadGames()
     updateLiveStatus()
+    loadStatusData()
     checkAutoStart()
     
     // Set up periodic status updates
-    const statusInterval = setInterval(updateLiveStatus, 10000) // Update every 10 seconds
+    const statusInterval = setInterval(() => {
+      updateLiveStatus()
+      loadStatusData()
+    }, 10000) // Update every 10 seconds
     
     return () => {
       clearInterval(statusInterval)
     }
-  }, [season, week])
+  }, [season, selectedWeek])
+
+  useEffect(() => {
+    setSelectedWeek(initialWeek)
+  }, [initialWeek])
 
   const updateLiveStatus = () => {
     setLiveUpdateStatus(liveUpdateService.getStatus())
+  }
+
+  const loadStatusData = async () => {
+    try {
+      // Get games with scores vs total
+      const { data: allGames } = await supabase
+        .from('games')
+        .select('id, home_score, away_score, updated_at')
+        .eq('season', season)
+        .eq('week', selectedWeek)
+
+      // Get picks needing processing (filter by game_id instead of season/week)
+      const gameIds = allGames?.map(g => g.id) || []
+      
+      let pendingPicks = 0
+      let pendingAnonPicks = 0
+      
+      if (gameIds.length > 0) {
+        const { count: picks } = await supabase
+          .from('picks')
+          .select('*', { count: 'exact', head: true })
+          .in('game_id', gameIds)
+          .is('result', null)
+        
+        // Anonymous picks also filter by game_id since they may not have season/week columns
+        const { count: anonPicks } = await supabase
+          .from('anonymous_picks')
+          .select('*', { count: 'exact', head: true })
+          .in('game_id', gameIds)
+          .is('result', null)
+          
+        pendingPicks = picks || 0
+        pendingAnonPicks = anonPicks || 0
+      }
+
+      // Get latest updates from recent activity
+      const { data: recentScores } = await supabase
+        .from('games')
+        .select('updated_at')
+        .eq('season', season)
+        .eq('week', selectedWeek)
+        .not('home_score', 'is', null)
+        .not('away_score', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+
+      // Get latest pick updates (filter by game_id)
+      const { data: recentPicks } = await supabase
+        .from('picks')
+        .select('updated_at')
+        .in('game_id', gameIds)
+        .not('result', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+
+      const gamesWithScores = allGames?.filter(g => g.home_score !== null && g.away_score !== null).length || 0
+      const gamesWithoutScores = (allGames?.length || 0) - gamesWithScores
+
+      setStatusData({
+        lastScoresUpdate: recentScores?.[0]?.updated_at ? new Date(recentScores[0].updated_at) : null,
+        lastPicksUpdate: recentPicks?.[0]?.updated_at ? new Date(recentPicks[0].updated_at) : null,
+        lastLeaderboardUpdate: liveUpdateStatus?.lastPickProcessing?.lastUpdate || null,
+        pendingScores: gamesWithoutScores,
+        pendingPicks: pendingPicks || 0,
+        pendingAnonPicks: pendingAnonPicks || 0,
+        totalGames: allGames?.length || 0
+      })
+    } catch (error) {
+      console.error('Error loading status data:', error)
+    }
   }
 
   const checkAutoStart = async () => {
@@ -86,7 +182,7 @@ export default function ScoreManager({ season, week }: ScoreManagerProps) {
         .from('games')
         .select('*')
         .eq('season', season)
-        .eq('week', week)
+        .eq('week', selectedWeek)
         .order('kickoff_time', { ascending: true })
 
       if (gamesError) throw gamesError
@@ -585,8 +681,22 @@ export default function ScoreManager({ season, week }: ScoreManagerProps) {
         <div>
           <h3 className="text-lg font-semibold">Score Management</h3>
           <p className="text-sm text-gray-600">
-            Update game scores and calculate pick results for {season} Week {week}
+            Update game scores and calculate pick results for {season} Week {selectedWeek}
           </p>
+          
+          {/* Week Selector */}
+          <div className="mt-2">
+            <label className="text-xs text-gray-500 mr-2">Week:</label>
+            <select 
+              value={selectedWeek} 
+              onChange={(e) => setSelectedWeek(Number(e.target.value))}
+              className="text-sm border rounded px-2 py-1"
+            >
+              {Array.from({length: 15}, (_, i) => i + 1).map(weekNum => (
+                <option key={weekNum} value={weekNum}>Week {weekNum}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {/* Live Update Status */}
@@ -621,6 +731,91 @@ export default function ScoreManager({ season, week }: ScoreManagerProps) {
           </Button>
         </div>
       </div>
+
+      {/* Status Monitoring */}
+      <Card className="border-green-200 bg-green-50/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <span>📊</span>
+            System Status - Week {selectedWeek}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Game Scores Status */}
+            <div className="p-3 bg-white rounded border">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-medium text-sm">Game Scores</h4>
+                <Badge variant={statusData.pendingScores === 0 ? 'default' : 'secondary'}>
+                  {statusData.totalGames - statusData.pendingScores}/{statusData.totalGames}
+                </Badge>
+              </div>
+              <div className="text-xs text-gray-600">
+                <div>Completed: {statusData.totalGames - statusData.pendingScores}</div>
+                <div>Pending: {statusData.pendingScores}</div>
+                <div className="mt-1">
+                  Last Update: {statusData.lastScoresUpdate 
+                    ? statusData.lastScoresUpdate.toLocaleString() 
+                    : 'Never'}
+                </div>
+              </div>
+            </div>
+
+            {/* Picks Status */}
+            <div className="p-3 bg-white rounded border">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-medium text-sm">Regular Picks</h4>
+                <Badge variant={statusData.pendingPicks === 0 ? 'default' : 'destructive'}>
+                  {statusData.pendingPicks} pending
+                </Badge>
+              </div>
+              <div className="text-xs text-gray-600">
+                <div>Unprocessed: {statusData.pendingPicks}</div>
+                <div className="mt-1">
+                  Last Update: {statusData.lastPicksUpdate 
+                    ? statusData.lastPicksUpdate.toLocaleString() 
+                    : 'Never'}
+                </div>
+              </div>
+            </div>
+
+            {/* Anonymous Picks Status */}
+            <div className="p-3 bg-white rounded border">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-medium text-sm">Anonymous Picks</h4>
+                <Badge variant={statusData.pendingAnonPicks === 0 ? 'default' : 'destructive'}>
+                  {statusData.pendingAnonPicks} pending
+                </Badge>
+              </div>
+              <div className="text-xs text-gray-600">
+                <div>Unprocessed: {statusData.pendingAnonPicks}</div>
+                <div className="mt-1">
+                  Leaderboard: {statusData.lastLeaderboardUpdate 
+                    ? statusData.lastLeaderboardUpdate.toLocaleString() 
+                    : 'Never'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Scheduled Pick Processing Status */}
+          {liveUpdateStatus?.lastPickProcessing && (
+            <div className="p-3 bg-blue-50 rounded border border-blue-200">
+              <h4 className="font-medium text-sm mb-2">Last Scheduled Processing</h4>
+              <div className="text-xs space-y-1">
+                <div>Games Checked: {liveUpdateStatus.lastPickProcessing.gamesChecked}</div>
+                <div>Games Processed: {liveUpdateStatus.lastPickProcessing.gamesChanged}</div>
+                <div>Picks Updated: {liveUpdateStatus.lastPickProcessing.picksProcessed}</div>
+                <div>Leaderboards: {liveUpdateStatus.lastPickProcessing.leaderboardsRefreshed ? '✅ Refreshed' : '⏳ Not needed'}</div>
+                <div>Last Run: {liveUpdateStatus.lastPickProcessing.lastUpdate.toLocaleString()}</div>
+                {liveUpdateStatus.lastPickProcessing.errors.length > 0 && (
+                  <div className="text-red-600">Errors: {liveUpdateStatus.lastPickProcessing.errors.length}</div>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Live Update Controls */}
       <Card className="border-blue-200">

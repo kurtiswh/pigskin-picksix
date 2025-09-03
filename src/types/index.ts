@@ -188,8 +188,9 @@ export interface LeagueSafePayment {
 }
 
 export interface UserWithPayment extends User {
-  payment_status?: 'Paid' | 'NotPaid' | 'Pending' | 'No Payment'
+  payment_status?: 'Paid' | 'NotPaid' | 'Pending' | 'No Payment' | 'Manual Registration'
   leaguesafe_payment?: LeagueSafePayment
+  season_payment_history?: LeagueSafePayment[]
 }
 
 export interface AuthContextType {

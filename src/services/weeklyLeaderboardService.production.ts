@@ -9,6 +9,8 @@ export interface ProductionWeeklyLeaderboardEntry {
   lock_record: string
   week: number
   pick_source?: 'authenticated' | 'anonymous' | 'mixed'
+  payment_status?: 'Paid' | 'NotPaid' | 'Pending'
+  is_verified?: boolean
 }
 
 /**
@@ -37,9 +39,10 @@ export class ProductionWeeklyLeaderboardService {
         controller.abort()
       }, this.API_TIMEOUT)
 
-      // Direct REST API call to Supabase weekly_leaderboard table with pick_source filtering
+      // Direct REST API call to Supabase weekly_leaderboard table  
+      // Show users whose picks are marked as visible on leaderboard (no limit for full leaderboard)
       const response = await fetch(
-        `${this.supabaseUrl}/rest/v1/weekly_leaderboard?select=user_id,display_name,weekly_rank,total_points,wins,losses,pushes,lock_wins,lock_losses,pick_source&season=eq.${season}&week=eq.${week}&or=(is_verified.eq.true,pick_source.eq.anonymous,pick_source.eq.mixed)&order=weekly_rank.asc&limit=200`,
+        `${this.supabaseUrl}/rest/v1/weekly_leaderboard?select=user_id,display_name,weekly_rank,total_points,wins,losses,pushes,lock_wins,lock_losses,pick_source,payment_status,is_verified&season=eq.${season}&week=eq.${week}&picks_made.gt.0&order=weekly_rank.asc`,
         {
           headers: {
             'apikey': this.supabaseKey,
@@ -85,7 +88,9 @@ export class ProductionWeeklyLeaderboardService {
       weekly_record: `${entry.wins || 0}-${entry.losses || 0}-${entry.pushes || 0}`,
       lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
       week: week,
-      pick_source: entry.pick_source || 'authenticated'
+      pick_source: entry.pick_source || 'authenticated',
+      payment_status: entry.payment_status || 'NotPaid',
+      is_verified: entry.is_verified || false
     }))
   }
 

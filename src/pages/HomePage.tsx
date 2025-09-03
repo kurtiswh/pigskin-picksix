@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
-import { getCurrentWeek } from '@/services/collegeFootballApi'
+import { getActiveWeekSettings } from '@/services/weekService'
 import { LeaderboardEntry, Pick } from '@/types'
 import Layout from '@/components/Layout'
 
@@ -14,7 +14,7 @@ export default function HomePage() {
   
   console.log('🏠 HomePage - User state:', user)
   const currentSeason = new Date().getFullYear()
-  const [currentWeek, setCurrentWeek] = useState(getCurrentWeek(currentSeason))
+  const [currentWeek, setCurrentWeek] = useState(1)
   const [deadline, setDeadline] = useState<Date | null>(null)
   const [topPlayers, setTopPlayers] = useState<LeaderboardEntry[]>([])
   const [userPicks, setUserPicks] = useState<Pick[]>([])
@@ -59,21 +59,16 @@ export default function HomePage() {
     console.log('🏠 Fetching real homepage data from database')
     
     try {
-      // Get actual week settings to get the real deadline
-      const { data: weekSettingsData, error: weekError } = await supabase
-        .from('week_settings')
-        .select('*')
-        .eq('week', currentWeek)
-        .eq('season', currentSeason)
-        .single()
+      // Get active week settings (stays on current week until next week opens)
+      const weekSettingsData = await getActiveWeekSettings(currentSeason)
       
-      if (weekError) {
-        console.warn('⚠️ Could not fetch week settings:', weekError.message)
-        // Fallback to dynamic current week and mock deadline
-        setCurrentWeek(getCurrentWeek(currentSeason))
+      if (!weekSettingsData) {
+        console.warn('⚠️ Could not fetch week settings')
+        // Fallback to week 1 and mock deadline
+        setCurrentWeek(1)
         setDeadline(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) // 1 week from now
       } else {
-        console.log('✅ Loaded week settings:', weekSettingsData)
+        console.log('✅ Loaded active week settings:', weekSettingsData)
         setCurrentWeek(weekSettingsData.week)
         setDeadline(new Date(weekSettingsData.deadline))
       }

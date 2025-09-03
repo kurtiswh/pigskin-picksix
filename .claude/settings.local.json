@@ -2,7 +2,28 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(npx supabase:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run build:*)",
+      "Bash(psql:*)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_QffodSPhiV/**)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_8SAfAGOw6a/**)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_diDPtKL6SH/**)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_rRWUUqHVcv/**)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_3KI8eYS56r/**)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_oVWNbFI5uO/**)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_CY7Xg1Orew/**)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_Qa2Fzmogdn/**)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_CIi5g0d9qN/**)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_gJFyq0YbHI/**)",
+      "Bash(npm run dev:*)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_3XGwTZQVbw/**)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_2UX8BJ6MT5/**)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_PXpmk0CFWM/**)"
     ],
     "deny": [],
     "ask": []

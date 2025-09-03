@@ -116,6 +116,15 @@ export default function LeaderboardTable({
       default: return `#${rank}`
     }
   }
+  
+  // Helper function to check if this rank is tied with others
+  const isTiedRank = (rank: number, entries: LeaderboardEntry[], type: 'weekly' | 'season' | 'best-finish') => {
+    const sameRankCount = entries.filter(e => {
+      const entryRank = type === 'weekly' ? e.weekly_rank : e.season_rank
+      return entryRank === rank
+    }).length
+    return sameRankCount > 1
+  }
 
   const getSourceBadge = (source?: 'authenticated' | 'anonymous' | 'mixed') => {
     switch (source) {
@@ -229,25 +238,34 @@ export default function LeaderboardTable({
               const points = type === 'weekly' ? (entry.weekly_points || 0) : entry.season_points
               const record = type === 'weekly' ? entry.weekly_record : entry.season_record
               const sourceBadge = getSourceBadge(entry.pick_source)
+              const isTied = isTiedRank(rank, filteredEntries, type)
               
               return (
                 <div
                   key={entry.user_id}
                   className={cn(
                     `grid gap-4 px-4 py-3 rounded-lg transition-colors hover:bg-stone-50 ${isAdmin ? 'grid-cols-12' : 'grid-cols-10'}`,
-                    rank <= 3 && "bg-gradient-to-r from-gold-50 to-transparent border border-gold-200"
+                    rank <= 3 && "bg-gradient-to-r from-gold-50 to-transparent border border-gold-200",
+                    isTied && rank > 3 && "bg-blue-50 border-l-2 border-blue-300"
                   )}
                 >
                   {/* Rank */}
                   <div className="col-span-1 flex items-center">
-                    <span className={cn(
-                      "font-bold",
-                      rank === 1 && "text-gold-600",
-                      rank === 2 && "text-stone-400", 
-                      rank === 3 && "text-amber-600"
-                    )}>
-                      {getRankIcon(rank)}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className={cn(
+                        "font-bold",
+                        rank === 1 && "text-gold-600",
+                        rank === 2 && "text-stone-400", 
+                        rank === 3 && "text-amber-600"
+                      )}>
+                        {getRankIcon(rank)}
+                      </span>
+                      {isTied && (
+                        <span className="text-xs font-medium text-blue-600 uppercase" title="Tied rank">
+                          T
+                        </span>
+                      )}
+                    </div>
                   </div>
                   
                   {/* Player */}
@@ -308,6 +326,19 @@ export default function LeaderboardTable({
                 </div>
               )
             })}
+          </div>
+        )}
+        
+        {/* Tie Indicator Legend - Only show if there are ties */}
+        {filteredEntries.some((entry, _, arr) => isTiedRank(type === 'weekly' ? (entry.weekly_rank || 0) : entry.season_rank, arr, type)) && (
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center gap-2 text-sm text-blue-800">
+              <span className="font-medium text-blue-600">T</span>
+              <span>= Tied rank (same points as other players)</span>
+              <span className="ml-auto text-xs text-blue-600">
+                Ties broken by: Total Wins → Name (alphabetical)
+              </span>
+            </div>
           </div>
         )}
         

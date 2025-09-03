@@ -31,7 +31,7 @@ export default function UserManagement() {
   const [searchTerm, setSearchTerm] = useState('')
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all')
   const [error, setError] = useState('')
-  const [currentSeason, setCurrentSeason] = useState(2024) // Default to 2024 where the data is
+  const [currentSeason, setCurrentSeason] = useState(2025) // Default to 2025 (current season)
   const [matchingPayment, setMatchingPayment] = useState<LeagueSafePayment | null>(null)
   const [selectedUser, setSelectedUser] = useState<UserWithPayment | null>(null)
   const [showMergeModal, setShowMergeModal] = useState(false)
@@ -250,17 +250,12 @@ export default function UserManagement() {
   }
 
   const updatePaymentStatus = async (userId: string, newStatus: string) => {
-    console.log('🎯 NEW VERSION 2025-08-13 - updatePaymentStatus called')
-    console.log('🚀 FUNCTION START - updatePaymentStatus called')
-    console.log('📊 Current users array length:', users.length)
+    console.log('🎯 Updating payment status for season', currentSeason)
     console.log('🎯 Target userId:', userId)
     console.log('🔄 New status:', newStatus)
     
     try {
-      console.log(`🔄 Updating payment status for user ${userId} to ${newStatus} for season ${currentSeason}`)
-      
       // Find the user to get their email and name
-      console.log('🔍 Searching for user in array...')
       const user = users.find(u => u.id === userId)
       if (!user) {
         throw new Error('User not found')
@@ -268,79 +263,71 @@ export default function UserManagement() {
       
       console.log('📋 User found:', user.display_name)
 
-      const paymentData = {
-        user_id: userId,
-        season: currentSeason,
-        status: newStatus,
-        leaguesafe_owner_name: user.display_name,
-        leaguesafe_email: user.email,
-        entry_fee: 0.00,
-        paid: 0.00,
-        owes: 0.00,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+      // Check if a record exists for this user and season
+      const { data: existingPayment, error: checkError } = await supabase
+        .from('leaguesafe_payments')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('season', currentSeason)
+        .single()
+
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+        console.error('Error checking existing payment:', checkError)
+        throw checkError
       }
+
+      let result
       
-      console.log('📤 Payment data prepared:', paymentData)
-      
-      // Use direct API call since Supabase client is hanging
-      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
-      
-      console.log('🌐 Using direct API approach...')
-      
-      // Try UPDATE first, then INSERT if no record exists
-      const updateResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?user_id=eq.${userId}&season=eq.${currentSeason}`, {
-        method: 'PATCH',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      if (existingPayment) {
+        // Update existing record
+        console.log('📝 Updating existing payment record...')
+        const { data, error } = await supabase
+          .from('leaguesafe_payments')
+          .update({
+            status: newStatus,
+            is_matched: true, // Set to true when manually updating payment status
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId)
+          .eq('season', currentSeason)
+          .select()
+        
+        if (error) throw error
+        result = data
+        console.log('✅ Payment record updated:', result)
+      } else {
+        // Insert new record
+        console.log('📝 Creating new payment record...')
+        const paymentData = {
+          user_id: userId,
+          season: currentSeason,
           status: newStatus,
+          leaguesafe_owner_name: user.display_name,
+          leaguesafe_email: user.leaguesafe_email || user.email,
+          is_matched: true, // Set to true when manually creating payment record
+          entry_fee: 0.00,
+          paid: 0.00,
+          owes: 0.00,
+          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        })
-      })
-      
-      console.log(`🔍 Update response status: ${updateResponse.status}`)
-      
-      let response = updateResponse
-      
-      // If no rows were updated (404), try INSERT
-      if (updateResponse.status === 404) {
-        console.log('📝 No existing record found, inserting new record...')
-        response = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments`, {
-          method: 'POST',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(paymentData)
-        })
-        console.log(`🔍 Insert response status: ${response.status}`)
+        }
+        
+        const { data, error } = await supabase
+          .from('leaguesafe_payments')
+          .insert(paymentData)
+          .select()
+        
+        if (error) throw error
+        result = data
+        console.log('✅ Payment record created:', result)
       }
-      
-      console.log(`🔍 Direct API response status: ${response.status}`)
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('❌ Direct API failed:', errorText)
-        throw new Error(`Failed to update payment status: ${response.status} - ${errorText}`)
-      }
-      
-      const responseData = await response.text()
-      console.log('✅ Payment updated successfully via direct API:', responseData)
 
       // Update selected user if it's the one being modified
       if (selectedUser?.id === userId) {
         setSelectedUser(prev => prev ? { ...prev, payment_status: newStatus } : null)
       }
 
-      // Refresh data
-      await loadUsers()
-      await loadStats()
+      // Note: Don't refresh here as the modal will handle it via onRefresh
     } catch (err: any) {
       console.error('Error updating payment status:', err)
       setError(err.message)
@@ -742,6 +729,7 @@ export default function UserManagement() {
         onSendPasswordReset={sendPasswordReset}
         onDeleteUser={deleteUser}
         onUpdatePaymentStatus={updatePaymentStatus}
+        onRefresh={loadUsers}
         currentSeason={currentSeason}
       />
     </div>
