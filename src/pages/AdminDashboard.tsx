@@ -52,8 +52,8 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     // Set appropriate week based on context
-    if (activeTab === 'games') {
-      // For game selection, allow advancing to calculated week
+    if (activeTab === 'games' || activeTab === 'controls') {
+      // For game selection and controls, always follow the game selection week
       setCurrentWeek(gameSelectionWeek)
     } else {
       // For other tabs, use active week (stays on current until next opens)
