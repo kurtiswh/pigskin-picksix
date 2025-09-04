@@ -238,7 +238,7 @@ export default function WeekControls({
           <CardTitle className="flex items-center justify-between">
             <span>Week Status</span>
             <div className="text-sm font-normal text-charcoal-500">
-              Week {weekSettings?.week || 1} • {weekSettings?.season || new Date().getFullYear()}
+              Week {currentWeek} • {currentSeason}
             </div>
           </CardTitle>
         </CardHeader>

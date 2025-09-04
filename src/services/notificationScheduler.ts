@@ -110,6 +110,7 @@ export class NotificationScheduler {
     picks: Array<{
       game: string
       pick: string
+      spread: number
       isLock: boolean
       lockTime: string
     }>

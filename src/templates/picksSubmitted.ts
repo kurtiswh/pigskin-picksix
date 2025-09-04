@@ -5,16 +5,35 @@ export function getPicksSubmittedSubject(data: PicksSubmittedData): string {
 }
 
 export function getPicksSubmittedHtml(data: PicksSubmittedData): string {
-  const picksHtml = data.picks.map(pick => `
+  const picksHtml = data.picks.map(pick => {
+    // Parse game string to determine home/away teams
+    const gameMatch = pick.game.match(/^(.+?)\s+@\s+(.+)$/)
+    const awayTeam = gameMatch?.[1]?.trim()
+    const homeTeam = gameMatch?.[2]?.trim()
+    
+    // Determine the spread for the picked team
+    // Spread is always relative to the home team
+    // If pick is home team: use spread as-is
+    // If pick is away team: flip the spread sign
+    let displaySpread = pick.spread
+    if (pick.pick === awayTeam) {
+      displaySpread = -pick.spread
+    }
+    
+    // Format spread display
+    const spreadText = displaySpread > 0 ? `+${displaySpread}` : displaySpread.toString()
+    
+    return `
     <tr style="border-bottom: 1px solid #e5e7eb;">
       <td style="padding: 12px 8px; color: #1f2937; font-weight: ${pick.isLock ? 'bold' : 'normal'};">
         ${pick.isLock ? '🔒 ' : ''}${pick.game}
       </td>
       <td style="padding: 12px 8px; color: #1f2937; text-align: center; font-weight: ${pick.isLock ? 'bold' : 'normal'};">
-        ${pick.pick}
+        ${pick.pick} (${spreadText})
       </td>
     </tr>
-  `).join('')
+    `
+  }).join('')
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
@@ -75,9 +94,25 @@ export function getPicksSubmittedHtml(data: PicksSubmittedData): string {
 }
 
 export function getPicksSubmittedText(data: PicksSubmittedData): string {
-  const picksText = data.picks.map(pick => 
-    `${pick.isLock ? '🔒 ' : '   '}${pick.game} → ${pick.pick}`
-  ).join('\n')
+  const picksText = data.picks.map(pick => {
+    // Parse game string to determine home/away teams
+    const gameMatch = pick.game.match(/^(.+?)\s+@\s+(.+)$/)
+    const awayTeam = gameMatch?.[1]?.trim()
+    const homeTeam = gameMatch?.[2]?.trim()
+    
+    // Determine the spread for the picked team
+    // Spread is always relative to the home team
+    // If pick is home team: use spread as-is
+    // If pick is away team: flip the spread sign
+    let displaySpread = pick.spread
+    if (pick.pick === awayTeam) {
+      displaySpread = -pick.spread
+    }
+    
+    // Format spread display
+    const spreadText = displaySpread > 0 ? `+${displaySpread}` : displaySpread.toString()
+    return `${pick.isLock ? '🔒 ' : '   '}${pick.game} → ${pick.pick} (${spreadText})`
+  }).join('\n')
 
   return `
 ✅ Picks Confirmed! - Pigskin Pick Six

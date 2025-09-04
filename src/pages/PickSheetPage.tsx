@@ -47,6 +47,11 @@ export default function PickSheetPage() {
 
   useEffect(() => {
     if (user && currentWeek > 0) {
+      // Clear stale data when week changes to prevent caching issues
+      setPicks([])
+      setGames([])
+      setWeekSettings(null)
+      setError('')
       fetchPickSheetData()
     }
   }, [user, currentWeek])
@@ -719,6 +724,7 @@ export default function PickSheetPage() {
           return {
             game: `${game?.away_team} @ ${game?.home_team}`,
             pick: pick.selected_team,
+            spread: game?.spread || 0,
             isLock: pick.is_lock,
             lockTime: pick.lock_time || game?.kickoff_time || ''
           }

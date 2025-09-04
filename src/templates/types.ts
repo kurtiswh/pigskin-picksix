@@ -24,6 +24,7 @@ export interface PicksSubmittedData extends BaseTemplateData {
   picks: Array<{
     game: string
     pick: string
+    spread: number
     isLock: boolean
     lockTime: string
   }>

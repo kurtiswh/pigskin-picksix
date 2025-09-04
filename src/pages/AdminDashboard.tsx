@@ -65,6 +65,14 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (user?.is_admin && currentWeek > 0) {
+      // Clear stale data before loading new week
+      setWeekSettings(null)
+      setSavedGames([])
+      setTempSelectedGames([])
+      // Clear live update service cache to prevent stale week data
+      import('@/services/liveUpdateService').then(({ liveUpdateService }) => {
+        liveUpdateService.clearWeekCache()
+      })
       loadWeekData()
     }
   }, [user, currentWeek]) // Reload when week changes
@@ -74,7 +82,7 @@ export default function AdminDashboard() {
       setLoading(true)
       setError('')
 
-      console.log('📊 Loading week data with timeout...')
+      console.log(`📊 Loading week ${currentWeek} data with timeout...`)
 
       // Add timeout to prevent hanging (reduced since network tests show API works)
       const timeoutPromise = new Promise<never>((_, reject) => 

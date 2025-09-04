@@ -177,6 +177,7 @@ export class EmailTemplates {
     picks: Array<{
       game: string
       pick: string
+      spread: number
       isLock: boolean
       lockTime: string
     }>,
@@ -436,6 +437,7 @@ export class EmailService {
     picks: Array<{
       game: string
       pick: string
+      spread: number
       isLock: boolean
       lockTime: string
     }>,
@@ -1021,6 +1023,7 @@ export class EmailService {
     picks: Array<{
       game: string
       pick: string
+      spread: number
       isLock: boolean
       lockTime: string
     }>,

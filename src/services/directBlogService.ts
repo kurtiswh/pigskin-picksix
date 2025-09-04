@@ -125,13 +125,40 @@ export class DirectBlogService {
     console.log('DirectBlogService.createPost called with:', post)
     
     try {
-      // Generate slug from title
-      const slug = post.title
+      // Generate base slug from title
+      const baseSlug = post.title
         .toLowerCase()
         .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
         .replace(/\s+/g, '-') // Replace spaces with dashes
         .replace(/-+/g, '-') // Replace multiple dashes with single dash
         .trim()
+
+      // Check for slug collisions and generate unique slug
+      let slug = baseSlug
+      let counter = 1
+      
+      while (true) {
+        try {
+          const existingPost = await this.fetchWithTimeout(
+            `${this.SUPABASE_URL}/rest/v1/blog_posts?slug=eq.${slug}&select=id&limit=1`
+          )
+          const existing = await existingPost.json()
+          
+          if (!existing || existing.length === 0) {
+            // Slug is unique, we can use it
+            break
+          }
+          
+          // Slug exists, try with counter
+          counter++
+          slug = `${baseSlug}-${counter}`
+          console.log(`Slug collision detected, trying: ${slug}`)
+          
+        } catch (error) {
+          console.warn('Error checking slug uniqueness, proceeding with base slug:', error)
+          break
+        }
+      }
 
       const postData = {
         title: post.title,

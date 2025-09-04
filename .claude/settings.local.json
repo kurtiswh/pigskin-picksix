@@ -24,7 +24,9 @@
       "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_3XGwTZQVbw/**)",
       "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_2UX8BJ6MT5/**)",
       "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_PXpmk0CFWM/**)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_mBAoFCVUbD/**)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

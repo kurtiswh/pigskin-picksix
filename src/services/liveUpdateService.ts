@@ -834,6 +834,17 @@ export class LiveUpdateService {
   }
 
   /**
+   * Clear cached week data when week changes to prevent stale data
+   */
+  clearWeekCache(): void {
+    console.log('🧹 Clearing week cache for fresh data')
+    this.gameHashCache.clear()
+    // Reset status flags that might be week-specific
+    this.status.shouldRefreshLeaderboard = false
+    this.status.lastPickProcessing = undefined
+  }
+
+  /**
    * TESTING METHOD: Manually complete a stuck game
    * This bypasses the API and forces game completion for testing
    */

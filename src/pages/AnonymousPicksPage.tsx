@@ -262,6 +262,7 @@ export default function AnonymousPicksPage() {
           return {
             game: `${game?.away_team} @ ${game?.home_team}`,
             pick: pick.selectedTeam,
+            spread: game?.spread || 0,
             isLock: pick.isLock,
             lockTime: game?.kickoff_time || ''
           }
