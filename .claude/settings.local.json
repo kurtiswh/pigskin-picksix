@@ -23,7 +23,8 @@
       "Bash(npm run dev:*)",
       "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_3XGwTZQVbw/**)",
       "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_2UX8BJ6MT5/**)",
-      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_PXpmk0CFWM/**)"
+      "Read(/Users/kurtiswh/Library/Application Support/CleanShot/media/media_PXpmk0CFWM/**)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

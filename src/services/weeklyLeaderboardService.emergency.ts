@@ -290,6 +290,15 @@ export class EmergencyWeeklyLeaderboardService {
    */
   private static async getAuthenticatedUserPicks(userId: string, season: number, week: number): Promise<UserWeeklyPicks | null> {
     try {
+      // Get user display name first (separate query to avoid join issues)
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('display_name')
+        .eq('id', userId)
+        .single()
+
+      const displayName = userData?.display_name || 'Unknown User'
+
       const query = supabase
         .from('picks')
         .select(`
@@ -298,7 +307,6 @@ export class EmergencyWeeklyLeaderboardService {
           is_lock,
           result,
           points_earned,
-          users!inner(display_name),
           games!inner(
             home_team,
             away_team,
@@ -342,7 +350,7 @@ export class EmergencyWeeklyLeaderboardService {
 
       return {
         user_id: userId,
-        display_name: picks[0]?.users?.display_name || 'Unknown User',
+        display_name: displayName,
         week: week,
         season: season,
         picks: pickDetails,
@@ -379,6 +387,8 @@ export class EmergencyWeeklyLeaderboardService {
           game_id,
           selected_team,
           is_lock,
+          result,
+          points_earned,
           games!inner(
             home_team,
             away_team,
@@ -404,43 +414,15 @@ export class EmergencyWeeklyLeaderboardService {
         return null
       }
 
-      // Format the pick details and calculate results for anonymous picks
+      // Format the pick details - use the actual stored result and points from the table
       const pickDetails: WeeklyPickDetail[] = picks.map(pick => {
-        let result: 'win' | 'loss' | 'push' | null = null
-        let points_earned = 0
-
-        if (pick.games.status === 'completed') {
-          const homeScore = pick.games.home_score || 0
-          const awayScore = pick.games.away_score || 0
-          const spread = pick.games.spread || 0
-
-          // Calculate if the pick won
-          const homeWins = (homeScore + spread) > awayScore
-          const awayWins = (awayScore - spread) > homeScore
-          const isPush = (homeScore + spread) === awayScore
-
-          if (isPush) {
-            result = 'push'
-            points_earned = 10
-          } else if (
-            (pick.selected_team === pick.games.home_team && homeWins) ||
-            (pick.selected_team === pick.games.away_team && awayWins)
-          ) {
-            result = 'win'
-            points_earned = pick.is_lock ? 40 : 20
-          } else {
-            result = 'loss'
-            points_earned = 0
-          }
-        }
-
         return {
           game_id: pick.game_id,
           game_name: `${pick.games.away_team} @ ${pick.games.home_team}`,
           selected_team: pick.selected_team,
           is_lock: pick.is_lock,
-          result: result,
-          points_earned: points_earned,
+          result: pick.result, // Use the actual stored result
+          points_earned: pick.points_earned || 0, // Use the actual stored points
           game_status: pick.games.status,
           kickoff_time: pick.games.kickoff_time
         }
