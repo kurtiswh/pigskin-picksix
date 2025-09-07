@@ -61,8 +61,8 @@ export default function GamesPage() {
   const [currentSeason, setCurrentSeason] = useState(
     urlSeason ? parseInt(urlSeason) : 2025
   )
-  const [currentWeek, setCurrentWeek] = useState(
-    urlWeek ? parseInt(urlWeek) : 1
+  const [currentWeek, setCurrentWeek] = useState<number | null>(
+    urlWeek ? parseInt(urlWeek) : null
   )
   const [games, setGames] = useState<Game[]>([])
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
@@ -70,6 +70,7 @@ export default function GamesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [offline, setOffline] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   
   // Live update integration
   const [liveUpdateStatus, setLiveUpdateStatus] = useState(liveUpdateService.getStatus())
@@ -92,14 +93,22 @@ export default function GamesPage() {
 
   useEffect(() => {
     // If no week in URL, get the active week first
-    if (!urlWeek) {
+    if (!urlWeek && currentWeek === null) {
       getActiveWeek(currentSeason).then(activeWeek => {
+        console.log(`🎯 Setting active week to: ${activeWeek}`)
         setCurrentWeek(activeWeek)
       })
     }
-  }, [currentSeason, urlWeek])
+  }, [currentSeason, urlWeek, currentWeek])
 
   useEffect(() => {
+    // Only load data once we have a valid week
+    if (currentWeek === null) {
+      console.log('⏳ Waiting for week to be determined...')
+      return
+    }
+    
+    console.log(`📊 Loading data for Season ${currentSeason}, Week ${currentWeek}`)
     loadGames()
     loadWeekSettings()
     loadUserPicks()
@@ -128,9 +137,11 @@ export default function GamesPage() {
   }, [currentSeason, currentWeek])
 
   useEffect(() => {
-    // Update URL when season/week changes
-    const newPath = `/games/${currentSeason}/${currentWeek}`
-    navigate(newPath, { replace: true })
+    // Update URL when season/week changes (only if week is determined)
+    if (currentWeek !== null) {
+      const newPath = `/games/${currentSeason}/${currentWeek}`
+      navigate(newPath, { replace: true })
+    }
   }, [currentSeason, currentWeek, navigate])
 
   const updateLiveStatus = () => {
@@ -176,6 +187,7 @@ export default function GamesPage() {
       }
 
       setGames(data || [])
+      setLastUpdated(new Date())
     } catch (err: any) {
       console.error('Error loading games:', err)
       setError(err.message)
@@ -286,6 +298,18 @@ export default function GamesPage() {
             <p className="text-charcoal-600 mt-1">
               Live scores, pick statistics, and game outcomes
             </p>
+            {lastUpdated && (
+              <p className="text-sm text-charcoal-500 mt-2">
+                Last updated: {lastUpdated.toLocaleString('en-US', {
+                  weekday: 'short',
+                  month: 'short', 
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  second: '2-digit'
+                })}
+              </p>
+            )}
           </div>
           
           {/* Live Update Controls (Admin Only) */}
@@ -335,7 +359,7 @@ export default function GamesPage() {
 
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-charcoal-700">Week:</label>
-            <Select value={currentWeek.toString()} onValueChange={handleWeekChange}>
+            <Select value={currentWeek?.toString() || ""} onValueChange={handleWeekChange}>
               <SelectTrigger className="w-32">
                 <SelectValue />
               </SelectTrigger>
@@ -413,7 +437,7 @@ export default function GamesPage() {
       {/* Week Stats Overview */}
       <GameStatsOverview 
         season={currentSeason}
-        week={currentWeek}
+        week={currentWeek || 1}
         games={games}
         showPickStats={isPickDeadlinePassed}
         className="mb-6"
@@ -421,7 +445,17 @@ export default function GamesPage() {
 
       {/* Games Grid */}
       <div className="space-y-4">
-        {loading ? (
+        {currentWeek === null ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <div className="w-8 h-8 border-4 border-pigskin-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <h3 className="text-lg font-medium text-charcoal-700 mb-2">Loading Week Data</h3>
+            <p className="text-charcoal-500 text-sm">
+              Determining the current active week...
+            </p>
+          </CardContent>
+        </Card>
+      ) : loading ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <Card key={i} className="animate-pulse">
@@ -443,7 +477,7 @@ export default function GamesPage() {
               <div className="text-4xl mb-4">🏈</div>
               <h3 className="text-lg font-medium text-charcoal-700 mb-2">No Games Found</h3>
               <p className="text-charcoal-500 text-sm">
-                No games are available for {currentSeason} Week {currentWeek}
+                No games are available for {currentSeason} Week {currentWeek || '?'}
               </p>
             </CardContent>
           </Card>

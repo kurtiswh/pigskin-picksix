@@ -14,7 +14,7 @@ interface UserDetailsModalProps {
   onSendPasswordReset: (userId: string, email: string, displayName: string) => Promise<void>
   onDeleteUser: (userId: string) => Promise<void>
   onUpdatePaymentStatus: (userId: string, newStatus: string) => Promise<void>
-  onRefresh?: () => Promise<void>
+  onRefresh?: () => Promise<UserWithPayment | null>
   currentSeason?: number
 }
 
@@ -36,34 +36,40 @@ export default function UserDetailsModal({
   const [emailsLoading, setEmailsLoading] = useState(true)
   const [leaguesafeEmail, setLeaguesafeEmail] = useState<string>('')
   const [hasLeaguesafeEmailChanged, setHasLeaguesafeEmailChanged] = useState(false)
+  const [currentUser, setCurrentUser] = useState<UserWithPayment | null>(user)
+
+  // Update currentUser when user prop changes
+  React.useEffect(() => {
+    setCurrentUser(user)
+  }, [user])
 
   // Initialize selected payment status and leaguesafe email when user changes
   React.useEffect(() => {
-    if (user) {
-      const currentSeasonPayment = user.season_payment_history?.find((p: any) => p.season === currentSeason)
-      const currentStatus = currentSeasonPayment?.status || (currentSeason === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
+    if (currentUser) {
+      const currentSeasonPayment = currentUser.season_payment_history?.find((p: any) => p.season === currentSeason)
+      const currentStatus = currentSeasonPayment?.status || (currentSeason === 2024 && currentUser.payment_status !== 'No Payment' ? currentUser.payment_status : 'No Payment')
       setSelectedPaymentStatus(currentStatus)
       setHasUnsavedChanges(false)
-      setLeaguesafeEmail(user.leaguesafe_email || '')
+      setLeaguesafeEmail(currentUser.leaguesafe_email || '')
       setHasLeaguesafeEmailChanged(false)
     }
-  }, [user, currentSeason])
+  }, [currentUser, currentSeason])
 
   // Load user emails and merge history when user changes
   useEffect(() => {
-    if (user) {
+    if (currentUser) {
       loadUserData()
     }
-  }, [user])
+  }, [currentUser])
 
   const loadUserData = async () => {
-    if (!user) return
+    if (!currentUser) return
     
     setEmailsLoading(true)
     try {
       const [emails, history] = await Promise.all([
-        UserMergeService.getUserEmails(user.id),
-        UserMergeService.getUserMergeHistory(user.id)
+        UserMergeService.getUserEmails(currentUser.id),
+        UserMergeService.getUserMergeHistory(currentUser.id)
       ])
       
       setUserEmails(emails)
@@ -75,37 +81,37 @@ export default function UserDetailsModal({
     }
   }
 
-  if (!user) return null
+  if (!currentUser) return null
 
   const handleToggleAdmin = async () => {
-    const action = user.is_admin ? 'remove admin access from' : 'grant admin access to'
-    if (!confirm(`Are you sure you want to ${action} ${user.display_name}?`)) {
+    const action = currentUser.is_admin ? 'remove admin access from' : 'grant admin access to'
+    if (!confirm(`Are you sure you want to ${action} ${currentUser.display_name}?`)) {
       return
     }
     
     setLoading(true)
     try {
-      await onToggleAdmin(user.id, user.is_admin)
+      await onToggleAdmin(currentUser.id, currentUser.is_admin)
     } finally {
       setLoading(false)
     }
   }
 
   const handleSendPasswordReset = async () => {
-    if (!confirm(`Send a password reset email to ${user.display_name} (${user.email})?`)) {
+    if (!confirm(`Send a password reset email to ${currentUser.display_name} (${currentUser.email})?`)) {
       return
     }
     
     setLoading(true)
     try {
-      await onSendPasswordReset(user.id, user.email, user.display_name)
+      await onSendPasswordReset(currentUser.id, currentUser.email, currentUser.display_name)
     } finally {
       setLoading(false)
     }
   }
 
   const handleDeleteUser = async () => {
-    if (!confirm(`Are you sure you want to delete ${user.display_name}? This will permanently delete their account, picks, and payment records. This action cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to delete ${currentUser.display_name}? This will permanently delete their account, picks, and payment records. This action cannot be undone.`)) {
       return
     }
     
@@ -116,7 +122,7 @@ export default function UserDetailsModal({
     
     setLoading(true)
     try {
-      await onDeleteUser(user.id)
+      await onDeleteUser(currentUser.id)
       onClose() // Close modal after successful delete
     } finally {
       setLoading(false)
@@ -125,13 +131,13 @@ export default function UserDetailsModal({
 
   const handlePaymentStatusChange = (newStatus: string) => {
     setSelectedPaymentStatus(newStatus)
-    const currentSeasonPayment = user.season_payment_history?.find((p: any) => p.season === currentSeason)
-    const currentStatus = currentSeasonPayment?.status || (currentSeason === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
+    const currentSeasonPayment = currentUser.season_payment_history?.find((p: any) => p.season === currentSeason)
+    const currentStatus = currentSeasonPayment?.status || (currentSeason === 2024 && currentUser.payment_status !== 'No Payment' ? currentUser.payment_status : 'No Payment')
     setHasUnsavedChanges(newStatus !== currentStatus)
   }
 
   const handleSavePaymentStatus = async () => {
-    console.log('🎯 NEW VERSION 2025-08-13 - handleSavePaymentStatus called')
+    console.log('🎯 handleSavePaymentStatus called')
     console.log('🔄 hasUnsavedChanges:', hasUnsavedChanges)
     console.log('🔄 selectedPaymentStatus:', selectedPaymentStatus)
     
@@ -151,15 +157,19 @@ export default function UserDetailsModal({
     
     try {
       console.log('🔄 Calling onUpdatePaymentStatus...')
-      await onUpdatePaymentStatus(user.id, selectedPaymentStatus)
+      await onUpdatePaymentStatus(currentUser.id, selectedPaymentStatus)
       console.log('✅ onUpdatePaymentStatus completed successfully')
       setHasUnsavedChanges(false)
       clearTimeout(timeoutId)
       
-      // Refresh the parent component data if refresh function is provided
+      // Refresh the parent component data and get updated user data
       if (onRefresh) {
         console.log('🔄 Refreshing parent component data...')
-        await onRefresh()
+        const updatedUser = await onRefresh()
+        if (updatedUser) {
+          console.log('✅ Received updated user data from parent')
+          setCurrentUser(updatedUser)
+        }
       }
     } catch (error) {
       console.error('❌ Error in handleSavePaymentStatus:', error)
@@ -176,7 +186,7 @@ export default function UserDetailsModal({
       <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>User Details: {user.display_name}</span>
+            <span>User Details: {currentUser.display_name}</span>
             <Button variant="outline" size="sm" onClick={onClose}>
               ✕ Close
             </Button>
@@ -187,11 +197,11 @@ export default function UserDetailsModal({
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <h4 className="font-semibold text-sm text-gray-600 mb-1">Email</h4>
-              <p className="font-mono text-sm">{user.email}</p>
+              <p className="font-mono text-sm">{currentUser.email}</p>
             </div>
             <div>
               <h4 className="font-semibold text-sm text-gray-600 mb-1">Display Name</h4>
-              <p>{user.display_name}</p>
+              <p>{currentUser.display_name}</p>
             </div>
             <div className="md:col-span-2">
               <h4 className="font-semibold text-sm text-gray-600 mb-1">LeagueSafe Email</h4>
@@ -201,7 +211,7 @@ export default function UserDetailsModal({
                   value={leaguesafeEmail}
                   onChange={(e) => {
                     setLeaguesafeEmail(e.target.value)
-                    setHasLeaguesafeEmailChanged(e.target.value !== (user.leaguesafe_email || ''))
+                    setHasLeaguesafeEmailChanged(e.target.value !== (currentUser.leaguesafe_email || ''))
                   }}
                   placeholder="Enter LeagueSafe email"
                   className="text-sm"
@@ -217,7 +227,7 @@ export default function UserDetailsModal({
                           const { error } = await supabase
                             .from('users')
                             .update({ leaguesafe_email: leaguesafeEmail || null })
-                            .eq('id', user.id)
+                            .eq('id', currentUser.id)
                           
                           if (error) throw error
                           
@@ -240,7 +250,7 @@ export default function UserDetailsModal({
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        setLeaguesafeEmail(user.leaguesafe_email || '')
+                        setLeaguesafeEmail(currentUser.leaguesafe_email || '')
                         setHasLeaguesafeEmailChanged(false)
                       }}
                       disabled={loading}
@@ -250,32 +260,32 @@ export default function UserDetailsModal({
                   </div>
                 )}
               </div>
-              {user.leaguesafe_email && !hasLeaguesafeEmailChanged && (
-                <p className="text-xs text-gray-500 mt-1">Current: {user.leaguesafe_email}</p>
+              {currentUser.leaguesafe_email && !hasLeaguesafeEmailChanged && (
+                <p className="text-xs text-gray-500 mt-1">Current: {currentUser.leaguesafe_email}</p>
               )}
             </div>
             <div>
               <h4 className="font-semibold text-sm text-gray-600 mb-1">User ID</h4>
-              <p className="font-mono text-xs text-gray-500">{user.id}</p>
+              <p className="font-mono text-xs text-gray-500">{currentUser.id}</p>
             </div>
             <div>
               <h4 className="font-semibold text-sm text-gray-600 mb-1">Account Type</h4>
               <span className={`px-2 py-1 text-xs rounded ${
-                user.is_admin ? 'bg-gold-100 text-gold-700' : 'bg-gray-100 text-gray-700'
+                currentUser.is_admin ? 'bg-gold-100 text-gold-700' : 'bg-gray-100 text-gray-700'
               }`}>
-                {user.is_admin ? 'Administrator' : 'User'}
+                {currentUser.is_admin ? 'Administrator' : 'User'}
               </span>
             </div>
             <div>
               <h4 className="font-semibold text-sm text-gray-600 mb-1">Created</h4>
-              <p className="text-sm">{new Date(user.created_at).toLocaleDateString()}</p>
+              <p className="text-sm">{new Date(currentUser.created_at).toLocaleDateString()}</p>
             </div>
             <div className="md:col-span-2">
               <h4 className="font-semibold text-sm text-gray-600 mb-2">Payment Status by Season</h4>
               <div className="space-y-1">
                 {[2024, 2025, 2026].map(season => {
-                  const seasonPayment = user.season_payment_history?.find((p: any) => p.season === season)
-                  const status = seasonPayment?.status || (season === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
+                  const seasonPayment = currentUser.season_payment_history?.find((p: any) => p.season === season)
+                  const status = seasonPayment?.status || (season === 2024 && currentUser.payment_status !== 'No Payment' ? currentUser.payment_status : 'No Payment')
                   
                   return (
                     <div key={season} className="flex items-center justify-between">
@@ -309,7 +319,7 @@ export default function UserDetailsModal({
                 {/* Primary email from user record */}
                 <div className="border rounded p-3 text-sm bg-blue-50">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium">{user.email}</span>
+                    <span className="font-medium">{currentUser.email}</span>
                     <div className="flex gap-2">
                       <Badge variant="default" className="bg-blue-600">Primary</Badge>
                       <Badge variant="outline" className="text-green-600 border-green-300">Account</Badge>
@@ -405,11 +415,11 @@ export default function UserDetailsModal({
           )}
 
           {/* Payment History */}
-          {user.season_payment_history && user.season_payment_history.length > 0 && (
+          {currentUser.season_payment_history && currentUser.season_payment_history.length > 0 && (
             <div>
               <h4 className="font-semibold mb-3">Payment History</h4>
               <div className="space-y-2">
-                {user.season_payment_history.map((payment: any) => (
+                {currentUser.season_payment_history.map((payment: any) => (
                   <div key={`${payment.season}-${payment.id}`} className="border rounded p-3 text-sm">
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-medium">Season {payment.season}</span>
@@ -424,7 +434,7 @@ export default function UserDetailsModal({
                     {payment.entry_fee && (
                       <p>Entry Fee: ${payment.entry_fee} | Paid: ${payment.paid || 0} | Owes: ${payment.owes || 0}</p>
                     )}
-                    {payment.leaguesafe_email && payment.leaguesafe_email !== user.email && (
+                    {payment.leaguesafe_email && payment.leaguesafe_email !== currentUser.email && (
                       <p className="text-blue-600">LeagueSafe Email: {payment.leaguesafe_email}</p>
                     )}
                   </div>
@@ -476,8 +486,8 @@ export default function UserDetailsModal({
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        const currentSeasonPayment = user.season_payment_history?.find((p: any) => p.season === currentSeason)
-                        const currentStatus = currentSeasonPayment?.status || (currentSeason === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
+                        const currentSeasonPayment = currentUser.season_payment_history?.find((p: any) => p.season === currentSeason)
+                        const currentStatus = currentSeasonPayment?.status || (currentSeason === 2024 && currentUser.payment_status !== 'No Payment' ? currentUser.payment_status : 'No Payment')
                         setSelectedPaymentStatus(currentStatus)
                         setHasUnsavedChanges(false)
                       }}
@@ -492,8 +502,8 @@ export default function UserDetailsModal({
               <p className="text-xs text-gray-500">
                 Current status: <span className="font-medium">{
                   (() => {
-                    const currentSeasonPayment = user.season_payment_history?.find((p: any) => p.season === currentSeason)
-                    return currentSeasonPayment?.status || (currentSeason === 2024 && user.payment_status !== 'No Payment' ? user.payment_status : 'No Payment')
+                    const currentSeasonPayment = currentUser.season_payment_history?.find((p: any) => p.season === currentSeason)
+                    return currentSeasonPayment?.status || (currentSeason === 2024 && currentUser.payment_status !== 'No Payment' ? currentUser.payment_status : 'No Payment')
                   })()
                 }</span> for Season {currentSeason}
               </p>
@@ -511,7 +521,7 @@ export default function UserDetailsModal({
                 size="sm"
                 className="text-blue-600 border-blue-200 hover:bg-blue-50"
               >
-                {user.is_admin ? 'Remove Admin' : 'Make Admin'}
+                {currentUser.is_admin ? 'Remove Admin' : 'Make Admin'}
               </Button>
               
               <Button

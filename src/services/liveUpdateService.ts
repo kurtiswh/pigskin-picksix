@@ -8,6 +8,7 @@
 import { supabase } from '@/lib/supabase'
 import { getCompletedGames, updateGameScores } from './collegeFootballApi'
 import { updateGameInDatabase, processCompletedGames } from './scoreCalculation'
+import { CFBDLiveUpdater } from './cfbdLiveUpdater'
 import { ENV } from '@/lib/env'
 
 export interface LiveUpdateResult {
@@ -138,7 +139,7 @@ export class LiveUpdateService {
   }
 
   /**
-   * Unified update process - updates games AND processes picks
+   * Unified update process - uses CFBD Live Updater for real-time data
    */
   private async updateGamesAndPicks(season: number, week: number): Promise<LiveUpdateResult> {
     const startTime = Date.now()
@@ -147,20 +148,21 @@ export class LiveUpdateService {
     const errors: string[] = []
 
     try {
-      console.log(`🎯 Starting unified update for ${season} week ${week}`)
+      console.log(`🎯 Starting CFBD live update for ${season} week ${week}`)
 
-      // Step 1: Get current games from database
-      const { data: currentGames, error: gamesError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('season', season)
-        .eq('week', week)
-
-      if (gamesError) {
-        throw new Error(`Database error: ${gamesError.message}`)
+      // Use the new CFBD Live Updater for real-time data
+      const cfbdResult = await CFBDLiveUpdater.updateLiveGames()
+      
+      if (!cfbdResult.success) {
+        errors.push(...cfbdResult.errors)
+        console.error('❌ CFBD update failed:', cfbdResult.errors)
       }
 
-      if (!currentGames || currentGames.length === 0) {
+      gamesUpdated = cfbdResult.gamesUpdated
+      console.log(`📊 CFBD updater: ${cfbdResult.gamesChecked} checked, ${cfbdResult.gamesUpdated} updated, ${cfbdResult.newlyCompleted} completed`)
+
+      // If no games found or all completed, return early
+      if (cfbdResult.gamesChecked === 0) {
         console.log('No games found for this week')
         return {
           success: true,
@@ -171,291 +173,12 @@ export class LiveUpdateService {
         }
       }
 
-      // Step 2: Fetch latest scores from College Football API
-      console.log('📡 Fetching latest scores from API...')
+      // Step 2: Process completed games (if any)
+      picksProcessed = cfbdResult.newlyCompleted
       
-      // Filter out already completed games from database to avoid unnecessary processing
-      const nonCompletedGames = currentGames.filter(g => g.status !== 'completed')
-      console.log(`📊 Found ${nonCompletedGames.length} non-completed games to check (skipping ${currentGames.length - nonCompletedGames.length} completed)`)
-      
-      if (nonCompletedGames.length === 0) {
-        console.log('✅ All games already completed - no updates needed')
-        return {
-          success: true,
-          gamesUpdated: 0,
-          picksProcessed: 0,
-          errors: [],
-          lastUpdate: new Date()
-        }
+      if (cfbdResult.newlyCompleted > 0) {
+        console.log(`🎉 ${cfbdResult.newlyCompleted} games newly completed - picks can now be processed`)
       }
-      
-      // Optimized approach: Only fetch CFBD games for non-completed database games
-      console.log(`🎯 Fetching CFBD games for ${nonCompletedGames.length} non-completed database games...`)
-      
-      let updatedApiGames
-      try {
-        // Get all CFBD scoreboard games (we still need all to match by team names)
-        const response = await fetch(
-          `https://api.collegefootballdata.com/scoreboard?year=${season}&week=${week}&classification=fbs`,
-          {
-            headers: {
-              'Authorization': `Bearer ${ENV.CFBD_API_KEY}`
-            }
-          }
-        )
-        
-        if (!response.ok) {
-          throw new Error(`CFBD API error: ${response.status}`)
-        }
-        
-        const scoreboardData = await response.json()
-        console.log(`📊 CFBD API returned ${scoreboardData.length} total games`)
-        
-        // Convert ALL games to our format with timing validation
-        updatedApiGames = scoreboardData.map(game => {
-          // Enhanced status determination with timing validation
-          let gameStatus: string
-          
-          // Get the game's scheduled start time and current time
-          const gameStartTime = new Date(game.startDate)
-          const currentTime = new Date()
-          const isGameInFuture = gameStartTime.getTime() > currentTime.getTime()
-          
-          if (game.status === 'completed' || game.status === 'final') {
-            // CRITICAL FIX: Never mark future games as completed
-            if (isGameInFuture) {
-              console.warn(`🚨 API reports game as ${game.status} but it's scheduled for the future: ${game.awayTeam.name} @ ${game.homeTeam.name} at ${gameStartTime.toLocaleString()}`)
-              gameStatus = 'scheduled'
-            } else {
-              gameStatus = 'completed'
-            }
-          } else if (game.status === 'in_progress') {
-            // In-progress games should also not be in the future
-            if (isGameInFuture) {
-              console.warn(`🚨 API reports game as in_progress but it's scheduled for the future: ${game.awayTeam.name} @ ${game.homeTeam.name} at ${gameStartTime.toLocaleString()}`)
-              gameStatus = 'scheduled'
-            } else {
-              gameStatus = 'in_progress'
-            }
-          } else {
-            gameStatus = 'scheduled'
-          }
-          
-          const isCompleted = gameStatus === 'completed'
-          
-          // Simple logging for status changes
-          if (gameStatus === 'in_progress') {
-            console.log(`🏈 Live game: ${game.awayTeam.name} @ ${game.homeTeam.name} - ${game.awayTeam.points || 0}-${game.homeTeam.points || 0}`)
-          } else if (gameStatus === 'completed') {
-            console.log(`✅ Completed game: ${game.awayTeam.name} @ ${game.homeTeam.name} - ${game.awayTeam.points || 0}-${game.homeTeam.points || 0}`)
-          }
-          
-          return {
-            id: game.id,
-            home_team: game.homeTeam.name,
-            away_team: game.awayTeam.name,
-            home_points: game.homeTeam.points || 0,
-            away_points: game.awayTeam.points || 0,
-            completed: isCompleted,
-            status: gameStatus,
-            period: game.period,
-            clock: game.clock,
-            spread: game.betting?.spread || 0
-          }
-        })
-        
-        // Log summary of API games by status
-        const statusCounts = updatedApiGames.reduce((acc, game) => {
-          acc[game.status] = (acc[game.status] || 0) + 1
-          return acc
-        }, {} as Record<string, number>)
-        
-        console.log(`📊 API game status breakdown:`)
-        Object.entries(statusCounts).forEach(([status, count]) => {
-          console.log(`   ${status}: ${count} games`)
-        })
-        
-        // Log details for non-scheduled games
-        updatedApiGames.filter(g => g.status !== 'scheduled').forEach(apiGame => {
-          const liveInfo = apiGame.period && apiGame.clock ? ` - Q${apiGame.period} ${apiGame.clock}` : ''
-          const scoreInfo = ` (${apiGame.away_points}-${apiGame.home_points})`
-          const statusEmoji = apiGame.status === 'completed' ? '✅' : '🔴'
-          console.log(`   ${statusEmoji} ${apiGame.away_team} @ ${apiGame.home_team}${scoreInfo}${liveInfo}`)
-        })
-        
-      } catch (apiError: any) {
-        console.error('❌ CFBD API fetch failed:', apiError.message)
-        errors.push(`API fetch failed: ${apiError.message}`)
-        updatedApiGames = []
-      }
-
-      // Step 3: Update games in database that have changed
-      const newlyCompletedGames: string[] = []
-      
-      console.log(`🔄 Attempting to match ${updatedApiGames.length} API games with database games`)
-
-      for (const apiGame of updatedApiGames) {
-        console.log(`\n🎯 Processing API game: ${apiGame.away_team} @ ${apiGame.home_team} (ID: ${apiGame.id})`)
-        console.log(`   API Status: ${apiGame.status}, Completed: ${apiGame.completed}`)
-        console.log(`   API Scores: ${apiGame.away_points}-${apiGame.home_points}`)
-        console.log(`   API Period/Clock: Q${apiGame.period} ${apiGame.clock}`)
-        
-        // Only match against non-completed database games
-        let dbGame = nonCompletedGames.find(g => {
-          // Exact match first
-          if (g.home_team.toLowerCase() === apiGame.home_team.toLowerCase() &&
-              g.away_team.toLowerCase() === apiGame.away_team.toLowerCase()) {
-            return true
-          }
-          
-          // Flexible matching: check if main team names are contained
-          const normalizeTeamName = (name) => name.toLowerCase().replace(/\s+(tigers|bulldogs|eagles|bears|wildcats|rams|lions|panthers|hawks)\s*$/, '').trim()
-          const dbHome = normalizeTeamName(g.home_team)
-          const dbAway = normalizeTeamName(g.away_team)
-          const apiHome = normalizeTeamName(apiGame.home_team)
-          const apiAway = normalizeTeamName(apiGame.away_team)
-          
-          // Check if core team names match (handle cases like "Georgia Tech" vs "Georgia Tech Yellow Jackets")
-          return (dbHome.includes(apiHome.split(' ')[0]) || apiHome.includes(dbHome.split(' ')[0])) &&
-                 (dbAway.includes(apiAway.split(' ')[0]) || apiAway.includes(dbAway.split(' ')[0]))
-        })
-        
-        if (!dbGame) {
-          console.log(`❌ No database game found matching ${apiGame.away_team} @ ${apiGame.home_team}`)
-          console.log(`   This game is not in our Week ${week} selection`)
-          continue
-        }
-        
-        console.log(`✅ Found matching database game: ${dbGame.away_team} @ ${dbGame.home_team}`)
-        console.log(`   DB Status: ${dbGame.status}, DB Scores: ${dbGame.away_score}-${dbGame.home_score}`)
-        console.log(`   DB Winner ATS: ${dbGame.winner_against_spread || 'Not set'}`)
-
-        // Check if this is a newly completed game
-        const wasCompleted = dbGame.status === 'completed'
-        const isNowCompleted = apiGame.completed
-        
-        // IMPORTANT: Never allow status changes FROM completed status
-        // This prevents API errors from corrupting final game results
-        if (wasCompleted) {
-          console.log(`⚠️  SKIPPING STATUS UPDATE: Game already completed - ${dbGame.away_team} @ ${dbGame.home_team}`)
-          console.log(`   Database shows 'completed', API shows '${apiGame.status}' - keeping completed status`)
-          continue // Skip processing this game entirely
-        }
-        
-        if (!wasCompleted && isNowCompleted) {
-          console.log(`🎉 GAME COMPLETION DETECTED: ${dbGame.away_team} @ ${dbGame.home_team}`)
-          console.log(`   Will update status from '${dbGame.status}' to 'completed'`)
-        }
-
-        // Enhanced status validation using database game's kickoff time
-        // This prevents future games from being marked as completed even if API is wrong
-        let finalStatus = apiGame.status
-        
-        // Additional safety check: Validate against database kickoff time
-        if (dbGame.kickoff_time) {
-          const kickoffTime = new Date(dbGame.kickoff_time)
-          const currentTime = new Date()
-          const isGameInFuture = kickoffTime.getTime() > currentTime.getTime()
-          
-          if (isGameInFuture && (finalStatus === 'completed' || finalStatus === 'in_progress')) {
-            console.warn(`🚨 SAFETY CHECK: Preventing future game from being marked as ${finalStatus}`)
-            console.warn(`   Game: ${dbGame.away_team} @ ${dbGame.home_team}`)
-            console.warn(`   Kickoff: ${kickoffTime.toLocaleString()}`)
-            console.warn(`   Current: ${currentTime.toLocaleString()}`)
-            console.warn(`   Forcing status to 'scheduled'`)
-            finalStatus = 'scheduled'
-          }
-        }
-        
-        // Use API timing data directly
-        const finalPeriod = apiGame.period
-        const finalClock = apiGame.clock
-        
-        const hasChanges = 
-          dbGame.home_score !== apiGame.home_points ||
-          dbGame.away_score !== apiGame.away_points ||
-          dbGame.status !== finalStatus ||
-          dbGame.game_period !== finalPeriod ||
-          dbGame.game_clock !== finalClock
-
-        if (hasChanges) {
-          console.log(`🔄 Updating game: ${dbGame.away_team} @ ${dbGame.home_team}`)
-          console.log(`   Scores: ${apiGame.away_points}-${apiGame.home_points}`)
-          console.log(`   Status: ${finalStatus}`)
-          if (finalPeriod && finalClock) {
-            console.log(`   Timing: Q${finalPeriod} ${finalClock}`)
-          }
-          
-          try {
-            const updateStartTime = Date.now()
-            
-            // NEW: If game is completing, handle ALL completion logic here
-            if (!wasCompleted && isNowCompleted) {
-              console.log(`   🎉 GAME COMPLETION - Processing all completion logic`)
-              await this.processCompleteGameUpdate({
-                gameId: dbGame.id,
-                homeScore: apiGame.home_points || 0,
-                awayScore: apiGame.away_points || 0,
-                homeTeam: apiGame.home_team,
-                awayTeam: apiGame.away_team,
-                spread: apiGame.spread || dbGame.spread,
-                status: finalStatus,
-                gamePeriod: finalPeriod,
-                gameClock: finalClock,
-                apiPeriod: apiGame.period,
-                apiClock: apiGame.clock,
-                apiHomePoints: apiGame.home_points,
-                apiAwayPoints: apiGame.away_points,
-                apiCompleted: apiGame.completed
-              })
-              newlyCompletedGames.push(dbGame.id)
-            } else {
-              // Regular live update (not completing)
-              await updateGameInDatabase({
-                game_id: dbGame.id,
-                home_score: apiGame.home_points || 0,
-                away_score: apiGame.away_points || 0,
-                home_team: apiGame.home_team,
-                away_team: apiGame.away_team,
-                spread: apiGame.spread || dbGame.spread,
-                status: finalStatus,
-                game_period: finalPeriod,
-                game_clock: finalClock,
-                api_period: apiGame.period,
-                api_clock: apiGame.clock,
-                api_home_points: apiGame.home_points,
-                api_away_points: apiGame.away_points,
-                api_completed: apiGame.completed
-              })
-            }
-
-            const updateDuration = Date.now() - updateStartTime
-            console.log(`   ✅ Update successful in ${updateDuration}ms`)
-            
-            gamesUpdated++
-
-          } catch (updateError: any) {
-            console.error(`   ❌ Update failed: ${updateError.message}`)
-            if (updateError.message.includes('timeout')) {
-              console.error(`   🚨 DATABASE TIMEOUT - Check triggers and database load`)
-            }
-            errors.push(`Game update failed for ${dbGame.id}: ${updateError.message}`)
-          }
-        }
-      }
-
-      // Step 4: Process completed games directly (NO MORE TRIGGERS)
-      if (newlyCompletedGames.length > 0) {
-        console.log(`✅ ${newlyCompletedGames.length} games completed - scoring handled directly by service`)
-        // Note: Pick processing now handled directly in processCompleteGameUpdate() (Migration 114)
-        // This eliminates ALL trigger-related race conditions and deadlocks
-        picksProcessed = newlyCompletedGames.length // Processed directly in service
-      }
-
-      // Step 5: No more trigger delegation - all completion logic unified in TypeScript
-      // Migration 114 removed ALL completion triggers to eliminate database deadlocks
-      console.log('⚡ Game completion handled entirely in liveUpdateService - no database triggers')
-      // picksProcessed already set above based on completed games
 
       const duration = Date.now() - startTime
       console.log(`✅ Unified update complete: ${gamesUpdated} games updated, ${picksProcessed} picks processed in ${duration}ms`)
@@ -487,15 +210,18 @@ export class LiveUpdateService {
    */
   private async hasActiveGames(): Promise<{ hasActive: boolean; activeCount: number }> {
     try {
-      const { data: activeWeek } = await supabase
+      const { data: activeWeeks } = await supabase
         .from('week_settings')
         .select('week, season')
         .eq('picks_open', true)
-        .single()
+        .order('week', { ascending: false })
 
-      if (!activeWeek) {
+      if (!activeWeeks || activeWeeks.length === 0) {
         return { hasActive: false, activeCount: 0 }
       }
+
+      // Use the latest active week
+      const activeWeek = activeWeeks[0]
 
       const { data: games, error } = await supabase
         .from('games')
@@ -523,15 +249,18 @@ export class LiveUpdateService {
    */
   private async areAllGamesCompleted(): Promise<{ allCompleted: boolean; completedCount: number; totalCount: number }> {
     try {
-      const { data: activeWeek } = await supabase
+      const { data: activeWeeks } = await supabase
         .from('week_settings')
         .select('week, season')
         .eq('picks_open', true)
-        .single()
+        .order('week', { ascending: false })
 
-      if (!activeWeek) {
+      if (!activeWeeks || activeWeeks.length === 0) {
         return { allCompleted: true, completedCount: 0, totalCount: 0 }
       }
+
+      // Use the latest active week
+      const activeWeek = activeWeeks[0]
 
       const { data: games, error } = await supabase
         .from('games')
@@ -561,15 +290,18 @@ export class LiveUpdateService {
    */
   private async hasApproachingGames(): Promise<{ hasApproaching: boolean; approachingCount: number; nextKickoff: Date | null }> {
     try {
-      const { data: activeWeek } = await supabase
+      const { data: activeWeeks } = await supabase
         .from('week_settings')
         .select('week, season')
         .eq('picks_open', true)
-        .single()
+        .order('week', { ascending: false })
 
-      if (!activeWeek) {
+      if (!activeWeeks || activeWeeks.length === 0) {
         return { hasApproaching: false, approachingCount: 0, nextKickoff: null }
       }
+
+      // Use the latest active week
+      const activeWeek = activeWeeks[0]
 
       const { data: games, error } = await supabase
         .from('games')
@@ -620,16 +352,32 @@ export class LiveUpdateService {
    */
   private async runUpdate(): Promise<void> {
     try {
-      // Get current active week from database
-      const { data: activeWeek, error } = await supabase
+      // Check if we're still in the polling window
+      const isInWindow = this.isInPollingWindow()
+      if (!isInWindow) {
+        console.log('⏰ Exited polling window (Thursday 6pm - Sunday 8am Central) - automatically stopping live updates')
+        this.stopPolling()
+        return
+      }
+
+      // Get current active weeks from database - there might be multiple
+      const { data: activeWeeks, error } = await supabase
         .from('week_settings')
         .select('week, season')
         .eq('picks_open', true)
-        .single()
+        .order('week', { ascending: false }) // Get the latest week first
 
-      if (error || !activeWeek) {
-        console.log('⏳ No active week found for live updates')
+      if (error || !activeWeeks || activeWeeks.length === 0) {
+        console.log('⏳ No active weeks found for live updates')
         return
+      }
+
+      // Use the latest active week (highest week number)
+      const activeWeek = activeWeeks[0]
+      console.log(`🎯 Using Week ${activeWeek.week} as active week (${activeWeeks.length} active weeks total)`)
+      
+      if (activeWeeks.length > 1) {
+        console.log(`⚠️ Multiple active weeks detected: ${activeWeeks.map(w => w.week).join(', ')} - using Week ${activeWeek.week}`)
       }
 
       // Check if all games are completed before proceeding
@@ -688,15 +436,18 @@ export class LiveUpdateService {
    */
   private async isGameDay(): Promise<boolean> {
     try {
-      const { data: activeWeek } = await supabase
+      const { data: activeWeeks } = await supabase
         .from('week_settings')
         .select('week, season')
         .eq('picks_open', true)
-        .single()
+        .order('week', { ascending: false })
 
-      if (!activeWeek) {
+      if (!activeWeeks || activeWeeks.length === 0) {
         return false
       }
+
+      // Use the latest active week
+      const activeWeek = activeWeeks[0]
 
       const { data: games, error } = await supabase
         .from('games')
@@ -725,13 +476,48 @@ export class LiveUpdateService {
   }
 
   /**
+   * Check if we're currently in the autopolling window (Thursday 6pm - Sunday 8am Central)
+   */
+  private isInPollingWindow(): boolean {
+    // Get current time in Central Time (America/Chicago)
+    const now = new Date()
+    const centralTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Chicago"}))
+    
+    const day = centralTime.getDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const hour = centralTime.getHours()
+    const minute = centralTime.getMinutes()
+    const timeInMinutes = hour * 60 + minute
+
+    // Define polling window: Thursday 6pm - Sunday 8am Central
+    if (day === 4) { // Thursday
+      // Thursday 6:00 PM onwards (18:00)
+      return timeInMinutes >= 18 * 60 // 6pm = 1080 minutes
+    } else if (day === 5 || day === 6) { // Friday or Saturday
+      // All day Friday and Saturday
+      return true
+    } else if (day === 0) { // Sunday
+      // Sunday until 8:00 AM (08:00)
+      return timeInMinutes < 8 * 60 // 8am = 480 minutes
+    }
+    
+    return false // Monday, Tuesday, Wednesday, or Sunday after 8am
+  }
+
+  /**
    * Smart polling that adjusts frequency based on game day and active games
    * Optimized for 5,000 API calls/month budget
    */
   async startSmartPolling(): Promise<void> {
     const isGameDay = await this.isGameDay()
+    const isInWindow = this.isInPollingWindow()
     const { hasActive, activeCount } = await this.hasActiveGames()
     const { hasApproaching, approachingCount, nextKickoff } = await this.hasApproachingGames()
+    
+    // First check: Are we in the polling window (Thursday 6pm - Sunday 8am Central)?
+    if (!isInWindow) {
+      console.log('📴 Outside polling window (Thursday 6pm - Sunday 8am Central) - no automatic polling')
+      return
+    }
     
     let intervalMs
     let description
@@ -755,24 +541,25 @@ export class LiveUpdateService {
       intervalMs = 30 * 60 * 1000
       description = 'game day monitoring (waiting for games)'
     } else {
-      // Regular day - NO AUTOMATIC POLLING (admin manual only)
-      // Budget: 0 calls/hour on non-game days
-      console.log('📴 No automatic polling on non-game days - manual updates only')
-      return
+      // In polling window but no games today - check every 30 minutes to catch new games
+      // This covers the Thursday 6pm - Sunday 8am window even when no games are scheduled today
+      intervalMs = 30 * 60 * 1000
+      description = 'polling window monitoring (Thursday 6pm - Sunday 8am Central)'
     }
     
     console.log(`🧠 Starting smart polling: ${intervalMs / 1000}s intervals (${description})`)
     console.log(`📊 API Budget: ~${Math.round(60 / (intervalMs / (60 * 1000)))} calls/hour`)
+    console.log(`⏰ Polling window active: Thursday 6pm - Sunday 8am Central`)
     this.startPolling(intervalMs)
     
     // ALSO start scheduled pick processing (independent of API polling)
-    const pickProcessingInterval = isGameDay ? 2 * 60 * 1000 : 5 * 60 * 1000 // 2min on game days, 5min otherwise
+    const pickProcessingInterval = isGameDay || isInWindow ? 2 * 60 * 1000 : 5 * 60 * 1000 // 2min during polling window, 5min otherwise
     console.log(`🕐 Starting scheduled pick processing: ${pickProcessingInterval / 1000}s intervals`)
     this.startScheduledPickProcessing(pickProcessingInterval)
   }
 
   /**
-   * Auto-start polling if there are active games, approaching games, or it's game day
+   * Auto-start polling if there are active games, approaching games, it's game day, or we're in polling window
    */
   async autoStartIfNeeded(): Promise<void> {
     if (this.isPolling) {
@@ -780,6 +567,7 @@ export class LiveUpdateService {
     }
 
     const isGameDay = await this.isGameDay()
+    const isInWindow = this.isInPollingWindow()
     const { hasActive } = await this.hasActiveGames()
     const { hasApproaching, approachingCount, nextKickoff } = await this.hasApproachingGames()
 
@@ -795,8 +583,11 @@ export class LiveUpdateService {
     } else if (isGameDay) {
       console.log(`🚀 Auto-starting live updates - Game day (games scheduled today)`)
       await this.startSmartPolling()
+    } else if (isInWindow) {
+      console.log(`🚀 Auto-starting live updates - In polling window (Thursday 6pm - Sunday 8am Central)`)
+      await this.startSmartPolling()
     } else {
-      console.log('⏳ No auto-start needed - no active/approaching games and no games scheduled today')
+      console.log('⏳ No auto-start needed - outside polling window and no active/approaching games')
     }
   }
 
@@ -805,6 +596,7 @@ export class LiveUpdateService {
    */
   async shouldAutoStart(): Promise<{ should: boolean; reason: string }> {
     const isGameDay = await this.isGameDay()
+    const isInWindow = this.isInPollingWindow()
     const { hasActive, activeCount } = await this.hasActiveGames()
     const { hasApproaching, approachingCount, nextKickoff } = await this.hasApproachingGames()
 
@@ -822,8 +614,12 @@ export class LiveUpdateService {
     if (isGameDay) {
       return { should: true, reason: 'Games scheduled today' }
     }
+    
+    if (isInWindow) {
+      return { should: true, reason: 'In polling window (Thursday 6pm - Sunday 8am Central)' }
+    }
 
-    return { should: false, reason: 'No active games, no games scheduled today' }
+    return { should: false, reason: 'Outside polling window and no active/approaching games' }
   }
 
   /**
@@ -831,6 +627,41 @@ export class LiveUpdateService {
    */
   acknowledgeLeaderboardRefresh(): void {
     this.status.shouldRefreshLeaderboard = false
+  }
+
+  /**
+   * Test and debug the polling window logic
+   */
+  testPollingWindow(): void {
+    const now = new Date()
+    const centralTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Chicago"}))
+    const isInWindow = this.isInPollingWindow()
+    
+    const day = centralTime.getDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const hour = centralTime.getHours()
+    const minute = centralTime.getMinutes()
+    const timeInMinutes = hour * 60 + minute
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    
+    console.log('🕐 POLLING WINDOW TEST:')
+    console.log(`   Current time: ${centralTime.toLocaleString()} Central`)
+    console.log(`   Day: ${dayNames[day]} (${day})`)
+    console.log(`   Hour: ${hour}, Minute: ${minute} (${timeInMinutes} minutes from midnight)`)
+    console.log(`   Is in polling window: ${isInWindow ? '✅ YES' : '❌ NO'}`)
+    console.log('')
+    console.log('📅 Polling window definition:')
+    console.log('   Thursday 6:00 PM - Sunday 8:00 AM Central')
+    console.log('   - Thursday: 18:00+ (1080+ minutes)')
+    console.log('   - Friday: All day (0-1439 minutes)')
+    console.log('   - Saturday: All day (0-1439 minutes)')
+    console.log('   - Sunday: 00:00-07:59 (0-479 minutes)')
+    console.log('')
+    
+    if (isInWindow) {
+      console.log('🚀 Should auto-start polling!')
+    } else {
+      console.log('⏹️ Should NOT auto-start polling.')
+    }
   }
 
   /**
@@ -989,16 +820,25 @@ export class LiveUpdateService {
     let picksProcessed = 0
     let leaderboardsRefreshed = false
     const errors: string[] = []
+    const processingDetails: Array<{
+      gameId: string,
+      teams: string,
+      status: string,
+      picksFound: number,
+      picksProcessed: number,
+      processingTime: number,
+      reason: string
+    }> = []
 
     try {
-      // Get current active week
-      const { data: activeWeek } = await supabase
+      // Get current active weeks
+      const { data: activeWeeks } = await supabase
         .from('week_settings')
         .select('week, season')
         .eq('picks_open', true)
-        .single()
+        .order('week', { ascending: false })
 
-      if (!activeWeek) {
+      if (!activeWeeks || activeWeeks.length === 0) {
         return {
           success: true,
           gamesChecked: 0,
@@ -1009,6 +849,9 @@ export class LiveUpdateService {
           lastUpdate: new Date()
         }
       }
+
+      // Use the latest active week
+      const activeWeek = activeWeeks[0]
 
       // Get all games for the active week
       const { data: currentGames, error: gamesError } = await supabase
@@ -1125,33 +968,82 @@ export class LiveUpdateService {
 
       // Process picks for each game that needs processing
       for (const gameId of gamesToProcess) {
+        const gameStartTime = Date.now()
+        let gameDetails = {
+          gameId,
+          teams: '',
+          status: '',
+          picksFound: 0,
+          picksProcessed: 0,
+          processingTime: 0,
+          reason: ''
+        }
+        
         try {
           const game = currentGames.find(g => g.id === gameId)!
+          gameDetails.teams = `${game.away_team} @ ${game.home_team}`
+          gameDetails.status = game.status
+          
+          // Get total picks count for this game before processing
+          const { data: totalPicks } = await supabase
+            .from('picks')
+            .select('id', { count: 'exact' })
+            .eq('game_id', gameId)
+            .is('result', null)
+          
+          const { data: totalAnonPicks } = await supabase
+            .from('anonymous_picks')
+            .select('id', { count: 'exact' })
+            .eq('game_id', gameId)
+            .is('result', null)
+          
+          gameDetails.picksFound = (totalPicks?.length || 0) + (totalAnonPicks?.length || 0)
           
           // Only process picks if game has scores
           if (game.home_score !== null && game.away_score !== null) {
-            console.log(`      Processing: ${game.away_team} @ ${game.home_team}`)
+            console.log(`      Processing: ${game.away_team} @ ${game.home_team} (${gameDetails.picksFound} unprocessed picks)`)
             
-            // Skip database function, go straight to batch processing
-            console.log(`      🚀 Using batch processing (skipping database function)`)
+            // Check if game has changed since last check
+            const currentHash = this.hashGameData(game)
+            const cachedHash = this.gameHashCache.get(game.id)
+            const hasChanged = cachedHash !== currentHash
+            
+            if (hasChanged) {
+              gameDetails.reason = 'Game data changed'
+            } else {
+              gameDetails.reason = 'Unprocessed picks found'
+            }
+            
+            console.log(`      🚀 Using batch processing (${gameDetails.reason})`)
             
             try {
               const directResult = await this.processPicksDirectlySimple(game)
+              const totalProcessed = directResult.picksUpdated + directResult.anonPicksUpdated
+              gameDetails.picksProcessed = totalProcessed
+              
               console.log(`      ✅ Batch processing: ${directResult.picksUpdated} picks, ${directResult.anonPicksUpdated} anonymous picks`)
-              picksProcessed += directResult.picksUpdated + directResult.anonPicksUpdated
+              console.log(`      📊 Processing efficiency: ${totalProcessed}/${gameDetails.picksFound} (${Math.round((totalProcessed / Math.max(gameDetails.picksFound, 1)) * 100)}%)`)
+              
+              picksProcessed += totalProcessed
             } catch (directError: any) {
               errors.push(`Failed to process ${game.away_team} @ ${game.home_team}: ${directError.message}`)
               console.error(`      ❌ Batch processing failed: ${directError.message}`)
+              gameDetails.reason = `Error: ${directError.message}`
             }
           } else {
             console.log(`      ⏳ Skipping ${game.away_team} @ ${game.home_team} (no scores yet)`)
+            gameDetails.reason = 'No scores available'
           }
           
         } catch (gameError: any) {
           const game = currentGames.find(g => g.id === gameId)!
           errors.push(`Failed to process picks for ${game.away_team} @ ${game.home_team}: ${gameError.message}`)
           console.error(`      ❌ ${gameError.message}`)
+          gameDetails.reason = `Error: ${gameError.message}`
         }
+        
+        gameDetails.processingTime = Date.now() - gameStartTime
+        processingDetails.push(gameDetails)
       }
 
       // Temporarily disable leaderboard refresh to avoid constraint violations
@@ -1163,6 +1055,44 @@ export class LiveUpdateService {
 
       const duration = Date.now() - startTime
       console.log(`✅ Pick processing complete: ${gamesChanged} games processed, ${picksProcessed} picks processed in ${duration}ms`)
+      
+      // Enhanced processing summary
+      if (processingDetails.length > 0) {
+        console.log(`\n📊 DETAILED PROCESSING SUMMARY:`)
+        console.log(`   Total processing time: ${duration}ms`)
+        console.log(`   Average game processing time: ${Math.round(duration / processingDetails.length)}ms`)
+        
+        const successfulGames = processingDetails.filter(d => d.picksProcessed > 0)
+        const skippedGames = processingDetails.filter(d => d.reason.includes('No scores'))
+        const errorGames = processingDetails.filter(d => d.reason.includes('Error'))
+        
+        console.log(`   Games with picks processed: ${successfulGames.length}`)
+        console.log(`   Games skipped (no scores): ${skippedGames.length}`)
+        console.log(`   Games with errors: ${errorGames.length}`)
+        
+        if (successfulGames.length > 0) {
+          console.log(`\n   🎯 SUCCESSFULLY PROCESSED GAMES:`)
+          successfulGames.forEach(game => {
+            const efficiency = Math.round((game.picksProcessed / Math.max(game.picksFound, 1)) * 100)
+            console.log(`     • ${game.teams}: ${game.picksProcessed}/${game.picksFound} picks (${efficiency}%) - ${game.processingTime}ms`)
+          })
+        }
+        
+        if (errorGames.length > 0) {
+          console.log(`\n   ❌ GAMES WITH ERRORS:`)
+          errorGames.forEach(game => {
+            console.log(`     • ${game.teams}: ${game.reason}`)
+          })
+        }
+        
+        const totalPicksFound = processingDetails.reduce((sum, game) => sum + game.picksFound, 0)
+        if (totalPicksFound > 0) {
+          const overallEfficiency = Math.round((picksProcessed / totalPicksFound) * 100)
+          console.log(`\n   📈 OVERALL EFFICIENCY: ${picksProcessed}/${totalPicksFound} picks processed (${overallEfficiency}%)`)
+        }
+        
+        console.log(``) // Empty line for readability
+      }
 
       return {
         success: errors.length === 0,
@@ -1251,8 +1181,8 @@ export class LiveUpdateService {
     let picksUpdated = 0
     let anonPicksUpdated = 0
 
-    // Process regular picks in small batches (5 at a time to avoid timeouts)
-    const BATCH_SIZE = 5
+    // Process regular picks in larger batches (increased from 5 to 25 for better performance)
+    const BATCH_SIZE = 25
     let regularPicksOffset = 0
     let hasMoreRegularPicks = true
 
@@ -1269,8 +1199,9 @@ export class LiveUpdateService {
         break
       }
 
-      console.log(`    🔄 Processing batch: ${picks.length} regular picks (offset ${regularPicksOffset})`)
+      console.log(`    🔄 Processing batch: ${picks.length} regular picks (offset ${regularPicksOffset}-${regularPicksOffset + picks.length - 1})`)
       
+      // Calculate updates for all picks in batch
       for (const pick of picks) {
         const result = winnerAgainstSpread === 'push' ? 'push' : 
                       pick.selected_team === winnerAgainstSpread ? 'win' : 'loss'
@@ -1286,9 +1217,11 @@ export class LiveUpdateService {
         if (!updateError) {
           picksUpdated++
         } else {
-          console.warn(`      ⚠️ Pick update failed: ${updateError.message}`)
+          console.warn(`      ⚠️ Pick update failed for pick ${pick.id}: ${updateError.message}`)
         }
       }
+      
+      console.log(`    ✅ Batch ${Math.floor(regularPicksOffset / BATCH_SIZE) + 1} complete: ${picks.length} picks processed`)
 
       regularPicksOffset += BATCH_SIZE
       if (picks.length < BATCH_SIZE) {
@@ -1313,7 +1246,7 @@ export class LiveUpdateService {
         break
       }
 
-      console.log(`    🔄 Processing batch: ${anonPicks.length} anonymous picks (offset ${anonPicksOffset})`)
+      console.log(`    🔄 Processing batch: ${anonPicks.length} anonymous picks (offset ${anonPicksOffset}-${anonPicksOffset + anonPicks.length - 1})`)
       
       for (const pick of anonPicks) {
         const result = winnerAgainstSpread === 'push' ? 'push' : 
@@ -1330,9 +1263,11 @@ export class LiveUpdateService {
         if (!updateError) {
           anonPicksUpdated++
         } else {
-          console.warn(`      ⚠️ Anonymous pick update failed: ${updateError.message}`)
+          console.warn(`      ⚠️ Anonymous pick update failed for pick ${pick.id}: ${updateError.message}`)
         }
       }
+      
+      console.log(`    ✅ Batch ${Math.floor(anonPicksOffset / BATCH_SIZE) + 1} complete: ${anonPicks.length} anonymous picks processed`)
 
       anonPicksOffset += BATCH_SIZE
       if (anonPicks.length < BATCH_SIZE) {

@@ -18,9 +18,12 @@ import AnonymousPicksAdminWrapper from '@/components/AnonymousPicksAdminWrapper'
 import PickSetManager from '@/components/PickSetManager'
 import LeaderboardVisibilityControl from '@/components/LeaderboardVisibilityControl'
 import CustomPickCombinationManager from '@/components/CustomPickCombinationManager'
+import ScheduledFunctionsManager from '@/components/ScheduledFunctionsManager'
 import { GameCompletionTest } from '@/components/GameCompletionTest'
+import { PickProcessingMonitor } from '@/components/PickProcessingMonitor'
 import '@/utils/emailTesting' // Load email testing utilities for console access
 import { testPickConfirmationEmail, processTestEmailQueue, testNotificationScheduling, registerGlobalEmailTesting } from '@/utils/emailTesting'
+import { fixIncorrectGames } from '@/scripts/fix-incorrect-games'
 import Layout from '@/components/Layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -29,7 +32,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth()
-  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'anonymous' | 'notifications' | 'duplicates' | 'leaderboard' | 'combinations'>('games')
+  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'anonymous' | 'notifications' | 'duplicates' | 'leaderboard' | 'combinations' | 'scheduled' | 'monitoring'>('games')
   const [cfbGames, setCfbGames] = useState<CFBGame[]>([])
   const [savedGames, setSavedGames] = useState<CFBGame[]>([]) // Games actually saved to database
   const [tempSelectedGames, setTempSelectedGames] = useState<CFBGame[]>([]) // UI-only selections
@@ -43,10 +46,16 @@ export default function AdminDashboard() {
   const maxGames = 15
 
 
-  // Force registration of email testing utilities for console access
+  // Force registration of email testing utilities and game fix utilities for console access
   useEffect(() => {
     registerGlobalEmailTesting()
     console.log('🧪 Email testing utilities explicitly registered from AdminDashboard')
+    
+    // Register game fix utility for console access
+    if (typeof window !== 'undefined') {
+      (window as any).fixIncorrectGames = fixIncorrectGames
+      console.log('🔧 Game fix utility registered - use fixIncorrectGames() in console')
+    }
   }, [])
 
 
@@ -947,6 +956,26 @@ export default function AdminDashboard() {
           >
             🎯 Combinations
           </button>
+          <button
+            onClick={() => setActiveTab('scheduled')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'scheduled'
+                ? 'bg-pigskin-500 text-white'
+                : 'text-charcoal-600 hover:text-pigskin-700'
+            }`}
+          >
+            ⏰ Scheduled Functions
+          </button>
+          <button
+            onClick={() => setActiveTab('monitoring')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'monitoring'
+                ? 'bg-pigskin-500 text-white'
+                : 'text-charcoal-600 hover:text-pigskin-700'
+            }`}
+          >
+            📊 Processing Monitor
+          </button>
         </div>
 
         {/* Error Display */}
@@ -1087,6 +1116,16 @@ export default function AdminDashboard() {
         {activeTab === 'combinations' && (
           <div className="space-y-6">
             <CustomPickCombinationManager />
+          </div>
+        )}
+        {activeTab === 'scheduled' && (
+          <div className="space-y-6">
+            <ScheduledFunctionsManager />
+          </div>
+        )}
+        {activeTab === 'monitoring' && (
+          <div className="space-y-6">
+            <PickProcessingMonitor />
           </div>
         )}
       </main>

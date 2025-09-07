@@ -729,7 +729,63 @@ export default function UserManagement() {
         onSendPasswordReset={sendPasswordReset}
         onDeleteUser={deleteUser}
         onUpdatePaymentStatus={updatePaymentStatus}
-        onRefresh={loadUsers}
+        onRefresh={async () => {
+          // Reload users data first
+          await loadUsers()
+          // Find and return the updated user from the newly loaded users list
+          if (selectedUser) {
+            // Wait for the state to update by manually re-fetching the specific user
+            const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+            const apiKey = ENV.SUPABASE_ANON_KEY
+            
+            // Fetch the specific user with updated payment data
+            const userResponse = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${selectedUser.id}&select=*`, {
+              headers: {
+                'apikey': apiKey || '',
+                'Authorization': `Bearer ${apiKey || ''}`,
+                'Content-Type': 'application/json'
+              }
+            })
+            
+            if (userResponse.ok) {
+              const userData = await userResponse.json()
+              if (userData.length > 0) {
+                const user = userData[0]
+                
+                // Load payment data for this user
+                const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?user_id=eq.${user.id}&select=*`, {
+                  headers: {
+                    'apikey': apiKey || '',
+                    'Authorization': `Bearer ${apiKey || ''}`,
+                    'Content-Type': 'application/json'
+                  }
+                })
+                
+                let season_payment_history = []
+                if (paymentsResponse.ok) {
+                  season_payment_history = await paymentsResponse.json()
+                }
+                
+                // Build the updated user object
+                const currentSeasonPayment = season_payment_history.find((p: any) => p.season === currentSeason)
+                let seasonPaymentStatus = 'No Payment'
+                if (currentSeasonPayment) {
+                  seasonPaymentStatus = currentSeasonPayment.status || 'No Payment'
+                } else if (currentSeason === 2024 && user.payment_status) {
+                  seasonPaymentStatus = user.payment_status
+                }
+                
+                return {
+                  ...user,
+                  payment_status: seasonPaymentStatus,
+                  leaguesafe_payment: currentSeasonPayment,
+                  season_payment_history: season_payment_history
+                }
+              }
+            }
+          }
+          return null
+        }}
         currentSeason={currentSeason}
       />
     </div>

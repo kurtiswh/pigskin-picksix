@@ -5,20 +5,28 @@ export function getPicksSubmittedSubject(data: PicksSubmittedData): string {
 }
 
 export function getPicksSubmittedHtml(data: PicksSubmittedData): string {
+  console.log('🔧 EMAIL TEMPLATE DEBUG - Raw picks data:', JSON.stringify(data.picks, null, 2))
+  
   const picksHtml = data.picks.map(pick => {
+    console.log('🔧 EMAIL TEMPLATE DEBUG - Processing pick:', pick)
+    
     // Parse game string to determine home/away teams
     const gameMatch = pick.game.match(/^(.+?)\s+@\s+(.+)$/)
     const awayTeam = gameMatch?.[1]?.trim()
     const homeTeam = gameMatch?.[2]?.trim()
     
+    console.log('🔧 EMAIL TEMPLATE DEBUG - Parsed teams:', { awayTeam, homeTeam, pick: pick.pick, spread: pick.spread })
+    
     // Determine the spread for the picked team
     // Spread is always relative to the home team
     // If pick is home team: use spread as-is
     // If pick is away team: flip the spread sign
-    let displaySpread = pick.spread
+    let displaySpread = pick.spread || 0
     if (pick.pick === awayTeam) {
-      displaySpread = -pick.spread
+      displaySpread = -displaySpread
     }
+    
+    console.log('🔧 EMAIL TEMPLATE DEBUG - Final display spread:', displaySpread)
     
     // Format spread display
     const spreadText = displaySpread > 0 ? `+${displaySpread}` : displaySpread.toString()

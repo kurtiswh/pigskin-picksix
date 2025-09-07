@@ -53,42 +53,19 @@ export function calculatePickResult(
   // Away team covers if they lose by LESS than the spread or win outright
   let result: 'win' | 'loss' | 'push'
   
-  if (pickedHome) {
-    // User picked home team - home team must cover the spread
-    // For home favorite (negative spread): actualMargin must be greater than |spread|
-    // For home underdog (positive spread): home team just needs to win or lose by less than spread
-    if (actualMargin > Math.abs(spread)) {
-      result = 'win' // Home team covered the spread
-    } else if (actualMargin === Math.abs(spread)) {
-      result = 'push' // Exactly hit the spread
-    } else {
-      result = 'loss' // Home team didn't cover
-    }
+  // Unified push calculation logic (matches CFBD Live Updater and Live Update Service)
+  // Calculate spread-adjusted margin: homeMargin + spread
+  const adjustedMargin = actualMargin + spread
+  
+  // Determine result based on adjusted margin (with floating-point tolerance)
+  if (Math.abs(adjustedMargin) < 0.5) {
+    result = 'push' // Within 0.5 points is considered a push
+  } else if (adjustedMargin > 0) {
+    // Home team covered the spread
+    result = pickedHome ? 'win' : 'loss'
   } else {
-    // User picked away team - away team must cover the spread
-    // For away favorite (home spread is positive): away must win by more than spread
-    // For away underdog (home spread is negative): away covers if they lose by less than |spread| or win
-    if (spread < 0) {
-      // Home team is favored, away team is underdog
-      // Away team covers if they lose by less than the spread or win outright
-      if (actualMargin < Math.abs(spread)) {
-        result = 'win' // Away team covered the spread
-      } else if (actualMargin === Math.abs(spread)) {
-        result = 'push' // Exactly hit the spread
-      } else {
-        result = 'loss' // Away team didn't cover
-      }
-    } else {
-      // Away team is favored, home team is underdog
-      // Away team must win by more than the spread
-      if (Math.abs(actualMargin) > spread) {
-        result = 'win' // Away team covered the spread
-      } else if (Math.abs(actualMargin) === spread) {
-        result = 'push' // Exactly hit the spread
-      } else {
-        result = 'loss' // Away team didn't cover
-      }
-    }
+    // Away team covered the spread
+    result = pickedHome ? 'loss' : 'win'
   }
   
   // Calculate base points
@@ -101,29 +78,12 @@ export function calculatePickResult(
     basePoints = 0
   }
   
-  // Calculate bonus points for wins
+  // Calculate bonus points for wins (unified logic)
   let bonusPoints = 0
   if (result === 'win') {
-    // Calculate how much the team beat the spread by
-    let coverMargin = 0
-    if (pickedHome) {
-      // Home team covered the spread
-      // Cover margin = how much better they did than the spread required
-      coverMargin = actualMargin - Math.abs(spread)
-    } else {
-      // Away team covered the spread
-      if (spread < 0) {
-        // Home team was favored, away team was underdog
-        // Away team covers if they lose by less than |spread| or win
-        // Cover margin = how much better they did than needed
-        coverMargin = Math.abs(spread) - actualMargin
-      } else {
-        // Away team was favored, home team was underdog  
-        // Away team needed to win by more than spread
-        // Cover margin = how much they exceeded the required margin
-        coverMargin = Math.abs(actualMargin) - spread
-      }
-    }
+    // Cover margin is simply the absolute value of adjusted margin
+    // (how much the winning team beat the spread by)
+    const coverMargin = Math.abs(adjustedMargin)
     
     if (coverMargin >= 29) {
       bonusPoints = 5 // Cover by 29+
@@ -142,9 +102,7 @@ export function calculatePickResult(
   
   const totalPoints = basePoints + bonusPoints
   
-  const displayCoverMargin = result === 'win' ? 
-    (pickedHome ? actualMargin - Math.abs(spread) : 
-     spread < 0 ? Math.abs(spread) - actualMargin : Math.abs(actualMargin) - spread) : 0
+  const displayCoverMargin = result === 'win' ? Math.abs(adjustedMargin) : 0
   
   console.log(`Pick result: ${selectedTeam} | ${result} | ${totalPoints} pts (${basePoints} base + ${bonusPoints} bonus)${isLock ? ' [LOCK]' : ''} | Cover margin: ${displayCoverMargin}`)
   
@@ -279,7 +237,9 @@ export async function updateGameInDatabase(gameResult: GameResult): Promise<void
     if (error) throw error
     
     const liveInfo = gameResult.game_period && gameResult.game_clock ? 
-      ` (Q${gameResult.game_period} ${gameResult.game_clock})` : ''
+      ` (${gameResult.game_period > 4 ? 
+          (gameResult.game_period === 5 ? 'OT' : `${gameResult.game_period - 4}OT`) : 
+          `Q${gameResult.game_period}`} ${gameResult.game_clock})` : ''
     console.log(`✅ Updated game ${gameResult.game_id}: ${gameResult.away_team} ${gameResult.away_score} - ${gameResult.home_score} ${gameResult.home_team}${liveInfo}`)
   } catch (error) {
     console.error(`❌ Error updating game ${gameResult.game_id}:`, error)

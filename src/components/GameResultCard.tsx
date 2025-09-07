@@ -82,8 +82,33 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
     }
     
     if (currentStatus === 'in_progress') {
+      // Debug logging for game timing data
+      console.log(`🏈 Game timing data for ${game.away_team} @ ${game.home_team}:`, {
+        quarter: game.quarter,
+        clock: game.clock,
+        quarterType: typeof game.quarter,
+        clockType: typeof game.clock,
+        status: currentStatus
+      })
+      
       // Use quarter/clock from props if available
       if (game.quarter && game.clock) {
+        // Debug logging for halftime detection
+        if (game.quarter === 2 && (game.clock === '0:00' || game.clock === '00:00')) {
+          console.log(`🏈 HALFTIME DETECTED: Quarter=${game.quarter}, Clock='${game.clock}'`)
+        }
+        
+        // Special case: Q2 with 0:00 or 00:00 should show "Halftime"
+        if (game.quarter === 2 && (game.clock === '0:00' || game.clock === '00:00')) {
+          return 'Halftime'
+        }
+        
+        // Handle overtime periods (period > 4)
+        if (game.quarter > 4) {
+          const overtimeNumber = game.quarter - 4
+          return overtimeNumber === 1 ? `OT ${game.clock}` : `${overtimeNumber}OT ${game.clock}`
+        }
+        
         return `${game.quarter}Q ${game.clock}`
       }
       return 'Live'
