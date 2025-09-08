@@ -10,6 +10,8 @@ import { ProductionLeaderboardService, ProductionLeaderboardEntry } from '@/serv
 import { EmergencyWeeklyLeaderboardService, EmergencyWeeklyLeaderboardEntry, UserWeeklyPicks } from '@/services/weeklyLeaderboardService.emergency'
 import { ProductionWeeklyLeaderboardService, ProductionWeeklyLeaderboardEntry } from '@/services/weeklyLeaderboardService.production'
 import { liveUpdateService, LiveUpdateStatus, LiveUpdateResult } from '@/services/liveUpdateService'
+import { getLatestWeekWithResults } from '@/services/weekService'
+import { LeaderboardService, LeaderboardEntry } from '@/services/leaderboardService'
 import { useAuth } from '@/hooks/useAuth'
 import { ExpandableLeaderboardRow, LeaderboardRowContent } from '@/components/ExpandableLeaderboardRow'
 import { SeasonExpandedDetails } from '@/components/SeasonExpandedDetails'
@@ -18,9 +20,9 @@ import { WeeklyExpandedDetails } from '@/components/WeeklyExpandedDetails'
 export default function TabbedLeaderboard() {
   const { user } = useAuth()
   const [season, setSeason] = useState(2025)
-  const [selectedWeek, setSelectedWeek] = useState(1)
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState('season')
-  const [seasonData, setSeasonData] = useState<EmergencyLeaderboardEntry[]>([])
+  const [seasonData, setSeasonData] = useState<(LeaderboardEntry | EmergencyLeaderboardEntry)[]>([])
   const [weeklyData, setWeeklyData] = useState<EmergencyWeeklyLeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -39,13 +41,22 @@ export default function TabbedLeaderboard() {
   // Check if current user is admin
   const isAdmin = user?.is_admin === true
 
+  // Initialize selectedWeek to the latest week with results
+  useEffect(() => {
+    const initializeWeek = async () => {
+      const latestWeek = await getLatestWeekWithResults(season)
+      setSelectedWeek(latestWeek)
+    }
+    initializeWeek()
+  }, [season])
+
   useEffect(() => {
     loadSeasonData()
     updateLiveStatus()
   }, [season])
 
   useEffect(() => {
-    if (activeTab === 'weekly') {
+    if (activeTab === 'weekly' && selectedWeek !== null) {
       loadWeeklyData()
     }
   }, [selectedWeek, season, activeTab])
@@ -126,17 +137,37 @@ export default function TabbedLeaderboard() {
         setTimeout(() => reject(new Error('Overall timeout after 10 seconds')), 10000)
       })
       
-      console.log('🚀 [TABBED] Trying production-optimized service first')
-      let dataPromise
+      // Get the current week to calculate rank changes
+      const currentWeek = selectedWeek || (await getLatestWeekWithResults(season))
       
+      console.log('🚀 [TABBED] Loading season leaderboard with rank changes')
+      let entries
+      
+      // Strategy 1: Try rank change calculation first
       try {
-        dataPromise = ProductionLeaderboardService.getSeasonLeaderboard(season)
+        const dataPromise = LeaderboardService.getSeasonLeaderboardWithRankChanges(season, currentWeek)
+        entries = await Promise.race([dataPromise, timeoutPromise])
+        console.log('✅ [TABBED] Loaded season data WITH rank changes:', entries.length, 'entries')
+        
+        // Verify rank change data exists
+        const entriesWithRankChanges = entries.filter(e => e.rank_change !== undefined).length
+        console.log('📈 [TABBED] Rank changes found for', entriesWithRankChanges, 'entries')
+        
       } catch (error) {
-        console.log('⚠️ [TABBED] Production service failed, falling back to emergency service')
-        dataPromise = EmergencyLeaderboardService.getSeasonLeaderboard(season)
+        console.log('⚠️ [TABBED] Rank change calculation failed:', error.message, '- falling back')
+        
+        // Strategy 2: Try production service
+        try {
+          const dataPromise = ProductionLeaderboardService.getSeasonLeaderboard(season)
+          entries = await Promise.race([dataPromise, timeoutPromise])
+          console.log('✅ [TABBED] Loaded season data from production service:', entries.length, 'entries')
+        } catch (error) {
+          console.log('⚠️ [TABBED] Production service failed, falling back to emergency service')
+          const dataPromise = EmergencyLeaderboardService.getSeasonLeaderboard(season)
+          entries = await Promise.race([dataPromise, timeoutPromise])
+          console.log('✅ [TABBED] Loaded season data from emergency service:', entries.length, 'entries')
+        }
       }
-      
-      const entries = await Promise.race([dataPromise, timeoutPromise])
       
       const loadTime = Date.now() - startTime
       console.log('✅ Loaded season data:', entries.length, 'entries in', loadTime, 'ms')
@@ -163,6 +194,9 @@ export default function TabbedLeaderboard() {
 
   const loadWeeklyData = async () => {
     const startTime = Date.now()
+    
+    // Don't load if we don't have a week selected yet
+    if (selectedWeek === null) return
     
     try {
       setLoading(true)
@@ -525,7 +559,7 @@ export default function TabbedLeaderboard() {
         <TabsContent value="weekly" className="mt-6">
           <div className="mb-4">
             <Select 
-              value={selectedWeek.toString()} 
+              value={selectedWeek?.toString() || ''} 
               onValueChange={(value) => setSelectedWeek(parseInt(value))}
             >
               <SelectTrigger className="w-48">
@@ -678,7 +712,7 @@ export default function TabbedLeaderboard() {
                     displayName={entry.display_name}
                     record={entry.season_record || entry.weekly_record}
                     lockRecord={entry.lock_record}
-                    points={entry.total_points}
+                    points={('season_points' in entry ? entry.season_points : entry.total_points) || 0}
                     paymentStatus={entry.payment_status}
                     pickSource={entry.pick_source}
                     isExpanded={isExpanded}
@@ -687,6 +721,9 @@ export default function TabbedLeaderboard() {
                     onToggle={() => {}}
                     isAdmin={isAdmin}
                     isTied={isTied}
+                    rankChange={activeTab === 'season' ? ('rank_change' in entry ? entry.rank_change : undefined) : undefined}
+                    previousRank={activeTab === 'season' ? ('previous_rank' in entry ? entry.previous_rank : undefined) : undefined}
+                    trend={activeTab === 'season' ? ('trend' in entry ? entry.trend : undefined) : undefined}
                   />
                 </div>
               </ExpandableLeaderboardRow>

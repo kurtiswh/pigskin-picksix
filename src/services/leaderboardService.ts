@@ -19,6 +19,8 @@ export interface LeaderboardEntry {
   lock_losses: number
   last_week_points?: number
   trend?: 'up' | 'down' | 'same'
+  rank_change?: number // Positive means moved up, negative means moved down
+  previous_rank?: number // Rank from previous week
   live_calculated?: boolean
   pick_source?: 'authenticated' | 'anonymous' | 'mixed'
 }
@@ -54,7 +56,6 @@ export class LeaderboardService {
         // Trust the view to handle pick set precedence - no additional filtering needed
         // The view already respects is_active_pick_set from our trigger system
         .order('season_rank', { ascending: true })
-        .limit(100) // Reasonable limit to prevent excessive data transfer
 
       const { data: seasonData, error } = await Promise.race([queryPromise, timeoutPromise])
 
@@ -126,7 +127,6 @@ export class LeaderboardService {
         // Trust the view to handle pick set precedence - no additional filtering needed
         // The view already respects is_active_pick_set from our trigger system
         .order('weekly_rank', { ascending: true })
-        .limit(100) // Reasonable limit to prevent excessive data transfer
 
       const { data: weeklyData, error } = await Promise.race([queryPromise, timeoutPromise])
 
@@ -189,6 +189,122 @@ export class LeaderboardService {
     }, {})
     
     return distribution
+  }
+
+  /**
+   * Get season leaderboard with rank changes from previous week
+   * This calculates how each user's rank has changed since last week
+   */
+  static async getSeasonLeaderboardWithRankChanges(season: number, currentWeek: number): Promise<LeaderboardEntry[]> {
+    console.log('📈 Getting season leaderboard with rank changes for week', currentWeek)
+    
+    try {
+      // Get current season leaderboard
+      const currentLeaderboard = await this.getSeasonLeaderboard(season)
+      
+      // If it's week 1, no previous rankings exist
+      if (currentWeek <= 1) {
+        return currentLeaderboard
+      }
+      
+      // Calculate what the season rankings were through the previous week
+      const previousWeekRankings = await this.getSeasonRankingsAsOfWeek(season, currentWeek - 1)
+      
+      // Create a map of previous rankings by user_id
+      const previousRankMap = new Map<string, number>()
+      previousWeekRankings.forEach((entry, index) => {
+        previousRankMap.set(entry.user_id, index + 1) // Rankings are 1-based
+      })
+      
+      // Calculate rank changes for each user
+      const leaderboardWithChanges = currentLeaderboard.map(entry => {
+        const previousRank = previousRankMap.get(entry.user_id)
+        
+        if (previousRank === undefined) {
+          // New player this week
+          return {
+            ...entry,
+            rank_change: undefined,
+            previous_rank: undefined,
+            trend: 'same' as const
+          }
+        }
+        
+        const rankChange = previousRank - entry.season_rank // Positive = moved up
+        let trend: 'up' | 'down' | 'same' = 'same'
+        
+        if (rankChange > 0) trend = 'up'
+        else if (rankChange < 0) trend = 'down'
+        
+        return {
+          ...entry,
+          rank_change: rankChange,
+          previous_rank: previousRank,
+          trend
+        }
+      })
+      
+      console.log('✅ Calculated rank changes for', leaderboardWithChanges.length, 'users')
+      return leaderboardWithChanges
+      
+    } catch (error) {
+      console.error('❌ Error calculating rank changes:', error)
+      // Return current leaderboard without rank changes on error
+      return this.getSeasonLeaderboard(season)
+    }
+  }
+
+  /**
+   * Get season rankings as they were at the end of a specific week
+   * This recalculates season totals using only games through that week
+   */
+  private static async getSeasonRankingsAsOfWeek(season: number, throughWeek: number): Promise<any[]> {
+    console.log('📊 Calculating season rankings through week', throughWeek)
+    
+    try {
+      // Query to get cumulative points through specified week
+      const { data, error } = await supabase
+        .from('picks')
+        .select(`
+          user_id,
+          users!inner(display_name),
+          points_earned
+        `)
+        .eq('season', season)
+        .lte('week', throughWeek)
+        .eq('submitted', true)
+        .eq('show_on_leaderboard', true)
+      
+      if (error) {
+        console.error('Error fetching historical rankings:', error)
+        return []
+      }
+      
+      // Aggregate points by user
+      const userPoints = new Map<string, { user_id: string, display_name: string, total_points: number }>()
+      
+      data?.forEach(pick => {
+        const userId = pick.user_id
+        const existing = userPoints.get(userId) || {
+          user_id: userId,
+          display_name: pick.users?.display_name || 'Unknown',
+          total_points: 0
+        }
+        existing.total_points += pick.points_earned || 0
+        userPoints.set(userId, existing)
+      })
+      
+      // Convert to array and sort by points
+      const rankings = Array.from(userPoints.values())
+        .sort((a, b) => b.total_points - a.total_points)
+      
+      console.log('✅ Calculated rankings for', rankings.length, 'users through week', throughWeek)
+      return rankings
+      
+    } catch (error) {
+      console.error('Error calculating historical rankings:', error)
+      return []
+    }
   }
 
 }

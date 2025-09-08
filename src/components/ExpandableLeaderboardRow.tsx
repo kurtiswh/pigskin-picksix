@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { ChevronDown, ChevronRight, Lock, Trophy } from 'lucide-react'
+import { ChevronDown, ChevronRight, Lock, Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
@@ -26,6 +26,9 @@ interface LeaderboardRowContentProps {
   pickSource?: 'authenticated' | 'anonymous' | 'mixed'
   isAdmin?: boolean
   isTied?: boolean  // New prop to indicate if this rank is tied
+  rankChange?: number  // Positive = moved up, negative = moved down
+  previousRank?: number  // Previous week's rank
+  trend?: 'up' | 'down' | 'same'  // Trend indicator
 }
 
 export function ExpandableLeaderboardRow({ 
@@ -114,7 +117,10 @@ export function LeaderboardRowContent({
   paymentStatus,
   pickSource,
   isAdmin,
-  isTied = false
+  isTied = false,
+  rankChange,
+  previousRank,
+  trend
 }: LeaderboardRowContentProps) {
   const getPaymentBadge = () => {
     // Only show payment indicators for unpaid users
@@ -150,29 +156,62 @@ export function LeaderboardRowContent({
     ) : null
   }
   
+  const getRankChangeIndicator = () => {
+    if (typeof rankChange !== 'number' || !previousRank) return null
+    
+    if (rankChange === 0) {
+      return (
+        <div className="flex items-center gap-1 text-gray-500" title={`Same rank as last week (#${previousRank})`}>
+          <Minus className="w-3 h-3" />
+          <span className="text-xs">—</span>
+        </div>
+      )
+    }
+    
+    const isPositive = rankChange > 0
+    const Icon = isPositive ? TrendingUp : TrendingDown
+    const color = isPositive ? 'text-green-600' : 'text-red-600'
+    const bgColor = isPositive ? 'bg-green-50' : 'bg-red-50'
+    const borderColor = isPositive ? 'border-green-200' : 'border-red-200'
+    
+    const changeText = isPositive ? `+${rankChange}` : `${rankChange}`
+    const direction = isPositive ? 'up' : 'down'
+    const title = `Moved ${direction} ${Math.abs(rankChange)} spot${Math.abs(rankChange) !== 1 ? 's' : ''} from #${previousRank} last week`
+    
+    return (
+      <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${color} ${bgColor} border ${borderColor}`} title={title}>
+        <Icon className="w-3 h-3" />
+        <span className="font-medium">{changeText}</span>
+      </div>
+    )
+  }
+  
   return (
     <div className="flex items-center justify-between w-full">
       <div className="flex items-center space-x-4">
         {/* Rank */}
-        <div className="flex items-center min-w-[3rem]">
-          <div className="flex items-center space-x-1">
-            {rank <= 3 ? (
-              <>
-                <Trophy className={`w-4 h-4 ${
-                  rank === 1 ? 'text-yellow-500' : 
-                  rank === 2 ? 'text-gray-400' : 
-                  'text-amber-600'
-                }`} />
-                <span className="font-bold text-lg">{rank}</span>
-              </>
-            ) : (
-              <span className="font-semibold text-gray-700">{rank}</span>
-            )}
-            {isTied && (
-              <span className="text-xs font-bold text-blue-600 uppercase ml-0.5" title="Tied rank - same points as other players">
-                T
-              </span>
-            )}
+        <div className="flex items-center min-w-[4rem]">
+          <div className="flex flex-col items-start space-y-1">
+            <div className="flex items-center space-x-1">
+              {rank <= 3 ? (
+                <>
+                  <Trophy className={`w-4 h-4 ${
+                    rank === 1 ? 'text-yellow-500' : 
+                    rank === 2 ? 'text-gray-400' : 
+                    'text-amber-600'
+                  }`} />
+                  <span className="font-bold text-lg">{rank}</span>
+                </>
+              ) : (
+                <span className="font-semibold text-gray-700">{rank}</span>
+              )}
+              {isTied && (
+                <span className="text-xs font-bold text-blue-600 uppercase ml-0.5" title="Tied rank - same points as other players">
+                  T
+                </span>
+              )}
+            </div>
+            {getRankChangeIndicator()}
           </div>
         </div>
 
