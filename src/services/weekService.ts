@@ -68,3 +68,57 @@ export async function getActiveWeekSettings(season: number) {
   
   return data
 }
+
+/**
+ * Gets the latest week that has completed games with results
+ * Perfect for defaulting leaderboard views to the most recent week with data
+ * 
+ * @param season - The season year
+ * @returns The latest week number with completed games, or 1 if none found
+ */
+export async function getLatestWeekWithResults(season: number): Promise<number> {
+  try {
+    console.log('🔍 Finding latest week with results for season', season)
+    
+    // Query games to find the highest week with completed games
+    const { data: completedGames, error } = await supabase
+      .from('games')
+      .select('week')
+      .eq('season', season)
+      .eq('status', 'completed')
+      .order('week', { ascending: false })
+      .limit(1)
+    
+    if (error) {
+      console.error('❌ Error finding latest week with results:', error)
+      return 1
+    }
+    
+    if (completedGames && completedGames.length > 0) {
+      const latestWeek = completedGames[0].week
+      console.log('✅ Found latest week with completed games:', latestWeek)
+      return latestWeek
+    }
+    
+    // If no completed games, check for the highest week with any games
+    const { data: anyGames, error: anyError } = await supabase
+      .from('games')
+      .select('week')
+      .eq('season', season)
+      .order('week', { ascending: false })
+      .limit(1)
+    
+    if (!anyError && anyGames && anyGames.length > 0) {
+      const latestWeek = anyGames[0].week
+      console.log('📊 Found latest week with games (not yet completed):', latestWeek)
+      return latestWeek
+    }
+    
+    console.log('⚠️ No games found for season, defaulting to week 1')
+    return 1
+    
+  } catch (error) {
+    console.error('❌ Error in getLatestWeekWithResults:', error)
+    return 1
+  }
+}
