@@ -394,7 +394,7 @@ export default function TabbedLeaderboard() {
             <div className="flex-1">
               <h3 className="text-lg font-bold text-yellow-800 mb-1">⚠️ IMPORTANT NOTICE</h3>
               <p className="text-yellow-700 font-medium">
-                LEADERBOARD & PAYMENTS ARE STILL BEING PROCESSED. UNTIL THIS PROCESS IS COMPLETED, YOU MAY NOT APPEAR ON THE LEADERBOARD AND YOUR PICKS MAY NOT BE CORRECT.
+                LEADERBOARD & PAYMENTS ARE UP TO DATE. IF YOU'RE NOT ON THE LEADERBOARD, WE DON'T SHOW A PAYMENT FOR YOU. IF YOU SEE SOMETHING WRONG, PLEASE EMAIL US AT ADMIN@PIGSKINPICKSIX.COM.
               </p>
             </div>
           </div>
