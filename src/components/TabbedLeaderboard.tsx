@@ -648,8 +648,8 @@ export default function TabbedLeaderboard() {
           </div>
         )}
         
-        {/* Header row */}
-        <div className="border-b bg-gray-50">
+        {/* Header row - Hidden on mobile */}
+        <div className="hidden md:block border-b bg-gray-50">
           <div className="grid grid-cols-12 gap-2 p-2 text-sm font-medium text-gray-700">
             <div className="col-span-1">Rank</div>
             <div className="col-span-3">

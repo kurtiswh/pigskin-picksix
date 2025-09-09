@@ -187,83 +187,167 @@ export function LeaderboardRowContent({
   }
   
   return (
-    <div className="flex items-center justify-between w-full">
-      <div className="flex items-center space-x-4">
-        {/* Rank */}
-        <div className="flex items-center min-w-[4rem]">
-          <div className="flex flex-col items-start space-y-1">
-            <div className="flex items-center space-x-1">
-              {rank <= 3 ? (
-                <>
-                  <Trophy className={`w-4 h-4 ${
-                    rank === 1 ? 'text-yellow-500' : 
-                    rank === 2 ? 'text-gray-400' : 
-                    'text-amber-600'
-                  }`} />
-                  <span className="font-bold text-lg">{rank}</span>
-                </>
-              ) : (
-                <span className="font-semibold text-gray-700">{rank}</span>
-              )}
-              {isTied && (
-                <span className="text-xs font-bold text-blue-600 uppercase ml-0.5" title="Tied rank - same points as other players">
-                  T
-                </span>
-              )}
+    <>
+      {/* Desktop Layout */}
+      <div className="hidden md:flex items-center justify-between w-full">
+        <div className="flex items-center space-x-4">
+          {/* Rank */}
+          <div className="flex items-center min-w-[4rem]">
+            <div className="flex flex-col items-start space-y-1">
+              <div className="flex items-center space-x-1">
+                {rank <= 3 ? (
+                  <>
+                    <Trophy className={`w-4 h-4 ${
+                      rank === 1 ? 'text-yellow-500' : 
+                      rank === 2 ? 'text-gray-400' : 
+                      'text-amber-600'
+                    }`} />
+                    <span className="font-bold text-lg">{rank}</span>
+                  </>
+                ) : (
+                  <span className="font-semibold text-gray-700">{rank}</span>
+                )}
+                {isTied && (
+                  <span className="text-xs font-bold text-blue-600 uppercase ml-0.5" title="Tied rank - same points as other players">
+                    T
+                  </span>
+                )}
+              </div>
+              {getRankChangeIndicator()}
             </div>
-            {getRankChangeIndicator()}
+          </div>
+
+          {/* Name and Badges */}
+          <div className="flex-1 flex items-center gap-2">
+            <h3 className="font-semibold text-gray-900 truncate">{displayName}</h3>
+            {getPaymentBadge()}
+            {getSourceBadge()}
           </div>
         </div>
 
-        {/* Name and Badges */}
-        <div className="flex-1 flex items-center gap-2">
-          <h3 className="font-semibold text-gray-900 truncate">{displayName}</h3>
-          {getPaymentBadge()}
-          {getSourceBadge()}
+        <div className="flex items-center space-x-6">
+          {/* Record */}
+          <div className="text-sm text-gray-600">
+            <div className="font-medium">{record}</div>
+            <div className="flex items-center space-x-1 text-xs">
+              <Lock className="w-3 h-3" />
+              <span>{lockRecord}</span>
+            </div>
+          </div>
+
+          {/* Points */}
+          <div className="text-right min-w-[4rem]">
+            <div className="font-bold text-lg text-[#4B3621]">{points}</div>
+            <div className="text-xs text-gray-500">points</div>
+          </div>
+
+          {/* Expand button */}
+          {canExpand && (
+            <div className="ml-2">
+              {isLoading ? (
+                <div className="w-4 h-4 animate-spin rounded-full border-2 border-gray-300 border-t-[#4B3621]" />
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="p-1 hover:bg-gray-200"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onToggle()
+                  }}
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-gray-600" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-gray-600" />
+                  )}
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="flex items-center space-x-6">
-        {/* Record */}
-        <div className="text-sm text-gray-600">
-          <div className="font-medium">{record}</div>
-          <div className="flex items-center space-x-1 text-xs">
-            <Lock className="w-3 h-3" />
-            <span>{lockRecord}</span>
+      {/* Mobile Layout */}
+      <div className="md:hidden w-full">
+        {/* Mobile Header Row */}
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex items-center gap-2">
+            {rank <= 3 ? (
+              <div className="flex items-center">
+                <Trophy className={`w-4 h-4 ${
+                  rank === 1 ? 'text-yellow-500' : 
+                  rank === 2 ? 'text-gray-400' : 
+                  'text-amber-600'
+                }`} />
+                <span className="font-bold text-lg ml-1">{rank}</span>
+              </div>
+            ) : (
+              <span className="font-bold text-lg text-gray-700">{rank}</span>
+            )}
+            {isTied && (
+              <span className="text-xs font-medium text-blue-600 uppercase bg-blue-50 px-1 py-0.5 rounded">
+                TIE
+              </span>
+            )}
+            {getRankChangeIndicator()}
+          </div>
+          <div className="text-right">
+            <div className="font-bold text-xl text-[#4B3621]">{points}</div>
+            <div className="text-xs text-gray-500">points</div>
+          </div>
+        </div>
+        
+        {/* Player Name */}
+        <div className="font-semibold text-base mb-2 break-words">{displayName}</div>
+        
+        {/* Badges */}
+        <div className="flex gap-2 mb-2 flex-wrap">
+          {getPaymentBadge()}
+          {getSourceBadge()}
+        </div>
+        
+        {/* Stats Row - Stack on very small screens */}
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <div className="text-xs text-gray-500 uppercase">Record</div>
+            <div className="font-medium">{record}</div>
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 uppercase">Lock Record</div>
+            <div className="font-medium flex items-center gap-1">
+              <Lock className="w-3 h-3" />
+              <span>{lockRecord}</span>
+            </div>
           </div>
         </div>
 
-        {/* Points */}
-        <div className="text-right min-w-[4rem]">
-          <div className="font-bold text-lg text-[#4B3621]">{points}</div>
-          <div className="text-xs text-gray-500">points</div>
-        </div>
-
-        {/* Expand button */}
+        {/* Expand button on mobile */}
         {canExpand && (
-          <div className="ml-2">
+          <div className="mt-3 flex justify-center">
             {isLoading ? (
               <div className="w-4 h-4 animate-spin rounded-full border-2 border-gray-300 border-t-[#4B3621]" />
             ) : (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="p-1 hover:bg-gray-200"
+                className="text-xs"
                 onClick={(e) => {
                   e.stopPropagation()
                   onToggle()
                 }}
               >
+                {isExpanded ? 'Show Less' : 'Show More'}
                 {isExpanded ? (
-                  <ChevronDown className="w-4 h-4 text-gray-600" />
+                  <ChevronDown className="w-3 h-3 ml-1" />
                 ) : (
-                  <ChevronRight className="w-4 h-4 text-gray-600" />
+                  <ChevronRight className="w-3 h-3 ml-1" />
                 )}
               </Button>
             )}
           </div>
         )}
       </div>
-    </div>
+    </>
   )
 }
