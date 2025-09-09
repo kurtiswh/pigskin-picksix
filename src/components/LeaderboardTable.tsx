@@ -335,17 +335,17 @@ export default function LeaderboardTable({
                   {/* Mobile Card Layout */}
                   <div
                     className={cn(
-                      "md:hidden p-4 rounded-lg border transition-colors hover:bg-stone-50",
+                      "md:hidden p-3 sm:p-4 rounded-lg border transition-colors hover:bg-stone-50",
                       rank <= 3 && "bg-gradient-to-r from-gold-50 to-transparent border-gold-200",
                       isTied && rank > 3 && "bg-stone-50 border-l-4 border-l-stone-300",
                       !isTied && rank > 3 && "border-stone-200"
                     )}
                   >
                     {/* Mobile Header Row */}
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-start justify-between mb-3 gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-shrink">
                         <span className={cn(
-                          "font-bold text-lg",
+                          "font-bold text-base sm:text-lg flex-shrink-0",
                           rank === 1 && "text-gold-600",
                           rank === 2 && "text-stone-400", 
                           rank === 3 && "text-amber-600"
@@ -353,15 +353,16 @@ export default function LeaderboardTable({
                           {getRankIcon(rank)}
                         </span>
                         {isTied && (
-                          <span className="text-xs font-medium text-stone-500 uppercase bg-stone-100 px-1 py-0.5 rounded" title="Tied rank">
+                          <span className="text-xs font-medium text-stone-500 uppercase bg-stone-100 px-1 py-0.5 rounded flex-shrink-0" title="Tied rank">
                             TIE
                           </span>
                         )}
                       </div>
-                      <div className="text-right">
-                        <div className="font-bold text-xl text-pigskin-600">{points}</div>
-                        <div className="text-xs text-charcoal-500">
-                          {getTrendIcon(entry.trend)} points
+                      <div className="text-right flex-shrink-0">
+                        <div className="font-bold text-lg sm:text-xl text-pigskin-600">{points}</div>
+                        <div className="text-xs text-charcoal-500 whitespace-nowrap">
+                          {getTrendIcon(entry.trend)}
+                          <span className="hidden xs:inline"> points</span>
                           {entry.rank_change !== undefined && (
                             <span className="ml-1 font-medium" title={`Previous rank: ${entry.previous_rank}`}>
                               ({entry.rank_change > 0 ? '+' : ''}{entry.rank_change})
@@ -372,18 +373,18 @@ export default function LeaderboardTable({
                     </div>
                     
                     {/* Player Name */}
-                    <div className="font-semibold text-lg mb-2">{entry.display_name}</div>
+                    <div className="font-semibold text-base sm:text-lg mb-3 break-words">{entry.display_name}</div>
                     
-                    {/* Stats Row */}
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+                    {/* Stats Row - Stack on very small screens */}
+                    <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 sm:gap-4 text-sm">
                       <div>
                         <div className="text-charcoal-500 text-xs uppercase tracking-wide">Record</div>
-                        <div className="font-medium">{record || `${entry.total_wins}-${entry.total_losses}-${entry.total_pushes}`}</div>
+                        <div className="font-medium text-sm">{record || `${entry.total_wins}-${entry.total_losses}-${entry.total_pushes}`}</div>
                         <div className="text-xs text-charcoal-400">{entry.total_picks} picks</div>
                       </div>
                       <div>
                         <div className="text-charcoal-500 text-xs uppercase tracking-wide">Lock Record</div>
-                        <div className="font-medium">{entry.lock_record}</div>
+                        <div className="font-medium text-sm">{entry.lock_record}</div>
                         <div className="text-xs text-charcoal-400">{entry.lock_wins + entry.lock_losses} locks</div>
                       </div>
                     </div>
