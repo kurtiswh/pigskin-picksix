@@ -15,6 +15,7 @@ import ApiQuotaWidget from '@/components/ApiQuotaWidget'
 import ScoreManager from '@/components/ScoreManager'
 import AdminNotifications from '@/components/AdminNotifications'
 import { GameCompletionTest } from '@/components/GameCompletionTest'
+import PickManagement from '@/components/PickManagement'
 import '@/utils/emailTesting' // Load email testing utilities for console access
 import { testPickConfirmationEmail, processTestEmailQueue, testNotificationScheduling, registerGlobalEmailTesting } from '@/utils/emailTesting'
 import { fixIncorrectGames } from '@/scripts/fix-incorrect-games'
@@ -1038,14 +1039,10 @@ export default function AdminDashboard() {
 
         {activeTab === 'pickmanagement' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-pigskin-900">Pick Management</h2>
-            <div className="text-center py-8 text-gray-500">
-              <div className="text-4xl mb-4">🚧</div>
-              <h3 className="text-lg font-semibold mb-2">Under Construction</h3>
-              <p className="text-charcoal-600">
-                Pick management features are being developed.
-              </p>
-            </div>
+            <PickManagement 
+              currentWeek={currentWeek}
+              currentSeason={currentSeason}
+            />
           </div>
         )}
 
