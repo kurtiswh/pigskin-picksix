@@ -962,7 +962,6 @@ export class EmailService {
       console.log('🔧 Environment check (browser context):')
       console.log(`   Supabase URL: ${supabaseUrl ? 'Available' : 'Missing'}`)
       console.log(`   Anon Key: ${anonKey ? 'Available' : 'Missing'}`)
-      console.log(`   Using import.meta.env: ${typeof import.meta !== 'undefined' && import.meta.env ? 'Yes' : 'No'}`)
 
       // Use direct Edge Function call (the approach that works in our tests)
       try {
