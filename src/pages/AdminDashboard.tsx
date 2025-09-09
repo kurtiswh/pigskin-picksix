@@ -14,16 +14,13 @@ import ApiStatusWidget from '@/components/ApiStatusWidget'
 import ApiQuotaWidget from '@/components/ApiQuotaWidget'
 import ScoreManager from '@/components/ScoreManager'
 import AdminNotifications from '@/components/AdminNotifications'
-import AnonymousPicksAdminWrapper from '@/components/AnonymousPicksAdminWrapper'
-import PickSetManager from '@/components/PickSetManager'
-import LeaderboardVisibilityControl from '@/components/LeaderboardVisibilityControl'
-import CustomPickCombinationManager from '@/components/CustomPickCombinationManager'
-import ScheduledFunctionsManager from '@/components/ScheduledFunctionsManager'
 import { GameCompletionTest } from '@/components/GameCompletionTest'
-import { PickProcessingMonitor } from '@/components/PickProcessingMonitor'
+import PickManagement from '@/components/PickManagement'
 import '@/utils/emailTesting' // Load email testing utilities for console access
 import { testPickConfirmationEmail, processTestEmailQueue, testNotificationScheduling, registerGlobalEmailTesting } from '@/utils/emailTesting'
 import { fixIncorrectGames } from '@/scripts/fix-incorrect-games'
+import { checkWinnerConsistency } from '@/scripts/check-winner-consistency'
+import { fixIncompleteScores } from '@/scripts/fix-incomplete-scores'
 import Layout from '@/components/Layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -32,7 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth()
-  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'anonymous' | 'notifications' | 'duplicates' | 'leaderboard' | 'combinations' | 'scheduled' | 'monitoring'>('games')
+  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'pickmanagement' | 'notifications'>('games')
   const [cfbGames, setCfbGames] = useState<CFBGame[]>([])
   const [savedGames, setSavedGames] = useState<CFBGame[]>([]) // Games actually saved to database
   const [tempSelectedGames, setTempSelectedGames] = useState<CFBGame[]>([]) // UI-only selections
@@ -54,7 +51,13 @@ export default function AdminDashboard() {
     // Register game fix utility for console access
     if (typeof window !== 'undefined') {
       (window as any).fixIncorrectGames = fixIncorrectGames
-      console.log('🔧 Game fix utility registered - use fixIncorrectGames() in console')
+      (window as any).checkWinnerConsistency = checkWinnerConsistency
+      (window as any).fixIncompleteScores = fixIncompleteScores
+      console.log('🔧 Game utilities registered:')
+      console.log('  - fixIncompleteScores() - fix games marked complete without scores')
+      console.log('  - fixIncorrectGames() - fix games with wrong winners')
+      console.log('  - checkWinnerConsistency() - check for winner calculation errors')
+      console.log('  - checkWinnerConsistency(true) - check and fix errors')
     }
   }, [])
 
@@ -907,14 +910,14 @@ export default function AdminDashboard() {
             User Management
           </button>
           <button
-            onClick={() => setActiveTab('anonymous')}
+            onClick={() => setActiveTab('pickmanagement')}
             className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'anonymous'
+              activeTab === 'pickmanagement'
                 ? 'bg-pigskin-500 text-white'
                 : 'text-charcoal-600 hover:text-pigskin-700'
             }`}
           >
-            👤 Anonymous Picks
+            📋 Pick Management
           </button>
           <button
             onClick={() => setActiveTab('notifications')}
@@ -925,56 +928,6 @@ export default function AdminDashboard() {
             }`}
           >
             📧 Notifications
-          </button>
-          <button
-            onClick={() => setActiveTab('duplicates')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'duplicates'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            🎯 Pick Sets
-          </button>
-          <button
-            onClick={() => setActiveTab('leaderboard')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'leaderboard'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            📊 Leaderboard
-          </button>
-          <button
-            onClick={() => setActiveTab('combinations')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'combinations'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            🎯 Combinations
-          </button>
-          <button
-            onClick={() => setActiveTab('scheduled')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'scheduled'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            ⏰ Scheduled Functions
-          </button>
-          <button
-            onClick={() => setActiveTab('monitoring')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'monitoring'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            📊 Processing Monitor
           </button>
         </div>
 
@@ -1084,10 +1037,9 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {activeTab === 'anonymous' && (
+        {activeTab === 'pickmanagement' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-pigskin-900">Anonymous Picks Management</h2>
-            <AnonymousPicksAdminWrapper 
+            <PickManagement 
               currentWeek={currentWeek}
               currentSeason={currentSeason}
             />
@@ -1101,31 +1053,6 @@ export default function AdminDashboard() {
               currentWeek={currentWeek}
               currentSeason={currentSeason}
             />
-          </div>
-        )}
-        {activeTab === 'duplicates' && (
-          <div className="space-y-6">
-            <PickSetManager />
-          </div>
-        )}
-        {activeTab === 'leaderboard' && (
-          <div className="space-y-6">
-            <LeaderboardVisibilityControl season={currentSeason} />
-          </div>
-        )}
-        {activeTab === 'combinations' && (
-          <div className="space-y-6">
-            <CustomPickCombinationManager />
-          </div>
-        )}
-        {activeTab === 'scheduled' && (
-          <div className="space-y-6">
-            <ScheduledFunctionsManager />
-          </div>
-        )}
-        {activeTab === 'monitoring' && (
-          <div className="space-y-6">
-            <PickProcessingMonitor />
           </div>
         )}
       </main>

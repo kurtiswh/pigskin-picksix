@@ -3,10 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { ChevronDown, ChevronRight, RefreshCw, PlayCircle, StopCircle, Clock, TrendingUp, AlertCircle, Settings } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { updateGameScores, getCompletedGames } from '@/services/collegeFootballApi'
 import { updateGameInDatabase, processCompletedGames, calculatePicksForGame } from '@/services/scoreCalculation'
 import { liveUpdateService, LiveUpdateResult, LiveUpdateStatus } from '@/services/liveUpdateService'
+import { CFBDLiveUpdater } from '@/services/cfbdLiveUpdater'
 
 interface Game {
   id: string
@@ -62,6 +65,76 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
     pendingAnonPicks: 0,
     totalGames: 0
   })
+  
+  // Collapsible sections state
+  const [showAdvancedMonitoring, setShowAdvancedMonitoring] = useState(false)
+  const [showScheduledFunctions, setShowScheduledFunctions] = useState(false)
+  
+  // Processing monitor states
+  const [processingStats, setProcessingStats] = useState<{
+    totalGamesChecked: number
+    totalGamesProcessed: number
+    totalPicksProcessed: number
+    processingEfficiency: number
+    averageProcessingTime: number
+    errorCount: number
+    lastProcessingTime: Date | null
+  }>({
+    totalGamesChecked: 0,
+    totalGamesProcessed: 0,
+    totalPicksProcessed: 0,
+    processingEfficiency: 0,
+    averageProcessingTime: 0,
+    errorCount: 0,
+    lastProcessingTime: null
+  })
+  
+  // Scheduled functions state
+  const [scheduledFunctions, setScheduledFunctions] = useState<Array<{
+    name: string
+    displayName: string
+    description: string
+    schedule: string
+    lastResult?: {
+      success: boolean
+      data?: any
+      error?: string
+      executedAt: Date
+    }
+    isRunning: boolean
+  }>>([{
+    name: 'cfbd_live_updates',
+    displayName: 'CFBD Live Updates (Real-time)',
+    description: 'Fetches real live scores, quarters, and timing from CFBD API. Updates all game data in real-time.',
+    schedule: 'Every 5 minutes Thu-Sun 8:00am-11:59pm Central',
+    isRunning: false
+  }, {
+    name: 'scheduled_live_game_updates',
+    displayName: 'Live Game Updates (Time-based)',
+    description: 'Updates game statuses based on elapsed time. Calculates winner_against_spread when games complete.',
+    schedule: 'Fallback system - Every 10 minutes',
+    isRunning: false
+  }, {
+    name: 'scheduled_pick_processing',
+    displayName: 'Pick Processing',
+    description: 'Processes picks for completed games. Updates pick results and points for regular and anonymous picks.',
+    schedule: 'Every 10 minutes Thu 6:00pm-Sun 11:59pm Central',
+    isRunning: false
+  }, {
+    name: 'scheduled_game_statistics',
+    displayName: 'Game Statistics',
+    description: 'Updates game-level pick counts and percentages. Pure statistics - no scoring logic.',
+    schedule: 'Every 30 minutes Sat 9:00am-Sun 8:00am Central',
+    isRunning: false
+  }, {
+    name: 'scheduled_leaderboard_refresh',
+    displayName: 'Leaderboard Refresh',
+    description: 'Refreshes season and weekly leaderboard tables. Handles ranking calculations.',
+    schedule: 'Every 5 minutes all week',
+    isRunning: false
+  }])
+  
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   useEffect(() => {
     loadGames()
@@ -72,8 +145,9 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
     // Set up periodic status updates
     const statusInterval = setInterval(() => {
       updateLiveStatus()
+      updateProcessingStats()
       loadStatusData()
-    }, 10000) // Update every 10 seconds
+    }, 5000) // Update every 5 seconds for monitoring
     
     return () => {
       clearInterval(statusInterval)
@@ -86,6 +160,23 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
 
   const updateLiveStatus = () => {
     setLiveUpdateStatus(liveUpdateService.getStatus())
+  }
+  
+  const updateProcessingStats = () => {
+    const currentStatus = liveUpdateService.getStatus()
+    if (currentStatus.lastPickProcessing) {
+      const processing = currentStatus.lastPickProcessing
+      setProcessingStats(prev => ({
+        ...prev,
+        totalGamesChecked: prev.totalGamesChecked + processing.gamesChecked,
+        totalGamesProcessed: prev.totalGamesProcessed + processing.gamesChanged,
+        totalPicksProcessed: prev.totalPicksProcessed + processing.picksProcessed,
+        processingEfficiency: processing.picksProcessed > 0 ? 
+          Math.round((processing.picksProcessed / Math.max(processing.gamesChanged * 50, 1)) * 100) : prev.processingEfficiency,
+        errorCount: prev.errorCount + processing.errors.length,
+        lastProcessingTime: processing.lastUpdate
+      }))
+    }
   }
 
   const loadStatusData = async () => {
@@ -294,6 +385,117 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
   const stopLiveUpdates = () => {
     liveUpdateService.stopPolling()
     updateLiveStatus()
+  }
+  
+  // Scheduled function execution
+  const executeScheduledFunction = async (functionName: string) => {
+    const functionIndex = scheduledFunctions.findIndex(f => f.name === functionName)
+    if (functionIndex === -1) return
+
+    // Set running state
+    setScheduledFunctions(prev => prev.map((f, i) => 
+      i === functionIndex ? { ...f, isRunning: true } : f
+    ))
+
+    try {
+      console.log(`🚀 Executing ${functionName}...`)
+      const startTime = new Date()
+      
+      let result: { success: boolean; data?: any; error?: string; executedAt: Date }
+      
+      if (functionName === 'cfbd_live_updates') {
+        // Execute CFBD live updater (TypeScript service)
+        const cfbdResult = await CFBDLiveUpdater.updateLiveGames()
+        result = {
+          success: cfbdResult.success,
+          data: cfbdResult,
+          error: cfbdResult.errors.length > 0 ? cfbdResult.errors.join(', ') : undefined,
+          executedAt: startTime
+        }
+      } else {
+        // Execute database function via RPC
+        const { data, error } = await supabase.rpc(functionName)
+        result = {
+          success: !error,
+          data: data,
+          error: error?.message,
+          executedAt: startTime
+        }
+      }
+
+      // Update function with result
+      setScheduledFunctions(prev => prev.map((f, i) => 
+        i === functionIndex ? { ...f, lastResult: result, isRunning: false } : f
+      ))
+
+      if (!result.success) {
+        console.error(`❌ ${functionName} failed:`, result.error)
+      } else {
+        console.log(`✅ ${functionName} completed:`, result.data)
+      }
+
+    } catch (err: any) {
+      const result = {
+        success: false,
+        error: err.message,
+        executedAt: new Date()
+      }
+
+      setScheduledFunctions(prev => prev.map((f, i) => 
+        i === functionIndex ? { ...f, lastResult: result, isRunning: false } : f
+      ))
+
+      console.error(`❌ ${functionName} exception:`, err.message)
+    }
+  }
+  
+  // Format time helper for monitoring
+  const formatTimeAgo = (date: Date | null) => {
+    if (!date) return 'Never'
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / (1000 * 60))
+    
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    const diffHours = Math.floor(diffMins / 60)
+    return `${diffHours}h ${diffMins % 60}m ago`
+  }
+  
+  // Format scheduled function results
+  const formatScheduledResult = (result?: { success: boolean; data?: any; error?: string; executedAt: Date }) => {
+    if (!result) return null
+
+    const timeAgo = Math.floor((Date.now() - result.executedAt.getTime()) / 1000)
+    const timeString = timeAgo < 60 
+      ? `${timeAgo}s ago` 
+      : `${Math.floor(timeAgo / 60)}m ago`
+
+    return (
+      <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+        <div className="flex items-center justify-between mb-1">
+          <Badge variant={result.success ? 'default' : 'destructive'}>
+            {result.success ? 'SUCCESS' : 'FAILED'}
+          </Badge>
+          <span className="text-gray-500">{timeString}</span>
+        </div>
+        
+        {result.success && result.data && (
+          <div className="text-green-700">
+            {typeof result.data === 'object' 
+              ? Object.entries(result.data).map(([key, value]) => (
+                  <div key={key}>{key}: {JSON.stringify(value)}</div>
+                ))
+              : String(result.data)
+            }
+          </div>
+        )}
+        
+        {result.error && (
+          <div className="text-red-700 font-mono">{result.error}</div>
+        )}
+      </div>
+    )
   }
 
   // Manual scoring operations
@@ -1036,6 +1238,183 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
             </div>
           )}
         </CardContent>
+      </Card>
+
+      {/* Advanced Monitoring Section (Collapsible) */}
+      <Card className="border-purple-200">
+        <CardHeader className="pb-3 cursor-pointer" onClick={() => setShowAdvancedMonitoring(!showAdvancedMonitoring)}>
+          <CardTitle className="text-base flex items-center gap-2">
+            {showAdvancedMonitoring ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <TrendingUp className="h-4 w-4" />
+            Advanced Processing Monitor
+            <Badge variant="secondary" className="ml-2">Optional</Badge>
+          </CardTitle>
+        </CardHeader>
+        {showAdvancedMonitoring && (
+          <CardContent className="space-y-4">
+            {/* Status Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-blue-500" />
+                    <div>
+                      <p className="text-sm font-medium">Last Update</p>
+                      <p className="text-xs text-gray-600">{formatTimeAgo(liveUpdateStatus?.lastUpdate || null)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-green-500" />
+                    <div>
+                      <p className="text-sm font-medium">Total Updates</p>
+                      <p className="text-lg font-bold">{liveUpdateStatus?.totalUpdates || 0}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 text-purple-500" />
+                    <div>
+                      <p className="text-sm font-medium">Picks Processed</p>
+                      <p className="text-lg font-bold">{processingStats.totalPicksProcessed}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className={`h-4 w-4 ${liveUpdateStatus?.errors.length ? 'text-red-500' : 'text-gray-400'}`} />
+                    <div>
+                      <p className="text-sm font-medium">Errors</p>
+                      <p className="text-lg font-bold">{liveUpdateStatus?.errors.length || 0}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Processing Details */}
+            {liveUpdateStatus?.lastPickProcessing && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Latest Processing Cycle</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <p className="font-medium">Games Checked</p>
+                      <p className="text-2xl font-bold text-blue-600">{liveUpdateStatus.lastPickProcessing.gamesChecked}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium">Games Processed</p>
+                      <p className="text-2xl font-bold text-green-600">{liveUpdateStatus.lastPickProcessing.gamesChanged}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium">Picks Updated</p>
+                      <p className="text-2xl font-bold text-purple-600">{liveUpdateStatus.lastPickProcessing.picksProcessed}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium">Success Rate</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {liveUpdateStatus.lastPickProcessing.success ? '100%' : 
+                         `${Math.round((1 - liveUpdateStatus.lastPickProcessing.errors.length / Math.max(liveUpdateStatus.lastPickProcessing.gamesChecked, 1)) * 100)}%`}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {liveUpdateStatus.lastPickProcessing.gamesChanged > 0 && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium mb-2">Processing Efficiency</p>
+                      <Progress 
+                        value={Math.min((liveUpdateStatus.lastPickProcessing.picksProcessed / (liveUpdateStatus.lastPickProcessing.gamesChanged * 50)) * 100, 100)} 
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-600 mt-1">
+                        {liveUpdateStatus.lastPickProcessing.picksProcessed} picks processed from {liveUpdateStatus.lastPickProcessing.gamesChanged} games
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Recent Errors */}
+            {liveUpdateStatus?.errors.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm text-red-600 flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
+                    Recent Errors ({liveUpdateStatus.errors.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {liveUpdateStatus.errors.slice(-5).map((error, index) => (
+                      <div key={index} className="text-xs bg-red-50 p-2 rounded border-l-2 border-red-200">
+                        {error}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Scheduled Functions Section (Collapsible) */}
+      <Card className="border-indigo-200">
+        <CardHeader className="pb-3 cursor-pointer" onClick={() => setShowScheduledFunctions(!showScheduledFunctions)}>
+          <CardTitle className="text-base flex items-center gap-2">
+            {showScheduledFunctions ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <Settings className="h-4 w-4" />
+            Scheduled Functions Manager
+            <Badge variant="secondary" className="ml-2">Manual Control</Badge>
+          </CardTitle>
+        </CardHeader>
+        {showScheduledFunctions && (
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {scheduledFunctions.map((func, index) => (
+                <Card key={func.name} className="h-full">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">{func.displayName}</CardTitle>
+                      <Badge variant="secondary" className="text-xs">
+                        {func.schedule}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  
+                  <CardContent>
+                    <p className="text-gray-600 mb-4 text-sm">{func.description}</p>
+                    
+                    <Button 
+                      onClick={() => executeScheduledFunction(func.name)}
+                      disabled={func.isRunning}
+                      className="w-full mb-2"
+                      size="sm"
+                    >
+                      {func.isRunning ? 'Running...' : `Run ${func.displayName} Now`}
+                    </Button>
+                    
+                    {formatScheduledResult(func.lastResult)}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {error && (
