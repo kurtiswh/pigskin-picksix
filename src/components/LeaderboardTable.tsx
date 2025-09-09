@@ -117,13 +117,14 @@ export default function LeaderboardTable({
     }
   }
   
-  // Helper function to check if this rank is tied with others
-  const isTiedRank = (rank: number, entries: LeaderboardEntry[], type: 'weekly' | 'season' | 'best-finish') => {
-    const sameRankCount = entries.filter(e => {
-      const entryRank = type === 'weekly' ? e.weekly_rank : e.season_rank
-      return entryRank === rank
+  // Helper function to check if this entry's points are tied with others
+  const isTiedPoints = (entry: LeaderboardEntry, entries: LeaderboardEntry[], type: 'weekly' | 'season' | 'best-finish') => {
+    const entryPoints = type === 'weekly' ? (entry.weekly_points || 0) : entry.season_points
+    const samePointsCount = entries.filter(e => {
+      const ePoints = type === 'weekly' ? (e.weekly_points || 0) : e.season_points
+      return ePoints === entryPoints
     }).length
-    return sameRankCount > 1
+    return samePointsCount > 1
   }
 
   const getSourceBadge = (source?: 'authenticated' | 'anonymous' | 'mixed') => {
@@ -238,7 +239,7 @@ export default function LeaderboardTable({
               const points = type === 'weekly' ? (entry.weekly_points || 0) : entry.season_points
               const record = type === 'weekly' ? entry.weekly_record : entry.season_record
               const sourceBadge = getSourceBadge(entry.pick_source)
-              const isTied = isTiedRank(rank, filteredEntries, type)
+              const isTied = isTiedPoints(entry, filteredEntries, type)
               
               return (
                 <div
@@ -246,7 +247,7 @@ export default function LeaderboardTable({
                   className={cn(
                     `grid gap-4 px-4 py-3 rounded-lg transition-colors hover:bg-stone-50 ${isAdmin ? 'grid-cols-12' : 'grid-cols-10'}`,
                     rank <= 3 && "bg-gradient-to-r from-gold-50 to-transparent border border-gold-200",
-                    isTied && rank > 3 && "bg-blue-50 border-l-2 border-blue-300"
+                    isTied && rank > 3 && "bg-stone-50 border-l border-stone-300"
                   )}
                 >
                   {/* Rank */}
@@ -261,7 +262,7 @@ export default function LeaderboardTable({
                         {getRankIcon(rank)}
                       </span>
                       {isTied && (
-                        <span className="text-xs font-medium text-blue-600 uppercase" title="Tied rank">
+                        <span className="text-xs font-medium text-stone-500 uppercase" title="Tied rank">
                           T
                         </span>
                       )}
@@ -317,6 +318,11 @@ export default function LeaderboardTable({
                       <div className="font-bold text-lg">{points}</div>
                       <div className="text-xs text-charcoal-500">
                         {getTrendIcon(entry.trend)} points
+                        {entry.rank_change !== undefined && (
+                          <span className="ml-1 text-xs font-medium" title={`Previous rank: ${entry.previous_rank}`}>
+                            ({entry.rank_change > 0 ? '+' : ''}{entry.rank_change})
+                          </span>
+                        )}
                         {type === 'best-finish' && entry.best_finish_rank && (
                           <span className="ml-2">BF: #{entry.best_finish_rank}</span>
                         )}
@@ -330,12 +336,12 @@ export default function LeaderboardTable({
         )}
         
         {/* Tie Indicator Legend - Only show if there are ties */}
-        {filteredEntries.some((entry, _, arr) => isTiedRank(type === 'weekly' ? (entry.weekly_rank || 0) : entry.season_rank, arr, type)) && (
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="flex items-center gap-2 text-sm text-blue-800">
-              <span className="font-medium text-blue-600">T</span>
-              <span>= Tied rank (same points as other players)</span>
-              <span className="ml-auto text-xs text-blue-600">
+        {filteredEntries.some((entry, _, arr) => isTiedPoints(entry, arr, type)) && (
+          <div className="mt-4 p-2 bg-stone-50 rounded border border-stone-200">
+            <div className="flex items-center gap-2 text-sm text-stone-700">
+              <span className="font-medium text-stone-600">T</span>
+              <span>= Tied rank (same points)</span>
+              <span className="ml-auto text-xs text-stone-500">
                 Ties broken by: Total Wins → Name (alphabetical)
               </span>
             </div>
