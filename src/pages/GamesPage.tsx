@@ -123,9 +123,9 @@ export default function GamesPage() {
       setGames(currentGames => [...currentGames]) // Force re-render to update time-based status
     }, 30000)
     
-    // Periodic data refresh
+    // Periodic data refresh (silent background update)
     const dataRefreshInterval = setInterval(() => {
-      loadGames() // Refetch games from database
+      silentUpdateGames() // Background refresh without UI disruption
     }, 60000) // Every minute
     
     return () => {
@@ -151,7 +151,7 @@ export default function GamesPage() {
   const checkForAutoRefresh = () => {
     if (liveUpdateService.shouldRefreshLeaderboard()) {
       console.log('🔄 Auto-refreshing games due to live updates')
-      loadGames()
+      silentUpdateGames()
       liveUpdateService.acknowledgeLeaderboardRefresh()
     }
   }
@@ -167,6 +167,7 @@ export default function GamesPage() {
         .eq('season', currentSeason)
         .eq('week', currentWeek)
         .order('kickoff_time', { ascending: true })
+        .order('id', { ascending: true })
 
       if (gamesError) throw gamesError
 
@@ -193,6 +194,34 @@ export default function GamesPage() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Silent update function that refreshes data without showing loading state
+  const silentUpdateGames = async () => {
+    try {
+      const { data, error: gamesError } = await supabase
+        .from('games')
+        .select('*')
+        .eq('season', currentSeason)
+        .eq('week', currentWeek)
+        .order('kickoff_time', { ascending: true })
+        .order('id', { ascending: true })
+
+      if (gamesError) {
+        console.warn('Silent update failed:', gamesError.message)
+        return
+      }
+
+      // Only update if we got data
+      if (data) {
+        console.log(`🔄 Silent update: refreshed ${data.length} games`)
+        setGames(data)
+        setLastUpdated(new Date())
+      }
+    } catch (err: any) {
+      console.warn('Silent update error:', err.message)
+      // Don't set error state for silent updates to avoid disrupting UI
     }
   }
 
