@@ -441,23 +441,6 @@ export default function TabbedLeaderboard() {
               </div>
             )}
             
-            <Button 
-              onClick={runUnifiedUpdate} 
-              disabled={loading}
-              className="bg-pigskin-600 hover:bg-pigskin-700"
-              size="sm"
-            >
-              {loading ? 'Updating...' : '🚀 Refresh All'}
-            </Button>
-            
-            <Button 
-              onClick={activeTab === 'season' ? loadSeasonData : loadWeeklyData} 
-              disabled={loading}
-              variant="outline"
-              size="sm"
-            >
-              {loading ? 'Loading...' : `Refresh ${activeTab}`}
-            </Button>
           </div>
           
           {strategy && (
