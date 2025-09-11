@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -38,6 +38,40 @@ export default function PickSheetPage() {
     return picks.length > 0 && !picks.some(p => p.submitted)
   }, [picks])
 
+  // Intercept navigation attempts
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      // Check if the click is on a link
+      const target = e.target as HTMLElement
+      const link = target.closest('a')
+      
+      if (link && link.href && hasUnsavedChanges()) {
+        const currentUrl = window.location.href
+        const targetUrl = link.href
+        
+        // Only block if navigating to a different page
+        if (currentUrl !== targetUrl && !targetUrl.includes('#')) {
+          e.preventDefault()
+          e.stopPropagation()
+          
+          // Use custom navigation handler
+          const path = link.getAttribute('href')
+          if (path) {
+            setPendingNavigation(path)
+            setShowNavWarning(true)
+          }
+        }
+      }
+    }
+
+    // Add event listener to intercept clicks
+    document.addEventListener('click', handleClick, true)
+
+    return () => {
+      document.removeEventListener('click', handleClick, true)
+    }
+  }, [hasUnsavedChanges])
+
   useEffect(() => {
     // Get the active week when component mounts
     getActiveWeek(currentSeason).then(activeWeek => {
@@ -72,15 +106,6 @@ export default function PickSheetPage() {
     }
   }, [hasUnsavedChanges])
 
-  // Handle navigation with unsaved changes warning
-  const handleNavigation = useCallback((path: string) => {
-    if (hasUnsavedChanges()) {
-      setPendingNavigation(path)
-      setShowNavWarning(true)
-    } else {
-      navigate(path)
-    }
-  }, [hasUnsavedChanges, navigate])
 
   const confirmNavigation = () => {
     if (pendingNavigation) {
@@ -815,9 +840,11 @@ export default function PickSheetPage() {
               <p className="text-charcoal-600 mb-4">
                 Games for Week {currentWeek} haven't been set up yet. Check back later!
               </p>
-              <Button onClick={() => handleNavigation("/")}>
-                Back to Home
-              </Button>
+              <Link to="/">
+                <Button>
+                  Back to Home
+                </Button>
+              </Link>
             </CardContent>
           </Card>
         ) : (
@@ -962,7 +989,7 @@ export default function PickSheetPage() {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <span>⚠️</span>
-                <span>Unsaved Picks Detected</span>
+                <span>Unsubmitted Picks Detected</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -970,22 +997,17 @@ export default function PickSheetPage() {
                 <div className="flex items-start space-x-3">
                   <div className="text-red-500 text-xl">🚨</div>
                   <div>
-                    <div className="font-semibold text-red-800 mb-2">Warning: You Have Unsaved Picks!</div>
+                    <div className="font-semibold text-red-800 mb-2">Warning: You Have Unsubmitted Picks!</div>
                     <div className="text-red-700 text-sm space-y-2">
                       <p>You have {picks.length} pick{picks.length !== 1 ? 's' : ''} that haven't been submitted yet.</p>
-                      <p><strong>If you leave this page:</strong></p>
-                      <ul className="list-disc list-inside space-y-1 ml-2">
-                        <li>Your unsaved picks will be lost</li>
-                        <li>You'll need to make your picks again</li>
-                        <li>Only submitted picks count for scoring</li>
-                      </ul>
+                      <p><strong>If you leave this page without submitting your picks, they will be WON'T be counted for scoring.</strong></p>
                     </div>
                   </div>
                 </div>
               </div>
               
               <p className="text-sm text-charcoal-600 font-medium">
-                Are you sure you want to leave and lose your unsaved picks?
+                Are you sure you want to leave without submitting your picks?
               </p>
               
               <div className="flex space-x-3">
@@ -993,14 +1015,14 @@ export default function PickSheetPage() {
                   onClick={confirmNavigation}
                   className="flex-1 bg-red-600 hover:bg-red-700"
                 >
-                  Yes, Leave & Lose Picks
+                  Yes, leave without submitting
                 </Button>
                 <Button
                   onClick={cancelNavigation}
                   variant="outline"
                   className="flex-1 border-green-500 text-green-700 hover:bg-green-50"
                 >
-                  Stay & Save Picks
+                  Stay & Submit Picks
                 </Button>
               </div>
             </CardContent>

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { getActiveWeek } from '@/services/weekService'
 import { getWeekDataDirect } from '@/lib/supabase-direct'
@@ -20,6 +20,7 @@ interface AnonymousPick {
 }
 
 export default function AnonymousPicksPage() {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [isValidated, setIsValidated] = useState<boolean | null>(null)
@@ -30,9 +31,16 @@ export default function AnonymousPicksPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [showNavWarning, setShowNavWarning] = useState(false)
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null)
   
   const currentSeason = new Date().getFullYear()
   const [currentWeek, setCurrentWeek] = useState(0)
+
+  // Check if user has unsaved changes
+  const hasUnsavedChanges = useCallback(() => {
+    return picks.length > 0 && !submitted
+  }, [picks, submitted])
 
   useEffect(() => {
     // Get the active week when component mounts
@@ -46,6 +54,79 @@ export default function AnonymousPicksPage() {
       fetchGamesData()
     }
   }, [currentWeek])
+
+  // Warning for page navigation/refresh with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges()) {
+        e.preventDefault()
+        e.returnValue = 'You have unsaved picks that will be lost. Are you sure you want to leave?'
+        return 'You have unsaved picks that will be lost. Are you sure you want to leave?'
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [hasUnsavedChanges])
+
+  // Intercept navigation attempts
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      // Check if the click is on a link
+      const target = e.target as HTMLElement
+      const link = target.closest('a')
+      
+      if (link && link.href && hasUnsavedChanges()) {
+        const currentUrl = window.location.href
+        const targetUrl = link.href
+        
+        // Only block if navigating to a different page
+        if (currentUrl !== targetUrl && !targetUrl.includes('#')) {
+          e.preventDefault()
+          e.stopPropagation()
+          
+          // Use custom navigation handler
+          const path = link.getAttribute('href')
+          if (path) {
+            setPendingNavigation(path)
+            setShowNavWarning(true)
+          }
+        }
+      }
+    }
+
+    // Add event listener to intercept clicks
+    document.addEventListener('click', handleClick, true)
+
+    return () => {
+      document.removeEventListener('click', handleClick, true)
+    }
+  }, [hasUnsavedChanges])
+
+  // Handle navigation with unsaved changes warning
+  const handleNavigation = useCallback((path: string) => {
+    if (hasUnsavedChanges()) {
+      setPendingNavigation(path)
+      setShowNavWarning(true)
+    } else {
+      navigate(path)
+    }
+  }, [hasUnsavedChanges, navigate])
+
+  const confirmNavigation = () => {
+    if (pendingNavigation) {
+      navigate(pendingNavigation)
+    }
+    setShowNavWarning(false)
+    setPendingNavigation(null)
+  }
+
+  const cancelNavigation = () => {
+    setShowNavWarning(false)
+    setPendingNavigation(null)
+  }
 
   const validateEmail = async (emailToCheck: string) => {
     try {
@@ -388,9 +469,12 @@ export default function AnonymousPicksPage() {
               )}
 
               <div className="mt-6">
-                <Link to="/" className="text-pigskin-600 hover:text-pigskin-700 font-medium">
+                <button 
+                  onClick={() => handleNavigation('/')}
+                  className="text-pigskin-600 hover:text-pigskin-700 font-medium"
+                >
                   ← Back to Home
-                </Link>
+                </button>
               </div>
             </CardContent>
           </Card>
@@ -423,9 +507,12 @@ export default function AnonymousPicksPage() {
               <p className="text-charcoal-600 mb-6">
                 Pick submission is not available at this time. Check back when picks open for the next week.
               </p>
-              <Link to="/" className="text-pigskin-600 hover:text-pigskin-700 font-medium">
+              <button 
+                onClick={() => handleNavigation('/')}
+                className="text-pigskin-600 hover:text-pigskin-700 font-medium"
+              >
                 ← Back to Home
-              </Link>
+              </button>
             </CardContent>
           </Card>
         </div>
@@ -556,7 +643,11 @@ export default function AnonymousPicksPage() {
               <Button
                 onClick={handleSubmitPicks}
                 disabled={submitting || picks.length !== 6 || !picks.some(p => p.isLock) || !email.trim() || !name.trim()}
-                className="w-full max-w-md"
+                className={`w-full max-w-md transition-all duration-200 ${
+                  !submitting && picks.length === 6 && picks.some(p => p.isLock) && email.trim() && name.trim()
+                    ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.02] ring-2 ring-green-500/30'
+                    : ''
+                }`}
                 size="lg"
               >
                 {submitting ? 'Submitting...' : 'Submit Picks'}
@@ -568,6 +659,54 @@ export default function AnonymousPicksPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Navigation Warning Dialog */}
+        {showNavWarning && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="max-w-md mx-4">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <span>⚠️</span>
+                  <span>Submitted Picks Detected</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="text-red-500 text-xl">🚨</div>
+                    <div>
+                      <div className="font-semibold text-red-800 mb-2">Warning: You Have Unsubmitted Picks!</div>
+                      <div className="text-red-700 text-sm space-y-2">
+                        <p>You have {picks.length} pick{picks.length !== 1 ? 's' : ''} that haven't been submitted yet.</p>
+                        <p><strong>If you leave this page without submitting your picks, they will be WON'T be counted for scoring.</strong></p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <p className="text-sm text-charcoal-600 font-medium">
+                  Are you sure you want to leave without submitting your picks?
+                </p>
+                
+                <div className="flex space-x-3">
+                  <Button
+                    onClick={confirmNavigation}
+                    className="flex-1 bg-red-600 hover:bg-red-700"
+                  >
+                    Yes, leave without submitting
+                  </Button>
+                  <Button
+                    onClick={cancelNavigation}
+                    variant="outline"
+                    className="flex-1 border-green-500 text-green-700 hover:bg-green-50"
+                  >
+                    Stay & Submit Picks
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </Layout>
   )

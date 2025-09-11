@@ -256,7 +256,12 @@ export default function PickSummary({
           <Button
             onClick={onSubmitPicks}
             disabled={!canSubmit || isSubmitting || isDeadlinePassed || arePicksSubmitted}
-            className="w-full"
+            className={cn(
+              "w-full transition-all duration-200",
+              canSubmit && !arePicksSubmitted && !isDeadlinePassed
+                ? "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.02] ring-2 ring-green-500/30"
+                : ""
+            )}
             size="lg"
             variant={arePicksSubmitted ? "outline" : "default"}
           >
@@ -268,7 +273,9 @@ export default function PickSummary({
             ) : isDeadlinePassed ? (
               'Picks Closed'
             ) : !canSubmit ? (
-              `Need ${6 - picks.length} more pick${6 - picks.length !== 1 ? 's' : ''}${!hasLock ? ' + Lock' : ''}`
+              <span className="font-bold text-lg">
+                Need {6 - picks.length} more pick{6 - picks.length !== 1 ? 's' : ''}{!hasLock ? ' + Lock' : ''}
+              </span>
             ) : arePicksSubmitted ? (
               '✅ Picks Submitted'
             ) : (
