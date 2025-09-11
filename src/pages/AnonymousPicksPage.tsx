@@ -32,7 +32,7 @@ export default function AnonymousPicksPage() {
   const [submitted, setSubmitted] = useState(false)
   
   const currentSeason = new Date().getFullYear()
-  const [currentWeek, setCurrentWeek] = useState(1)
+  const [currentWeek, setCurrentWeek] = useState(0)
 
   useEffect(() => {
     // Get the active week when component mounts

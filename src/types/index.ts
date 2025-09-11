@@ -66,6 +66,9 @@ export interface UserPickSet {
   lockWins?: number
   lockLosses?: number
   conflictStatus?: 'no_conflict' | 'resolved_conflict' | 'active_conflict'
+  submitted?: boolean
+  submitted_at?: string
+  admin_note?: string
 }
 
 export interface Game {
@@ -107,6 +110,7 @@ export interface Pick {
   submitted_at?: string
   result?: 'win' | 'loss' | 'push'
   points_earned?: number
+  admin_note?: string
   created_at: string
   updated_at: string
 }
@@ -129,6 +133,8 @@ export interface AnonymousPick {
   result?: 'win' | 'loss' | 'push'
   points_earned?: number
   submitted: boolean
+  submitted_at?: string
+  admin_note?: string
   is_active_pick_set: boolean
   created_at: string
   updated_at: string

@@ -109,7 +109,7 @@ export default function UserProfile() {
   const loadAuthenticatedPicks = async (): Promise<Pick[]> => {
     const { data, error } = await supabase
       .from('picks')
-      .select('*')
+      .select('*, admin_note, submitted, submitted_at')
       .eq('user_id', user!.id)
       .order('season', { ascending: false })
       .order('week', { ascending: false })
@@ -121,7 +121,7 @@ export default function UserProfile() {
   const loadAnonymousPicks = async (): Promise<AnonymousPick[]> => {
     const { data, error } = await supabase
       .from('anonymous_picks')
-      .select('*')
+      .select('*, admin_note, submitted, submitted_at')
       .eq('assigned_user_id', user!.id)
       .order('season', { ascending: false })
       .order('week', { ascending: false })
@@ -193,7 +193,10 @@ export default function UserProfile() {
           points: 0,
           lockWins: 0,
           lockLosses: 0,
-          conflictStatus: 'no_conflict'
+          conflictStatus: 'no_conflict',
+          submitted: pick.submitted,
+          submitted_at: pick.submitted_at,
+          admin_note: pick.admin_note
         })
       }
       
@@ -235,7 +238,10 @@ export default function UserProfile() {
           points: 0,
           lockWins: 0,
           lockLosses: 0,
-          conflictStatus: 'no_conflict'
+          conflictStatus: 'no_conflict',
+          submitted: pick.submitted,
+          submitted_at: pick.submitted_at,
+          admin_note: pick.admin_note
         })
       }
       
@@ -544,6 +550,15 @@ export default function UserProfile() {
                               >
                                 {pickSet.pickType === 'authenticated' ? 'Registered' : 'Anonymous'}
                               </Badge>
+                              <Badge 
+                                variant={pickSet.submitted ? 'default' : 'outline'}
+                                className={pickSet.submitted 
+                                  ? 'bg-green-500 text-white' 
+                                  : 'text-orange-600 border-orange-300'
+                                }
+                              >
+                                {pickSet.submitted ? 'Submitted' : 'Not Submitted'}
+                              </Badge>
                               {!pickSet.isActive && (
                                 <Badge variant="outline" className="text-red-600 border-red-300">
                                   Inactive
@@ -568,6 +583,11 @@ export default function UserProfile() {
                             <div className="text-sm text-charcoal-500">
                               {pickSet.pickCount} picks
                             </div>
+                            {pickSet.submitted_at && (
+                              <div className="text-xs text-charcoal-400">
+                                Submitted: {new Date(pickSet.submitted_at).toLocaleDateString()} {new Date(pickSet.submitted_at).toLocaleTimeString()}
+                              </div>
+                            )}
                           </div>
                         </div>
                         
@@ -615,6 +635,16 @@ export default function UserProfile() {
                             <span className="text-gray-700">
                               ℹ️ This pick set is inactive and not being used for scoring calculations.
                             </span>
+                          </div>
+                        )}
+
+                        {/* Admin Note Display */}
+                        {pickSet.admin_note && (
+                          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+                            <div className="flex items-start space-x-2">
+                              <span className="text-blue-600 font-medium">📝 Admin Note:</span>
+                              <span className="text-blue-800">{pickSet.admin_note}</span>
+                            </div>
                           </div>
                         )}
                       </div>

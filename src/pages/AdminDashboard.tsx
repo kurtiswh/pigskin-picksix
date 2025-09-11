@@ -38,8 +38,8 @@ export default function AdminDashboard() {
   const [error, setError] = useState('')
   
   const currentSeason = new Date().getFullYear()
-  const [currentWeek, setCurrentWeek] = useState(1)
-  const [gameSelectionWeek, setGameSelectionWeek] = useState(getCurrentWeek(currentSeason))
+  const [gameSelectionWeek, setGameSelectionWeek] = useState(0)
+  const [currentWeek, setCurrentWeek] = useState(0)
   const maxGames = 15
 
 
@@ -61,6 +61,14 @@ export default function AdminDashboard() {
     }
   }, [])
 
+
+  // Initialize with database-based active week
+  useEffect(() => {
+    getActiveWeek(currentSeason).then(activeWeek => {
+      setGameSelectionWeek(activeWeek)
+      setCurrentWeek(activeWeek)
+    })
+  }, [currentSeason])
 
   useEffect(() => {
     // Always use gameSelectionWeek as the source of truth for consistency

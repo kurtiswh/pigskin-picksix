@@ -1402,10 +1402,17 @@ export class LiveUpdateService {
   }
 
   /**
-   * Time-based fallback processing for stuck games
-   * Runs periodically to catch games that should be completed but got stuck
+   * DISABLED: Time-based completion is not allowed
+   * Games should ONLY be marked complete by CFBD API with actual scores
+   * This prevents games being marked complete with wrong or missing scores
    */
   async processStuckGames(): Promise<{ processed: number; errors: string[] }> {
+    console.log('⚠️ processStuckGames is DISABLED - only API can mark games complete')
+    return { processed: 0, errors: [] }
+  }
+    
+  // DISABLED CODE BELOW - DO NOT RE-ENABLE WITHOUT FIXING
+  /*
     console.log('🕐 Running time-based stuck game processing...')
     
     let processed = 0
@@ -1499,7 +1506,7 @@ export class LiveUpdateService {
       console.error('❌ Stuck game processing failed:', error.message)
       return { processed, errors }
     }
-  }
+  */
 
   /**
    * Process complete game update - handles ALL completion logic in single transaction
@@ -1527,38 +1534,19 @@ export class LiveUpdateService {
     console.log(`   Final Score: ${params.awayScore}-${params.homeScore} (spread: ${params.spread})`)
     
     try {
-      // Step 1: Calculate winner and bonus using database function
-      console.log(`   📊 Calculating winner against spread...`)
-      const { data: winnerData, error: winnerError } = await supabase
-        .rpc('calculate_game_winner_and_bonus', {
-          game_id_param: params.gameId,
-          home_score_param: params.homeScore,
-          away_score_param: params.awayScore,
-          spread_param: params.spread
-        })
+      // ⚠️ RACE CONDITION FIX: Do NOT calculate winner here!
+      // Winner calculation is handled exclusively by CFBD Live Updater to prevent conflicts
+      console.log(`   🚨 AVOIDING RACE CONDITION: Skipping database winner calculation`)
+      console.log(`   📍 CFBD Live Updater handles winner calculation exclusively`)
       
-      if (winnerError) {
-        throw new Error(`Winner calculation failed: ${winnerError.message}`)
-      }
-      
-      if (!winnerData || winnerData.length === 0) {
-        throw new Error('No winner calculation data returned')
-      }
-      
-      const { winner_against_spread, margin_bonus, base_points } = winnerData[0]
-      console.log(`   ✅ Winner: ${winner_against_spread}, Bonus: ${margin_bonus}, Base: ${base_points}`)
-      
-      // Step 2: Update game with all completion data in SINGLE transaction
-      console.log(`   💾 Updating game status and scores...`)
+      // Step 1: Update game with completion data but NO winner calculation
+      console.log(`   💾 Updating game status and scores (no winner calculation)...`)
       const { error: gameUpdateError } = await supabase
         .from('games')
         .update({
           home_score: params.homeScore,
           away_score: params.awayScore,
           status: 'completed',
-          winner_against_spread,
-          margin_bonus,
-          base_points,
           game_period: params.gamePeriod,
           game_clock: params.gameClock,
           api_period: params.apiPeriod,
@@ -1576,20 +1564,10 @@ export class LiveUpdateService {
       
       console.log(`   ✅ Game updated successfully`)
       
-      // Step 3: Process picks using database function
-      console.log(`   🎯 Processing picks for completed game...`)
-      const { data: pickData, error: pickError } = await supabase
-        .rpc('process_picks_for_completed_game', {
-          game_id_param: params.gameId
-        })
-      
-      if (pickError) {
-        console.warn(`   ⚠️ Pick processing failed: ${pickError.message}`)
-        // Don't throw - game completion should succeed even if picks fail
-      } else if (pickData && pickData.length > 0) {
-        const { picks_updated, anonymous_picks_updated } = pickData[0]
-        console.log(`   ✅ Picks processed: ${picks_updated} picks, ${anonymous_picks_updated} anonymous picks`)
-      }
+      // Step 2: Skip pick processing since we don't have winner data yet
+      // Picks will be processed later when CFBD Live Updater sets the winner
+      console.log(`   ⏭️ Skipping pick processing - will be handled when CFBD sets winner`)
+      console.log(`   📍 This prevents race conditions between winner calculation and pick processing`)
       
       const duration = Date.now() - startTime
       console.log(`   🎉 Game completion successful in ${duration}ms`)

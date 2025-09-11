@@ -64,19 +64,20 @@ export class CFBDLiveUpdater {
       console.log(`🎯 Processing Week ${activeWeek.week} Season ${activeWeek.season}`)
       
       // Step 2: Get database games for active week
+      // IMPORTANT: Also fetch completed games without winners (they may have been marked complete by time without scores)
       const { data: dbGames, error: dbError } = await supabase
         .from('games')
         .select('id, home_team, away_team, home_score, away_score, status, spread, kickoff_time, winner_against_spread, margin_bonus, game_period, game_clock')
         .eq('season', activeWeek.season)
         .eq('week', activeWeek.week)
-        .neq('status', 'completed') // Only fetch non-completed games
+        .or('status.neq.completed,winner_against_spread.is.null') // Get non-completed OR completed without winner
       
       if (dbError) throw new Error(`Database games query failed: ${dbError.message}`)
       if (!dbGames || dbGames.length === 0) {
         return { success: true, gamesChecked: 0, gamesUpdated: 0, newlyCompleted: 0, errors: [] }
       }
       
-      console.log(`📊 Found ${dbGames.length} non-completed database games`)
+      console.log(`📊 Found ${dbGames.length} database games to check (including completed without scores)`)
       
       // Step 3: Fetch CFBD scoreboard data
       console.log('📡 Fetching CFBD scoreboard data...')
@@ -130,6 +131,28 @@ export class CFBDLiveUpdater {
           if (updateData.status === 'completed' && dbGame.status !== 'completed') {
             newlyCompleted++
             console.log(`   🎉 Game newly completed!`)
+          }
+          
+          // Process picks if we just set a winner for a completed game
+          if (updateData.winner_against_spread && updateData.status === 'completed') {
+            console.log(`   🎯 Processing picks for newly completed game with winner...`)
+            try {
+              const { data: pickData, error: pickError } = await supabase
+                .rpc('process_picks_for_completed_game', {
+                  game_id_param: dbGame.id
+                })
+              
+              if (pickError) {
+                errors.push(`Pick processing failed for ${dbGame.home_team}: ${pickError.message}`)
+                console.log(`   ⚠️ Pick processing failed: ${pickError.message}`)
+              } else if (pickData && pickData.length > 0) {
+                const { picks_updated, anonymous_picks_updated } = pickData[0]
+                console.log(`   ✅ Picks processed: ${picks_updated} picks, ${anonymous_picks_updated} anonymous picks`)
+              }
+            } catch (pickProcessError: any) {
+              errors.push(`Pick processing error for ${dbGame.home_team}: ${pickProcessError.message}`)
+              console.log(`   ❌ Pick processing error: ${pickProcessError.message}`)
+            }
           }
           
         } catch (gameError: any) {
@@ -244,9 +267,21 @@ export class CFBDLiveUpdater {
       cfbdAwayScore: cfbdGame.awayTeam.points
     })
     
+    // Score updates - Get actual scores from CFBD
+    const cfbdHomeScore = cfbdGame.homeTeam.points
+    const cfbdAwayScore = cfbdGame.awayTeam.points
+    
+    // CRITICAL: Only mark as completed if we have actual scores!
     if (cfbdGame.status === 'completed' || cfbdGame.completed) {
-      console.log(`⚠️  CFBD marking ${dbGame.home_team} as COMPLETED`)
-      newStatus = 'completed'
+      if (cfbdHomeScore !== null && cfbdHomeScore !== undefined && 
+          cfbdAwayScore !== null && cfbdAwayScore !== undefined) {
+        console.log(`✅ CFBD marking ${dbGame.home_team} as COMPLETED with scores: ${cfbdAwayScore}-${cfbdHomeScore}`)
+        newStatus = 'completed'
+      } else {
+        console.log(`⚠️ CFBD says ${dbGame.home_team} is completed but NO SCORES available`)
+        console.log(`   Keeping status as: ${dbGame.status}`)
+        newStatus = dbGame.status // Keep current status
+      }
     } else if (cfbdGame.status === 'in_progress') {
       newStatus = 'in_progress'
     } else if (cfbdGame.status === 'scheduled') {
@@ -258,16 +293,15 @@ export class CFBDLiveUpdater {
       hasUpdates = true
     }
     
-    // Score updates
-    const cfbdHomeScore = cfbdGame.homeTeam.points || 0
-    const cfbdAwayScore = cfbdGame.awayTeam.points || 0
-    
-    if (cfbdHomeScore !== (dbGame.home_score || 0)) {
+    // Only update scores if we have actual values from CFBD
+    if (cfbdHomeScore !== null && cfbdHomeScore !== undefined && 
+        cfbdHomeScore !== dbGame.home_score) {
       updates.home_score = cfbdHomeScore
       hasUpdates = true
     }
     
-    if (cfbdAwayScore !== (dbGame.away_score || 0)) {
+    if (cfbdAwayScore !== null && cfbdAwayScore !== undefined && 
+        cfbdAwayScore !== dbGame.away_score) {
       updates.away_score = cfbdAwayScore
       hasUpdates = true
     }
@@ -283,22 +317,30 @@ export class CFBDLiveUpdater {
       hasUpdates = true
     }
     
-    // Winner calculation ONLY for games that are definitively completed by CFBD
+    // 🚨 RACE CONDITION PREVENTION: Check if winner already exists
+    if (dbGame.winner_against_spread) {
+      console.log(`⚠️ CONFLICT DETECTED: ${dbGame.home_team} already has winner: ${dbGame.winner_against_spread}`)
+      console.log(`   🔍 This suggests competing calculation paths are still active!`)
+    }
+
+    // Winner calculation ONLY for games that are definitively completed by CFBD with valid scores
     // Only calculate winner if:
     // 1. CFBD explicitly says the game is completed
-    // 2. We don't already have a winner calculated
-    // 3. There's a combined score greater than 0 (one team can have 0 points)
+    // 2. We don't already have a winner calculated (to prevent race conditions)
+    // 3. We have actual scores from CFBD (not null/undefined)
     if ((cfbdGame.status === 'completed' || cfbdGame.completed === true) &&
         !dbGame.winner_against_spread && 
-        (cfbdHomeScore + cfbdAwayScore) > 0) {
-      console.log(`🚨 WINNER CALCULATION TRIGGERED for ${dbGame.home_team}:`, {
+        cfbdHomeScore !== null && cfbdHomeScore !== undefined &&
+        cfbdAwayScore !== null && cfbdAwayScore !== undefined) {
+      console.log(`🎯 SINGLE SOURCE WINNER CALCULATION for ${dbGame.home_team}:`, {
         cfbdStatus: cfbdGame.status,
         cfbdCompleted: cfbdGame.completed,
         currentWinner: dbGame.winner_against_spread,
         cfbdHomeScore,
         cfbdAwayScore,
         combinedScore: cfbdHomeScore + cfbdAwayScore,
-        spread: dbGame.spread
+        spread: dbGame.spread,
+        timestamp: new Date().toISOString()
       })
       
       const winnerData = this.calculateWinner(dbGame.home_team, dbGame.away_team, cfbdHomeScore, cfbdAwayScore, dbGame.spread || 0)
@@ -307,7 +349,18 @@ export class CFBDLiveUpdater {
       updates.base_points = 20
       hasUpdates = true
       
-      console.log(`🎯 Winner calculated: ${winnerData.winner}, Margin bonus: ${winnerData.marginBonus}`)
+      console.log(`✅ AUTHORITATIVE WINNER SET: ${winnerData.winner}, Margin: ${winnerData.marginBonus}, Base: 20`)
+      
+      // Log detailed calculation for push detection
+      if (winnerData.winner === 'push') {
+        console.log(`🟡 PUSH DETECTED: ${dbGame.away_team} @ ${dbGame.home_team}`)
+        console.log(`   Final: ${cfbdAwayScore}-${cfbdHomeScore}, Spread: ${dbGame.spread}`)
+        console.log(`   Margin: ${cfbdHomeScore - cfbdAwayScore}, Adjusted: ${(cfbdHomeScore - cfbdAwayScore) + (dbGame.spread || 0)}`)
+      }
+    } else if ((cfbdGame.status === 'completed' || cfbdGame.completed === true) &&
+               dbGame.winner_against_spread) {
+      console.log(`⏭️ WINNER ALREADY SET: ${dbGame.home_team} winner = ${dbGame.winner_against_spread}`)
+      console.log(`   📊 Not recalculating to maintain consistency`)
     }
     
     if (hasUpdates) {

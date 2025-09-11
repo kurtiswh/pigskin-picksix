@@ -173,8 +173,11 @@ export type Database = {
           season: number
           selected_team: string
           is_lock: boolean
+          submitted: boolean
+          submitted_at: string | null
           result: 'win' | 'loss' | 'push' | null
           points_earned: number | null
+          admin_note: string | null
           created_at: string
           updated_at: string
         }
@@ -186,8 +189,11 @@ export type Database = {
           season: number
           selected_team: string
           is_lock?: boolean
+          submitted?: boolean
+          submitted_at?: string | null
           result?: 'win' | 'loss' | 'push' | null
           points_earned?: number | null
+          admin_note?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -199,8 +205,84 @@ export type Database = {
           season?: number
           selected_team?: string
           is_lock?: boolean
+          submitted?: boolean
+          submitted_at?: string | null
           result?: 'win' | 'loss' | 'push' | null
           points_earned?: number | null
+          admin_note?: string | null
+          updated_at?: string
+        }
+      }
+      anonymous_picks: {
+        Row: {
+          id: string
+          email: string
+          name: string
+          week: number
+          season: number
+          game_id: string
+          home_team: string
+          away_team: string
+          selected_team: string
+          is_lock: boolean
+          confidence: number | null
+          assigned_user_id: string | null
+          show_on_leaderboard: boolean
+          validation_status: 'pending' | 'validated' | 'auto-validated' | 'rejected'
+          result: 'win' | 'loss' | 'push' | null
+          points_earned: number | null
+          submitted: boolean
+          submitted_at: string | null
+          admin_note: string | null
+          is_active_pick_set: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          email: string
+          name: string
+          week: number
+          season: number
+          game_id: string
+          home_team: string
+          away_team: string
+          selected_team: string
+          is_lock?: boolean
+          confidence?: number | null
+          assigned_user_id?: string | null
+          show_on_leaderboard?: boolean
+          validation_status?: 'pending' | 'validated' | 'auto-validated' | 'rejected'
+          result?: 'win' | 'loss' | 'push' | null
+          points_earned?: number | null
+          submitted?: boolean
+          submitted_at?: string | null
+          admin_note?: string | null
+          is_active_pick_set?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          name?: string
+          week?: number
+          season?: number
+          game_id?: string
+          home_team?: string
+          away_team?: string
+          selected_team?: string
+          is_lock?: boolean
+          confidence?: number | null
+          assigned_user_id?: string | null
+          show_on_leaderboard?: boolean
+          validation_status?: 'pending' | 'validated' | 'auto-validated' | 'rejected'
+          result?: 'win' | 'loss' | 'push' | null
+          points_earned?: number | null
+          submitted?: boolean
+          submitted_at?: string | null
+          admin_note?: string | null
+          is_active_pick_set?: boolean
           updated_at?: string
         }
       }
