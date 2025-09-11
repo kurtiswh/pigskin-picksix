@@ -63,17 +63,9 @@ export default function AdminDashboard() {
 
 
   useEffect(() => {
-    // Set appropriate week based on context
-    if (activeTab === 'games' || activeTab === 'controls') {
-      // For game selection and controls, always follow the game selection week
-      setCurrentWeek(gameSelectionWeek)
-    } else {
-      // For other tabs, use active week (stays on current until next opens)
-      getActiveWeek(currentSeason).then(activeWeek => {
-        setCurrentWeek(activeWeek)
-      })
-    }
-  }, [activeTab, gameSelectionWeek, currentSeason])
+    // Always use gameSelectionWeek as the source of truth for consistency
+    setCurrentWeek(gameSelectionWeek)
+  }, [gameSelectionWeek])
 
   useEffect(() => {
     if (user?.is_admin && currentWeek > 0) {
@@ -960,7 +952,7 @@ export default function AdminDashboard() {
               <ApiStatusWidget 
                 season={currentSeason}
                 onWeekChange={(week) => {
-                  setCurrentWeek(week)
+                  setGameSelectionWeek(week)
                   // Clear games when week changes to force reload
                   setCfbGames([])
                 }}
