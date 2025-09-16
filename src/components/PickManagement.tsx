@@ -41,6 +41,8 @@ interface UnassignedAnonymousPicks {
   user_name?: string
   user_email?: string
   processing_notes?: string
+  assigned_user_id?: string
+  is_auto_assigned?: boolean
 }
 
 interface HiddenPicks {
@@ -112,6 +114,12 @@ interface PickSetDetails {
   individualPickVisibility?: { [pickId: string]: boolean }
 }
 
+interface UserOption {
+  id: string
+  display_name: string
+  email: string
+}
+
 export default function PickManagement({ currentWeek, currentSeason }: PickManagementProps) {
   const [selectedWeek, setSelectedWeek] = useState(currentWeek.toString())
   const [loading, setLoading] = useState(false)
@@ -135,6 +143,13 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
   const [pickSetDetails, setPickSetDetails] = useState<{ auth?: PickSetDetails, anon?: PickSetDetails }>({})
   const [updatingPickSets, setUpdatingPickSets] = useState(false)
   
+  // User assignment modal state  
+  const [assigningUser, setAssigningUser] = useState<string | null>(null)
+  const [availableUsers, setAvailableUsers] = useState<UserOption[]>([])
+  const [selectedUserId, setSelectedUserId] = useState<string>('')
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [userSearchQuery, setUserSearchQuery] = useState<string>('')
+  
   // Section collapse states
   const [sectionsCollapsed, setSectionsCollapsed] = useState({
     unassigned: false,
@@ -145,6 +160,94 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
     submittedUnpaid: false
   })
   
+  // Auto-assign anonymous picks based on email matching
+  const autoAssignPicksByEmail = async (week: number) => {
+    try {
+      console.log('🤖 Starting auto-assignment process for week', week)
+      
+      // Get all unassigned anonymous picks
+      const { data: unassignedPicks, error: unassignedError } = await supabase
+        .from('anonymous_picks')
+        .select('id, email, name')
+        .eq('season', currentSeason)
+        .eq('week', week)
+        .is('assigned_user_id', null)
+      
+      if (unassignedError) {
+        console.error('Error fetching unassigned picks:', unassignedError)
+        return
+      }
+      
+      if (!unassignedPicks || unassignedPicks.length === 0) {
+        console.log('No unassigned picks found')
+        return
+      }
+      
+      // Group picks by email
+      const picksByEmail = unassignedPicks.reduce((acc: { [email: string]: any[] }, pick) => {
+        if (!acc[pick.email]) {
+          acc[pick.email] = []
+        }
+        acc[pick.email].push(pick)
+        return acc
+      }, {})
+      
+      let autoAssignedCount = 0
+      
+      // Check each email against users table
+      for (const [email, picks] of Object.entries(picksByEmail)) {
+        // Try to find user by email or leaguesafe_email
+        const { data: matchingUsers, error: userError } = await supabase
+          .from('users')
+          .select('id, display_name, email, leaguesafe_email')
+          .or(`email.eq.${email},leaguesafe_email.eq.${email}`)
+        
+        if (userError) {
+          console.error('Error checking users for email:', email, userError)
+          continue
+        }
+        
+        if (matchingUsers && matchingUsers.length === 1) {
+          // Found exactly one matching user - auto-assign
+          const user = matchingUsers[0]
+          const pickIds = (picks as any[]).map(p => p.id)
+          
+          console.log(`🎯 Auto-assigning ${pickIds.length} picks for ${email} to user ${user.display_name} (${user.id})`)
+          
+          const { error: assignError } = await supabase
+            .from('anonymous_picks')
+            .update({
+              assigned_user_id: user.id,
+              show_on_leaderboard: true,
+              is_validated: true,
+              processing_notes: `Auto-assigned based on email match with ${user.email || user.leaguesafe_email}`
+            })
+            .in('id', pickIds)
+          
+          if (assignError) {
+            console.error('Error auto-assigning picks:', assignError)
+          } else {
+            autoAssignedCount += pickIds.length
+            console.log(`✅ Successfully auto-assigned ${pickIds.length} picks to ${user.display_name}`)
+          }
+        } else if (matchingUsers && matchingUsers.length > 1) {
+          console.log(`⚠️ Multiple users found for email ${email}, skipping auto-assignment`)
+        } else {
+          console.log(`📧 No matching user found for email ${email}`)
+        }
+      }
+      
+      if (autoAssignedCount > 0) {
+        setMessage(`Auto-assigned ${autoAssignedCount} picks based on email matching`)
+        console.log(`🎉 Auto-assignment complete: ${autoAssignedCount} picks assigned`)
+      }
+      
+    } catch (error: any) {
+      console.error('Error in auto-assignment process:', error)
+      setMessage(`Auto-assignment error: ${error.message}`)
+    }
+  }
+  
   // Load all data
   const loadAllData = async () => {
     setLoading(true)
@@ -154,54 +257,76 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
       const week = parseInt(selectedWeek)
       console.log('🔄 Loading Pick Management data for week', week)
       
-      // Load unassigned anonymous picks - they have name and email fields directly
-      const { data: unassigned, error: unassignedError } = await supabase
+      // Run auto-assignment first
+      await autoAssignPicksByEmail(week)
+      
+      // Load all anonymous picks (both assigned and unassigned) for management
+      // This allows viewing and editing auto-assigned picks
+      const { data: allAnonymousPicks, error: anonPicksError } = await supabase
         .from('anonymous_picks')
         .select('*')
         .eq('season', currentSeason)
         .eq('week', week)
-        .is('assigned_user_id', null)
         .order('created_at', { ascending: false })
       
-      if (unassignedError) throw unassignedError
+      if (anonPicksError) throw anonPicksError
       
       // Group anonymous picks by email/name since there's one row per pick
-      const groupedUnassigned: { [key: string]: UnassignedAnonymousPicks } = {}
+      // Include both unassigned and recently auto-assigned picks
+      const groupedAnonymous: { [key: string]: UnassignedAnonymousPicks } = {}
       
-      ;(unassigned || []).forEach(pick => {
+      ;(allAnonymousPicks || []).forEach(pick => {
         // Use email as the key for grouping
         const key = `${pick.email}-${pick.week}`
+        const isAssigned = pick.assigned_user_id !== null
         
-        if (!groupedUnassigned[key]) {
-          groupedUnassigned[key] = {
+        if (!groupedAnonymous[key]) {
+          groupedAnonymous[key] = {
             id: key, // Use composite key as ID
             identifier: pick.identifier || `${pick.name} <${pick.email}>`,
             season: pick.season,
             week: pick.week,
             picks: [],
             created_at: pick.created_at,
-            validation_status: pick.validation_status || 'pending',
+            validation_status: pick.validation_status || (isAssigned ? 'auto-assigned' : 'pending'),
             user_name: pick.name || '',
             user_email: pick.email || '',
-            processing_notes: pick.processing_notes || ''
+            processing_notes: pick.processing_notes || '',
+            assigned_user_id: pick.assigned_user_id,
+            is_auto_assigned: isAssigned && pick.processing_notes?.includes('Auto-assigned')
           }
         }
         
         // Add this pick to the group
-        groupedUnassigned[key].picks.push(pick)
+        groupedAnonymous[key].picks.push(pick)
         
         // Update created_at to the earliest submission
-        if (new Date(pick.created_at) < new Date(groupedUnassigned[key].created_at)) {
-          groupedUnassigned[key].created_at = pick.created_at
+        if (new Date(pick.created_at) < new Date(groupedAnonymous[key].created_at)) {
+          groupedAnonymous[key].created_at = pick.created_at
         }
         
         // Use the first non-empty processing note found
-        if (pick.processing_notes && !groupedUnassigned[key].processing_notes) {
-          groupedUnassigned[key].processing_notes = pick.processing_notes
+        if (pick.processing_notes && !groupedAnonymous[key].processing_notes) {
+          groupedAnonymous[key].processing_notes = pick.processing_notes
+        }
+        
+        // Update assignment status
+        if (isAssigned) {
+          groupedAnonymous[key].assigned_user_id = pick.assigned_user_id
+          groupedAnonymous[key].validation_status = 'auto-assigned'
+          if (pick.processing_notes?.includes('Auto-assigned')) {
+            groupedAnonymous[key].is_auto_assigned = true
+          }
         }
       })
       
-      setUnassignedAnon(Object.values(groupedUnassigned))
+      // Separate into unassigned and auto-assigned for better organization
+      const allGrouped = Object.values(groupedAnonymous)
+      const unassignedOnly = allGrouped.filter(group => !group.assigned_user_id)
+      const autoAssigned = allGrouped.filter(group => group.assigned_user_id && group.is_auto_assigned)
+      
+      // Show unassigned first, then auto-assigned (for review/editing)
+      setUnassignedAnon([...unassignedOnly, ...autoAssigned])
       
       // Load picks with show_on_leaderboard = false
       // Anonymous picks
@@ -501,6 +626,21 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
         .eq('week', week)
         .not('assigned_user_id', 'is', null)
       
+      console.log('🔍 RAW PICKS DATA:', {
+        authPicksCount: authPicks?.length || 0,
+        anonPicksCount: anonPicks?.length || 0,
+        sampleAuthPicks: authPicks?.slice(0, 3).map(p => ({ 
+          user_id: p.user_id, 
+          submitted: p.submitted,
+          show_on_leaderboard: p.show_on_leaderboard 
+        })),
+        sampleAnonPicks: anonPicks?.slice(0, 3).map(p => ({ 
+          assigned_user_id: p.assigned_user_id, 
+          submitted: p.submitted,
+          show_on_leaderboard: p.show_on_leaderboard 
+        }))
+      })
+      
       if (authError || anonError) {
         console.error('Error loading pick sets:', authError || anonError)
       } else {
@@ -523,6 +663,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
         
         // Count authenticated picks
         if (Array.isArray(authPicks)) {
+          console.log('📊 Processing authenticated picks:', authPicks.length)
           authPicks.forEach(pick => {
             if (!userPickCounts[pick.user_id]) {
               userPickCounts[pick.user_id] = { 
@@ -542,13 +683,35 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
             // Update submitted status - all picks in a set should have same submitted status
             userPickCounts[pick.user_id].auth_submitted = pick.submitted || false
           })
+          
+          console.log('📊 Auth picks by user:', Object.entries(userPickCounts).map(([id, counts]) => ({
+            user_id: id.substring(0, 8) + '...',
+            auth_count: counts.auth,
+            auth_visible: counts.auth_visible,
+            auth_submitted: counts.auth_submitted
+          })))
         }
         
-        // Count anonymous picks
+        // Count anonymous picks - IMPORTANT: Use assigned_user_id to match with user_id
         if (Array.isArray(anonPicks)) {
+          console.log('📊 Processing anonymous picks:', anonPicks.length)
+          const anonByUser: { [key: string]: number } = {}
+          
           anonPicks.forEach(pick => {
-            if (!userPickCounts[pick.assigned_user_id]) {
-              userPickCounts[pick.assigned_user_id] = { 
+            // Skip if no assigned_user_id
+            if (!pick.assigned_user_id) {
+              console.log('⚠️ Skipping anon pick with no assigned_user_id')
+              return;
+            }
+            
+            // Use assigned_user_id as the key to match with authenticated picks
+            const userId = pick.assigned_user_id;
+            
+            // Track anon picks per user for debugging
+            anonByUser[userId] = (anonByUser[userId] || 0) + 1
+            
+            if (!userPickCounts[userId]) {
+              userPickCounts[userId] = { 
                 auth: 0, 
                 anon: 0, 
                 display_name: pick.users?.display_name || 'Unknown',
@@ -558,31 +721,55 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                 anon_submitted: pick.submitted || false
               }
             }
-            userPickCounts[pick.assigned_user_id].anon++
+            userPickCounts[userId].anon++
             if (pick.show_on_leaderboard !== false) {
-              userPickCounts[pick.assigned_user_id].anon_visible++
+              userPickCounts[userId].anon_visible++
             }
             // Update submitted status - all picks in a set should have same submitted status
-            userPickCounts[pick.assigned_user_id].anon_submitted = pick.submitted || false
+            userPickCounts[userId].anon_submitted = pick.submitted || false
           })
+          
+          console.log('📊 Anon picks by assigned_user_id:', Object.entries(anonByUser).map(([id, count]) => ({
+            assigned_user_id: id.substring(0, 8) + '...',
+            anon_count: count
+          })))
         }
         
-        // Find users with more than 6 total picks AND both sets submitted (indicating multiple submitted sets)
+        // Log the final combined counts
+        console.log('📊 FINAL USER PICK COUNTS:', Object.entries(userPickCounts).map(([id, counts]) => ({
+          user_id: id.substring(0, 8) + '...',
+          display_name: counts.display_name,
+          auth: counts.auth,
+          anon: counts.anon,
+          has_duplicates: counts.auth > 0 && counts.anon > 0,
+          auth_visible: counts.auth_visible,
+          anon_visible: counts.anon_visible,
+          both_visible: counts.auth_visible > 0 && counts.anon_visible > 0
+        })).filter(u => u.has_duplicates))
+        
+        // Find users with BOTH authenticated and anonymous picks (duplicate pick sets)
+        // This catches any user who has picks in both tables, regardless of count or submission status
         const multiple: MultiplePickSets[] = Object.entries(userPickCounts)
           .filter(([userId, counts]) => 
-            (counts.auth + counts.anon) > 6 && 
-            counts.auth > 0 && counts.anon > 0 &&
-            counts.auth_submitted && counts.anon_submitted
+            // User must have picks in BOTH authenticated and anonymous tables
+            counts.auth > 0 && counts.anon > 0
           )
           .map(([userId, counts]) => {
-            // Determine which type is selected based on visibility
+            // Determine which type is selected based on visibility and submission
             let selected_type = null
-            if (counts.auth_visible > 0 && counts.anon_visible === 0) {
+            
+            // Check if picks are visible on leaderboard
+            const authVisible = counts.auth_visible > 0
+            const anonVisible = counts.anon_visible > 0
+            
+            if (authVisible && anonVisible) {
+              selected_type = 'both' // Both are visible - PROBLEM!
+            } else if (authVisible && !anonVisible) {
               selected_type = 'auth'
-            } else if (counts.anon_visible > 0 && counts.auth_visible === 0) {
+            } else if (!authVisible && anonVisible) {
               selected_type = 'anon'
-            } else if (counts.auth_visible > 0 && counts.anon_visible > 0) {
-              selected_type = 'both' // Both are visible - conflict!
+            } else {
+              selected_type = null // Neither visible (both hidden)
             }
             
             return {
@@ -615,34 +802,60 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
             total: counts.auth + counts.anon,
             auth_submitted: counts.auth_submitted,
             anon_submitted: counts.anon_submitted,
-            passes_filter: (counts.auth + counts.anon) > 6 && counts.auth > 0 && counts.anon > 0 && counts.auth_submitted && counts.anon_submitted
+            passes_filter: counts.auth > 0 && counts.anon > 0
           }))
           
-        console.log('🔍 Multiple pick sets debug:', {
-          all_users_with_more_than_6_picks: usersWithMoreThan6,
-          users_passing_all_filters: multiple,
+        console.log('🔍 Duplicate pick sets detection:', {
           totalUsersWithDuplicates: multiple.length,
-          hiddenAnonBeforeFilter: formattedHiddenAnon.length,
-          hiddenAnonAfterFilter: finalFilteredHiddenAnon.length,
-          filteredOutUsers: formattedHiddenAnon.filter(pick => multiplePickSetUserIds.has(pick.user_id)).map(p => p.display_name)
+          duplicateUsers: multiple.map(u => ({
+            name: u.display_name,
+            user_id: u.user_id,
+            auth_picks: u.auth_picks,
+            anon_picks: u.anon_picks,
+            status: u.selected_type
+          })),
+          problemUsers: multiple.filter(u => u.selected_type === 'both').map(u => u.display_name),
+          allUserCounts: Object.entries(userPickCounts).map(([id, counts]) => ({
+            user_id: id,
+            name: counts.display_name,
+            auth: counts.auth,
+            anon: counts.anon,
+            hasDuplicates: counts.auth > 0 && counts.anon > 0
+          })).filter(u => u.hasDuplicates)
         })
         
-        // Specific debug for Jason Murray
-        const jasonId = '2473c706-a1f1-4254-86e9-2e7453c38c97'
-        if (userPickCounts[jasonId]) {
-          console.log('🔍 Jason Murray debug:', {
-            user_id: jasonId,
-            counts: userPickCounts[jasonId],
-            total_picks: userPickCounts[jasonId].auth + userPickCounts[jasonId].anon,
-            should_be_in_multiple: (userPickCounts[jasonId].auth + userPickCounts[jasonId].anon) > 6,
-            filter_conditions: {
-              has_more_than_6: (userPickCounts[jasonId].auth + userPickCounts[jasonId].anon) > 6,
-              has_both_types: userPickCounts[jasonId].auth > 0 && userPickCounts[jasonId].anon > 0,
-              both_submitted: userPickCounts[jasonId].auth_submitted && userPickCounts[jasonId].anon_submitted
+        // Specific debug for the user from the screenshot
+        const targetUserId = 'e6d32238-5252-4dcc-ae80-c67742730938'
+        if (userPickCounts[targetUserId]) {
+          console.log('🎯 FOUND TARGET USER:', {
+            user_id: targetUserId,
+            counts: userPickCounts[targetUserId],
+            has_auth_picks: userPickCounts[targetUserId].auth > 0,
+            has_anon_picks: userPickCounts[targetUserId].anon > 0,
+            is_duplicate: userPickCounts[targetUserId].auth > 0 && userPickCounts[targetUserId].anon > 0,
+            auth_details: {
+              count: userPickCounts[targetUserId].auth,
+              visible: userPickCounts[targetUserId].auth_visible,
+              submitted: userPickCounts[targetUserId].auth_submitted
+            },
+            anon_details: {
+              count: userPickCounts[targetUserId].anon,
+              visible: userPickCounts[targetUserId].anon_visible,
+              submitted: userPickCounts[targetUserId].anon_submitted
             }
           })
         } else {
-          console.log('🔍 Jason Murray NOT FOUND in userPickCounts for week', week)
+          console.log('🎯 TARGET USER NOT FOUND in userPickCounts for week', week)
+          
+          // Check if they're in the raw data
+          const inAuth = authPicks?.some(p => p.user_id === targetUserId)
+          const inAnon = anonPicks?.some(p => p.assigned_user_id === targetUserId)
+          console.log('🎯 TARGET USER RAW DATA CHECK:', {
+            in_auth_picks: inAuth,
+            in_anon_picks: inAnon,
+            auth_picks: authPicks?.filter(p => p.user_id === targetUserId),
+            anon_picks: anonPicks?.filter(p => p.assigned_user_id === targetUserId)
+          })
         }
       }
       
@@ -1088,6 +1301,107 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
     await loadAllData() // Refresh the data
   }
   
+  // Open user assignment modal
+  const openUserAssignment = async (pickSetId: string) => {
+    setAssigningUser(pickSetId)
+    setSelectedUserId('')
+    setUserSearchQuery('')
+    setLoadingUsers(true)
+    
+    try {
+      // Load all users from the database
+      const { data: users, error } = await supabase
+        .from('users')
+        .select('id, display_name, email')
+        .order('display_name')
+      
+      if (error) throw error
+      
+      setAvailableUsers(users || [])
+    } catch (error: any) {
+      console.error('Error loading users:', error)
+      setMessage(`Error loading users: ${error.message}`)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+  
+  // Assign user to anonymous picks
+  const assignUserToPicks = async () => {
+    if (!assigningUser || !selectedUserId) return
+    
+    try {
+      const pickSet = unassignedAnon.find(p => p.id === assigningUser)
+      if (!pickSet) throw new Error('Pick set not found')
+      
+      console.log('🔄 Assigning user to picks:', {
+        email: pickSet.user_email,
+        week: pickSet.week,
+        user_id: selectedUserId
+      })
+      
+      // Update all anonymous picks with this email for this week
+      // Allow updating both unassigned (null) and auto-assigned picks for this email/week
+      const { error } = await supabase
+        .from('anonymous_picks')
+        .update({
+          assigned_user_id: selectedUserId,
+          show_on_leaderboard: true,
+          is_validated: true,
+          processing_notes: 'Manually assigned by admin'
+        })
+        .eq('email', pickSet.user_email)
+        .eq('week', pickSet.week)
+        .eq('season', currentSeason)
+      
+      if (error) throw error
+      
+      setMessage(`Successfully assigned picks to user`)
+      setAssigningUser(null)
+      setSelectedUserId('')
+      await loadAllData() // Refresh data
+    } catch (error: any) {
+      console.error('Error assigning user:', error)
+      setMessage(`Error assigning user: ${error.message}`)
+    }
+  }
+  
+  // Unassign auto-assigned picks
+  const unassignAutoAssignedPicks = async (pickSetId: string) => {
+    try {
+      const pickSet = unassignedAnon.find(p => p.id === pickSetId)
+      if (!pickSet) throw new Error('Pick set not found')
+      
+      console.log('🔄 Unassigning auto-assigned picks:', {
+        email: pickSet.user_email,
+        week: pickSet.week,
+        assigned_user_id: pickSet.assigned_user_id
+      })
+      
+      // Remove assignment from all picks with this email for this week
+      const { error } = await supabase
+        .from('anonymous_picks')
+        .update({ 
+          assigned_user_id: null,
+          show_on_leaderboard: false,
+          is_validated: false,
+          processing_notes: 'Auto-assignment removed - requires manual review'
+        })
+        .eq('email', pickSet.user_email)
+        .eq('week', pickSet.week)
+        .eq('season', currentSeason)
+        .eq('assigned_user_id', pickSet.assigned_user_id)
+      
+      if (error) throw error
+      
+      setMessage(`Successfully unassigned auto-assigned picks`)
+      await loadAllData() // Refresh data
+    } catch (error: any) {
+      console.error('Error unassigning picks:', error)
+      setMessage(`Error unassigning picks: ${error.message}`)
+    }
+  }
+  
   // Save processing note for hidden picks
   const saveHiddenNote = async (pickData: HiddenPicks) => {
     setSavingNote(true)
@@ -1163,24 +1477,31 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <CardTitle className="text-lg">Unassigned Anonymous Pick Sets</CardTitle>
-              <Badge variant="outline">{unassignedAnon.length}</Badge>
+              <CardTitle className="text-lg">Anonymous Pick Sets Management</CardTitle>
+              <Badge variant="outline">{unassignedAnon.filter(p => !p.assigned_user_id).length}</Badge>
+              {unassignedAnon.filter(p => p.is_auto_assigned).length > 0 && (
+                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                  {unassignedAnon.filter(p => p.is_auto_assigned).length} Auto-Assigned
+                </Badge>
+              )}
             </div>
             {sectionsCollapsed.unassigned ? <ChevronDown /> : <ChevronUp />}
           </div>
           <CardDescription>
-            Anonymous picks that haven't been assigned to any user
+            Anonymous picks (unassigned and auto-assigned for review)
           </CardDescription>
         </CardHeader>
         
         {!sectionsCollapsed.unassigned && (
           <CardContent>
             {unassignedAnon.length === 0 ? (
-              <p className="text-gray-500">No unassigned anonymous picks</p>
+              <p className="text-gray-500">No anonymous picks found</p>
             ) : (
               <div className="space-y-3">
                 {unassignedAnon.map(pickSet => (
-                  <div key={pickSet.id} className="border rounded-lg">
+                  <div key={pickSet.id} className={`border rounded-lg ${
+                    pickSet.is_auto_assigned ? 'border-green-300 bg-green-50' : ''
+                  }`}>
                     <div className="flex items-center justify-between p-3">
                       <div>
                         <div className="flex items-center gap-2">
@@ -1188,6 +1509,11 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                           {pickSet.user_email && (
                             <Badge variant="secondary" className="text-xs">
                               {pickSet.user_email}
+                            </Badge>
+                          )}
+                          {pickSet.is_auto_assigned && (
+                            <Badge variant="default" className="text-xs bg-green-600 text-white">
+                              ✓ Auto-Assigned
                             </Badge>
                           )}
                         </div>
@@ -1204,9 +1530,18 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                         <p className="text-sm text-gray-600">
                           Submitted: {new Date(pickSet.created_at).toLocaleString()}
                         </p>
-                        <Badge variant="outline" className="mt-1">
-                          {pickSet.validation_status || 'pending'}
-                        </Badge>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className={`${
+                            pickSet.validation_status === 'auto-assigned' ? 'bg-green-100 text-green-800 border-green-300' : ''
+                          }`}>
+                            {pickSet.validation_status || 'pending'}
+                          </Badge>
+                          {pickSet.assigned_user_id && (
+                            <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800">
+                              User ID: {pickSet.assigned_user_id.substring(0, 8)}...
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Button 
@@ -1217,9 +1552,34 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                           <MessageSquare className="w-3 h-3 mr-1" />
                           {pickSet.processing_notes ? 'Edit Note' : 'Add Note'}
                         </Button>
-                        <Button size="sm" variant="outline">
-                          Assign User
-                        </Button>
+                        {pickSet.is_auto_assigned ? (
+                          <>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => openUserAssignment(pickSet.id)}
+                              className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                            >
+                              Reassign User
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => unassignAutoAssignedPicks(pickSet.id)}
+                              className="border-red-300 text-red-700 hover:bg-red-50"
+                            >
+                              Unassign
+                            </Button>
+                          </>
+                        ) : (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => openUserAssignment(pickSet.id)}
+                          >
+                            Assign User
+                          </Button>
+                        )}
                       </div>
                     </div>
                     
@@ -1530,9 +1890,11 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                               </Badge>
                             )}
                           </div>
-                          <p className="text-sm text-gray-600">
-                            {pickSet.unsubmitted_count} unsubmitted picks
-                          </p>
+                          <div className="text-sm text-gray-600">
+                            <span>ID: {pickSet.user_id}</span>
+                            <span className="mx-2">•</span>
+                            <span>{pickSet.unsubmitted_count} unsubmitted picks</span>
+                          </div>
                           <p className="text-xs text-gray-500">{pickSet.email}</p>
                           {pickSet.has_submitted_anonymous && (
                             <p className="text-xs text-blue-600 mt-1">
@@ -1615,9 +1977,13 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                               {pickSet.payment_status || 'NotPaid'}
                             </Badge>
                           </div>
-                          <p className="text-sm text-gray-600">
-                            {pickSet.submitted_count} submitted picks • {pickSet.total_points} points earned
-                          </p>
+                          <div className="text-sm text-gray-600">
+                            <span>ID: {pickSet.user_id}</span>
+                            <span className="mx-2">•</span>
+                            <span>{pickSet.submitted_count} submitted picks</span>
+                            <span className="mx-2">•</span>
+                            <span>{pickSet.total_points} points earned</span>
+                          </div>
                           <p className="text-xs text-gray-500">{pickSet.email}</p>
                           <p className="text-xs text-orange-600 mt-1">
                             ⚠️ Won't appear on leaderboards until payment status is 'Paid'
@@ -1691,27 +2057,35 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <CardTitle className="text-lg">Multiple Pick Sets</CardTitle>
+              <CardTitle className="text-lg">Duplicate Pick Sets</CardTitle>
               <Badge variant="outline" className="bg-orange-50">{multiplePickSets.length}</Badge>
+              {multiplePickSets.filter(u => u.selected_type === 'both').length > 0 && (
+                <Badge variant="destructive">
+                  {multiplePickSets.filter(u => u.selected_type === 'both').length} Both Active!
+                </Badge>
+              )}
             </div>
             {sectionsCollapsed.multiple ? <ChevronDown /> : <ChevronUp />}
           </div>
           <CardDescription>
-            Users with both anonymous and authenticated picks for the same week
+            Users with picks in BOTH authenticated and anonymous tables (duplicates that need resolution)
           </CardDescription>
         </CardHeader>
         
         {!sectionsCollapsed.multiple && (
           <CardContent>
             {multiplePickSets.length === 0 ? (
-              <p className="text-gray-500">No users with multiple pick sets</p>
+              <p className="text-gray-500">No users with duplicate pick sets (both authenticated and anonymous)</p>
             ) : (
               <div className="space-y-2">
                 {multiplePickSets.map(user => (
                   <div key={`${user.user_id}-${user.week}`} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-4">
                       <div>
-                        <p className="font-medium">{user.display_name}</p>
+                        <div>
+                          <p className="font-medium">{user.display_name}</p>
+                          <p className="text-sm text-gray-600">ID: {user.user_id}</p>
+                        </div>
                         <div className="flex items-center gap-2 mt-1">
                           {user.auth_picks > 0 && (
                             <Badge variant={user.selected_type === 'auth' ? 'default' : 'outline'} 
@@ -1728,13 +2102,13 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                           {user.selected_type === 'both' && (
                             <Badge variant="destructive">
                               <AlertTriangle className="w-3 h-3 mr-1" />
-                              Both Active!
+                              BOTH VISIBLE!
                             </Badge>
                           )}
                           {!user.selected_type && (
                             <Badge variant="secondary">
                               <EyeOff className="w-3 h-3 mr-1" />
-                              None Active
+                              Both Hidden
                             </Badge>
                           )}
                         </div>
@@ -2014,6 +2388,129 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      
+      {/* User Assignment Modal */}
+      {assigningUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <Card className="max-w-md w-full">
+            <CardHeader>
+              <CardTitle>Assign User to Anonymous Picks</CardTitle>
+              <CardDescription>
+                {(() => {
+                  const pickSet = unassignedAnon.find(p => p.id === assigningUser)
+                  return pickSet ? (
+                    <div className="space-y-1 mt-2">
+                      <p>Name: <strong>{pickSet.user_name}</strong></p>
+                      <p>Email: <strong>{pickSet.user_email}</strong></p>
+                      <p>Week: <strong>{pickSet.week}</strong></p>
+                      <p>Picks: <strong>{pickSet.picks.length}</strong></p>
+                    </div>
+                  ) : null
+                })()}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingUsers ? (
+                <div className="text-center py-4">
+                  <div className="w-8 h-8 border-4 border-pigskin-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                  <p>Loading users...</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="user-search">Search and Select User</Label>
+                    <Input
+                      id="user-search"
+                      type="text"
+                      placeholder="Search by name or email..."
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      className="mb-2"
+                    />
+                    <div className="border rounded-lg max-h-[300px] overflow-y-auto">
+                      {(() => {
+                        const filteredUsers = availableUsers.filter(user => {
+                          const query = userSearchQuery.toLowerCase()
+                          return user.display_name.toLowerCase().includes(query) ||
+                                 user.email.toLowerCase().includes(query)
+                        })
+                        
+                        if (filteredUsers.length === 0) {
+                          return (
+                            <div className="p-4 text-center text-gray-500">
+                              {userSearchQuery ? 'No users found matching your search' : 'No users available'}
+                            </div>
+                          )
+                        }
+                        
+                        return filteredUsers.map(user => (
+                          <div
+                            key={user.id}
+                            className={`p-3 border-b last:border-b-0 cursor-pointer hover:bg-gray-50 transition-colors ${
+                              selectedUserId === user.id ? 'bg-blue-50 border-blue-200' : ''
+                            }`}
+                            onClick={() => setSelectedUserId(user.id)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex flex-col">
+                                <span className="font-medium">{user.display_name}</span>
+                                <span className="text-xs text-gray-500">{user.email}</span>
+                              </div>
+                              {selectedUserId === user.id && (
+                                <Check className="w-4 h-4 text-blue-600" />
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      })()}
+                    </div>
+                    {selectedUserId && (() => {
+                      const selected = availableUsers.find(u => u.id === selectedUserId)
+                      return selected ? (
+                        <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                          <p className="text-sm text-blue-800">
+                            Selected: <strong>{selected.display_name}</strong> ({selected.email})
+                          </p>
+                        </div>
+                      ) : null
+                    })()}
+                  </div>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-800">
+                      <strong>Note:</strong> Assigning will:
+                    </p>
+                    <ul className="text-sm text-blue-700 mt-1 list-disc list-inside">
+                      <li>Link all picks with this email to the selected user</li>
+                      <li>Mark picks as validated</li>
+                      <li>Show picks on the leaderboard</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex justify-end gap-2 mt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setAssigningUser(null)
+                    setSelectedUserId('')
+                    setUserSearchQuery('')
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={assignUserToPicks}
+                  disabled={!selectedUserId || loadingUsers}
+                >
+                  Assign User
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
