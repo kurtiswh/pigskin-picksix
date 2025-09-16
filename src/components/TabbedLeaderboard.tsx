@@ -12,6 +12,7 @@ import { ProductionWeeklyLeaderboardService, ProductionWeeklyLeaderboardEntry } 
 import { liveUpdateService, LiveUpdateStatus, LiveUpdateResult } from '@/services/liveUpdateService'
 import { getLatestWeekWithResults } from '@/services/weekService'
 import { LeaderboardService, LeaderboardEntry } from '@/services/leaderboardService'
+import { WeekSettingsService, WeekSettings } from '@/services/weekSettingsService'
 import { useAuth } from '@/hooks/useAuth'
 import { ExpandableLeaderboardRow, LeaderboardRowContent } from '@/components/ExpandableLeaderboardRow'
 import { SeasonExpandedDetails } from '@/components/SeasonExpandedDetails'
@@ -29,6 +30,7 @@ export default function TabbedLeaderboard() {
   const [strategy, setStrategy] = useState('')
   const [liveUpdateStatus, setLiveUpdateStatus] = useState<LiveUpdateStatus | null>(null)
   const [lastUnifiedUpdate, setLastUnifiedUpdate] = useState<LiveUpdateResult | null>(null)
+  const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
   
   // State for expandable rows
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
@@ -37,6 +39,10 @@ export default function TabbedLeaderboard() {
   
   // Search state
   const [searchTerm, setSearchTerm] = useState('')
+  
+  // Scroll to top state
+  const [showScrollTop, setShowScrollTop] = useState(false)
+  
   
   // Check if current user is admin
   const isAdmin = user?.is_admin === true
@@ -53,7 +59,14 @@ export default function TabbedLeaderboard() {
   useEffect(() => {
     loadSeasonData()
     updateLiveStatus()
+    loadWeekSettings()
   }, [season])
+
+  useEffect(() => {
+    if (selectedWeek !== null) {
+      loadWeekSettings()
+    }
+  }, [selectedWeek, season])
 
   useEffect(() => {
     if (activeTab === 'weekly' && selectedWeek !== null) {
@@ -74,6 +87,36 @@ export default function TabbedLeaderboard() {
       clearInterval(refreshInterval)
     }
   }, [])
+
+  // Scroll to top functionality
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+      setShowScrollTop(scrollTop > 300)
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    })
+  }
+
+  const loadWeekSettings = async () => {
+    if (selectedWeek === null) return
+    
+    try {
+      const settings = await WeekSettingsService.getWeekSettings(season, selectedWeek)
+      setWeekSettings(settings)
+    } catch (error) {
+      console.error('Error loading week settings:', error)
+      setWeekSettings(null)
+    }
+  }
 
   const updateLiveStatus = () => {
     setLiveUpdateStatus(liveUpdateService.getStatus())
@@ -331,6 +374,30 @@ export default function TabbedLeaderboard() {
     }
   }
 
+  // Get the display rank for tied players
+  const getDisplayRank = (entry: any, data: any[]) => {
+    const currentPoints = activeTab === 'season' ? 
+      (entry.season_points || entry.total_points || 0) : 
+      (entry.total_points || 0)
+    
+    // Find all players with the same points
+    const tiedPlayers = data.filter(e => {
+      const comparePoints = activeTab === 'season' ? 
+        (e.season_points || e.total_points || 0) : 
+        (e.total_points || 0)
+      return comparePoints === currentPoints
+    })
+    
+    // If tied, use the lowest rank among the tied players
+    if (tiedPlayers.length > 1) {
+      const ranks = tiedPlayers.map(p => activeTab === 'season' ? p.season_rank : p.weekly_rank)
+      return Math.min(...ranks)
+    }
+    
+    // Not tied, use original rank
+    return activeTab === 'season' ? entry.season_rank : entry.weekly_rank
+  }
+
 
   // Handle row expansion
   const handleRowToggle = async (userId: string, tabType: 'season' | 'weekly') => {
@@ -383,22 +450,63 @@ export default function TabbedLeaderboard() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-pigskin-600">Leaderboard</h1>
         
-        {/* Important Notice Banner */}
-        <div className="mt-4 mb-6 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0">
-              <svg className="h-6 w-6 text-yellow-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
+        {/* Dynamic Notice Banner */}
+        {(() => {
+          const noticeData = WeekSettingsService.getNoticeMessage(
+            weekSettings, 
+            liveUpdateStatus?.isRunning || false
+          )
+          
+          const bgColor = noticeData.type === 'final' ? 'bg-green-50 border-green-400' : 
+                         noticeData.type === 'experimental' ? 'bg-orange-50 border-orange-400' : 
+                         'bg-yellow-50 border-yellow-400'
+          
+          const iconColor = noticeData.type === 'final' ? 'text-green-600' : 
+                           noticeData.type === 'experimental' ? 'text-orange-600' : 
+                           'text-yellow-600'
+          
+          const textColor = noticeData.type === 'final' ? 'text-green-800' : 
+                           noticeData.type === 'experimental' ? 'text-orange-800' : 
+                           'text-yellow-800'
+          
+          const messageColor = noticeData.type === 'final' ? 'text-green-700' : 
+                               noticeData.type === 'experimental' ? 'text-orange-700' : 
+                               'text-yellow-700'
+          
+          const icon = noticeData.type === 'final' ? (
+            <svg className={`h-6 w-6 ${iconColor} mt-0.5`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          ) : noticeData.type === 'experimental' ? (
+            <svg className={`h-6 w-6 ${iconColor} mt-0.5`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          ) : (
+            <svg className={`h-6 w-6 ${iconColor} mt-0.5`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          )
+          
+          const title = noticeData.type === 'final' ? '✅ RESULTS CONFIRMED' : 
+                       noticeData.type === 'experimental' ? '🔄 LIVE SCORING' : 
+                       '⚠️ IMPORTANT NOTICE'
+          
+          return (
+            <div className={`mt-4 mb-6 p-4 border-2 rounded-lg ${bgColor}`}>
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0">
+                  {icon}
+                </div>
+                <div className="flex-1">
+                  <h3 className={`text-lg font-bold ${textColor} mb-1`}>{title}</h3>
+                  <p className={`${messageColor} font-medium`}>
+                    {noticeData.message}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-bold text-yellow-800 mb-1">⚠️ IMPORTANT NOTICE</h3>
-              <p className="text-yellow-700 font-medium">
-                LEADERBOARD & PAYMENTS ARE UP TO DATE. IF YOU'RE NOT ON THE LEADERBOARD, WE DON'T SHOW A PAYMENT FOR YOU. IF YOU SEE SOMETHING WRONG, PLEASE EMAIL US AT ADMIN@PIGSKINPICKSIX.COM.
-              </p>
-            </div>
-          </div>
-        </div>
+          )
+        })()}
         
         <div className="mt-4 flex items-center gap-4">
           <Select value={season.toString()} onValueChange={(value) => setSeason(parseInt(value))}>
@@ -568,6 +676,30 @@ export default function TabbedLeaderboard() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Floating Scroll to Top Button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 bg-pigskin-600 hover:bg-pigskin-700 text-white p-3 rounded-full shadow-lg transition-all duration-300 ease-in-out hover:scale-110 z-50"
+          aria-label="Scroll to top"
+        >
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 10l7-7m0 0l7 7m-7-7v18"
+            />
+          </svg>
+        </button>
+      )}
     </div>
   )
 
@@ -665,11 +797,19 @@ export default function TabbedLeaderboard() {
             const expansionData = expandedData.get(rowKey)
             const currentRank = entry.season_rank || entry.weekly_rank
             
-            // Check if this rank is tied (appears more than once in the data)
+            // Check if this rank is tied - compare by points, not just rank
+            // This handles cases where database has consecutive ranks but same points
+            const currentPoints = activeTab === 'season' ? 
+              (entry.season_points || entry.total_points || 0) : 
+              (entry.total_points || 0)
+            
             const isTied = data.filter(e => {
-              const compareRank = activeTab === 'season' ? e.season_rank : e.weekly_rank
-              return compareRank === currentRank
+              const comparePoints = activeTab === 'season' ? 
+                (e.season_points || e.total_points || 0) : 
+                (e.total_points || 0)
+              return comparePoints === currentPoints
             }).length > 1
+            
             
             return (
               <ExpandableLeaderboardRow
@@ -691,7 +831,7 @@ export default function TabbedLeaderboard() {
                   onClick={() => handleRowToggle(entry.user_id, tabType)}
                 >
                   <LeaderboardRowContent
-                    rank={entry.season_rank || entry.weekly_rank}
+                    rank={getDisplayRank(entry, data)}
                     displayName={entry.display_name}
                     record={entry.season_record || entry.weekly_record}
                     lockRecord={entry.lock_record}
@@ -716,10 +856,14 @@ export default function TabbedLeaderboard() {
         
         {/* Tie Legend - Only show if there are actual ties */}
         {data.some((entry, _, arr) => {
-          const currentRank = activeTab === 'season' ? entry.season_rank : entry.weekly_rank
+          const currentPoints = activeTab === 'season' ? 
+            (entry.season_points || entry.total_points || 0) : 
+            (entry.total_points || 0)
           return arr.filter(e => {
-            const compareRank = activeTab === 'season' ? e.season_rank : e.weekly_rank
-            return compareRank === currentRank
+            const comparePoints = activeTab === 'season' ? 
+              (e.season_points || e.total_points || 0) : 
+              (e.total_points || 0)
+            return comparePoints === currentPoints
           }).length > 1
         }) && (
           <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">

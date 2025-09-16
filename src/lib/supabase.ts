@@ -295,6 +295,9 @@ export type Database = {
           picks_open: boolean
           games_locked: boolean
           deadline: string
+          scoring_complete: boolean
+          leaderboard_complete: boolean
+          admin_custom_message: string | null
           created_at: string
           updated_at: string
         }
@@ -306,6 +309,9 @@ export type Database = {
           picks_open?: boolean
           games_locked?: boolean
           deadline: string
+          scoring_complete?: boolean
+          leaderboard_complete?: boolean
+          admin_custom_message?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -317,6 +323,9 @@ export type Database = {
           picks_open?: boolean
           games_locked?: boolean
           deadline?: string
+          scoring_complete?: boolean
+          leaderboard_complete?: boolean
+          admin_custom_message?: string | null
           updated_at?: string
         }
       }

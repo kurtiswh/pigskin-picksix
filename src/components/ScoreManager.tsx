@@ -10,6 +10,7 @@ import { updateGameScores, getCompletedGames } from '@/services/collegeFootballA
 import { updateGameInDatabase, processCompletedGames, calculatePicksForGame } from '@/services/scoreCalculation'
 import { liveUpdateService, LiveUpdateResult, LiveUpdateStatus } from '@/services/liveUpdateService'
 import { CFBDLiveUpdater } from '@/services/cfbdLiveUpdater'
+import { WeekSettingsService, WeekSettings } from '@/services/weekSettingsService'
 
 interface Game {
   id: string
@@ -48,6 +49,8 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
     message: string
     details?: string
   } | null>(null)
+  const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
+  const [customMessage, setCustomMessage] = useState('')
   const [statusData, setStatusData] = useState<{
     lastScoresUpdate: Date | null
     lastPicksUpdate: Date | null
@@ -140,6 +143,7 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
     loadGames()
     updateLiveStatus()
     loadStatusData()
+    loadWeekSettings()
     checkAutoStart()
     
     // Set up periodic status updates
@@ -160,6 +164,62 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
 
   const updateLiveStatus = () => {
     setLiveUpdateStatus(liveUpdateService.getStatus())
+  }
+
+  const loadWeekSettings = async () => {
+    try {
+      const settings = await WeekSettingsService.getWeekSettings(season, selectedWeek)
+      setWeekSettings(settings)
+      setCustomMessage(settings?.admin_custom_message || '')
+    } catch (error) {
+      console.error('Error loading week settings:', error)
+      setWeekSettings(null)
+      setCustomMessage('')
+    }
+  }
+
+  const toggleScoringComplete = async (type: 'scoring' | 'leaderboard') => {
+    try {
+      const currentValue = type === 'scoring' ? 
+        weekSettings?.scoring_complete : 
+        weekSettings?.leaderboard_complete
+      
+      const updates = {
+        [type === 'scoring' ? 'scoring_complete' : 'leaderboard_complete']: !currentValue
+      }
+      
+      const updatedSettings = await WeekSettingsService.updateCompletionStatus(
+        season, 
+        selectedWeek, 
+        updates
+      )
+      
+      if (updatedSettings) {
+        setWeekSettings(updatedSettings)
+        setError(`${type === 'scoring' ? 'Scoring' : 'Leaderboard'} marked as ${!currentValue ? 'complete' : 'incomplete'}`)
+      }
+    } catch (error) {
+      console.error(`Error updating ${type} completion status:`, error)
+      setError(`Failed to update ${type} status`)
+    }
+  }
+
+  const updateCustomMessage = async () => {
+    try {
+      const updatedSettings = await WeekSettingsService.updateCompletionStatus(
+        season, 
+        selectedWeek, 
+        { admin_custom_message: customMessage || null }
+      )
+      
+      if (updatedSettings) {
+        setWeekSettings(updatedSettings)
+        setError('Custom message updated')
+      }
+    } catch (error) {
+      console.error('Error updating custom message:', error)
+      setError('Failed to update custom message')
+    }
   }
   
   const updateProcessingStats = () => {
@@ -1026,6 +1086,103 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Scoring Completion Controls */}
+      <Card className="border-purple-200 bg-purple-50/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <span>📊</span>
+            Scoring Status Controls - Week {selectedWeek}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center justify-between p-4 bg-white rounded border">
+              <div>
+                <div className="font-medium">Game Scoring</div>
+                <div className="text-sm text-gray-600">
+                  {weekSettings?.scoring_complete ? '✅ Complete & Validated' : '🔄 In Progress'}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant={weekSettings?.scoring_complete ? "outline" : "default"}
+                onClick={() => toggleScoringComplete('scoring')}
+                className={weekSettings?.scoring_complete ? 
+                  "border-red-200 text-red-600 hover:bg-red-50" : 
+                  "bg-green-600 hover:bg-green-700"
+                }
+              >
+                {weekSettings?.scoring_complete ? '❌ Mark Incomplete' : '✅ Mark Complete'}
+              </Button>
+            </div>
+            
+            <div className="flex items-center justify-between p-4 bg-white rounded border">
+              <div>
+                <div className="font-medium">Leaderboard</div>
+                <div className="text-sm text-gray-600">
+                  {weekSettings?.leaderboard_complete ? '✅ Complete & Validated' : '🔄 In Progress'}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant={weekSettings?.leaderboard_complete ? "outline" : "default"}
+                onClick={() => toggleScoringComplete('leaderboard')}
+                className={weekSettings?.leaderboard_complete ? 
+                  "border-red-200 text-red-600 hover:bg-red-50" : 
+                  "bg-green-600 hover:bg-green-700"
+                }
+              >
+                {weekSettings?.leaderboard_complete ? '❌ Mark Incomplete' : '✅ Mark Complete'}
+              </Button>
+            </div>
+          </div>
+          
+          {/* Admin Custom Message */}
+          <div className="mt-4 p-4 bg-white rounded border">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              📝 Custom Notice Message (Optional)
+            </label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Optional message to display in leaderboard notice banner..."
+                value={customMessage}
+                onChange={(e) => setCustomMessage(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                size="sm"
+                onClick={updateCustomMessage}
+                disabled={customMessage === (weekSettings?.admin_custom_message || '')}
+              >
+                Update
+              </Button>
+            </div>
+            {weekSettings?.admin_custom_message && (
+              <div className="mt-2 text-sm text-gray-600">
+                Current: "{weekSettings.admin_custom_message}"
+              </div>
+            )}
+            <div className="mt-2 text-xs text-gray-500">
+              This message will appear in the leaderboard notice banner for users
+            </div>
+          </div>
+          
+          {/* Status Summary */}
+          <div className="p-3 bg-gray-50 rounded border">
+            <div className="text-sm font-medium mb-1">Current Status Summary:</div>
+            <div className="text-xs space-y-1">
+              <div>• Game Scoring: {weekSettings?.scoring_complete ? 'Complete ✅' : 'In Progress 🔄'}</div>
+              <div>• Leaderboard: {weekSettings?.leaderboard_complete ? 'Complete ✅' : 'In Progress 🔄'}</div>
+              <div>• Notice Type: {
+                weekSettings?.scoring_complete && weekSettings?.leaderboard_complete 
+                  ? 'Final Results (Green)' 
+                  : 'Live/Experimental (Orange)'
+              }</div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
