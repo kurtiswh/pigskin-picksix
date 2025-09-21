@@ -271,7 +271,7 @@ export default function PickSummary({
                 <span>Submitting...</span>
               </div>
             ) : isDeadlinePassed ? (
-              'Picks Closed'
+              arePicksSubmitted ? '✅ Submitted (Closed)' : '❌ NOT SUBMITTED - Deadline Passed'
             ) : !canSubmit ? (
               <span className="font-bold text-lg">
                 Need {6 - picks.length} more pick{6 - picks.length !== 1 ? 's' : ''}{!hasLock ? ' + Lock' : ''}
@@ -286,6 +286,18 @@ export default function PickSummary({
           {arePicksSubmitted && (
             <div className="text-xs text-center text-green-600 mt-2">
               Picks submitted! Edit any pick to enable re-submission.
+            </div>
+          )}
+          
+          {/* Warning for deadline passed without submission */}
+          {isDeadlinePassed && !arePicksSubmitted && (
+            <div className="bg-red-100 border border-red-300 rounded-lg p-3 mt-3">
+              <div className="text-red-800 text-sm font-medium text-center">
+                ⚠️ Your picks were NOT submitted!
+              </div>
+              <div className="text-red-700 text-xs text-center mt-1">
+                These picks will not count towards your score.
+              </div>
             </div>
           )}
 

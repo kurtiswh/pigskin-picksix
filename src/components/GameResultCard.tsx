@@ -187,10 +187,17 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
             spreadCovered = false
           }
 
-          // Calculate points awarded from base_points + margin_bonus
-          const basePoints = game.base_points || 0
-          const marginBonus = game.margin_bonus || 0
-          pointsAwarded = basePoints + marginBonus
+          // Calculate points awarded correctly
+          // For push: 10 points, for win: 20 points (base + margin bonus)
+          if (spreadCovered === false) {
+            // Push - always 10 points
+            pointsAwarded = 10
+          } else {
+            // Win - use base_points + margin_bonus or default to 20
+            const basePoints = game.base_points || 20
+            const marginBonus = game.margin_bonus || 0
+            pointsAwarded = basePoints + marginBonus
+          }
         }
 
         setPickStats({
@@ -458,7 +465,7 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
                 ATS Winner: {winner.atsWinner}
               </div>
               <div className="text-sm text-green-700 mt-1">
-                Points Awarded: {(game.base_points || 0) + (game.margin_bonus || 0)}
+                Points Awarded: {winner.atsWinner === 'Push' ? 10 : ((game.base_points || 20) + (game.margin_bonus || 0))}
               </div>
             </div>
           )}

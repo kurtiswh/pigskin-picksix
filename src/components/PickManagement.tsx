@@ -196,11 +196,14 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
       
       // Check each email against users table
       for (const [email, picks] of Object.entries(picksByEmail)) {
-        // Try to find user by email or leaguesafe_email
+        // Normalize email to lowercase for case-insensitive matching
+        const normalizedEmail = email.toLowerCase()
+        
+        // Try to find user by email or leaguesafe_email (case-insensitive)
         const { data: matchingUsers, error: userError } = await supabase
           .from('users')
           .select('id, display_name, email, leaguesafe_email')
-          .or(`email.eq.${email},leaguesafe_email.eq.${email}`)
+          .or(`email.ilike.${normalizedEmail},leaguesafe_email.ilike.${normalizedEmail}`)
         
         if (userError) {
           console.error('Error checking users for email:', email, userError)

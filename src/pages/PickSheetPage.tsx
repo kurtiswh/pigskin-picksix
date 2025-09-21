@@ -802,6 +802,8 @@ export default function PickSheetPage() {
   const deadline = weekSettings ? new Date(weekSettings.deadline) : null
   const arePicksSubmitted = picks.some(p => p.submitted)
   const submittedAt = picks.find(p => p.submitted)?.submitted_at
+  const isDeadlinePassed = deadline && new Date() > deadline
+  const hasUnsubmittedPicks = picks.length > 0 && !arePicksSubmitted && isDeadlinePassed
 
   return (
     <Layout>
@@ -810,7 +812,11 @@ export default function PickSheetPage() {
         <div className="container mx-auto px-4">
           <div className="text-center">
             <h1 className="text-2xl font-bold">Week {currentWeek} Pick Sheet</h1>
-            <p className="text-pigskin-100">Choose 6 games, set 1 Lock</p>
+            <p className="text-pigskin-100">
+              {hasUnsubmittedPicks 
+                ? '🚨 PICKS NOT SUBMITTED - WILL NOT COUNT' 
+                : 'Choose 6 games, set 1 Lock'}
+            </p>
           </div>
         </div>
       </div>
@@ -856,6 +862,32 @@ export default function PickSheetPage() {
                   Available Games ({games.length})
                 </h2>
                 
+                {/* Warning for unsubmitted picks after deadline */}
+                {hasUnsubmittedPicks && (
+                  <div className="bg-red-50 border-2 border-red-300 text-red-800 px-6 py-4 rounded-lg mb-6 animate-pulse">
+                    <div className="flex items-start gap-3">
+                      <div className="text-2xl">🚨</div>
+                      <div className="flex-1">
+                        <div className="font-bold text-lg mb-2">WARNING: PICKS NOT SUBMITTED!</div>
+                        <div className="space-y-2">
+                          <p className="font-medium">Your picks were never submitted before the deadline.</p>
+                          <ul className="list-disc list-inside space-y-1 text-sm">
+                            <li><strong>These picks will NOT count</strong> towards your score</li>
+                            <li>You will receive <strong>0 points</strong> for this week</li>
+                            <li>The scores shown below are for reference only</li>
+                            <li>Deadline was: <strong>{deadline?.toLocaleString()}</strong></li>
+                          </ul>
+                          <div className="bg-red-100 border border-red-400 rounded p-3 mt-3">
+                            <p className="text-sm font-bold text-red-900">
+                              ⚠️ Remember: Always click "Submit Picks" before the deadline!
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 {arePicksSubmitted && (
                   <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
                     <div className="font-medium">✅ Picks Submitted Successfully!</div>
@@ -896,6 +928,7 @@ export default function PickSheetPage() {
                       onRemovePick={handleRemovePick}
                       disabled={!isPicksOpen}
                       isMaxPicks={picks.length >= 6 && !picks.find(p => p.game_id === game.id)}
+                      isUnsubmitted={hasUnsubmittedPicks}
                     />
                   </div>
                 ))}

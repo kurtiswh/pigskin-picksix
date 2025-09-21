@@ -13,6 +13,7 @@ interface GameCardProps {
   disabled?: boolean
   isMaxPicks?: boolean
   showPickStats?: boolean
+  isUnsubmitted?: boolean
 }
 
 export default function GameCard({ 
@@ -23,7 +24,8 @@ export default function GameCard({
   onRemovePick,
   disabled = false,
   isMaxPicks = false,
-  showPickStats = false 
+  showPickStats = false,
+  isUnsubmitted = false
 }: GameCardProps) {
   const isPicked = !!userPick
   const selectedTeam = userPick?.selected_team
@@ -154,6 +156,13 @@ export default function GameCard({
         </div>
       )}
       
+      {/* Warning banner for unsubmitted picks on locked games */}
+      {isUnsubmitted && isGameLocked && userPick && (
+        <div className="absolute top-0 left-0 right-0 bg-red-600 text-white text-xs font-bold text-center py-1 rounded-t-lg z-20">
+          ⚠️ NOT SUBMITTED - WON'T COUNT
+        </div>
+      )}
+      
       {isPicked && onRemovePick && !disabled && (
         <button
           onClick={(e) => {
@@ -200,7 +209,7 @@ export default function GameCard({
             )}>
               <div className="font-semibold text-center">
                 {isGameLocked 
-                  ? "🔒 LOCKED" 
+                  ? isUnsubmitted && userPick ? "🚨 LOCKED - NOT SUBMITTED" : "🔒 LOCKED" 
                   : `⏰ Locks: ${formatLockTime(actualLockTime.toISOString())}`
                 }
               </div>
@@ -353,7 +362,7 @@ export default function GameCard({
               <div className="text-sm text-pigskin-600 font-medium">
                 Pick: {selectedTeam} {selectedTeam && getSpreadDisplay(selectedTeam)}
                 {isLock && " (LOCK)"}
-                {isGameLocked && " - LOCKED"}
+                {isGameLocked && (isUnsubmitted ? " - NOT SUBMITTED" : " - LOCKED")}
               </div>
               
               {/* Win/Loss Result Indicator */}
