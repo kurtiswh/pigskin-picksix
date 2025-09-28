@@ -241,30 +241,6 @@ export function LeaderboardRowContent({
             <div className="text-xs text-gray-500">points</div>
           </div>
 
-          {/* Expand button */}
-          {canExpand && (
-            <div className="ml-2">
-              {isLoading ? (
-                <div className="w-4 h-4 animate-spin rounded-full border-2 border-gray-300 border-t-[#4B3621]" />
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="p-1 hover:bg-gray-200"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onToggle()
-                  }}
-                >
-                  {isExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-gray-600" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-gray-600" />
-                  )}
-                </Button>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
@@ -322,31 +298,6 @@ export function LeaderboardRowContent({
           </div>
         </div>
 
-        {/* Expand button on mobile */}
-        {canExpand && (
-          <div className="mt-3 flex justify-center">
-            {isLoading ? (
-              <div className="w-4 h-4 animate-spin rounded-full border-2 border-gray-300 border-t-[#4B3621]" />
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggle()
-                }}
-              >
-                {isExpanded ? 'Show Less' : 'Show More'}
-                {isExpanded ? (
-                  <ChevronDown className="w-3 h-3 ml-1" />
-                ) : (
-                  <ChevronRight className="w-3 h-3 ml-1" />
-                )}
-              </Button>
-            )}
-          </div>
-        )}
       </div>
     </>
   )

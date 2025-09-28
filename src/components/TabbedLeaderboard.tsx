@@ -22,6 +22,7 @@ export default function TabbedLeaderboard() {
   const { user } = useAuth()
   const [season, setSeason] = useState(2025)
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null)
+  const [selectedSeasonWeek, setSelectedSeasonWeek] = useState<'current' | number>('current')
   const [activeTab, setActiveTab] = useState('season')
   const [seasonData, setSeasonData] = useState<(LeaderboardEntry | EmergencyLeaderboardEntry)[]>([])
   const [weeklyData, setWeeklyData] = useState<EmergencyWeeklyLeaderboardEntry[]>([])
@@ -60,7 +61,7 @@ export default function TabbedLeaderboard() {
     loadSeasonData()
     updateLiveStatus()
     loadWeekSettings()
-  }, [season])
+  }, [season, selectedSeasonWeek])
 
   useEffect(() => {
     if (selectedWeek !== null) {
@@ -174,7 +175,7 @@ export default function TabbedLeaderboard() {
       setLoading(true)
       setError('')
       setStrategy('')
-      console.log('🔄 Loading season leaderboard for season', season)
+      console.log('🔄 Loading season leaderboard for season', season, 'through week', selectedSeasonWeek)
       
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error('Overall timeout after 10 seconds')), 10000)
@@ -183,32 +184,48 @@ export default function TabbedLeaderboard() {
       // Get the current week to calculate rank changes
       const currentWeek = selectedWeek || (await getLatestWeekWithResults(season))
       
-      console.log('🚀 [TABBED] Loading season leaderboard with rank changes')
       let entries
       
-      // Strategy 1: Try rank change calculation first
-      try {
-        const dataPromise = LeaderboardService.getSeasonLeaderboardWithRankChanges(season, currentWeek)
-        entries = await Promise.race([dataPromise, timeoutPromise])
-        console.log('✅ [TABBED] Loaded season data WITH rank changes:', entries.length, 'entries')
+      // Check if we're loading historical data
+      if (selectedSeasonWeek !== 'current' && typeof selectedSeasonWeek === 'number') {
+        console.log('🚀 [TABBED] Loading historical season leaderboard through week', selectedSeasonWeek)
+        try {
+          const dataPromise = LeaderboardService.getSeasonLeaderboardAsOfWeek(season, selectedSeasonWeek)
+          entries = await Promise.race([dataPromise, timeoutPromise])
+          console.log('✅ [TABBED] Loaded historical season data:', entries.length, 'entries')
+        } catch (error) {
+          console.log('⚠️ [TABBED] Historical data failed:', error.message, '- falling back to current')
+          // Fall back to current season data if historical fails
+          setSelectedSeasonWeek('current')
+        }
+      }
+      
+      // Load current season data (or if historical failed)
+      if (!entries) {
+        console.log('🚀 [TABBED] Loading current season leaderboard with rank changes')
+        // Strategy 1: Try rank change calculation first
+        try {
+          const dataPromise = LeaderboardService.getSeasonLeaderboardWithRankChanges(season, currentWeek)
+          entries = await Promise.race([dataPromise, timeoutPromise])
+          console.log('✅ [TABBED] Loaded season data WITH rank changes:', entries.length, 'entries')
         
         // Verify rank change data exists
         const entriesWithRankChanges = entries.filter(e => e.rank_change !== undefined).length
         console.log('📈 [TABBED] Rank changes found for', entriesWithRankChanges, 'entries')
-        
-      } catch (error) {
-        console.log('⚠️ [TABBED] Rank change calculation failed:', error.message, '- falling back')
-        
-        // Strategy 2: Try production service
-        try {
-          const dataPromise = ProductionLeaderboardService.getSeasonLeaderboard(season)
-          entries = await Promise.race([dataPromise, timeoutPromise])
-          console.log('✅ [TABBED] Loaded season data from production service:', entries.length, 'entries')
         } catch (error) {
-          console.log('⚠️ [TABBED] Production service failed, falling back to emergency service')
-          const dataPromise = EmergencyLeaderboardService.getSeasonLeaderboard(season)
-          entries = await Promise.race([dataPromise, timeoutPromise])
-          console.log('✅ [TABBED] Loaded season data from emergency service:', entries.length, 'entries')
+          console.log('⚠️ [TABBED] Rank change calculation failed:', error.message, '- falling back')
+        
+          // Strategy 2: Try production service
+          try {
+            const dataPromise = ProductionLeaderboardService.getSeasonLeaderboard(season)
+            entries = await Promise.race([dataPromise, timeoutPromise])
+            console.log('✅ [TABBED] Loaded season data from production service:', entries.length, 'entries')
+          } catch (error) {
+            console.log('⚠️ [TABBED] Production service failed, falling back to emergency service')
+            const dataPromise = EmergencyLeaderboardService.getSeasonLeaderboard(season)
+            entries = await Promise.race([dataPromise, timeoutPromise])
+            console.log('✅ [TABBED] Loaded season data from emergency service:', entries.length, 'entries')
+          }
         }
       }
       
@@ -424,19 +441,25 @@ export default function TabbedLeaderboard() {
       
       try {
         let data
+        console.log(`🔍 Loading expanded data for ${rowKey}, tabType: ${tabType}`)
         if (tabType === 'season') {
           data = await EmergencyLeaderboardService.getUserWeeklyBreakdown(userId, season)
+          console.log('🔍 Season expanded data loaded:', data)
         } else {
           data = await EmergencyWeeklyLeaderboardService.getUserWeeklyPicks(userId, season, selectedWeek)
+          console.log('🔍 Weekly expanded data loaded:', data)
         }
         
         if (data) {
+          console.log('✅ Setting expanded data for', rowKey)
           const newExpandedData = new Map(expandedData)
           newExpandedData.set(rowKey, data)
           setExpandedData(newExpandedData)
+        } else {
+          console.warn('⚠️ No data returned for expanded content:', rowKey)
         }
       } catch (error) {
-        console.error('Failed to load expanded data:', error)
+        console.error('❌ Failed to load expanded data:', error)
       } finally {
         const newLoading = new Set(loadingExpansions)
         newLoading.delete(rowKey)
@@ -637,9 +660,37 @@ export default function TabbedLeaderboard() {
         </TabsList>
         
         <TabsContent value="season" className="mt-6">
+          <div className="mb-4">
+            <Select 
+              value={selectedSeasonWeek === 'current' ? 'current' : selectedSeasonWeek.toString()} 
+              onValueChange={(value) => {
+                if (value === 'current') {
+                  setSelectedSeasonWeek('current')
+                } else {
+                  setSelectedSeasonWeek(parseInt(value))
+                }
+              }}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Current Season" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="current">Current Season</SelectItem>
+                {selectedWeek && Array.from({ length: selectedWeek }, (_, i) => i + 1).map((week) => (
+                  <SelectItem key={week} value={week.toString()}>
+                    Through Week {week}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
           <Card>
             <CardHeader>
-              <CardTitle>Season {season} Standings</CardTitle>
+              <CardTitle>
+                Season {season} Standings
+                {selectedSeasonWeek !== 'current' && ` - Through Week ${selectedSeasonWeek}`}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {renderLeaderboardContent(seasonData, 'season')}
@@ -819,7 +870,11 @@ export default function TabbedLeaderboard() {
                 expandedContent={
                   expansionData ? (
                     tabType === 'season' ? (
-                      <SeasonExpandedDetails data={expansionData} />
+                      <SeasonExpandedDetails 
+                        data={expansionData} 
+                        asOfWeek={selectedSeasonWeek !== 'current' ? selectedSeasonWeek : undefined}
+                        currentWeek={selectedWeek || undefined}
+                      />
                     ) : (
                       <WeeklyExpandedDetails data={expansionData} />
                     )
@@ -840,7 +895,7 @@ export default function TabbedLeaderboard() {
                     pickSource={entry.pick_source}
                     isExpanded={isExpanded}
                     isLoading={isLoadingExpansion}
-                    canExpand={false}
+                    canExpand={true}
                     onToggle={() => {}}
                     isAdmin={isAdmin}
                     isTied={isTied}

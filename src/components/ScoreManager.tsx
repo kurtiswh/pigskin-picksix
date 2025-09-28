@@ -146,12 +146,12 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
     loadWeekSettings()
     checkAutoStart()
     
-    // Set up periodic status updates
+    // Set up periodic status updates with debouncing
     const statusInterval = setInterval(() => {
       updateLiveStatus()
       updateProcessingStats()
       loadStatusData()
-    }, 5000) // Update every 5 seconds for monitoring
+    }, 15000) // Update every 15 seconds to reduce database load
     
     return () => {
       clearInterval(statusInterval)
@@ -241,27 +241,52 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
 
   const loadStatusData = async () => {
     try {
-      // Get games with scores vs total
+      // Get games with their status to properly categorize pending picks
       const { data: allGames } = await supabase
         .from('games')
-        .select('id, home_score, away_score, updated_at')
+        .select('id, home_score, away_score, status, updated_at, away_team, home_team')
         .eq('season', season)
         .eq('week', selectedWeek)
 
-      // Get picks needing processing (filter by game_id instead of season/week)
-      const gameIds = allGames?.map(g => g.id) || []
+      if (!allGames || allGames.length === 0) {
+        console.warn(`[SCORE MGR] No games found for season ${season}, week ${selectedWeek}`)
+        setStatusData({
+          lastScoresUpdate: null,
+          lastPicksUpdate: null, 
+          lastLeaderboardUpdate: null,
+          pendingScores: 0,
+          pendingPicks: 0,
+          pendingAnonPicks: 0,
+          totalGames: 0
+        })
+        return
+      }
+
+      const gameIds = allGames.map(g => g.id)
+      console.log(`[SCORE MGR] Checking status for ${allGames.length} games in week ${selectedWeek}`)
+      
+      // Categorize games by status for better pending pick analysis
+      const gamesByStatus = {
+        scheduled: allGames.filter(g => g.status === 'scheduled'),
+        in_progress: allGames.filter(g => g.status === 'in_progress'),
+        completed: allGames.filter(g => g.status === 'completed')
+      }
+      
+      console.log(`[SCORE MGR] Game breakdown: ${gamesByStatus.scheduled.length} scheduled, ${gamesByStatus.in_progress.length} in progress, ${gamesByStatus.completed.length} completed`)
       
       let pendingPicks = 0
       let pendingAnonPicks = 0
+      let problematicPicks = 0
+      let problematicAnonPicks = 0
       
       if (gameIds.length > 0) {
+        // Get total pending picks (includes legitimate ones for scheduled/in-progress)
         const { count: picks } = await supabase
           .from('picks')
           .select('*', { count: 'exact', head: true })
           .in('game_id', gameIds)
           .is('result', null)
         
-        // Anonymous picks also filter by game_id since they may not have season/week columns
         const { count: anonPicks } = await supabase
           .from('anonymous_picks')
           .select('*', { count: 'exact', head: true })
@@ -270,6 +295,43 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
           
         pendingPicks = picks || 0
         pendingAnonPicks = anonPicks || 0
+        
+        // Get PROBLEMATIC pending picks (only for completed games)
+        if (gamesByStatus.completed.length > 0) {
+          const completedGameIds = gamesByStatus.completed.map(g => g.id)
+          
+          const { count: problematicPicksCount } = await supabase
+            .from('picks')
+            .select('*', { count: 'exact', head: true })
+            .in('game_id', completedGameIds)
+            .is('result', null)
+          
+          const { count: problematicAnonPicksCount } = await supabase
+            .from('anonymous_picks')
+            .select('*', { count: 'exact', head: true })
+            .in('game_id', completedGameIds)
+            .is('result', null)
+            
+          problematicPicks = problematicPicksCount || 0
+          problematicAnonPicks = problematicAnonPicksCount || 0
+          
+          if (problematicPicks > 0 || problematicAnonPicks > 0) {
+            console.warn(`[SCORE MGR] Found ${problematicPicks + problematicAnonPicks} PROBLEMATIC pending picks for completed games!`)
+            // Log which games have issues
+            for (const game of gamesByStatus.completed) {
+              const { count: gamePickCount } = await supabase
+                .from('picks')
+                .select('*', { count: 'exact', head: true })
+                .eq('game_id', game.id)
+                .is('result', null)
+              if (gamePickCount > 0) {
+                console.warn(`[SCORE MGR] - ${game.away_team} @ ${game.home_team}: ${gamePickCount} unprocessed picks`)
+              }
+            }
+          }
+        }
+        
+        console.log(`[SCORE MGR] Pick status: ${pendingPicks + pendingAnonPicks} total pending (${problematicPicks + problematicAnonPicks} problematic for completed games)`)
       }
 
       // Get latest updates from recent activity
@@ -300,8 +362,10 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
         lastPicksUpdate: recentPicks?.[0]?.updated_at ? new Date(recentPicks[0].updated_at) : null,
         lastLeaderboardUpdate: liveUpdateStatus?.lastPickProcessing?.lastUpdate || null,
         pendingScores: gamesWithoutScores,
-        pendingPicks: pendingPicks || 0,
-        pendingAnonPicks: pendingAnonPicks || 0,
+        // Use problematic picks (completed games only) instead of total pending
+        // This prevents false alarms from legitimate pending picks for scheduled/in-progress games
+        pendingPicks: problematicPicks || 0,
+        pendingAnonPicks: problematicAnonPicks || 0,
         totalGames: allGames?.length || 0
       })
     } catch (error) {

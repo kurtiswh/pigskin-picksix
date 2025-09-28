@@ -6,6 +6,8 @@ import { UserWeeklyBreakdown, WeeklyPerformance } from '@/services/leaderboardSe
 interface SeasonExpandedDetailsProps {
   data: UserWeeklyBreakdown
   isLoading?: boolean
+  asOfWeek?: number  // For historical context
+  currentWeek?: number  // To show how far back we're looking
 }
 
 interface WeeklyPerformanceCardProps {
@@ -60,7 +62,7 @@ function WeeklyPerformanceCard({ week, isBestWeek = false }: WeeklyPerformanceCa
   )
 }
 
-export function SeasonExpandedDetails({ data, isLoading = false }: SeasonExpandedDetailsProps) {
+export function SeasonExpandedDetails({ data, isLoading = false, asOfWeek, currentWeek }: SeasonExpandedDetailsProps) {
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -85,16 +87,36 @@ export function SeasonExpandedDetails({ data, isLoading = false }: SeasonExpande
   const totalPicks = data.weeks.reduce((sum, week) => sum + week.picks_made, 0)
   const bestWeek = data.weeks.find(week => week.best_week)
   const averagePoints = totalPicks > 0 ? (totalPoints / data.weeks.length).toFixed(1) : '0'
+  
+  // Historical context
+  const isHistorical = asOfWeek && currentWeek && asOfWeek < currentWeek
+  const contextText = isHistorical 
+    ? `Season performance as of Week ${asOfWeek}` 
+    : 'Current season performance'
 
   return (
     <div className="space-y-4">
       {/* Header with summary stats */}
-      <div className="bg-gradient-to-r from-[#4B3621]/5 to-[#C9A04E]/5 rounded-lg p-4 border border-[#4B3621]/10">
+      <div className={`rounded-lg p-4 border ${
+        isHistorical 
+          ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200' 
+          : 'bg-gradient-to-r from-[#4B3621]/5 to-[#C9A04E]/5 border-[#4B3621]/10'
+      }`}>
         <div className="flex items-center justify-between mb-3">
-          <h4 className="font-semibold text-gray-900">{data.display_name}'s Season Breakdown</h4>
-          <Badge variant="outline" className="bg-[#4B3621] text-white border-[#4B3621]">
-            {data.weeks.length} weeks
-          </Badge>
+          <div>
+            <h4 className="font-semibold text-gray-900">{data.display_name}'s Season Breakdown</h4>
+            <p className="text-sm text-gray-600 mt-1">{contextText}</p>
+          </div>
+          <div className="flex items-center space-x-2">
+            {isHistorical && (
+              <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
+                Historical
+              </Badge>
+            )}
+            <Badge variant="outline" className="bg-[#4B3621] text-white border-[#4B3621]">
+              {data.weeks.length} weeks
+            </Badge>
+          </div>
         </div>
         
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -124,9 +146,16 @@ export function SeasonExpandedDetails({ data, isLoading = false }: SeasonExpande
 
       {/* Weekly performance grid */}
       <div className="space-y-3">
-        <h5 className="font-medium text-gray-900 text-sm uppercase tracking-wide border-b border-gray-200 pb-1">
-          Weekly Performance
-        </h5>
+        <div className="flex items-center justify-between border-b border-gray-200 pb-1">
+          <h5 className="font-medium text-gray-900 text-sm uppercase tracking-wide">
+            Weekly Performance
+          </h5>
+          {isHistorical && (
+            <span className="text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded">
+              Through Week {asOfWeek}
+            </span>
+          )}
+        </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {data.weeks

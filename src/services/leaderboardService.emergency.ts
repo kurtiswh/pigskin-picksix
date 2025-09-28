@@ -244,32 +244,68 @@ export class EmergencyLeaderboardService {
     console.log('🚨 [EMERGENCY] Loading weekly breakdown for user', userId, 'season', season)
 
     try {
-      // Query picks grouped by week for this user
-      const query = supabase
+      // Query picks grouped by week for this user (include all picks, even without results)
+      const picksQuery = supabase
         .from('picks')
         .select(`
           week,
           result,
           points_earned,
-          is_lock,
-          users!inner(display_name)
+          is_lock
         `)
         .eq('user_id', userId)
         .eq('season', season)
-        .not('result', 'is', null)
         .order('week')
+      
+      // Also query anonymous picks that might be linked to this user
+      const anonPicksQuery = supabase
+        .from('anonymous_picks')
+        .select(`
+          week,
+          result,
+          points_earned,
+          is_lock
+        `)
+        .eq('assigned_user_id', userId)
+        .eq('season', season)
+        .order('week')
+      
+      // Get user display name separately to avoid relationship ambiguity
+      const userQuery = supabase
+        .from('users')
+        .select('display_name')
+        .eq('id', userId)
+        .single()
 
-      const { data: picks, error } = await Promise.race([
-        query,
+      const [picksResult, anonPicksResult, userResult] = await Promise.race([
+        Promise.all([picksQuery, anonPicksQuery, userQuery]),
         this.createTimeout(this.QUERY_TIMEOUT)
       ])
 
-      if (error) {
-        console.log('❌ [BREAKDOWN] Direct picks query failed:', error.message)
+      const { data: picks, error: picksError } = picksResult
+      const { data: anonPicks, error: anonPicksError } = anonPicksResult
+      const { data: user, error: userError } = userResult
+
+      if (picksError) {
+        console.log('❌ [BREAKDOWN] Direct picks query failed:', picksError.message)
         return null
       }
 
-      if (!picks || picks.length === 0) {
+      if (anonPicksError) {
+        console.log('⚠️ [BREAKDOWN] Anonymous picks query failed:', anonPicksError.message)
+        // Don't return null, just continue without anonymous picks
+      }
+
+      if (userError) {
+        console.log('❌ [BREAKDOWN] User query failed:', userError.message)
+        return null
+      }
+
+      // Combine authenticated and anonymous picks
+      const allPicks = [...(picks || []), ...(anonPicks || [])]
+      console.log(`🔍 [BREAKDOWN] Found ${picks?.length || 0} authenticated picks, ${anonPicks?.length || 0} anonymous picks`)
+
+      if (!allPicks || allPicks.length === 0) {
         console.log('❌ [BREAKDOWN] No picks found for user')
         return null
       }
@@ -285,7 +321,7 @@ export class EmergencyLeaderboardService {
         picks_made: number
       }>()
 
-      picks.forEach(pick => {
+      allPicks.forEach(pick => {
         if (!weeklyStatsMap.has(pick.week)) {
           weeklyStatsMap.set(pick.week, {
             wins: 0,
@@ -334,7 +370,7 @@ export class EmergencyLeaderboardService {
       
       return {
         user_id: userId,
-        display_name: picks[0]?.users?.display_name || 'Unknown User',
+        display_name: user?.display_name || 'Unknown User',
         weeks: weeks.sort((a, b) => a.week - b.week)
       }
 
