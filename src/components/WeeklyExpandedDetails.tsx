@@ -13,10 +13,11 @@ interface PickCardProps {
 }
 
 function getResultIcon(result: string | null, gameStatus: string) {
-  if (gameStatus === 'scheduled' || result === null) {
+  // Treat scheduled AND in_progress games as pending
+  if (gameStatus === 'scheduled' || gameStatus === 'in_progress' || result === null) {
     return <Clock className="w-4 h-4 text-gray-400" />
   }
-  
+
   switch (result) {
     case 'win':
       return <CheckCircle className="w-4 h-4 text-green-500" />
@@ -30,10 +31,11 @@ function getResultIcon(result: string | null, gameStatus: string) {
 }
 
 function getResultColor(result: string | null, gameStatus: string) {
-  if (gameStatus === 'scheduled' || result === null) {
+  // Treat scheduled AND in_progress games as pending
+  if (gameStatus === 'scheduled' || gameStatus === 'in_progress' || result === null) {
     return 'text-gray-600'
   }
-  
+
   switch (result) {
     case 'win':
       return 'text-green-700'
@@ -70,9 +72,11 @@ function PickCard({ pick }: PickCardProps) {
 
   return (
     <div className={`p-4 rounded-lg border transition-colors ${
-      pick.result === 'win' 
-        ? 'bg-green-50 border-green-200' 
-        : pick.result === 'loss' 
+      pick.game_status === 'in_progress' || pick.game_status === 'scheduled'
+        ? 'bg-white border-gray-200 hover:border-gray-300'
+        : pick.result === 'win'
+        ? 'bg-green-50 border-green-200'
+        : pick.result === 'loss'
         ? 'bg-red-50 border-red-200'
         : pick.result === 'push'
         ? 'bg-yellow-50 border-yellow-200'
@@ -112,7 +116,7 @@ function PickCard({ pick }: PickCardProps) {
           <span>{gameTime}</span>
         </div>
         
-        {pick.result && (
+        {pick.result && pick.game_status === 'completed' && (
           <div className={`font-medium uppercase tracking-wide ${getResultColor(pick.result, pick.game_status)}`}>
             {pick.result === 'push' ? 'Push' : pick.result}
           </div>
