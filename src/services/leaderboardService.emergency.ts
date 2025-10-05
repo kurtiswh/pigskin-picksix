@@ -258,6 +258,7 @@ export class EmergencyLeaderboardService {
         .order('week')
       
       // Also query anonymous picks that might be linked to this user
+      // Only include picks marked to show on leaderboard
       const anonPicksQuery = supabase
         .from('anonymous_picks')
         .select(`
@@ -268,6 +269,7 @@ export class EmergencyLeaderboardService {
         `)
         .eq('assigned_user_id', userId)
         .eq('season', season)
+        .eq('show_on_leaderboard', true)
         .order('week')
       
       // Get user display name separately to avoid relationship ambiguity
