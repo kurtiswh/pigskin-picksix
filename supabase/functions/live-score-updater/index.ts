@@ -181,25 +181,32 @@ serve(async (req) => {
           console.log(`   🎉 Game newly completed!`)
         }
 
-        // Process picks if we just set a winner for a completed game
-        if (updateData.winner_against_spread && updateData.status === 'completed') {
-          console.log(`   🎯 Processing picks for newly completed game with winner...`)
+        // Call database function to calculate winner and process picks
+        // This ensures we use the same logic as manual admin fixes
+        if (updateData.status === 'completed' && !dbGame.winner_against_spread) {
+          console.log(`   🎯 Calling database to calculate winner and process picks...`)
           try {
-            const { data: pickData, error: pickError } = await supabase
-              .rpc('process_picks_for_completed_game', {
+            const { data: scoringData, error: scoringError } = await supabase
+              .rpc('calculate_and_update_completed_game', {
                 game_id_param: dbGame.id
               })
 
-            if (pickError) {
-              errors.push(`Pick processing failed for ${dbGame.home_team}: ${pickError.message}`)
-              console.log(`   ⚠️ Pick processing failed: ${pickError.message}`)
-            } else if (pickData && pickData.length > 0) {
-              const { picks_updated, anonymous_picks_updated } = pickData[0]
-              console.log(`   ✅ Picks processed: ${picks_updated} picks, ${anonymous_picks_updated} anonymous picks`)
+            if (scoringError) {
+              errors.push(`Scoring failed for ${dbGame.home_team}: ${scoringError.message}`)
+              console.log(`   ❌ Scoring error: ${scoringError.message}`)
+            } else if (scoringData && scoringData.length > 0) {
+              const result = scoringData[0]
+              if (result.success) {
+                console.log(`   ✅ Winner: ${result.winner}, Bonus: ${result.margin_bonus}`)
+                console.log(`   ✅ Picks processed: ${result.picks_updated} picks, ${result.anonymous_picks_updated} anonymous picks`)
+              } else {
+                errors.push(`Scoring failed for ${dbGame.home_team}: ${result.error_message}`)
+                console.log(`   ❌ Scoring failed: ${result.error_message}`)
+              }
             }
-          } catch (pickProcessError: any) {
-            errors.push(`Pick processing error for ${dbGame.home_team}: ${pickProcessError.message}`)
-            console.log(`   ❌ Pick processing error: ${pickProcessError.message}`)
+          } catch (scoringException: any) {
+            errors.push(`Scoring exception for ${dbGame.home_team}: ${scoringException.message}`)
+            console.log(`   ❌ Scoring exception: ${scoringException.message}`)
           }
         }
 
@@ -340,20 +347,9 @@ function calculateUpdateData(dbGame: any, cfbdGame: CFBDScoreboardGame): any | n
     hasUpdates = true
   }
 
-  // Winner calculation - only for completed games without a winner
-  if ((cfbdGame.status === 'completed' || cfbdGame.completed === true) &&
-      !dbGame.winner_against_spread &&
-      cfbdHomeScore !== null && cfbdHomeScore !== undefined &&
-      cfbdAwayScore !== null && cfbdAwayScore !== undefined) {
-
-    const winnerData = calculateWinner(dbGame.home_team, dbGame.away_team, cfbdHomeScore, cfbdAwayScore, dbGame.spread || 0)
-    updates.winner_against_spread = winnerData.winner
-    updates.margin_bonus = winnerData.marginBonus
-    updates.base_points = 20
-    hasUpdates = true
-
-    console.log(`✅ WINNER SET: ${winnerData.winner}, Margin Bonus: ${winnerData.marginBonus}`)
-  }
+  // NOTE: Winner calculation is now handled by database function calculate_and_update_completed_game()
+  // Don't set winner here - the database function will handle it after game update
+  // This ensures we use the single source of truth for all scoring logic
 
   if (hasUpdates) {
     updates.updated_at = new Date().toISOString()
@@ -364,27 +360,7 @@ function calculateUpdateData(dbGame: any, cfbdGame: CFBDScoreboardGame): any | n
 }
 
 /**
- * Calculate winner against spread and margin bonus
+ * Winner calculation removed - now handled by database function
+ * calculate_and_update_completed_game() is the single source of truth
+ * This ensures consistency with manual admin fixes
  */
-function calculateWinner(homeTeam: string, awayTeam: string, homeScore: number, awayScore: number, spread: number) {
-  const homeMargin = homeScore - awayScore
-
-  let winner: string
-  let marginBonus = 0
-
-  if (Math.abs(homeMargin + spread) < 0.5) {
-    winner = 'push'
-  } else if (homeMargin + spread > 0) {
-    winner = homeTeam
-    if ((homeMargin + spread) >= 29) marginBonus = 5
-    else if ((homeMargin + spread) >= 20) marginBonus = 3
-    else if ((homeMargin + spread) >= 11) marginBonus = 1
-  } else {
-    winner = awayTeam
-    if (Math.abs(homeMargin + spread) >= 29) marginBonus = 5
-    else if (Math.abs(homeMargin + spread) >= 20) marginBonus = 3
-    else if (Math.abs(homeMargin + spread) >= 11) marginBonus = 1
-  }
-
-  return { winner, marginBonus }
-}

@@ -133,25 +133,32 @@ export class CFBDLiveUpdater {
             console.log(`   🎉 Game newly completed!`)
           }
           
-          // Process picks if we just set a winner for a completed game
-          if (updateData.winner_against_spread && updateData.status === 'completed') {
-            console.log(`   🎯 Processing picks for newly completed game with winner...`)
+          // Call database function to calculate winner and process picks
+          // This ensures we use the same logic as manual admin fixes (single source of truth)
+          if (updateData.status === 'completed' && !dbGame.winner_against_spread) {
+            console.log(`   🎯 Calling database to calculate winner and process picks...`)
             try {
-              const { data: pickData, error: pickError } = await supabase
-                .rpc('process_picks_for_completed_game', {
+              const { data: scoringData, error: scoringError } = await supabase
+                .rpc('calculate_and_update_completed_game', {
                   game_id_param: dbGame.id
                 })
-              
-              if (pickError) {
-                errors.push(`Pick processing failed for ${dbGame.home_team}: ${pickError.message}`)
-                console.log(`   ⚠️ Pick processing failed: ${pickError.message}`)
-              } else if (pickData && pickData.length > 0) {
-                const { picks_updated, anonymous_picks_updated } = pickData[0]
-                console.log(`   ✅ Picks processed: ${picks_updated} picks, ${anonymous_picks_updated} anonymous picks`)
+
+              if (scoringError) {
+                errors.push(`Scoring failed for ${dbGame.home_team}: ${scoringError.message}`)
+                console.log(`   ❌ Scoring error: ${scoringError.message}`)
+              } else if (scoringData && scoringData.length > 0) {
+                const result = scoringData[0]
+                if (result.success) {
+                  console.log(`   ✅ Winner: ${result.winner}, Bonus: ${result.margin_bonus}`)
+                  console.log(`   ✅ Picks processed: ${result.picks_updated} picks, ${result.anonymous_picks_updated} anonymous picks`)
+                } else {
+                  errors.push(`Scoring failed for ${dbGame.home_team}: ${result.error_message}`)
+                  console.log(`   ❌ Scoring failed: ${result.error_message}`)
+                }
               }
-            } catch (pickProcessError: any) {
-              errors.push(`Pick processing error for ${dbGame.home_team}: ${pickProcessError.message}`)
-              console.log(`   ❌ Pick processing error: ${pickProcessError.message}`)
+            } catch (scoringException: any) {
+              errors.push(`Scoring exception for ${dbGame.home_team}: ${scoringException.message}`)
+              console.log(`   ❌ Scoring exception: ${scoringException.message}`)
             }
           }
           
@@ -317,51 +324,9 @@ export class CFBDLiveUpdater {
       hasUpdates = true
     }
     
-    // 🚨 RACE CONDITION PREVENTION: Check if winner already exists
-    if (dbGame.winner_against_spread) {
-      console.log(`⚠️ CONFLICT DETECTED: ${dbGame.home_team} already has winner: ${dbGame.winner_against_spread}`)
-      console.log(`   🔍 This suggests competing calculation paths are still active!`)
-    }
-
-    // Winner calculation ONLY for games that are definitively completed by CFBD with valid scores
-    // Only calculate winner if:
-    // 1. CFBD explicitly says the game is completed
-    // 2. We don't already have a winner calculated (to prevent race conditions)
-    // 3. We have actual scores from CFBD (not null/undefined)
-    if ((cfbdGame.status === 'completed' || cfbdGame.completed === true) &&
-        !dbGame.winner_against_spread && 
-        cfbdHomeScore !== null && cfbdHomeScore !== undefined &&
-        cfbdAwayScore !== null && cfbdAwayScore !== undefined) {
-      console.log(`🎯 SINGLE SOURCE WINNER CALCULATION for ${dbGame.home_team}:`, {
-        cfbdStatus: cfbdGame.status,
-        cfbdCompleted: cfbdGame.completed,
-        currentWinner: dbGame.winner_against_spread,
-        cfbdHomeScore,
-        cfbdAwayScore,
-        combinedScore: cfbdHomeScore + cfbdAwayScore,
-        spread: dbGame.spread,
-        timestamp: new Date().toISOString()
-      })
-      
-      const winnerData = this.calculateWinner(dbGame.home_team, dbGame.away_team, cfbdHomeScore, cfbdAwayScore, dbGame.spread || 0)
-      updates.winner_against_spread = winnerData.winner
-      updates.margin_bonus = winnerData.marginBonus
-      updates.base_points = 20
-      hasUpdates = true
-      
-      console.log(`✅ AUTHORITATIVE WINNER SET: ${winnerData.winner}, Margin: ${winnerData.marginBonus}, Base: 20`)
-      
-      // Log detailed calculation for push detection
-      if (winnerData.winner === 'push') {
-        console.log(`🟡 PUSH DETECTED: ${dbGame.away_team} @ ${dbGame.home_team}`)
-        console.log(`   Final: ${cfbdAwayScore}-${cfbdHomeScore}, Spread: ${dbGame.spread}`)
-        console.log(`   Margin: ${cfbdHomeScore - cfbdAwayScore}, Adjusted: ${(cfbdHomeScore - cfbdAwayScore) + (dbGame.spread || 0)}`)
-      }
-    } else if ((cfbdGame.status === 'completed' || cfbdGame.completed === true) &&
-               dbGame.winner_against_spread) {
-      console.log(`⏭️ WINNER ALREADY SET: ${dbGame.home_team} winner = ${dbGame.winner_against_spread}`)
-      console.log(`   📊 Not recalculating to maintain consistency`)
-    }
+    // NOTE: Winner calculation is now handled by database function
+    // Don't calculate winner here - it will be done after the game update
+    // This ensures single source of truth matching manual admin fixes
     
     if (hasUpdates) {
       updates.updated_at = new Date().toISOString()
@@ -372,30 +337,8 @@ export class CFBDLiveUpdater {
   }
   
   /**
-   * Calculate winner against spread and margin bonus
+   * Winner calculation removed - now handled by database function
+   * calculate_and_update_completed_game() is the single source of truth
+   * This ensures consistency with manual admin fixes
    */
-  private static calculateWinner(homeTeam: string, awayTeam: string, homeScore: number, awayScore: number, spread: number) {
-    const homeMargin = homeScore - awayScore
-    
-    let winner: string
-    let marginBonus = 0
-    
-    if (Math.abs(homeMargin + spread) < 0.5) {
-      winner = 'push'
-    } else if (homeMargin + spread > 0) {
-      winner = homeTeam
-      // Calculate margin bonus for home team win
-      if ((homeMargin + spread) >= 29) marginBonus = 5
-      else if ((homeMargin + spread) >= 20) marginBonus = 3
-      else if ((homeMargin + spread) >= 11) marginBonus = 1
-    } else {
-      winner = awayTeam
-      // Calculate margin bonus for away team win
-      if (Math.abs(homeMargin + spread) >= 29) marginBonus = 5
-      else if (Math.abs(homeMargin + spread) >= 20) marginBonus = 3
-      else if (Math.abs(homeMargin + spread) >= 11) marginBonus = 1
-    }
-    
-    return { winner, marginBonus }
-  }
 }
