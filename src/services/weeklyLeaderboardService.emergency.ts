@@ -260,24 +260,73 @@ export class EmergencyWeeklyLeaderboardService {
     console.log('🚨 [WEEKLY EMERGENCY] Loading picks for user', userId, 'season', season, 'week', week)
 
     try {
-      // Strategy 1: Try authenticated picks first
-      console.log('📊 [WEEKLY PICKS] Trying authenticated picks first...')
+      // Fetch both authenticated and anonymous picks
+      console.log('📊 [WEEKLY PICKS] Fetching both authenticated and anonymous picks...')
       const authenticatedResult = await this.getAuthenticatedUserPicks(userId, season, week)
-      if (authenticatedResult) {
-        console.log('✅ [WEEKLY PICKS] Found authenticated picks:', authenticatedResult.picks.length, 'picks')
+      const anonymousResult = await this.getAnonymousUserPicks(userId, season, week)
+
+      // If no picks found at all
+      if (!authenticatedResult && !anonymousResult) {
+        console.log('❌ [WEEKLY PICKS] No picks found for user')
+        return null
+      }
+
+      // If only authenticated picks exist
+      if (authenticatedResult && !anonymousResult) {
+        console.log('✅ [WEEKLY PICKS] Found only authenticated picks:', authenticatedResult.picks.length)
         return authenticatedResult
       }
 
-      // Strategy 2: Fall back to anonymous picks
-      console.log('📊 [WEEKLY PICKS] No authenticated picks found, trying anonymous picks...')
-      const anonymousResult = await this.getAnonymousUserPicks(userId, season, week)
-      if (anonymousResult) {
-        console.log('✅ [WEEKLY PICKS] Found anonymous picks:', anonymousResult.picks.length, 'picks')
+      // If only anonymous picks exist
+      if (anonymousResult && !authenticatedResult) {
+        console.log('✅ [WEEKLY PICKS] Found only anonymous picks:', anonymousResult.picks.length)
         return anonymousResult
       }
 
-      console.log('❌ [WEEKLY PICKS] No picks found for user (tried both authenticated and anonymous)')
-      return null
+      // MIXED CASE: Combine both pick sets, avoiding duplicates by game_id
+      // Anonymous picks are already filtered by show_on_leaderboard = TRUE
+      console.log('🔀 [WEEKLY PICKS] MIXED pick set detected - combining picks')
+      const authPicks = authenticatedResult!.picks
+      const anonPicks = anonymousResult!.picks
+
+      // Create a map of game_id -> pick (authenticated picks take priority)
+      const picksByGameId = new Map<string, WeeklyPickDetail>()
+
+      // Add anonymous picks first
+      anonPicks.forEach(pick => {
+        picksByGameId.set(pick.game_id, pick)
+      })
+
+      // Overlay authenticated picks (these override anonymous if same game)
+      authPicks.forEach(pick => {
+        picksByGameId.set(pick.game_id, pick)
+      })
+
+      // Convert back to array and sort by kickoff time
+      const combinedPicks = Array.from(picksByGameId.values()).sort((a, b) =>
+        new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime()
+      )
+
+      // Recalculate statistics for combined picks
+      const totalPoints = combinedPicks.reduce((sum, pick) => sum + pick.points_earned, 0)
+      const wins = combinedPicks.filter(p => p.result === 'win').length
+      const losses = combinedPicks.filter(p => p.result === 'loss').length
+      const pushes = combinedPicks.filter(p => p.result === 'push').length
+      const lockWins = combinedPicks.filter(p => p.result === 'win' && p.is_lock).length
+      const lockLosses = combinedPicks.filter(p => p.result === 'loss' && p.is_lock).length
+
+      console.log('✅ [WEEKLY PICKS] Combined:', authPicks.length, 'auth +', anonPicks.length, 'anon =', combinedPicks.length, 'total')
+
+      return {
+        user_id: userId,
+        display_name: authenticatedResult!.display_name,
+        week: week,
+        season: season,
+        picks: combinedPicks,
+        total_points: totalPoints,
+        weekly_record: `${wins}-${losses}-${pushes}`,
+        lock_record: `${lockWins}-${lockLosses}`
+      }
 
     } catch (error) {
       console.log('❌ [WEEKLY PICKS] Error loading weekly picks:', error.message)
