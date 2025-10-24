@@ -787,17 +787,21 @@ export default function TabbedLeaderboard() {
   function exportSeasonToCSV() {
     if (seasonData.length === 0) return
 
-    const headers = ['Rank', 'Player', 'Points', 'Record (W-L-P)', 'Lock Record (W-L)']
+    const headers = ['Rank', 'User ID', 'Player', 'Points', 'Wins', 'Losses', 'Pushes', 'Lock Wins', 'Lock Losses']
     const csvRows = [headers.join(',')]
 
     seasonData.forEach((entry, index) => {
       const rank = index + 1
+      const userId = entry.user_id
       const name = `"${entry.display_name}"`
-      const points = entry.total_points
-      const record = `"${entry.season_record}"`
-      const lockRecord = `"${entry.lock_record}"`
+      const points = ('season_points' in entry ? entry.season_points : entry.total_points) || 0
+      const wins = ('total_wins' in entry ? entry.total_wins : 0) || 0
+      const losses = ('total_losses' in entry ? entry.total_losses : 0) || 0
+      const pushes = ('total_pushes' in entry ? entry.total_pushes : 0) || 0
+      const lockWins = ('lock_wins' in entry ? entry.lock_wins : 0) || 0
+      const lockLosses = ('lock_losses' in entry ? entry.lock_losses : 0) || 0
 
-      csvRows.push([rank, name, points, record, lockRecord].join(','))
+      csvRows.push([rank, userId, name, points, wins, losses, pushes, lockWins, lockLosses].join(','))
     })
 
     const csvContent = csvRows.join('\n')
@@ -820,17 +824,21 @@ export default function TabbedLeaderboard() {
   function exportWeeklyToCSV() {
     if (weeklyData.length === 0 || !selectedWeek) return
 
-    const headers = ['Rank', 'Player', 'Points', 'Record (W-L-P)', 'Lock Record (W-L)']
+    const headers = ['Rank', 'User ID', 'Player', 'Points', 'Wins', 'Losses', 'Pushes', 'Lock Wins', 'Lock Losses']
     const csvRows = [headers.join(',')]
 
     weeklyData.forEach((entry, index) => {
       const rank = index + 1
+      const userId = entry.user_id
       const name = `"${entry.display_name}"`
-      const points = entry.total_points
-      const record = `"${entry.weekly_record}"`
-      const lockRecord = `"${entry.lock_record}"`
+      const points = entry.total_points || 0
+      const wins = entry.wins || 0
+      const losses = entry.losses || 0
+      const pushes = entry.pushes || 0
+      const lockWins = entry.lock_wins || 0
+      const lockLosses = entry.lock_losses || 0
 
-      csvRows.push([rank, name, points, record, lockRecord].join(','))
+      csvRows.push([rank, userId, name, points, wins, losses, pushes, lockWins, lockLosses].join(','))
     })
 
     const csvContent = csvRows.join('\n')

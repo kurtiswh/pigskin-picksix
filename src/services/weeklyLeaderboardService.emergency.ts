@@ -8,6 +8,11 @@ export interface EmergencyWeeklyLeaderboardEntry {
   weekly_record: string
   lock_record: string
   week: number
+  wins?: number
+  losses?: number
+  pushes?: number
+  lock_wins?: number
+  lock_losses?: number
   pick_source?: 'authenticated' | 'anonymous' | 'mixed'
   payment_status?: 'Paid' | 'NotPaid' | 'Pending'
   is_verified?: boolean
@@ -199,6 +204,11 @@ export class EmergencyWeeklyLeaderboardService {
       weekly_record: `${entry.wins || 0}-${entry.losses || 0}-${entry.pushes || 0}`,
       lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
       week: week,
+      wins: entry.wins || 0,
+      losses: entry.losses || 0,
+      pushes: entry.pushes || 0,
+      lock_wins: entry.lock_wins || 0,
+      lock_losses: entry.lock_losses || 0,
       pick_source: entry.pick_source || 'authenticated'
     }))
   }

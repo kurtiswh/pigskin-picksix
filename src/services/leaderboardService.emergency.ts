@@ -7,6 +7,11 @@ export interface EmergencyLeaderboardEntry {
   total_points: number
   season_record: string
   lock_record: string
+  total_wins?: number
+  total_losses?: number
+  total_pushes?: number
+  lock_wins?: number
+  lock_losses?: number
   pick_source?: 'authenticated' | 'anonymous' | 'mixed'
   payment_status?: 'Paid' | 'NotPaid' | 'Pending'
   is_verified?: boolean
@@ -199,6 +204,11 @@ export class EmergencyLeaderboardService {
       total_points: entry.total_points || 0,
       season_record: `${entry.total_wins || 0}-${entry.total_losses || 0}-${entry.total_pushes || 0}`,
       lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
+      total_wins: entry.total_wins || 0,
+      total_losses: entry.total_losses || 0,
+      total_pushes: entry.total_pushes || 0,
+      lock_wins: entry.lock_wins || 0,
+      lock_losses: entry.lock_losses || 0,
       pick_source: entry.pick_source || 'authenticated'
     }))
   }
