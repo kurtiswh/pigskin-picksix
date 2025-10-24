@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
+import { Download } from 'lucide-react'
 import { EmergencyLeaderboardService, EmergencyLeaderboardEntry, UserWeeklyBreakdown } from '@/services/leaderboardService.emergency'
 import { ProductionLeaderboardService, ProductionLeaderboardEntry } from '@/services/leaderboardService.production'
 import { EmergencyWeeklyLeaderboardService, EmergencyWeeklyLeaderboardEntry, UserWeeklyPicks } from '@/services/weeklyLeaderboardService.emergency'
@@ -687,10 +688,24 @@ export default function TabbedLeaderboard() {
           
           <Card>
             <CardHeader>
-              <CardTitle>
-                Season {season} Standings
-                {selectedSeasonWeek !== 'current' && ` - Through Week ${selectedSeasonWeek}`}
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>
+                  Season {season} Standings
+                  {selectedSeasonWeek !== 'current' && ` - Through Week ${selectedSeasonWeek}`}
+                </CardTitle>
+                {isAdmin && (
+                  <Button
+                    onClick={exportSeasonToCSV}
+                    size="sm"
+                    variant="outline"
+                    className="flex items-center gap-2"
+                    disabled={seasonData.length === 0}
+                  >
+                    <Download className="w-4 h-4" />
+                    Export CSV
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {renderLeaderboardContent(seasonData, 'season')}
@@ -719,7 +734,21 @@ export default function TabbedLeaderboard() {
           
           <Card>
             <CardHeader>
-              <CardTitle>Week {selectedWeek} Results</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Week {selectedWeek} Results</CardTitle>
+                {isAdmin && (
+                  <Button
+                    onClick={exportWeeklyToCSV}
+                    size="sm"
+                    variant="outline"
+                    className="flex items-center gap-2"
+                    disabled={weeklyData.length === 0 || !selectedWeek}
+                  >
+                    <Download className="w-4 h-4" />
+                    Export CSV
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {renderLeaderboardContent(weeklyData, 'weekly')}
@@ -753,6 +782,69 @@ export default function TabbedLeaderboard() {
       )}
     </div>
   )
+
+  // CSV Export Functions
+  function exportSeasonToCSV() {
+    if (seasonData.length === 0) return
+
+    const headers = ['Rank', 'Player', 'Points', 'Record (W-L-P)', 'Lock Record (W-L)']
+    const csvRows = [headers.join(',')]
+
+    seasonData.forEach((entry, index) => {
+      const rank = index + 1
+      const name = `"${entry.display_name}"`
+      const points = entry.total_points
+      const record = `"${entry.season_record}"`
+      const lockRecord = `"${entry.lock_record}"`
+
+      csvRows.push([rank, name, points, record, lockRecord].join(','))
+    })
+
+    const csvContent = csvRows.join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+
+    const weekLabel = selectedSeasonWeek === 'current'
+      ? 'current'
+      : `through-week-${selectedSeasonWeek}`
+
+    link.setAttribute('href', url)
+    link.setAttribute('download', `season-${season}-leaderboard-${weekLabel}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  function exportWeeklyToCSV() {
+    if (weeklyData.length === 0 || !selectedWeek) return
+
+    const headers = ['Rank', 'Player', 'Points', 'Record (W-L-P)', 'Lock Record (W-L)']
+    const csvRows = [headers.join(',')]
+
+    weeklyData.forEach((entry, index) => {
+      const rank = index + 1
+      const name = `"${entry.display_name}"`
+      const points = entry.total_points
+      const record = `"${entry.weekly_record}"`
+      const lockRecord = `"${entry.lock_record}"`
+
+      csvRows.push([rank, name, points, record, lockRecord].join(','))
+    })
+
+    const csvContent = csvRows.join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+
+    link.setAttribute('href', url)
+    link.setAttribute('download', `week-${selectedWeek}-leaderboard.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   function renderLeaderboardContent(data: any[], tabType: 'season' | 'weekly') {
     if (loading) {

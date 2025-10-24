@@ -9,7 +9,10 @@
       "Bash(node:*)",
       "Bash(git add:*)",
       "Bash(git push:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(export SUPABASE_ACCESS_TOKEN=\"sbp_580ff8be644dd8213122a6cbc98914abfee0eb04\")",
+      "Bash(npx supabase link:*)",
+      "Bash(psql:*)"
     ],
     "deny": [],
     "ask": []

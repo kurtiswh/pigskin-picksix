@@ -1,0 +1,137 @@
+# EASY COPY-PASTE DEPLOYMENT INSTRUCTIONS
+
+## Step 1: Deploy Edge Functions via Supabase Dashboard
+
+Go to: https://supabase.com/dashboard/project/zgdaqbnpgrabbxljmiqy/functions
+
+---
+
+### FUNCTION 1: live-score-updater
+
+1. Click "New Edge Function"
+2. Name: live-score-updater
+3. Copy EVERYTHING from this file and paste:
+   supabase/functions/live-score-updater/index.ts
+4. Click "Deploy"
+5. After deploy, go to Settings → Secrets and add:
+   - CFBD_API_KEY = (your key from collegefootballdata.com)
+   - SUPABASE_URL = https://zgdaqbnpgrabbxljmiqy.supabase.co
+   - SUPABASE_SERVICE_ROLE_KEY = (from Supabase Dashboard → Settings → API)
+
+---
+
+### FUNCTION 2: update-game-stats
+
+1. Click "New Edge Function"
+2. Name: update-game-stats
+3. Copy EVERYTHING from this file and paste:
+   supabase/functions/update-game-stats/index.ts
+4. Click "Deploy"
+5. After deploy, go to Settings → Secrets and add:
+   - SUPABASE_URL = https://zgdaqbnpgrabbxljmiqy.supabase.co
+   - SUPABASE_SERVICE_ROLE_KEY = (same as above)
+
+---
+
+## Step 2: Setup Cron Jobs
+
+Go to: https://supabase.com/dashboard/project/zgdaqbnpgrabbxljmiqy/sql/new
+
+Run these SQL commands ONE AT A TIME:
+
+---
+
+### SQL 1: Enable pg_cron
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+```
+
+---
+
+### SQL 2: Schedule Live Scoring Thu-Sat
+
+REPLACE "YOUR_SERVICE_ROLE_KEY" with your actual key!
+
+```sql
+SELECT cron.schedule(
+  'live-scoring-thu-sat',
+  '*/5 0-5 * * 5-7',
+  $$
+  SELECT
+    net.http_post(
+      url := 'https://zgdaqbnpgrabbxljmiqy.supabase.co/functions/v1/live-score-updater',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer YOUR_SERVICE_ROLE_KEY'
+      ),
+      body := '{}'::jsonb
+    ) as request_id;
+  $$
+);
+```
+
+---
+
+### SQL 3: Schedule Live Scoring Sunday
+
+```sql
+SELECT cron.schedule(
+  'live-scoring-sunday',
+  '*/5 6-13 * * 0',
+  $$
+  SELECT
+    net.http_post(
+      url := 'https://zgdaqbnpgrabbxljmiqy.supabase.co/functions/v1/live-score-updater',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer YOUR_SERVICE_ROLE_KEY'
+      ),
+      body := '{}'::jsonb
+    ) as request_id;
+  $$
+);
+```
+
+---
+
+### SQL 4: Schedule Game Statistics (Sat 11am)
+
+```sql
+SELECT cron.schedule(
+  'update-game-statistics',
+  '0 16 * * 6',
+  $$
+  SELECT
+    net.http_post(
+      url := 'https://zgdaqbnpgrabbxljmiqy.supabase.co/functions/v1/update-game-stats',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer YOUR_SERVICE_ROLE_KEY'
+      ),
+      body := '{}'::jsonb
+    ) as request_id;
+  $$
+);
+```
+
+---
+
+## Step 3: Verify It Works
+
+Run this SQL to check cron jobs are scheduled:
+
+```sql
+SELECT * FROM cron.job;
+```
+
+You should see 3 jobs!
+
+---
+
+## DONE! 🎉
+
+Your system will now automatically:
+✅ Update live scores every 5 minutes during game hours
+✅ Update game statistics every Saturday at 11am CT
+✅ Work 24/7 without any manual intervention
+
