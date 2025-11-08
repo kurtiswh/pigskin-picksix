@@ -1,0 +1,93 @@
+name: Auto Update Games
+
+on:
+  schedule:
+    # Live scoring: Every 5 minutes during game hours
+    # Thu 6pm - Sat 11:59pm CT = Fri 00:00 - Sun 05:59 UTC
+    - cron: '*/5 0-5 * * 5,6,0'
+
+    # Live scoring: Sunday morning
+    # Sun 12am - 8am CT = Sun 06:00 - 13:59 UTC
+    - cron: '*/5 6-13 * * 0'
+
+    # Game statistics: Saturday 11am CT = Saturday 16:00 UTC
+    - cron: '0 16 * * 6'
+
+  # Allow manual triggering for testing
+  workflow_dispatch:
+    inputs:
+      function:
+        description: 'Which function to trigger'
+        required: true
+        type: choice
+        options:
+          - live-score-updater
+          - update-game-stats
+          - both
+
+jobs:
+  update-games:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Determine which function to call
+        id: determine-function
+        run: |
+          # For scheduled runs, determine based on time
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            HOUR=$(date -u +%H)
+            DAY=$(date -u +%u)  # 1=Monday, 7=Sunday
+
+            # Game statistics run on Saturday at 16:00 UTC
+            if [ "$DAY" = "6" ] && [ "$HOUR" = "16" ]; then
+              echo "function=update-game-stats" >> $GITHUB_OUTPUT
+            else
+              # All other times are live scoring
+              echo "function=live-score-updater" >> $GITHUB_OUTPUT
+            fi
+          else
+            # Manual trigger
+            echo "function=${{ github.event.inputs.function }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Call live-score-updater Edge Function
+        if: steps.determine-function.outputs.function == 'live-score-updater' || steps.determine-function.outputs.function == 'both'
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            https://zgdaqbnpgrabbxljmiqy.supabase.co/functions/v1/live-score-updater \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+
+          if [ "$http_code" != "200" ]; then
+            echo "❌ Live score updater failed with status $http_code"
+            exit 1
+          fi
+
+          echo "✅ Live score updater succeeded"
+
+      - name: Call update-game-stats Edge Function
+        if: steps.determine-function.outputs.function == 'update-game-stats' || steps.determine-function.outputs.function == 'both'
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            https://zgdaqbnpgrabbxljmiqy.supabase.co/functions/v1/update-game-stats \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+
+          if [ "$http_code" != "200" ]; then
+            echo "❌ Game stats updater failed with status $http_code"
+            exit 1
+          fi
+
+          echo "✅ Game stats updater succeeded"
