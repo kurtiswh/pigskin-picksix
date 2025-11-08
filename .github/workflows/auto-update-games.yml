@@ -56,7 +56,7 @@ jobs:
           echo "🔄 Calling live-score-updater..."
 
           response=$(curl -s -w "\n%{http_code}" -X POST \
-            https://zgdaqbnpgrabbxljmiqy.supabase.co/functions/v1/live-score-updater \
+            https://zgdaqbnpgrabbnljmiqy.supabase.co/functions/v1/live-score-updater \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             -H "Content-Type: application/json" \
             --max-time 120)
@@ -81,7 +81,7 @@ jobs:
           echo "🔄 Calling update-game-stats..."
 
           response=$(curl -s -w "\n%{http_code}" -X POST \
-            https://zgdaqbnpgrabbxljmiqy.supabase.co/functions/v1/update-game-stats \
+            https://zgdaqbnpgrabbnljmiqy.supabase.co/functions/v1/update-game-stats \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             -H "Content-Type: application/json" \
             --max-time 120)
