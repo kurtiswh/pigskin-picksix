@@ -1712,6 +1712,9 @@ function GameScoreCard({ game, onManualUpdate, getStatusColor, formatTime }: Gam
   const [homeScore, setHomeScore] = useState(game.home_score?.toString() || '')
   const [awayScore, setAwayScore] = useState(game.away_score?.toString() || '')
   const [isEditing, setIsEditing] = useState(false)
+  const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const [diagnosticData, setDiagnosticData] = useState<any>(null)
+  const [loadingDiagnostics, setLoadingDiagnostics] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -1721,11 +1724,55 @@ function GameScoreCard({ game, onManualUpdate, getStatusColor, formatTime }: Gam
     setIsEditing(false)
   }
 
+  const loadDiagnostics = async () => {
+    if (diagnosticData) {
+      // Already loaded, just toggle
+      setShowDiagnostics(!showDiagnostics)
+      return
+    }
+
+    setLoadingDiagnostics(true)
+    try {
+      // Fetch picks and anonymous picks for this game
+      const [picksRes, anonPicksRes, gameDetailRes] = await Promise.all([
+        supabase.from('picks').select('*').eq('game_id', game.id),
+        supabase.from('anonymous_picks').select('*').eq('game_id', game.id),
+        supabase.from('games').select('winner_against_spread, margin_bonus, home_team_picks, away_team_picks, home_team_locks, away_team_locks').eq('id', game.id).single()
+      ])
+
+      const picks = picksRes.data || []
+      const anonPicks = anonPicksRes.data || []
+      const gameDetail = gameDetailRes.data
+
+      // Calculate expected values using scoreCalculation logic
+      const calculated = calculateGameDiagnostics(game, picks, anonPicks)
+
+      setDiagnosticData({
+        picks,
+        anonPicks,
+        gameDetail,
+        calculated
+      })
+      setShowDiagnostics(true)
+    } catch (error) {
+      console.error('Error loading diagnostics:', error)
+    } finally {
+      setLoadingDiagnostics(false)
+    }
+  }
+
   return (
     <div className="border rounded-lg p-4 hover:bg-gray-50">
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <div className="flex items-center space-x-4">
+            <button
+              onClick={loadDiagnostics}
+              className="text-gray-400 hover:text-gray-600 transition-transform"
+              style={{ transform: showDiagnostics ? 'rotate(90deg)' : 'rotate(0deg)' }}
+            >
+              {showDiagnostics ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
             <div className="font-medium">
               {game.away_team} @ {game.home_team}
             </div>
@@ -1734,7 +1781,7 @@ function GameScoreCard({ game, onManualUpdate, getStatusColor, formatTime }: Gam
             </span>
             {game.spread && (
               <span className="text-sm text-gray-600">
-                {game.spread > 0 ? `${game.home_team} -${game.spread.toFixed(1)}` : `${game.away_team} -${Math.abs(game.spread).toFixed(1)}`}
+                {game.spread > 0 ? `${game.home_team} +${game.spread.toFixed(1)}` : `${game.home_team} ${game.spread.toFixed(1)}`}
               </span>
             )}
           </div>
@@ -1774,10 +1821,10 @@ function GameScoreCard({ game, onManualUpdate, getStatusColor, formatTime }: Gam
               <Button type="submit" size="sm" className="h-8">
                 ✓
               </Button>
-              <Button 
-                type="button" 
-                size="sm" 
-                variant="outline" 
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
                 className="h-8"
                 onClick={() => setIsEditing(false)}
               >
@@ -1794,6 +1841,202 @@ function GameScoreCard({ game, onManualUpdate, getStatusColor, formatTime }: Gam
               Edit Score
             </Button>
           )}
+        </div>
+      </div>
+
+      {/* Diagnostic Details */}
+      {showDiagnostics && (
+        <div className="mt-4 pt-4 border-t space-y-4">
+          {loadingDiagnostics ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="w-6 h-6 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : diagnosticData && (
+            <GameDiagnostics game={game} data={diagnosticData} />
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Helper function to calculate expected diagnostic values
+function calculateGameDiagnostics(game: Game, picks: any[], anonPicks: any[]) {
+  if (game.home_score === null || game.away_score === null) {
+    return null
+  }
+
+  // Calculate winner against spread using scoreCalculation logic
+  const actualMargin = game.home_score - game.away_score
+  const adjustedMargin = actualMargin + game.spread
+
+  let winnerATS: string
+  if (Math.abs(adjustedMargin) < 0.5) {
+    winnerATS = 'push'
+  } else if (adjustedMargin > 0) {
+    winnerATS = game.home_team
+  } else {
+    winnerATS = game.away_team
+  }
+
+  // Calculate margin bonus
+  const coverMargin = Math.abs(adjustedMargin)
+  let marginBonus = 0
+  if (winnerATS !== 'push') {
+    if (coverMargin >= 29) {
+      marginBonus = 5
+    } else if (coverMargin >= 20) {
+      marginBonus = 3
+    } else if (coverMargin >= 11) {
+      marginBonus = 1
+    }
+  }
+
+  // Calculate expected points for each pick type
+  const expectedPoints = {
+    homeRegular: winnerATS === 'push' ? 10 : (winnerATS === game.home_team ? 20 + marginBonus : 0),
+    homeLock: winnerATS === 'push' ? 10 : (winnerATS === game.home_team ? 20 + (marginBonus * 2) : 0),
+    awayRegular: winnerATS === 'push' ? 10 : (winnerATS === game.away_team ? 20 + marginBonus : 0),
+    awayLock: winnerATS === 'push' ? 10 : (winnerATS === game.away_team ? 20 + (marginBonus * 2) : 0)
+  }
+
+  return {
+    winnerATS,
+    marginBonus,
+    coverMargin: winnerATS !== 'push' ? coverMargin.toFixed(1) : '0.0',
+    expectedPoints
+  }
+}
+
+// Diagnostic display component
+function GameDiagnostics({ game, data }: { game: Game; data: any }) {
+  const { calculated, gameDetail, picks, anonPicks } = data
+
+  if (!calculated) {
+    return <div className="text-gray-500 text-sm">Game not completed - no diagnostics available</div>
+  }
+
+  // Check if Winner ATS matches
+  const winnerATSMismatch = calculated.winnerATS !== gameDetail?.winner_against_spread
+
+  // Analyze actual points stored for each pick type
+  const allPicksData = [...picks, ...anonPicks]
+
+  const pickAnalysis = {
+    homeRegular: new Map<number, number>(), // points -> count
+    homeLock: new Map<number, number>(),
+    awayRegular: new Map<number, number>(),
+    awayLock: new Map<number, number>()
+  }
+
+  allPicksData.forEach(pick => {
+    const isHome = pick.selected_team === game.home_team
+    const isLock = pick.is_lock
+    const points = pick.points_earned ?? 0
+
+    let category: 'homeRegular' | 'homeLock' | 'awayRegular' | 'awayLock'
+    if (isHome && isLock) category = 'homeLock'
+    else if (isHome && !isLock) category = 'homeRegular'
+    else if (!isHome && isLock) category = 'awayLock'
+    else category = 'awayRegular'
+
+    pickAnalysis[category].set(points, (pickAnalysis[category].get(points) || 0) + 1)
+  })
+
+  // Check for errors in each category
+  const hasError = (category: keyof typeof pickAnalysis, expectedPoints: number) => {
+    const storedValues = pickAnalysis[category]
+    if (storedValues.size === 0) return false
+    if (storedValues.size > 1) return true // Multiple different values
+    return !storedValues.has(expectedPoints) // Doesn't match expected
+  }
+
+  const anyPointsError =
+    hasError('homeRegular', calculated.expectedPoints.homeRegular) ||
+    hasError('homeLock', calculated.expectedPoints.homeLock) ||
+    hasError('awayRegular', calculated.expectedPoints.awayRegular) ||
+    hasError('awayLock', calculated.expectedPoints.awayLock)
+
+  const renderPickGroup = (
+    teamName: string,
+    lockStatus: string,
+    category: keyof typeof pickAnalysis,
+    expectedPoints: number
+  ) => {
+    const storedValues = pickAnalysis[category]
+    const hasIssue = hasError(category, expectedPoints)
+    const totalPicks = Array.from(storedValues.values()).reduce((sum, count) => sum + count, 0)
+
+    if (totalPicks === 0) {
+      return (
+        <div className="bg-gray-50 border border-gray-300 rounded p-2">
+          <div className="font-medium text-xs text-gray-600 mb-1">{teamName} ({lockStatus})</div>
+          <div className="text-gray-400 text-xs">No picks</div>
+        </div>
+      )
+    }
+
+    return (
+      <div className={`border rounded p-2 ${hasIssue ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-300'}`}>
+        <div className="font-medium text-xs text-gray-600 mb-1">{teamName} ({lockStatus})</div>
+        <div className="space-y-1">
+          <div className="text-xs">
+            <span className="font-medium">Expected:</span> {expectedPoints} pts
+          </div>
+          <div className="text-xs">
+            <span className="font-medium">Stored:</span>
+            <div className="ml-2 mt-0.5">
+              {Array.from(storedValues.entries()).map(([points, count]) => {
+                const isCorrect = points === expectedPoints
+                return (
+                  <div key={points} className={isCorrect ? 'text-green-700' : 'text-red-700 font-semibold'}>
+                    {points} pts ({count} {count === 1 ? 'pick' : 'picks'}) {isCorrect ? '✓' : '❌'}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3 text-sm">
+      {/* Winner ATS Check */}
+      <div className={`border rounded p-2 ${winnerATSMismatch ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-300'}`}>
+        <div className="font-semibold mb-2">Winner Against The Spread</div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <span className="font-medium">Calculated:</span> <span className="ml-1">{calculated.winnerATS}</span>
+          </div>
+          <div>
+            <span className="font-medium">Stored:</span>
+            <span className={`ml-1 ${winnerATSMismatch ? 'text-red-700 font-semibold' : ''}`}>
+              {gameDetail?.winner_against_spread || 'null'} {winnerATSMismatch ? '❌' : '✓'}
+            </span>
+          </div>
+        </div>
+        <div className="text-xs text-gray-600 mt-2">
+          Margin Bonus: {calculated.marginBonus} pts | Cover Margin: {calculated.coverMargin}
+        </div>
+      </div>
+
+      {/* Points Error Warning */}
+      {(winnerATSMismatch || anyPointsError) && (
+        <div className="bg-red-100 border border-red-300 rounded p-2 text-red-900 font-medium text-xs">
+          ⚠️ Scoring errors detected - see details below
+        </div>
+      )}
+
+      {/* Pick Points Analysis */}
+      <div className="space-y-2">
+        <div className="font-semibold text-gray-700">Pick Points Verification</div>
+        <div className="grid grid-cols-2 gap-2">
+          {renderPickGroup(game.home_team, 'Regular', 'homeRegular', calculated.expectedPoints.homeRegular)}
+          {renderPickGroup(game.home_team, 'Lock', 'homeLock', calculated.expectedPoints.homeLock)}
+          {renderPickGroup(game.away_team, 'Regular', 'awayRegular', calculated.expectedPoints.awayRegular)}
+          {renderPickGroup(game.away_team, 'Lock', 'awayLock', calculated.expectedPoints.awayLock)}
         </div>
       </div>
     </div>
