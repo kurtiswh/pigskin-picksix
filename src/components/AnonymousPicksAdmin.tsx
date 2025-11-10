@@ -732,16 +732,16 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     try {
       setLoading(true)
       setError('')
-      console.log('🔍 Loading ONLY unassigned anonymous picks...')
-      
+      console.log('🔍 Loading ALL anonymous picks (assigned and unassigned)...')
+
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
-      
-      console.log(`🎯 Query: unassigned picks for week ${selectedWeek}, season ${selectedSeason}`)
-      
-      // Load ONLY unassigned anonymous picks for the selected week/season
+
+      console.log(`🎯 Query: all picks for week ${selectedWeek}, season ${selectedSeason}`)
+
+      // Load ALL anonymous picks for the selected week/season (both assigned and unassigned)
       const picksResponse = await fetch(
-        `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&assigned_user_id=is.null&select=*&order=submitted_at.desc&limit=1000`,
+        `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&select=*&order=submitted_at.desc&limit=1000`,
         {
           method: 'GET',
           headers: {
@@ -757,15 +757,15 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       }
 
       const picksData = await picksResponse.json()
-      console.log('✅ Loaded UNASSIGNED picks only:', picksData.length)
-      
+      console.log('✅ Loaded ALL picks (assigned and unassigned):', picksData.length)
+
       if (picksData.length === 0) {
-        alert('No unassigned picks found for the selected week/season.')
+        alert('No anonymous picks found for the selected week/season.')
         return
       }
-      
-      // Debug: Analyze the unassigned picks
-      console.log('🔍 Analyzing unassigned picks...')
+
+      // Debug: Analyze all picks
+      console.log('🔍 Analyzing all picks...')
       const uniqueEmails = [...new Set(picksData.map(p => p.email))]
       console.log(`📧 Unique emails: ${uniqueEmails.length}`)
       uniqueEmails.slice(0, 10).forEach(email => {
@@ -792,16 +792,17 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
       // Group picks into pick sets
       const pickSetMap = new Map<string, PickSet>()
-      
-      console.log('🔄 Starting pick set grouping (unassigned only)...')
-      
+
+
+      console.log('🔄 Starting pick set grouping (all picks)...')
+
       for (const pick of picksData) {
         const submittedDate = new Date(pick.submitted_at)
         submittedDate.setSeconds(0, 0)
         const roundedSubmittedAt = submittedDate.toISOString()
-        
+
         const key = `${pick.email}-${roundedSubmittedAt}`
-        
+
         if (!pickSetMap.has(key)) {
           pickSetMap.set(key, {
             email: pick.email,
@@ -809,27 +810,31 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
             submittedAt: roundedSubmittedAt,
             isValidated: pick.is_validated,
             picks: [],
-            assignedUserId: pick.assigned_user_id, // Should be null for all
+            assignedUserId: pick.assigned_user_id, // May be assigned or unassigned
             showOnLeaderboard: pick.show_on_leaderboard,
             validationStatus: pick.validation_status || 'pending_validation',
             processingNotes: pick.processing_notes
           })
         }
-        
+
         pickSetMap.get(key)!.picks.push(pick)
       }
-      
-      console.log(`🔄 Grouping complete. Created ${pickSetMap.size} unassigned pick set groups`)
+
+      console.log(`🔄 Grouping complete. Created ${pickSetMap.size} pick set groups`)
 
       const pickSetsArray = Array.from(pickSetMap.values())
         .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
 
-      console.log('✅ Final unassigned pick sets:', pickSetsArray.length)
-      
+      console.log('✅ Final pick sets:', pickSetsArray.length)
+
+      const assignedCount = pickSetsArray.filter(ps => ps.assignedUserId).length
+      const unassignedCount = pickSetsArray.filter(ps => !ps.assignedUserId).length
+      console.log(`   Assigned: ${assignedCount}, Unassigned: ${unassignedCount}`)
+
       // Show detailed breakdown
-      console.log('📋 Unassigned pick sets breakdown:')
+      console.log('📋 Pick sets breakdown:')
       pickSetsArray.slice(0, 10).forEach((ps, i) => {
-        console.log(`  ${i+1}. ${ps.email} (${ps.name}): ${ps.picks.length} picks, validation: ${ps.validationStatus}`)
+        console.log(`  ${i+1}. ${ps.email} (${ps.name}): ${ps.picks.length} picks, validation: ${ps.validationStatus}, assigned: ${ps.assignedUserId ? 'Yes' : 'No'}`)
       })
       
       // Set the data - this will replace any existing data with ONLY unassigned picks
@@ -1905,7 +1910,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
               <div className="text-blue-800 font-medium">🔍 Admin Tools</div>
               <div className="text-blue-700 mt-1 space-y-2">
                 <div>
-                  <strong>Loading:</strong> "Load Unassigned Only" 🎯 | "Run Diagnostic" 📊 | "Load All Picks" 📋
+                  <strong>Loading:</strong> "Load Unassigned Only" 🎯 | "Run Diagnostic" 📊 | "Load All Picks" 📋 (shows all pick sets, including assigned)
                 </div>
                 <div>
                   <strong>Fixing:</strong> "Fix Missing Fields" 🔧 | "Auto-Assign All" ✅
@@ -2000,7 +2005,17 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                               <div className="flex flex-col items-end">
                                 <span className="font-medium">Status: {pickSet.validationStatus}</span>
                                 {pickSet.assignedUserId && (
-                                  <span className="text-orange-500">User: {pickSet.assignedUserId.slice(0, 8)}...</span>
+                                  <div className="text-xs text-orange-500 space-y-1 text-right">
+                                    <div className="font-medium">Assigned User:</div>
+                                    <code className="bg-orange-50 px-2 py-1 rounded text-[10px] block break-all">
+                                      {pickSet.assignedUserId}
+                                    </code>
+                                    {users.find(u => u.id === pickSet.assignedUserId) && (
+                                      <div className="text-gray-600">
+                                        ({users.find(u => u.id === pickSet.assignedUserId)?.display_name})
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -2019,11 +2034,11 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         </Card>
       )}
 
-      {/* Unassigned Pick Sets */}
+      {/* Anonymous Pick Sets Management (All sets including assigned) */}
       {unassignedPickSets.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>🔄 Unassigned Pick Sets ({unassignedPickSets.length})</CardTitle>
+            <CardTitle>📋 Anonymous Pick Sets Management ({unassignedPickSets.length})</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
