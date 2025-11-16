@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { ExpandableLeaderboardRow, LeaderboardRowContent } from '@/components/ExpandableLeaderboardRow'
 import { SeasonExpandedDetails } from '@/components/SeasonExpandedDetails'
 import { WeeklyExpandedDetails } from '@/components/WeeklyExpandedDetails'
+import { BestFinishLeaderboard } from '@/components/BestFinishLeaderboard'
 
 export default function TabbedLeaderboard() {
   const { user } = useAuth()
@@ -655,9 +656,10 @@ export default function TabbedLeaderboard() {
       )}
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="season">Season Standings</TabsTrigger>
           <TabsTrigger value="weekly">Weekly Results</TabsTrigger>
+          <TabsTrigger value="bestfinish">Best Finish</TabsTrigger>
         </TabsList>
         
         <TabsContent value="season" className="mt-6">
@@ -754,6 +756,10 @@ export default function TabbedLeaderboard() {
               {renderLeaderboardContent(weeklyData, 'weekly')}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="bestfinish" className="mt-6">
+          <BestFinishLeaderboard season={season} searchTerm={searchTerm} />
         </TabsContent>
       </Tabs>
 
