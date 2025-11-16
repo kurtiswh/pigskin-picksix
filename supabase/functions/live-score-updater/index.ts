@@ -182,31 +182,57 @@ serve(async (req) => {
         }
 
         // Call database function to calculate winner and process picks
-        // This ensures we use the same logic as manual admin fixes
-        if (updateData.status === 'completed' && !dbGame.winner_against_spread) {
-          console.log(`   🎯 Calling database to calculate winner and process picks...`)
-          try {
-            const { data: scoringData, error: scoringError } = await supabase
-              .rpc('calculate_and_update_completed_game', {
-                game_id_param: dbGame.id
-              })
+        // FIXED: Check if there are unprocessed picks instead of just winner_against_spread
+        // This ensures picks get processed even if winner was calculated but picks failed
+        if (updateData.status === 'completed' || (dbGame.status === 'completed' && !dbGame.winner_against_spread)) {
+          console.log(`   🔍 Checking if picks need processing...`)
 
-            if (scoringError) {
-              errors.push(`Scoring failed for ${dbGame.home_team}: ${scoringError.message}`)
-              console.log(`   ❌ Scoring error: ${scoringError.message}`)
-            } else if (scoringData && scoringData.length > 0) {
-              const result = scoringData[0]
-              if (result.success) {
-                console.log(`   ✅ Winner: ${result.winner}, Bonus: ${result.margin_bonus}`)
-                console.log(`   ✅ Picks processed: ${result.picks_updated} picks, ${result.anonymous_picks_updated} anonymous picks`)
-              } else {
-                errors.push(`Scoring failed for ${dbGame.home_team}: ${result.error_message}`)
-                console.log(`   ❌ Scoring failed: ${result.error_message}`)
+          // Check for unprocessed picks
+          const { data: unprocPicks } = await supabase
+            .from('picks')
+            .select('id')
+            .eq('game_id', dbGame.id)
+            .is('result', null)
+            .limit(1)
+
+          const { data: unprocAnonPicks } = await supabase
+            .from('anonymous_picks')
+            .select('id')
+            .eq('game_id', dbGame.id)
+            .is('result', null)
+            .limit(1)
+
+          const needsProcessing = !dbGame.winner_against_spread ||
+                                  (unprocPicks && unprocPicks.length > 0) ||
+                                  (unprocAnonPicks && unprocAnonPicks.length > 0)
+
+          if (needsProcessing) {
+            console.log(`   🎯 Calling database to calculate winner and process picks...`)
+            try {
+              const { data: scoringData, error: scoringError } = await supabase
+                .rpc('calculate_and_update_completed_game', {
+                  game_id_param: dbGame.id
+                })
+
+              if (scoringError) {
+                errors.push(`Scoring failed for ${dbGame.home_team}: ${scoringError.message}`)
+                console.log(`   ❌ Scoring error: ${scoringError.message}`)
+              } else if (scoringData && scoringData.length > 0) {
+                const result = scoringData[0]
+                if (result.success) {
+                  console.log(`   ✅ Winner: ${result.winner}, Bonus: ${result.margin_bonus}`)
+                  console.log(`   ✅ Picks processed: ${result.picks_updated} picks, ${result.anonymous_picks_updated} anonymous picks`)
+                } else {
+                  errors.push(`Scoring failed for ${dbGame.home_team}: ${result.error_message}`)
+                  console.log(`   ❌ Scoring failed: ${result.error_message}`)
+                }
               }
+            } catch (scoringException: any) {
+              errors.push(`Scoring exception for ${dbGame.home_team}: ${scoringException.message}`)
+              console.log(`   ❌ Scoring exception: ${scoringException.message}`)
             }
-          } catch (scoringException: any) {
-            errors.push(`Scoring exception for ${dbGame.home_team}: ${scoringException.message}`)
-            console.log(`   ❌ Scoring exception: ${scoringException.message}`)
+          } else {
+            console.log(`   ✅ Picks already processed, skipping`)
           }
         }
 
