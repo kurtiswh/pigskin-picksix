@@ -114,7 +114,7 @@ SELECT
     u.id as user_id,
     u.display_name,
     u.leaguesafe_email,
-    COALESCE(ubl.payment_status, 'not_paid') as payment_status,
+    COALESCE(lsp.status, 'not_paid') as payment_status,
     ubft.season,
     ubft.weeks_included,
     ubft.total_points,
@@ -143,8 +143,8 @@ SELECT
     ) as rank
 FROM public.users u
 JOIN user_best_finish_totals ubft ON u.id = ubft.user_id
-LEFT JOIN public.user_bonus_leaderboard ubl ON
-    u.id = ubl.user_id AND ubft.season = ubl.season
+LEFT JOIN public.leaguesafe_payments lsp ON
+    u.id = lsp.user_id AND ubft.season = lsp.season
 WHERE ubft.total_points > 0  -- Only users with picks
 ORDER BY ubft.season DESC, rank ASC;
 
