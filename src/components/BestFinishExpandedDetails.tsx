@@ -97,7 +97,11 @@ export function BestFinishExpandedDetails({
   // Calculate totals
   const totalPoints = data.reduce((sum, week) => sum + week.points, 0)
   const totalPicks = data.reduce((sum, week) => sum + week.picksCount, 0)
-  const bestWeek = data.reduce((max, week) => week.points > max.points ? week : max, data[0])
+
+  // Use bestWeek flag if set by service, otherwise calculate
+  const bestWeek = data.find(week => week.bestWeek) ||
+    data.reduce((max, week) => week.points > max.points ? week : max, data[0])
+
   const worstWeek = data.reduce((min, week) => week.points < min.points ? week : min, data[0])
   const averagePoints = data.length > 0 ? (totalPoints / data.length).toFixed(1) : '0'
 
@@ -181,7 +185,7 @@ export function BestFinishExpandedDetails({
               <WeeklyPerformanceCard
                 key={week.week}
                 week={week}
-                isBestWeek={week.week === bestWeek.week && data.length > 1}
+                isBestWeek={(week.bestWeek || week.week === bestWeek.week) && data.length > 1}
                 isWorstWeek={week.week === worstWeek.week && data.length > 1 && bestWeek.week !== worstWeek.week}
               />
             ))}

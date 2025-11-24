@@ -40,6 +40,7 @@ export interface BestFinishWeeklyDetail {
   lockPushes: number
   record: string
   lockRecord: string
+  bestWeek?: boolean  // Flag for highlighting best performance
 }
 
 export class BestFinishService {
@@ -119,7 +120,7 @@ export class BestFinishService {
 
       console.log(`✅ Loaded ${data.length} weeks of Best Finish details`)
 
-      return data.map((week: any) => ({
+      const weeks: BestFinishWeeklyDetail[] = data.map((week: any) => ({
         week: week.week,
         picksCount: week.picks_count || 0,
         points: week.points || 0,
@@ -132,6 +133,17 @@ export class BestFinishService {
         record: week.record || '0-0-0',
         lockRecord: week.lock_record || '0-0-0'
       }))
+
+      // Mark the best week (highest points)
+      if (weeks.length > 0) {
+        const bestWeekIndex = weeks.reduce((bestIdx, week, idx) =>
+          week.points > weeks[bestIdx].points ? idx : bestIdx, 0
+        )
+        weeks[bestWeekIndex].bestWeek = true
+        console.log(`📌 Best week marked: Week ${weeks[bestWeekIndex].week} with ${weeks[bestWeekIndex].points} points`)
+      }
+
+      return weeks
 
     } catch (error: any) {
       console.error('❌ Error fetching Best Finish details:', error.message)
