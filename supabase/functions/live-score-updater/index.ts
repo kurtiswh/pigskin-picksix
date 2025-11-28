@@ -215,8 +215,13 @@ serve(async (req) => {
                 })
 
               if (scoringError) {
-                errors.push(`Scoring failed for ${dbGame.home_team}: ${scoringError.message}`)
-                console.log(`   ❌ Scoring error: ${scoringError.message}`)
+                const errorMsg = `Scoring failed for ${dbGame.home_team}: ${JSON.stringify(scoringError)}`
+                errors.push(errorMsg)
+                console.error(`   ❌ SCORING ERROR DETAILS:`, scoringError)
+                console.error(`   📋 Error code:`, scoringError.code || 'No code')
+                console.error(`   📋 Error hint:`, scoringError.hint || 'No hint')
+                console.error(`   📋 Error details:`, scoringError.details || 'No details')
+                console.error(`   📋 Error message:`, scoringError.message || 'No message')
               } else if (scoringData && scoringData.length > 0) {
                 const result = scoringData[0]
                 if (result.success) {
@@ -228,8 +233,12 @@ serve(async (req) => {
                 }
               }
             } catch (scoringException: any) {
-              errors.push(`Scoring exception for ${dbGame.home_team}: ${scoringException.message}`)
-              console.log(`   ❌ Scoring exception: ${scoringException.message}`)
+              const exceptionMsg = `Scoring exception for ${dbGame.home_team}: ${JSON.stringify(scoringException)}`
+              errors.push(exceptionMsg)
+              console.error(`   ❌ SCORING EXCEPTION:`, scoringException)
+              console.error(`   📋 Exception name:`, scoringException.name || 'No name')
+              console.error(`   📋 Exception message:`, scoringException.message || 'No message')
+              console.error(`   📋 Exception stack:`, scoringException.stack || 'No stack')
             }
           } else {
             console.log(`   ✅ Picks already processed, skipping`)
