@@ -2,16 +2,21 @@ name: Auto Update Games
 
 on:
   schedule:
-    # Live scoring: Every 5 minutes during game hours
-    # Thursday 6pm CT - Sunday 8am CT = Friday 00:00 UTC - Sunday 14:00 UTC
+    # Live scoring: Every 5 minutes during typical college football game hours
+    # IMPORTANT: GitHub Actions cron can be delayed 10-15 min during high load
+    # New workflows may take up to 1 hour before first auto-trigger
 
-    # Thursday 6pm CT - Friday 11:59pm CT = Friday 00:00 - Saturday 05:59 UTC
-    - cron: '*/5 * * * 5'  # All day Friday UTC
+    # Thursday 6pm - midnight CT = Friday 00:00 - 06:00 UTC
+    - cron: '*/5 0-6 * * 5'
 
-    # Saturday all day CT = Saturday 00:00 - Sunday 05:59 UTC
-    - cron: '*/5 * * * 6'  # All day Saturday UTC
+    # Friday 6pm - midnight CT = Saturday 00:00 - 06:00 UTC
+    - cron: '*/5 0-6 * * 6'
 
-    # Sunday 12am - 8am CT = Sunday 06:00 - 14:00 UTC
+    # Saturday 11am - midnight CT = Saturday 17:00 - Sunday 06:00 UTC
+    - cron: '*/5 17-23 * * 6'
+    - cron: '*/5 0-6 * * 0'
+
+    # Sunday 12am - 8am CT (for late Saturday games) = Sunday 06:00 - 14:00 UTC
     - cron: '*/5 6-14 * * 0'
 
     # Game statistics: Saturday 11am CT = Saturday 16:00 UTC
@@ -29,9 +34,14 @@ on:
           - update-game-stats
           - both
 
+# Ensure workflow has necessary permissions
+permissions:
+  contents: read
+
 jobs:
   update-games:
     runs-on: ubuntu-latest
+    timeout-minutes: 10  # Prevent hung workflows
 
     steps:
       - name: Determine which function to call
