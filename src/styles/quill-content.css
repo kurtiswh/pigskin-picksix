@@ -57,12 +57,28 @@
 }
 
 .ql-editor a {
-  color: #8B4513;
+  color: #2563eb;
   text-decoration: underline;
+  font-weight: 500;
+  transition: color 0.2s;
 }
 
 .ql-editor a:hover {
-  color: #654321;
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+/* Also style links in blog content display */
+.blog-content a {
+  color: #2563eb;
+  text-decoration: underline;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.blog-content a:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
 }
 
 .ql-editor strong {

@@ -1,3 +1,10 @@
+export interface BlogAttachment {
+  name: string
+  url: string
+  type: string
+  size: number
+}
+
 export interface BlogPost {
   id: string
   title: string
@@ -9,6 +16,7 @@ export interface BlogPost {
   is_published: boolean
   featured_image_url?: string
   slug: string
+  attachments?: BlogAttachment[]
   created_at: string
   updated_at: string
   author?: {
@@ -26,6 +34,7 @@ export interface BlogPostCreate {
   week?: number | null
   is_published?: boolean
   featured_image_url?: string
+  attachments?: BlogAttachment[]
 }
 
 export interface BlogPostUpdate {
@@ -36,6 +45,7 @@ export interface BlogPostUpdate {
   week?: number | null
   is_published?: boolean
   featured_image_url?: string
+  attachments?: BlogAttachment[]
 }
 
 export interface WeekOption {
