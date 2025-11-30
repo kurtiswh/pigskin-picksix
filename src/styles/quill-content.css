@@ -33,9 +33,19 @@
 }
 
 .ql-editor p {
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
   color: #374151;
-  line-height: 1.7;
+  line-height: 1.8;
+}
+
+/* Better spacing for blog content display */
+.blog-content p {
+  margin-bottom: 1.5rem;
+  line-height: 1.8;
+}
+
+.blog-content p:last-child {
+  margin-bottom: 0;
 }
 
 .ql-editor ul, .ql-editor ol {

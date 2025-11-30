@@ -19,6 +19,13 @@ export default function BlogPage() {
   const [selectedWeek, setSelectedWeek] = useState<number | null | undefined>()
   const [showAllPosts, setShowAllPosts] = useState(false) // Admin toggle for unpublished posts
 
+  // Helper function to strip HTML tags from excerpt
+  const stripHtml = (html: string) => {
+    const tmp = document.createElement('DIV')
+    tmp.innerHTML = html
+    return tmp.textContent || tmp.innerText || ''
+  }
+
   // Initialize filters from URL params
   useEffect(() => {
     const season = searchParams.get('season')
@@ -335,7 +342,7 @@ export default function BlogPage() {
 
                     {post.excerpt && (
                       <p className="text-charcoal-600 mb-4 leading-relaxed">
-                        {post.excerpt}
+                        {stripHtml(post.excerpt)}
                       </p>
                     )}
 
