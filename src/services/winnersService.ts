@@ -61,7 +61,7 @@ export class WinnersService {
     // Get season leaderboard (top 10)
     const { data: seasonData, error: seasonError } = await supabase
       .from('season_leaderboard')
-      .select('user_id, display_name, season_points')
+      .select('user_id, display_name, total_points')
       .eq('season', season)
       .order('season_rank', { ascending: true })
       .limit(10)
