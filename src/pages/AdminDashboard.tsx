@@ -16,6 +16,7 @@ import ScoreManager from '@/components/ScoreManager'
 import AdminNotifications from '@/components/AdminNotifications'
 import { GameCompletionTest } from '@/components/GameCompletionTest'
 import PickManagement from '@/components/PickManagement'
+import BestFinishConfig from '@/components/BestFinishConfig'
 import '@/utils/emailTesting' // Load email testing utilities for console access
 import { testPickConfirmationEmail, processTestEmailQueue, testNotificationScheduling, registerGlobalEmailTesting } from '@/utils/emailTesting'
 import { fixIncorrectGames } from '@/scripts/fix-incorrect-games'
@@ -1012,7 +1013,10 @@ export default function AdminDashboard() {
         {activeTab === 'scores' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-pigskin-900">Score Updates</h2>
-            
+
+            {/* Best Finish Configuration */}
+            <BestFinishConfig season={currentSeason} />
+
             {/* New Game Completion Testing */}
             <Card className="border-orange-200 bg-orange-50/50">
               <CardHeader>
@@ -1022,8 +1026,8 @@ export default function AdminDashboard() {
                 <GameCompletionTest />
               </CardContent>
             </Card>
-            
-            <ScoreManager 
+
+            <ScoreManager
               season={currentSeason}
               week={currentWeek}
             />
