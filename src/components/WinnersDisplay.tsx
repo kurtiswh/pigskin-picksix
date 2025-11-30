@@ -161,18 +161,11 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
       isTBD: !winners?.best_finish_user_id
     })
 
-    // Weekly winner
-    const weeklyTotal = (winners?.weekly_payout || 80) * 14
-    rows.push({
-      category: 'Weekly Winner',
-      displayName: '$80 per week',
-      percentage: '14 weeks',
-      amount: formatCurrency(weeklyTotal),
-      isWeekly: true,
-      isTBD: false
-    })
-
     return rows
+  }
+
+  const getWeeklyWinners = () => {
+    return winners?.weekly_winners || []
   }
 
   if (loading) {
@@ -196,6 +189,7 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
   }
 
   const winnerRows = getWinnerRows()
+  const weeklyWinners = getWeeklyWinners()
   const totalPercentage = 100
   const weeklyTotal = (winners?.weekly_payout || 80) * 14
 
@@ -351,6 +345,62 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
         </CardContent>
       </Card>
 
+      {/* Weekly Winners Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-blue-600" />
+              <CardTitle className="text-xl">Weekly Winners</CardTitle>
+            </div>
+            <Badge className="bg-blue-100 text-blue-800">
+              ${winners?.weekly_payout || 80} per week
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {weeklyWinners.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {weeklyWinners.map((winner) => (
+                <div
+                  key={winner.week}
+                  className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg"
+                >
+                  <div>
+                    <div className="text-sm font-medium text-charcoal-900">
+                      Week {winner.week}
+                    </div>
+                    <div className="text-xs text-charcoal-600">
+                      {userMap.get(winner.user_id) || 'Unknown'}
+                    </div>
+                  </div>
+                  <div className="text-sm font-bold text-blue-700">
+                    {formatCurrency(winners?.weekly_payout || 80)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-charcoal-600">
+              No weekly winners recorded yet. Winners will populate as each week completes.
+            </div>
+          )}
+
+          {weeklyWinners.length > 0 && (
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-charcoal-900">
+                  Total Weekly Payouts ({weeklyWinners.length} weeks)
+                </span>
+                <span className="text-lg font-bold text-blue-700">
+                  {formatCurrency(weeklyWinners.length * (winners?.weekly_payout || 80))}
+                </span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Notes */}
       <Card className="border-yellow-200 bg-yellow-50/30">
         <CardContent className="p-4">
@@ -361,6 +411,7 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
                 <div>• Percentage based on total pot minus weekly winner payouts ({formatCurrency(weeklyTotal)})</div>
                 <div>• Point, Lock, and Best Finish winners determined after last week</div>
                 <div>• Bracket winners must be manually set by admin</div>
+                <div>• Weekly winners populate automatically as each week completes</div>
                 {!winners?.is_finalized && (
                   <div className="mt-2 text-orange-700 font-medium">
                     ⚠️ Winners not yet finalized - subject to change

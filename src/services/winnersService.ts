@@ -133,6 +133,41 @@ export class WinnersService {
   }
 
   /**
+   * Update weekly winners as each week completes
+   */
+  static async updateWeeklyWinners(season: number): Promise<void> {
+    // Get all weekly winners from weekly_leaderboard
+    const { data: weeklyData, error: weeklyError } = await supabase
+      .from('weekly_leaderboard')
+      .select('week, user_id')
+      .eq('season', season)
+      .eq('weekly_rank', 1)
+      .order('week', { ascending: true })
+
+    if (weeklyError) throw weeklyError
+
+    // Ensure row exists
+    const { error: rpcError } = await supabase
+      .rpc('get_or_create_season_winners', { p_season: season })
+
+    if (rpcError) throw rpcError
+
+    // Format weekly winners
+    const weeklyWinners = weeklyData?.map(w => ({
+      week: w.week,
+      user_id: w.user_id
+    })) || []
+
+    // Update weekly winners
+    const { error } = await supabase
+      .from('season_winners')
+      .update({ weekly_winners: weeklyWinners })
+      .eq('season', season)
+
+    if (error) throw error
+  }
+
+  /**
    * Set total pot for season (used to calculate dollar amounts)
    */
   static async setTotalPot(season: number, totalPot: number): Promise<void> {

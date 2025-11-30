@@ -18,6 +18,7 @@ import { GameCompletionTest } from '@/components/GameCompletionTest'
 import PickManagement from '@/components/PickManagement'
 import BestFinishConfig from '@/components/BestFinishConfig'
 import BracketWinnersAdmin from '@/components/BracketWinnersAdmin'
+import SeasonWinnersAdmin from '@/components/SeasonWinnersAdmin'
 import '@/utils/emailTesting' // Load email testing utilities for console access
 import { testPickConfirmationEmail, processTestEmailQueue, testNotificationScheduling, registerGlobalEmailTesting } from '@/utils/emailTesting'
 import { fixIncorrectGames } from '@/scripts/fix-incorrect-games'
@@ -1017,6 +1018,9 @@ export default function AdminDashboard() {
 
             {/* Best Finish Configuration */}
             <BestFinishConfig season={currentSeason} />
+
+            {/* Season Winners Management */}
+            <SeasonWinnersAdmin season={currentSeason} />
 
             {/* Bracket Winners Management */}
             <BracketWinnersAdmin season={currentSeason} />
