@@ -10,7 +10,7 @@ interface WeekConfig {
   season: number
   best_finish_eligible: boolean
   picks_open: boolean
-  picks_locked: boolean
+  games_locked: boolean
 }
 
 interface BestFinishConfigProps {
@@ -32,7 +32,7 @@ export default function BestFinishConfig({ season }: BestFinishConfigProps) {
       setLoading(true)
       const { data, error } = await supabase
         .from('week_settings')
-        .select('week, season, best_finish_eligible, picks_open, picks_locked')
+        .select('week, season, best_finish_eligible, picks_open, games_locked')
         .eq('season', season)
         .gte('week', 11) // Only show weeks 11+
         .order('week', { ascending: true })
@@ -201,9 +201,9 @@ export default function BestFinishConfig({ season }: BestFinishConfigProps) {
                       Week {week.week} - Season {week.season}
                     </div>
                     <div className="text-xs text-gray-500 space-x-2">
-                      {week.picks_locked && <span className="text-red-600">🔒 Locked</span>}
-                      {week.picks_open && !week.picks_locked && <span className="text-green-600">✓ Open</span>}
-                      {!week.picks_open && !week.picks_locked && <span className="text-gray-400">○ Not Open</span>}
+                      {week.games_locked && <span className="text-red-600">🔒 Locked</span>}
+                      {week.picks_open && !week.games_locked && <span className="text-green-600">✓ Open</span>}
+                      {!week.picks_open && !week.games_locked && <span className="text-gray-400">○ Not Open</span>}
                     </div>
                   </div>
                 </div>
