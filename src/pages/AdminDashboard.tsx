@@ -17,6 +17,7 @@ import AdminNotifications from '@/components/AdminNotifications'
 import { GameCompletionTest } from '@/components/GameCompletionTest'
 import PickManagement from '@/components/PickManagement'
 import BestFinishConfig from '@/components/BestFinishConfig'
+import BracketWinnersAdmin from '@/components/BracketWinnersAdmin'
 import '@/utils/emailTesting' // Load email testing utilities for console access
 import { testPickConfirmationEmail, processTestEmailQueue, testNotificationScheduling, registerGlobalEmailTesting } from '@/utils/emailTesting'
 import { fixIncorrectGames } from '@/scripts/fix-incorrect-games'
@@ -1016,6 +1017,9 @@ export default function AdminDashboard() {
 
             {/* Best Finish Configuration */}
             <BestFinishConfig season={currentSeason} />
+
+            {/* Bracket Winners Management */}
+            <BracketWinnersAdmin season={currentSeason} />
 
             {/* New Game Completion Testing */}
             <Card className="border-orange-200 bg-orange-50/50">
