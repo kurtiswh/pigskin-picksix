@@ -136,6 +136,8 @@ export class WinnersService {
    * Update weekly winners as each week completes
    */
   static async updateWeeklyWinners(season: number): Promise<void> {
+    console.log('🏆 Starting updateWeeklyWinners for season', season)
+
     // Get all weekly winners from weekly_leaderboard
     const { data: weeklyData, error: weeklyError } = await supabase
       .from('weekly_leaderboard')
@@ -144,13 +146,25 @@ export class WinnersService {
       .eq('weekly_rank', 1)
       .order('week', { ascending: true })
 
-    if (weeklyError) throw weeklyError
+    if (weeklyError) {
+      console.error('❌ Error fetching weekly winners:', weeklyError)
+      throw weeklyError
+    }
+
+    console.log(`✅ Found ${weeklyData?.length || 0} weekly winners`)
+    console.log('Weekly data:', weeklyData)
 
     // Ensure row exists
-    const { error: rpcError } = await supabase
+    console.log('📝 Ensuring season_winners row exists...')
+    const { data: rpcData, error: rpcError } = await supabase
       .rpc('get_or_create_season_winners', { p_season: season })
 
-    if (rpcError) throw rpcError
+    if (rpcError) {
+      console.error('❌ RPC error:', rpcError)
+      throw rpcError
+    }
+
+    console.log('✅ Season winners row ID:', rpcData)
 
     // Format weekly winners
     const weeklyWinners = weeklyData?.map(w => ({
@@ -158,13 +172,22 @@ export class WinnersService {
       user_id: w.user_id
     })) || []
 
+    console.log('📝 Updating with weekly winners:', weeklyWinners)
+
     // Update weekly winners
-    const { error } = await supabase
+    const { data: updateData, error } = await supabase
       .from('season_winners')
       .update({ weekly_winners: weeklyWinners })
       .eq('season', season)
+      .select()
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Update error:', error)
+      throw error
+    }
+
+    console.log('✅ Weekly winners updated successfully!')
+    console.log('Updated data:', updateData)
   }
 
   /**
