@@ -266,10 +266,10 @@ export class WinnersService {
       .limit(1)
       .single()
 
-    // Get weekly winners
+    // Get weekly winners (including all tied for 1st place)
     const { data: weeklyWinners } = await supabase
       .from('weekly_leaderboard')
-      .select('week, user_id, display_name')
+      .select('week, user_id, display_name, total_points, weekly_rank')
       .eq('season', season)
       .eq('weekly_rank', 1)
       .order('week', { ascending: true })
@@ -342,7 +342,12 @@ export class WinnersService {
       bracket_winner_user_id: seasonWinners?.bracket_winner_user_id || null,
       bracket_second_user_id: seasonWinners?.bracket_second_user_id || null,
       best_finish_user_id: bestFinishWinner?.user_id || null,
-      weekly_winners: weeklyWinners?.map(w => ({ week: w.week, user_id: w.user_id })) || [],
+      weekly_winners: weeklyWinners?.map(w => ({
+        week: w.week,
+        user_id: w.user_id,
+        display_name: w.display_name,
+        total_points: w.total_points
+      })) || [],
       total_pot: seasonWinners?.total_pot || null,
       weekly_payout: seasonWinners?.weekly_payout || 80,
       is_finalized: seasonWinners?.is_finalized || false,

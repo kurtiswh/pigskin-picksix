@@ -168,6 +168,20 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
     return winners?.weekly_winners || []
   }
 
+  // Group weekly winners by week to handle ties
+  const getGroupedWeeklyWinners = () => {
+    const weeklyWinners = getWeeklyWinners()
+    const grouped = new Map<number, typeof weeklyWinners>()
+
+    weeklyWinners.forEach(winner => {
+      const existing = grouped.get(winner.week) || []
+      existing.push(winner)
+      grouped.set(winner.week, existing)
+    })
+
+    return Array.from(grouped.entries()).sort((a, b) => a[0] - b[0])
+  }
+
   if (loading) {
     return (
       <Card>
@@ -190,8 +204,9 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
 
   const winnerRows = getWinnerRows()
   const weeklyWinners = getWeeklyWinners()
+  const groupedWeeklyWinners = getGroupedWeeklyWinners()
   const totalPercentage = 100
-  const weeklyTotal = (winners?.weekly_payout || 80) * 14
+  const weeklyTotal = (winners?.weekly_payout || 80) * groupedWeeklyWinners.length
 
   return (
     <div className="space-y-6">
@@ -359,22 +374,34 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
           </div>
         </CardHeader>
         <CardContent>
-          {weeklyWinners.length > 0 ? (
+          {groupedWeeklyWinners.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {weeklyWinners.map((winner) => (
+              {groupedWeeklyWinners.map(([week, weekWinners]) => (
                 <div
-                  key={winner.week}
+                  key={week}
                   className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg"
                 >
-                  <div>
-                    <div className="text-sm font-medium text-charcoal-900">
-                      Week {winner.week}
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-charcoal-900 mb-1">
+                      Week {week}
+                      {weekWinners.length > 1 && (
+                        <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded font-semibold">
+                          TIE
+                        </span>
+                      )}
                     </div>
-                    <div className="text-xs text-charcoal-600">
-                      {userMap.get(winner.user_id) || 'Unknown'}
-                    </div>
+                    {weekWinners.map((winner) => (
+                      <div key={winner.user_id} className="text-xs text-charcoal-600">
+                        {winner.display_name || userMap.get(winner.user_id) || 'Unknown'}
+                      </div>
+                    ))}
+                    {weekWinners[0]?.total_points !== undefined && (
+                      <div className="text-xs text-blue-700 font-semibold mt-1">
+                        {weekWinners[0].total_points} points
+                      </div>
+                    )}
                   </div>
-                  <div className="text-sm font-bold text-blue-700">
+                  <div className="text-sm font-bold text-blue-700 ml-2">
                     {formatCurrency(winners?.weekly_payout || 80)}
                   </div>
                 </div>
@@ -386,14 +413,14 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
             </div>
           )}
 
-          {weeklyWinners.length > 0 && (
+          {groupedWeeklyWinners.length > 0 && (
             <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-charcoal-900">
-                  Total Weekly Payouts ({weeklyWinners.length} weeks)
+                  Total Weekly Payouts ({groupedWeeklyWinners.length} weeks)
                 </span>
                 <span className="text-lg font-bold text-blue-700">
-                  {formatCurrency(weeklyWinners.length * (winners?.weekly_payout || 80))}
+                  {formatCurrency(groupedWeeklyWinners.length * (winners?.weekly_payout || 80))}
                 </span>
               </div>
             </div>

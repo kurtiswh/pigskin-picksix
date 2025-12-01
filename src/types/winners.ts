@@ -1,6 +1,8 @@
 export interface WeeklyWinner {
   week: number
   user_id: string
+  display_name?: string
+  total_points?: number
 }
 
 export interface SeasonWinners {
