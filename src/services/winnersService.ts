@@ -229,32 +229,139 @@ export class WinnersService {
   }
 
   /**
+   * Get live winners calculated from leaderboards (no database writes needed)
+   */
+  static async getLiveWinnersFromLeaderboards(season: number) {
+    // Get point winners from season_leaderboard (top 10)
+    const { data: pointWinners } = await supabase
+      .from('season_leaderboard')
+      .select('user_id, display_name, total_points, season_rank')
+      .eq('season', season)
+      .order('season_rank', { ascending: true })
+      .limit(10)
+
+    // Get lock winners from picks
+    const { data: lockData } = await supabase
+      .from('picks')
+      .select('user_id, is_lock, result')
+      .eq('season', season)
+      .eq('is_lock', true)
+      .eq('result', 'win')
+
+    // Calculate lock wins per user
+    const lockWins = new Map<string, number>()
+    lockData?.forEach(pick => {
+      lockWins.set(pick.user_id, (lockWins.get(pick.user_id) || 0) + 1)
+    })
+    const lockWinners = Array.from(lockWins.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+
+    // Get best finish winner
+    const { data: bestFinishWinner } = await supabase
+      .from('best_finish_leaderboard')
+      .select('user_id, display_name')
+      .eq('season', season)
+      .order('rank', { ascending: true })
+      .limit(1)
+      .single()
+
+    // Get weekly winners
+    const { data: weeklyWinners } = await supabase
+      .from('weekly_leaderboard')
+      .select('week, user_id, display_name')
+      .eq('season', season)
+      .eq('weekly_rank', 1)
+      .order('week', { ascending: true })
+
+    // Get bracket winners from database (admin-set)
+    const { data: seasonWinners } = await supabase
+      .from('season_winners')
+      .select('bracket_winner_user_id, bracket_second_user_id, total_pot, weekly_payout, is_finalized')
+      .eq('season', season)
+      .single()
+
+    // Get user display names for lock winners
+    const lockUserIds = lockWinners.map(([userId]) => userId)
+    const { data: lockUsers } = await supabase
+      .from('users')
+      .select('id, display_name')
+      .in('id', lockUserIds)
+
+    const lockUserMap = new Map(lockUsers?.map(u => [u.id, u.display_name]) || [])
+
+    // Build bracket winner map
+    const bracketUserIds = [
+      seasonWinners?.bracket_winner_user_id,
+      seasonWinners?.bracket_second_user_id
+    ].filter(Boolean) as string[]
+
+    const { data: bracketUsers } = await supabase
+      .from('users')
+      .select('id, display_name')
+      .in('id', bracketUserIds)
+
+    const bracketUserMap = new Map(bracketUsers?.map(u => [u.id, u.display_name]) || [])
+
+    // Build comprehensive user map
+    const allUserMap = new Map<string, string>()
+
+    // Add point winners
+    pointWinners?.forEach(p => allUserMap.set(p.user_id, p.display_name))
+
+    // Add lock winners
+    lockUserMap.forEach((name, id) => allUserMap.set(id, name))
+
+    // Add best finish
+    if (bestFinishWinner) {
+      allUserMap.set(bestFinishWinner.user_id, bestFinishWinner.display_name)
+    }
+
+    // Add weekly winners
+    weeklyWinners?.forEach(w => allUserMap.set(w.user_id, w.display_name))
+
+    // Add bracket winners
+    bracketUserMap.forEach((name, id) => allUserMap.set(id, name))
+
+    // Build live winners object
+    const liveWinners = {
+      id: seasonWinners?.id || 'live',
+      season,
+      point_winner_user_id: pointWinners?.[0]?.user_id || null,
+      point_second_user_id: pointWinners?.[1]?.user_id || null,
+      point_third_user_id: pointWinners?.[2]?.user_id || null,
+      point_fourth_user_id: pointWinners?.[3]?.user_id || null,
+      point_fifth_user_id: pointWinners?.[4]?.user_id || null,
+      point_sixth_user_id: pointWinners?.[5]?.user_id || null,
+      point_seventh_user_id: pointWinners?.[6]?.user_id || null,
+      point_eighth_user_id: pointWinners?.[7]?.user_id || null,
+      point_ninth_user_id: pointWinners?.[8]?.user_id || null,
+      point_tenth_user_id: pointWinners?.[9]?.user_id || null,
+      lock_winner_user_id: lockWinners[0]?.[0] || null,
+      lock_second_user_id: lockWinners[1]?.[0] || null,
+      bracket_winner_user_id: seasonWinners?.bracket_winner_user_id || null,
+      bracket_second_user_id: seasonWinners?.bracket_second_user_id || null,
+      best_finish_user_id: bestFinishWinner?.user_id || null,
+      weekly_winners: weeklyWinners?.map(w => ({ week: w.week, user_id: w.user_id })) || [],
+      total_pot: seasonWinners?.total_pot || null,
+      weekly_payout: seasonWinners?.weekly_payout || 80,
+      is_finalized: seasonWinners?.is_finalized || false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    return {
+      winners: liveWinners,
+      userMap: allUserMap,
+      payoutStructure: PAYOUT_PERCENTAGES
+    }
+  }
+
+  /**
    * Get display-friendly winner data with user names
    */
   static async getWinnersWithNames(season: number) {
-    const winners = await this.getSeasonWinners(season)
-    if (!winners) return null
-
-    // Get all unique user IDs
-    const userIds = new Set<string>()
-    Object.entries(winners).forEach(([key, value]) => {
-      if (key.includes('user_id') && value) {
-        userIds.add(value as string)
-      }
-    })
-
-    // Fetch user display names
-    const { data: users } = await supabase
-      .from('users')
-      .select('id, display_name')
-      .in('id', Array.from(userIds))
-
-    const userMap = new Map(users?.map(u => [u.id, u.display_name]) || [])
-
-    return {
-      winners,
-      userMap,
-      payoutStructure: PAYOUT_PERCENTAGES
-    }
+    // Use live calculation from leaderboards instead of stored data
+    return this.getLiveWinnersFromLeaderboards(season)
   }
 }
