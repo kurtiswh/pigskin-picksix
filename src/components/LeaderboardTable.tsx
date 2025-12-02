@@ -22,6 +22,7 @@ interface LeaderboardEntry {
   total_pushes: number
   lock_wins: number
   lock_losses: number
+  lock_pushes: number
   last_week_points?: number
   trend?: 'up' | 'down' | 'same'
   pick_source?: 'authenticated' | 'anonymous' | 'mixed'
@@ -308,7 +309,7 @@ export default function LeaderboardTable({
                       <div>
                         <div className="font-medium">{entry.lock_record}</div>
                         <div className="text-xs text-charcoal-500">
-                          {entry.lock_wins + entry.lock_losses} locks
+                          {entry.lock_wins + entry.lock_losses + (entry.lock_pushes || 0)} locks
                         </div>
                       </div>
                     </div>
@@ -385,7 +386,7 @@ export default function LeaderboardTable({
                       <div>
                         <div className="text-charcoal-500 text-xs uppercase tracking-wide">Lock Record</div>
                         <div className="font-medium text-sm">{entry.lock_record}</div>
-                        <div className="text-xs text-charcoal-400">{entry.lock_wins + entry.lock_losses} locks</div>
+                        <div className="text-xs text-charcoal-400">{entry.lock_wins + entry.lock_losses + (entry.lock_pushes || 0)} locks</div>
                       </div>
                     </div>
                     

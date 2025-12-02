@@ -97,30 +97,57 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
       })
     })
 
-    // Lock winners
-    rows.push({
-      category: 'Lock Winner',
-      place: '1st',
-      userId: winners?.lock_winner_user_id,
-      displayName: winners?.lock_winner_user_id
-        ? userMap.get(winners.lock_winner_user_id) || 'Unknown'
-        : 'TBD',
-      percentage: `${PAYOUT_PERCENTAGES.lock_winner}%`,
-      amount: winners?.total_pot ? formatCurrency(calculateAmount(PAYOUT_PERCENTAGES.lock_winner)) : undefined,
-      isTBD: !winners?.lock_winner_user_id
-    })
+    // Lock winners - handle ties
+    if (winners?.lock_is_tied && winners?.lock_winner_user_id && winners?.lock_second_user_id) {
+      // Tied lock winners - both split combined payout (4.5% + 1.5% = 6%)
+      const combinedPercentage = PAYOUT_PERCENTAGES.lock_winner + PAYOUT_PERCENTAGES.lock_second
+      const splitPercentage = combinedPercentage / 2
 
-    rows.push({
-      category: 'Lock Second',
-      place: '2nd',
-      userId: winners?.lock_second_user_id,
-      displayName: winners?.lock_second_user_id
-        ? userMap.get(winners.lock_second_user_id) || 'Unknown'
-        : 'TBD',
-      percentage: `${PAYOUT_PERCENTAGES.lock_second}%`,
-      amount: winners?.total_pot ? formatCurrency(calculateAmount(PAYOUT_PERCENTAGES.lock_second)) : undefined,
-      isTBD: !winners?.lock_second_user_id
-    })
+      rows.push({
+        category: 'Lock Winner (TIE)',
+        place: '1st',
+        userId: winners.lock_winner_user_id,
+        displayName: userMap.get(winners.lock_winner_user_id) || 'Unknown',
+        percentage: `${splitPercentage}%`,
+        amount: winners?.total_pot ? formatCurrency(calculateAmount(splitPercentage)) : undefined,
+        isTBD: false
+      })
+
+      rows.push({
+        category: 'Lock Winner (TIE)',
+        place: '1st',
+        userId: winners.lock_second_user_id,
+        displayName: userMap.get(winners.lock_second_user_id) || 'Unknown',
+        percentage: `${splitPercentage}%`,
+        amount: winners?.total_pot ? formatCurrency(calculateAmount(splitPercentage)) : undefined,
+        isTBD: false
+      })
+    } else {
+      // Not tied - show normal winner and second
+      rows.push({
+        category: 'Lock Winner',
+        place: '1st',
+        userId: winners?.lock_winner_user_id,
+        displayName: winners?.lock_winner_user_id
+          ? userMap.get(winners.lock_winner_user_id) || 'Unknown'
+          : 'TBD',
+        percentage: `${PAYOUT_PERCENTAGES.lock_winner}%`,
+        amount: winners?.total_pot ? formatCurrency(calculateAmount(PAYOUT_PERCENTAGES.lock_winner)) : undefined,
+        isTBD: !winners?.lock_winner_user_id
+      })
+
+      rows.push({
+        category: 'Lock Second',
+        place: '2nd',
+        userId: winners?.lock_second_user_id,
+        displayName: winners?.lock_second_user_id
+          ? userMap.get(winners.lock_second_user_id) || 'Unknown'
+          : 'TBD',
+        percentage: `${PAYOUT_PERCENTAGES.lock_second}%`,
+        amount: winners?.total_pot ? formatCurrency(calculateAmount(PAYOUT_PERCENTAGES.lock_second)) : undefined,
+        isTBD: !winners?.lock_second_user_id
+      })
+    }
 
     // Bracket winners (admin managed)
     rows.push({

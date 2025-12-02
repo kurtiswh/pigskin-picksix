@@ -93,7 +93,7 @@ export class EmergencyLeaderboardService {
   private static async getTableLeaderboard(season: number): Promise<EmergencyLeaderboardEntry[]> {
     const query = supabase
       .from('season_leaderboard')
-      .select('user_id, display_name, season_rank, total_points, total_wins, total_losses, total_pushes, lock_wins, lock_losses, pick_source')
+      .select('user_id, display_name, season_rank, total_points, total_wins, total_losses, total_pushes, lock_wins, lock_losses, lock_pushes, pick_source')
       .eq('season', season)
       .order('season_rank', { ascending: true })
       
@@ -116,7 +116,7 @@ export class EmergencyLeaderboardService {
     // Original VIEW doesn't have is_verified column, so we can't filter by it
     const query = supabase
       .from('season_leaderboard')
-      .select('user_id, display_name, season_rank, total_points, total_wins, total_losses, total_pushes, lock_wins, lock_losses, pick_source')
+      .select('user_id, display_name, season_rank, total_points, total_wins, total_losses, total_pushes, lock_wins, lock_losses, lock_pushes, pick_source')
       .eq('season', season)
       .order('season_rank', { ascending: true })
       
@@ -203,7 +203,7 @@ export class EmergencyLeaderboardService {
       season_rank: entry.season_rank || (index + 1),
       total_points: entry.total_points || 0,
       season_record: `${entry.total_wins || 0}-${entry.total_losses || 0}-${entry.total_pushes || 0}`,
-      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
+      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}-${entry.lock_pushes || 0}`,
       total_wins: entry.total_wins || 0,
       total_losses: entry.total_losses || 0,
       total_pushes: entry.total_pushes || 0,
@@ -243,7 +243,7 @@ export class EmergencyLeaderboardService {
       season_rank: index + 1,
       total_points: stats.total_points,
       season_record: `${stats.total_wins}-${stats.total_losses}-${stats.total_pushes}`,
-      lock_record: `${stats.lock_wins}-${stats.lock_losses}`
+      lock_record: `${stats.lock_wins}-${stats.lock_losses}-${stats.lock_pushes || 0}`
     }))
   }
 
@@ -325,10 +325,11 @@ export class EmergencyLeaderboardService {
       // Group picks by week and calculate weekly stats
       const weeklyStatsMap = new Map<number, {
         wins: number
-        losses: number  
+        losses: number
         pushes: number
         lock_wins: number
         lock_losses: number
+        lock_pushes: number
         points: number
         picks_made: number
       }>()
@@ -341,6 +342,7 @@ export class EmergencyLeaderboardService {
             pushes: 0,
             lock_wins: 0,
             lock_losses: 0,
+            lock_pushes: 0,
             points: 0,
             picks_made: 0
           })
@@ -358,6 +360,7 @@ export class EmergencyLeaderboardService {
           if (pick.is_lock) weekStats.lock_losses++
         } else if (pick.result === 'push') {
           weekStats.pushes++
+          if (pick.is_lock) weekStats.lock_pushes++
         }
       })
 
@@ -366,7 +369,7 @@ export class EmergencyLeaderboardService {
         week,
         points: stats.points,
         record: `${stats.wins}-${stats.losses}-${stats.pushes}`,
-        lock_record: `${stats.lock_wins}-${stats.lock_losses}`,
+        lock_record: `${stats.lock_wins}-${stats.lock_losses}-${stats.lock_pushes}`,
         picks_made: stats.picks_made
       }))
 

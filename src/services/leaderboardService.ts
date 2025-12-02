@@ -17,6 +17,7 @@ export interface LeaderboardEntry {
   total_pushes: number
   lock_wins: number
   lock_losses: number
+  lock_pushes: number
   last_week_points?: number
   trend?: 'up' | 'down' | 'same'
   rank_change?: number // Positive means moved up, negative means moved down
@@ -51,7 +52,7 @@ export class LeaderboardService {
       
       const queryPromise = supabase
         .from('season_leaderboard')
-        .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks, is_verified, pick_source')
+        .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, lock_pushes, total_picks, is_verified, pick_source')
         .eq('season', season)
         // Trust the view to handle pick set precedence - no additional filtering needed
         // The view already respects is_active_pick_set from our trigger system
@@ -89,7 +90,7 @@ export class LeaderboardService {
       display_name: entry.display_name,
       weekly_record: '', // Not available in season view
       season_record: `${entry.total_wins || 0}-${entry.total_losses || 0}-${entry.total_pushes || 0}`,
-      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
+      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}-${entry.lock_pushes || 0}`,
       weekly_points: 0, // Not available in season view
       season_points: entry.total_points || 0,
       weekly_rank: 0, // Not available in season view
@@ -100,6 +101,7 @@ export class LeaderboardService {
       total_pushes: entry.total_pushes || 0,
       lock_wins: entry.lock_wins || 0,
       lock_losses: entry.lock_losses || 0,
+      lock_pushes: entry.lock_pushes || 0,
       pick_source: entry.pick_source || 'authenticated'
     }))
     
@@ -121,7 +123,7 @@ export class LeaderboardService {
       
       const queryPromise = supabase
         .from('weekly_leaderboard')
-        .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, picks_made, is_verified, pick_source')
+        .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, lock_pushes, picks_made, is_verified, pick_source')
         .eq('season', season)
         .eq('week', week)
         // Trust the view to handle pick set precedence - no additional filtering needed
@@ -160,7 +162,7 @@ export class LeaderboardService {
       display_name: entry.display_name,
       weekly_record: `${entry.wins || 0}-${entry.losses || 0}-${entry.pushes || 0}`,
       season_record: '', // Not available in weekly view
-      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
+      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}-${entry.lock_pushes || 0}`,
       weekly_points: entry.total_points || 0,
       season_points: 0, // Not available in weekly view
       weekly_rank: entry.weekly_rank || 0,
@@ -171,6 +173,7 @@ export class LeaderboardService {
       total_pushes: entry.pushes || 0,
       lock_wins: entry.lock_wins || 0,
       lock_losses: entry.lock_losses || 0,
+      lock_pushes: entry.lock_pushes || 0,
       pick_source: entry.pick_source || 'authenticated'
     }))
 
@@ -301,7 +304,7 @@ export class LeaderboardService {
         console.log(`📊 Fetching data for week ${week}`)
         const { data: weekData, error: weekError } = await supabase
           .from('weekly_leaderboard')
-          .select('user_id, display_name, week, wins, losses, pushes, lock_wins, lock_losses, payment_status, pick_source')
+          .select('user_id, display_name, week, wins, losses, pushes, lock_wins, lock_losses, lock_pushes, payment_status, pick_source')
           .eq('season', season)
           .eq('week', week)
           .order('user_id', { ascending: true })
@@ -342,7 +345,7 @@ export class LeaderboardService {
         
         const existing = userRecords.get(entry.user_id) || {
           wins: 0, losses: 0, pushes: 0,
-          lock_wins: 0, lock_losses: 0,
+          lock_wins: 0, lock_losses: 0, lock_pushes: 0,
           payment_status: entry.payment_status,
           pick_source: entry.pick_source
         }
@@ -351,6 +354,7 @@ export class LeaderboardService {
         existing.pushes += entry.pushes || 0
         existing.lock_wins += entry.lock_wins || 0
         existing.lock_losses += entry.lock_losses || 0
+        existing.lock_pushes += entry.lock_pushes || 0
         userRecords.set(entry.user_id, existing)
       })
       
@@ -368,7 +372,7 @@ export class LeaderboardService {
           display_name: user.display_name,
           season_record: `${records.wins || 0}-${records.losses || 0}-${records.pushes || 0}`,
           weekly_record: '',
-          lock_record: `${records.lock_wins || 0}-${records.lock_losses || 0}`,
+          lock_record: `${records.lock_wins || 0}-${records.lock_losses || 0}-${records.lock_pushes || 0}`,
           season_points: user.total_points || 0,
           weekly_points: 0,
           total_points: user.total_points || 0,

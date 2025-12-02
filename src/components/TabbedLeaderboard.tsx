@@ -471,6 +471,56 @@ export default function TabbedLeaderboard() {
     }
   }
 
+  // Helper function to format lock record display for weekly tab
+  const formatLockRecordForWeekly = (entry: any): string => {
+    try {
+      if (!entry) {
+        console.log('[formatLockRecordForWeekly] Entry is null/undefined')
+        return '—'
+      }
+
+      // Check if entry has the lock_wins field
+      if (!('lock_wins' in entry)) {
+        console.log('[formatLockRecordForWeekly] No lock_wins field, returning lock_record:', entry.lock_record)
+        return entry.lock_record || '—'
+      }
+
+      const lockWins = entry.lock_wins || 0
+      const lockLosses = entry.lock_losses || 0
+      const lockPushes = entry.lock_pushes || 0
+
+      console.log(`[formatLockRecordForWeekly] User: ${entry.display_name}, Lock stats: ${lockWins}-${lockLosses}-${lockPushes}`)
+
+      // For weekly, users should only have one lock pick
+      // Determine which result they have (should only have one of these > 0)
+      if (lockWins === 1 && lockLosses === 0 && lockPushes === 0) {
+        console.log('[formatLockRecordForWeekly] Returning: Win')
+        return 'Win'
+      }
+      if (lockLosses === 1 && lockWins === 0 && lockPushes === 0) {
+        console.log('[formatLockRecordForWeekly] Returning: Loss')
+        return 'Loss'
+      }
+      if (lockPushes === 1 && lockWins === 0 && lockLosses === 0) {
+        console.log('[formatLockRecordForWeekly] Returning: Push')
+        return 'Push'
+      }
+
+      // If no lock result yet (all zeros)
+      if (lockWins === 0 && lockLosses === 0 && lockPushes === 0) {
+        console.log('[formatLockRecordForWeekly] All zeros, returning: —')
+        return '—'
+      }
+
+      // Fallback: if there are multiple results, show the numeric format
+      console.log(`[formatLockRecordForWeekly] Multiple results, returning numeric: ${lockWins}-${lockLosses}-${lockPushes}`)
+      return `${lockWins}-${lockLosses}-${lockPushes}`
+    } catch (error) {
+      console.error('Error formatting lock record:', error)
+      return '—'
+    }
+  }
+
   return (
     <div className="container mx-auto px-4 py-6">
       <div className="mb-6">
@@ -799,7 +849,7 @@ export default function TabbedLeaderboard() {
   function exportSeasonToCSV() {
     if (seasonData.length === 0) return
 
-    const headers = ['Rank', 'User ID', 'Player', 'Points', 'Wins', 'Losses', 'Pushes', 'Lock Wins', 'Lock Losses']
+    const headers = ['Rank', 'User ID', 'Player', 'Points', 'Wins', 'Losses', 'Pushes', 'Lock Wins', 'Lock Losses', 'Lock Pushes']
     const csvRows = [headers.join(',')]
 
     seasonData.forEach((entry, index) => {
@@ -812,8 +862,9 @@ export default function TabbedLeaderboard() {
       const pushes = ('total_pushes' in entry ? entry.total_pushes : 0) || 0
       const lockWins = ('lock_wins' in entry ? entry.lock_wins : 0) || 0
       const lockLosses = ('lock_losses' in entry ? entry.lock_losses : 0) || 0
+      const lockPushes = ('lock_pushes' in entry ? entry.lock_pushes : 0) || 0
 
-      csvRows.push([rank, userId, name, points, wins, losses, pushes, lockWins, lockLosses].join(','))
+      csvRows.push([rank, userId, name, points, wins, losses, pushes, lockWins, lockLosses, lockPushes].join(','))
     })
 
     const csvContent = csvRows.join('\n')
@@ -836,7 +887,7 @@ export default function TabbedLeaderboard() {
   function exportWeeklyToCSV() {
     if (weeklyData.length === 0 || !selectedWeek) return
 
-    const headers = ['Rank', 'User ID', 'Player', 'Points', 'Wins', 'Losses', 'Pushes', 'Lock Wins', 'Lock Losses']
+    const headers = ['Rank', 'User ID', 'Player', 'Points', 'Wins', 'Losses', 'Pushes', 'Lock Wins', 'Lock Losses', 'Lock Pushes']
     const csvRows = [headers.join(',')]
 
     weeklyData.forEach((entry, index) => {
@@ -849,8 +900,9 @@ export default function TabbedLeaderboard() {
       const pushes = entry.pushes || 0
       const lockWins = entry.lock_wins || 0
       const lockLosses = entry.lock_losses || 0
+      const lockPushes = entry.lock_pushes || 0
 
-      csvRows.push([rank, userId, name, points, wins, losses, pushes, lockWins, lockLosses].join(','))
+      csvRows.push([rank, userId, name, points, wins, losses, pushes, lockWins, lockLosses, lockPushes].join(','))
     })
 
     const csvContent = csvRows.join('\n')
@@ -1001,7 +1053,7 @@ export default function TabbedLeaderboard() {
                     rank={getDisplayRank(entry, data)}
                     displayName={entry.display_name}
                     record={entry.season_record || entry.weekly_record}
-                    lockRecord={entry.lock_record}
+                    lockRecord={tabType === 'weekly' ? formatLockRecordForWeekly(entry) : entry.lock_record}
                     points={('season_points' in entry ? entry.season_points : entry.total_points) || 0}
                     paymentStatus={entry.payment_status}
                     pickSource={entry.pick_source}

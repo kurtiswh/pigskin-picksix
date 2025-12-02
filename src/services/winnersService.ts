@@ -31,26 +31,24 @@ export class WinnersService {
     bracketWinnerId: string | null,
     bracketSecondId: string | null
   ): Promise<void> {
-    // First, ensure a row exists for this season
-    const { error: rpcError } = await supabase
-      .rpc('get_or_create_season_winners', { p_season: season })
+    console.log('🏆 [updateBracketWinners] Starting update for season', season)
+    console.log('🏆 [updateBracketWinners] Winner:', bracketWinnerId)
+    console.log('🏆 [updateBracketWinners] Second:', bracketSecondId)
 
-    if (rpcError) {
-      throw rpcError
-    }
-
-    // Update bracket winners
-    const { error } = await supabase
-      .from('season_winners')
-      .update({
-        bracket_winner_user_id: bracketWinnerId,
-        bracket_second_user_id: bracketSecondId
+    // Use SECURITY DEFINER function to bypass RLS
+    const { data, error } = await supabase
+      .rpc('update_bracket_winners', {
+        p_season: season,
+        p_winner_id: bracketWinnerId,
+        p_second_id: bracketSecondId
       })
-      .eq('season', season)
 
     if (error) {
+      console.error('❌ [updateBracketWinners] RPC error:', error)
       throw error
     }
+
+    console.log('✅ [updateBracketWinners] Update successful:', data)
   }
 
   /**
@@ -68,27 +66,39 @@ export class WinnersService {
 
     if (seasonError) throw seasonError
 
-    // Get lock leaderboard (top 2)
+    // Get lock leaderboard from season_leaderboard (aggregated data)
+    // Calculate lock points: win = 1 point, push = 0.5 points
     const { data: lockData, error: lockError } = await supabase
-      .from('picks')
-      .select('user_id, is_lock, result')
+      .from('season_leaderboard')
+      .select('user_id, lock_wins, lock_pushes')
       .eq('season', season)
-      .eq('is_lock', true)
-      .not('result', 'is', null)
+      .order('lock_wins', { ascending: false })
+      .limit(20)
 
     if (lockError) throw lockError
 
-    // Calculate lock winners
-    const lockWins = new Map<string, number>()
-    lockData?.forEach(pick => {
-      if (pick.result === 'win') {
-        lockWins.set(pick.user_id, (lockWins.get(pick.user_id) || 0) + 1)
-      }
-    })
+    // Calculate lock points for each user (win = 1, push = 0.5)
+    const lockLeaderboard = lockData?.map(user => ({
+      user_id: user.user_id,
+      lock_points: (user.lock_wins || 0) + (user.lock_pushes || 0) * 0.5
+    })) || []
 
-    const lockWinners = Array.from(lockWins.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 2)
+    // Sort by lock points descending
+    lockLeaderboard.sort((a, b) => b.lock_points - a.lock_points)
+
+    // Find highest points and who has them
+    const highestPoints = lockLeaderboard[0]?.lock_points
+    const winnersWithHighest = lockLeaderboard.filter(user => user.lock_points === highestPoints)
+
+    // Determine winner and second based on ties
+    let lockWinner = lockLeaderboard[0]
+    let lockSecond = lockLeaderboard[1]
+
+    // If there's a tie at the top, both get winner/second designation
+    if (winnersWithHighest.length >= 2) {
+      lockWinner = winnersWithHighest[0]
+      lockSecond = winnersWithHighest[1]
+    }
 
     // Get Best Finish winner
     const { data: bestFinishData, error: bestFinishError } = await supabase
@@ -123,8 +133,8 @@ export class WinnersService {
         point_eighth_user_id: seasonData?.[7]?.user_id || null,
         point_ninth_user_id: seasonData?.[8]?.user_id || null,
         point_tenth_user_id: seasonData?.[9]?.user_id || null,
-        lock_winner_user_id: lockWinners[0]?.[0] || null,
-        lock_second_user_id: lockWinners[1]?.[0] || null,
+        lock_winner_user_id: lockWinner?.user_id || null,
+        lock_second_user_id: lockSecond?.user_id || null,
         best_finish_user_id: bestFinishData?.user_id || null
       })
       .eq('season', season)
@@ -240,22 +250,43 @@ export class WinnersService {
       .order('season_rank', { ascending: true })
       .limit(10)
 
-    // Get lock winners from picks
+    // Get lock winners from season_leaderboard (aggregated data)
+    // Calculate lock points: win = 1 point, push = 0.5 points
     const { data: lockData } = await supabase
-      .from('picks')
-      .select('user_id, is_lock, result')
+      .from('season_leaderboard')
+      .select('user_id, display_name, lock_wins, lock_pushes')
       .eq('season', season)
-      .eq('is_lock', true)
-      .eq('result', 'win')
+      .order('lock_wins', { ascending: false })
+      .limit(20)
 
-    // Calculate lock wins per user
-    const lockWins = new Map<string, number>()
-    lockData?.forEach(pick => {
-      lockWins.set(pick.user_id, (lockWins.get(pick.user_id) || 0) + 1)
-    })
-    const lockWinners = Array.from(lockWins.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 2)
+    // Calculate lock points for each user (win = 1, push = 0.5)
+    const lockLeaderboard = lockData?.map(user => ({
+      user_id: user.user_id,
+      display_name: user.display_name,
+      lock_points: (user.lock_wins || 0) + (user.lock_pushes || 0) * 0.5,
+      lock_wins: user.lock_wins || 0,
+      lock_pushes: user.lock_pushes || 0
+    })) || []
+
+    // Sort by lock points descending
+    lockLeaderboard.sort((a, b) => b.lock_points - a.lock_points)
+
+    console.log('🔒 Lock Leaderboard Top 10:', lockLeaderboard.slice(0, 10))
+
+    // Find highest points and all users with that score
+    const highestPoints = lockLeaderboard[0]?.lock_points
+    const winnersWithHighest = lockLeaderboard.filter(user => user.lock_points === highestPoints)
+
+    console.log('🔒 Highest Lock Points:', highestPoints)
+    console.log('🔒 Users with Highest:', winnersWithHighest)
+
+    // Determine winner and second based on ties
+    // If there's a tie at the top, both tied players are winner and second
+    const lockWinners = winnersWithHighest.length >= 2
+      ? [[winnersWithHighest[0].user_id, winnersWithHighest[0].lock_points], [winnersWithHighest[1].user_id, winnersWithHighest[1].lock_points]]
+      : [[lockLeaderboard[0]?.user_id, lockLeaderboard[0]?.lock_points], [lockLeaderboard[1]?.user_id, lockLeaderboard[1]?.lock_points]]
+
+    console.log('🔒 Final Lock Winners:', lockWinners)
 
     // Get best finish winner
     const { data: bestFinishWinner } = await supabase
@@ -266,20 +297,54 @@ export class WinnersService {
       .limit(1)
       .single()
 
-    // Get weekly winners (including all tied for 1st place)
-    const { data: weeklyWinners } = await supabase
-      .from('weekly_leaderboard')
-      .select('week, user_id, display_name, total_points, weekly_rank')
-      .eq('season', season)
-      .eq('weekly_rank', 1)
-      .order('week', { ascending: true })
+    // Get weekly winners by fetching top players for each week (1-14)
+    // This handles ties properly by finding max points and including all players with that score
+    const weeklyWinnersPromises = []
+    for (let week = 1; week <= 14; week++) {
+      weeklyWinnersPromises.push(
+        supabase
+          .from('weekly_leaderboard')
+          .select('week, user_id, display_name, total_points')
+          .eq('season', season)
+          .eq('week', week)
+          .order('total_points', { ascending: false })
+          .limit(10)  // Get top 10 to catch any ties at the top
+      )
+    }
+
+    const weeklyResults = await Promise.all(weeklyWinnersPromises)
+
+    // Find max points for each week and filter to only include winners
+    const weeklyWinners: Array<{week: number, user_id: string, display_name: string, total_points: number}> = []
+    weeklyResults.forEach(({ data }, index) => {
+      const week = index + 1
+      if (data && data.length > 0) {
+        const maxPoints = data[0].total_points
+        // Include all players with max points (handles ties)
+        const winners = data.filter(row => row.total_points === maxPoints)
+        weeklyWinners.push(...winners)
+      }
+    })
+
+    console.log('🏆 Weekly winners (max points per week):', {
+      count: weeklyWinners?.length,
+      weeksCovered: [...new Set(weeklyWinners.map(w => w.week))].length,
+      data: weeklyWinners
+    })
 
     // Get bracket winners from database (admin-set)
-    const { data: seasonWinners } = await supabase
+    console.log('🔍 [getLiveWinners] Fetching bracket winners for season', season)
+    const { data: seasonWinners, error: seasonWinnersError } = await supabase
       .from('season_winners')
       .select('bracket_winner_user_id, bracket_second_user_id, total_pot, weekly_payout, is_finalized')
       .eq('season', season)
       .single()
+
+    if (seasonWinnersError) {
+      console.log('⚠️ [getLiveWinners] Error fetching season_winners:', seasonWinnersError)
+    } else {
+      console.log('✅ [getLiveWinners] Season winners data:', seasonWinners)
+    }
 
     // Get user display names for lock winners
     const lockUserIds = lockWinners.map(([userId]) => userId)
@@ -323,6 +388,11 @@ export class WinnersService {
     // Add bracket winners
     bracketUserMap.forEach((name, id) => allUserMap.set(id, name))
 
+    // Check if lock winners are tied (same points)
+    const lockWinnerPoints = lockWinners[0]?.[1]
+    const lockSecondPoints = lockWinners[1]?.[1]
+    const lockIsTied = lockWinnerPoints === lockSecondPoints && lockWinnerPoints !== undefined
+
     // Build live winners object
     const liveWinners = {
       id: seasonWinners?.id || 'live',
@@ -339,6 +409,7 @@ export class WinnersService {
       point_tenth_user_id: pointWinners?.[9]?.user_id || null,
       lock_winner_user_id: lockWinners[0]?.[0] || null,
       lock_second_user_id: lockWinners[1]?.[0] || null,
+      lock_is_tied: lockIsTied,
       bracket_winner_user_id: seasonWinners?.bracket_winner_user_id || null,
       bracket_second_user_id: seasonWinners?.bracket_second_user_id || null,
       best_finish_user_id: bestFinishWinner?.user_id || null,

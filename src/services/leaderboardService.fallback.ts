@@ -108,7 +108,7 @@ export class LeaderboardService {
         display_name: entry.display_name,
         weekly_record: `${entry.wins}-${entry.losses}-${entry.pushes}`,
         season_record: '', // Not available in weekly view
-        lock_record: `${entry.lock_wins}-${entry.lock_losses}`,
+        lock_record: `${entry.lock_wins}-${entry.lock_losses}-${entry.lock_pushes || 0}`,
         weekly_points: entry.total_points,
         season_points: 0, // Not available in weekly view
         weekly_rank: entry.weekly_rank,
@@ -173,7 +173,7 @@ export class LeaderboardService {
         display_name: entry.display_name,
         weekly_record: '', // Not available in season view
         season_record: `${entry.total_wins}-${entry.total_losses}-${entry.total_pushes}`,
-        lock_record: `${entry.lock_wins}-${entry.lock_losses}`,
+        lock_record: `${entry.lock_wins}-${entry.lock_losses}-${entry.lock_pushes || 0}`,
         weekly_points: 0, // Not available in season view
         season_points: entry.total_points,
         weekly_rank: 0, // Not available in season view

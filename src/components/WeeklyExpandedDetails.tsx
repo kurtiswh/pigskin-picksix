@@ -179,7 +179,19 @@ export function WeeklyExpandedDetails({ data, isLoading = false }: WeeklyExpande
               <Lock className="w-3 h-3" />
               <span>Lock</span>
             </div>
-            <div className="font-bold text-lg text-gray-700">{data.lock_record}</div>
+            <div className="font-bold text-lg text-gray-700">
+              {(() => {
+                // Parse the lock_record string (format: "W-L-P")
+                const lockPick = data.picks.find(p => p.is_lock)
+                if (!lockPick || !lockPick.result) return '—'
+
+                // Return word format based on result
+                if (lockPick.result === 'win') return 'Win'
+                if (lockPick.result === 'loss') return 'Loss'
+                if (lockPick.result === 'push') return 'Push'
+                return '—'
+              })()}
+            </div>
           </div>
           
           <div className="text-center">

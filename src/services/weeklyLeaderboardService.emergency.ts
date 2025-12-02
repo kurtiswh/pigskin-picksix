@@ -13,6 +13,7 @@ export interface EmergencyWeeklyLeaderboardEntry {
   pushes?: number
   lock_wins?: number
   lock_losses?: number
+  lock_pushes?: number
   pick_source?: 'authenticated' | 'anonymous' | 'mixed'
   payment_status?: 'Paid' | 'NotPaid' | 'Pending'
   is_verified?: boolean
@@ -102,7 +103,7 @@ export class EmergencyWeeklyLeaderboardService {
   private static async getTableWeeklyLeaderboard(season: number, week: number): Promise<EmergencyWeeklyLeaderboardEntry[]> {
     const query = supabase
       .from('weekly_leaderboard')
-      .select('user_id, display_name, weekly_rank, total_points, wins, losses, pushes, lock_wins, lock_losses, pick_source, is_verified')
+      .select('user_id, display_name, weekly_rank, total_points, wins, losses, pushes, lock_wins, lock_losses, lock_pushes, pick_source, is_verified')
       .eq('season', season)
       .eq('week', week)
       .or('is_verified.eq.true,pick_source.eq.anonymous,pick_source.eq.mixed')
@@ -126,7 +127,7 @@ export class EmergencyWeeklyLeaderboardService {
   private static async getViewWeeklyLeaderboard(season: number, week: number): Promise<EmergencyWeeklyLeaderboardEntry[]> {
     const query = supabase
       .from('weekly_leaderboard')
-      .select('user_id, display_name, weekly_rank, total_points, wins, losses, pushes, lock_wins, lock_losses, pick_source')
+      .select('user_id, display_name, weekly_rank, total_points, wins, losses, pushes, lock_wins, lock_losses, lock_pushes, pick_source')
       .eq('season', season)
       .eq('week', week)
       .order('weekly_rank', { ascending: true })
@@ -202,13 +203,14 @@ export class EmergencyWeeklyLeaderboardService {
       weekly_rank: entry.weekly_rank || (index + 1),
       total_points: entry.total_points || 0,
       weekly_record: `${entry.wins || 0}-${entry.losses || 0}-${entry.pushes || 0}`,
-      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
+      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}-${entry.lock_pushes || 0}`,
       week: week,
       wins: entry.wins || 0,
       losses: entry.losses || 0,
       pushes: entry.pushes || 0,
       lock_wins: entry.lock_wins || 0,
       lock_losses: entry.lock_losses || 0,
+      lock_pushes: entry.lock_pushes || 0,
       pick_source: entry.pick_source || 'authenticated'
     }))
   }
@@ -239,6 +241,7 @@ export class EmergencyWeeklyLeaderboardService {
         total_pushes: userPicks.filter(p => p.result === 'push').length,
         lock_wins: userPicks.filter(p => p.result === 'win' && p.is_lock).length,
         lock_losses: userPicks.filter(p => p.result === 'loss' && p.is_lock).length,
+        lock_pushes: userPicks.filter(p => p.result === 'push' && p.is_lock).length,
         total_points: userPicks.reduce((sum, p) => sum + (p.points_earned || 0), 0)
       }
 
@@ -254,8 +257,14 @@ export class EmergencyWeeklyLeaderboardService {
       weekly_rank: index + 1,
       total_points: stats.total_points,
       weekly_record: `${stats.total_wins}-${stats.total_losses}-${stats.total_pushes}`,
-      lock_record: `${stats.lock_wins}-${stats.lock_losses}`,
+      lock_record: `${stats.lock_wins}-${stats.lock_losses}-${stats.lock_pushes}`,
       week: week,
+      wins: stats.total_wins,
+      losses: stats.total_losses,
+      pushes: stats.total_pushes,
+      lock_wins: stats.lock_wins,
+      lock_losses: stats.lock_losses,
+      lock_pushes: stats.lock_pushes,
       pick_source: 'authenticated'
     }))
   }
@@ -324,6 +333,7 @@ export class EmergencyWeeklyLeaderboardService {
       const pushes = combinedPicks.filter(p => p.result === 'push').length
       const lockWins = combinedPicks.filter(p => p.result === 'win' && p.is_lock).length
       const lockLosses = combinedPicks.filter(p => p.result === 'loss' && p.is_lock).length
+      const lockPushes = combinedPicks.filter(p => p.result === 'push' && p.is_lock).length
 
       console.log('✅ [WEEKLY PICKS] Combined:', authPicks.length, 'auth +', anonPicks.length, 'anon =', combinedPicks.length, 'total')
 
@@ -335,7 +345,7 @@ export class EmergencyWeeklyLeaderboardService {
         picks: combinedPicks,
         total_points: totalPoints,
         weekly_record: `${wins}-${losses}-${pushes}`,
-        lock_record: `${lockWins}-${lockLosses}`
+        lock_record: `${lockWins}-${lockLosses}-${lockPushes}`
       }
 
     } catch (error) {
@@ -406,6 +416,7 @@ export class EmergencyWeeklyLeaderboardService {
       const pushes = pickDetails.filter(p => p.result === 'push').length
       const lockWins = pickDetails.filter(p => p.result === 'win' && p.is_lock).length
       const lockLosses = pickDetails.filter(p => p.result === 'loss' && p.is_lock).length
+      const lockPushes = pickDetails.filter(p => p.result === 'push' && p.is_lock).length
 
       return {
         user_id: userId,
@@ -415,7 +426,7 @@ export class EmergencyWeeklyLeaderboardService {
         picks: pickDetails,
         total_points: totalPoints,
         weekly_record: `${wins}-${losses}-${pushes}`,
-        lock_record: `${lockWins}-${lockLosses}`
+        lock_record: `${lockWins}-${lockLosses}-${lockPushes}`
       }
     } catch (error) {
       console.log('❌ [AUTHENTICATED PICKS] Error:', error.message)
@@ -494,6 +505,7 @@ export class EmergencyWeeklyLeaderboardService {
       const pushes = pickDetails.filter(p => p.result === 'push').length
       const lockWins = pickDetails.filter(p => p.result === 'win' && p.is_lock).length
       const lockLosses = pickDetails.filter(p => p.result === 'loss' && p.is_lock).length
+      const lockPushes = pickDetails.filter(p => p.result === 'push' && p.is_lock).length
 
       return {
         user_id: userId,
@@ -503,7 +515,7 @@ export class EmergencyWeeklyLeaderboardService {
         picks: pickDetails,
         total_points: totalPoints,
         weekly_record: `${wins}-${losses}-${pushes}`,
-        lock_record: `${lockWins}-${lockLosses}`
+        lock_record: `${lockWins}-${lockLosses}-${lockPushes}`
       }
     } catch (error) {
       console.log('❌ [ANONYMOUS PICKS] Error:', error.message)

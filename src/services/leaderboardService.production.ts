@@ -85,7 +85,7 @@ export class ProductionLeaderboardService {
       season_rank: entry.season_rank,
       total_points: entry.total_points || 0,
       season_record: `${entry.total_wins || 0}-${entry.total_losses || 0}-${entry.total_pushes || 0}`,
-      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
+      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}-${entry.lock_pushes || 0}`,
       pick_source: entry.pick_source || 'authenticated',
       payment_status: entry.payment_status || 'NotPaid',
       is_verified: entry.is_verified || false

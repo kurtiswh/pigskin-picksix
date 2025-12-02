@@ -99,7 +99,7 @@ export class LeaderboardService {
   private static async getVerifiedSeasonData(season: number): Promise<LeaderboardEntry[]> {
     const queryPromise = supabase
       .from('season_leaderboard')
-      .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks')
+      .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, lock_pushes, total_picks')
       .eq('season', season)
       .eq('is_verified', true)
       .order('season_rank', { ascending: true })
@@ -123,7 +123,7 @@ export class LeaderboardService {
   private static async getAllSeasonData(season: number): Promise<LeaderboardEntry[]> {
     const queryPromise = supabase
       .from('season_leaderboard')
-      .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, total_picks, is_verified')
+      .select('user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, lock_pushes, total_picks, is_verified')
       .eq('season', season)
       .order('season_rank', { ascending: true })
       .limit(this.MAX_RESULTS)
@@ -146,7 +146,7 @@ export class LeaderboardService {
   private static async getVerifiedWeeklyData(season: number, week: number): Promise<LeaderboardEntry[]> {
     const queryPromise = supabase
       .from('weekly_leaderboard')
-      .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, picks_made')
+      .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, lock_pushes, picks_made')
       .eq('season', season)
       .eq('week', week)
       .eq('is_verified', true)
@@ -171,7 +171,7 @@ export class LeaderboardService {
   private static async getAllWeeklyData(season: number, week: number): Promise<LeaderboardEntry[]> {
     const queryPromise = supabase
       .from('weekly_leaderboard')
-      .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, picks_made, is_verified')
+      .select('user_id, display_name, total_points, weekly_rank, wins, losses, pushes, lock_wins, lock_losses, lock_pushes, picks_made, is_verified')
       .eq('season', season)
       .eq('week', week)
       .order('weekly_rank', { ascending: true })
@@ -252,7 +252,7 @@ export class LeaderboardService {
       display_name: entry.display_name,
       weekly_record: '',
       season_record: `${entry.total_wins || 0}-${entry.total_losses || 0}-${entry.total_pushes || 0}`,
-      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
+      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}-${entry.lock_pushes || 0}`,
       weekly_points: 0,
       season_points: entry.total_points || 0,
       weekly_rank: 0,
@@ -276,7 +276,7 @@ export class LeaderboardService {
       display_name: entry.display_name,
       weekly_record: `${entry.wins || 0}-${entry.losses || 0}-${entry.pushes || 0}`,
       season_record: '',
-      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
+      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}-${entry.lock_pushes || 0}`,
       weekly_points: entry.total_points || 0,
       season_points: 0,
       weekly_rank: entry.weekly_rank || 0,

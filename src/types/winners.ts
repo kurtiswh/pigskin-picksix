@@ -24,6 +24,7 @@ export interface SeasonWinners {
   // Lock winners
   lock_winner_user_id?: string | null
   lock_second_user_id?: string | null
+  lock_is_tied?: boolean
 
   // Bracket winners (admin managed)
   bracket_winner_user_id?: string | null

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Input } from '@/components/ui/input'
 import { Trophy, Save } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { WinnersService } from '@/services/winnersService'
@@ -14,6 +14,7 @@ interface BracketWinnersAdminProps {
 interface User {
   id: string
   display_name: string
+  payment_status?: string
 }
 
 export default function BracketWinnersAdmin({ season }: BracketWinnersAdminProps) {
@@ -24,6 +25,8 @@ export default function BracketWinnersAdmin({ season }: BracketWinnersAdminProps
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [winnerSearch, setWinnerSearch] = useState('')
+  const [secondSearch, setSecondSearch] = useState('')
 
   useEffect(() => {
     loadData()
@@ -34,20 +37,59 @@ export default function BracketWinnersAdmin({ season }: BracketWinnersAdminProps
       setLoading(true)
       setError('')
 
-      // Load all users
+      console.log('🔄 [BracketWinnersAdmin] Loading data for season', season)
+
+      // Load only paid/active users from leaguesafe_payments for current season
+      const { data: paymentsData, error: paymentsError } = await supabase
+        .from('leaguesafe_payments')
+        .select('user_id, status')
+        .eq('season', season)
+        .eq('status', 'Paid')
+
+      if (paymentsError) {
+        console.error('❌ Payment query error:', paymentsError)
+        throw paymentsError
+      }
+
+      console.log('💰 [BracketWinnersAdmin] Found', paymentsData?.length, 'paid users')
+
+      // Filter out null user_ids
+      const paidUserIds = paymentsData?.map(p => p.user_id).filter(id => id !== null) || []
+
+      console.log('📋 [BracketWinnersAdmin] Paid user IDs:', paidUserIds)
+
+      // If no paid users, set empty array and return early
+      if (paidUserIds.length === 0) {
+        console.log('⚠️ [BracketWinnersAdmin] No paid users found')
+        setUsers([])
+        setLoading(false)
+        return
+      }
+
+      // Now get only active users who are also paid
       const { data: usersData, error: usersError } = await supabase
         .from('users')
-        .select('id, display_name')
+        .select('id, display_name, user_status')
+        .in('id', paidUserIds)
+        .eq('user_status', 'active')
         .order('display_name')
 
       if (usersError) throw usersError
       setUsers(usersData || [])
 
+      console.log('👥 [BracketWinnersAdmin] Loaded', usersData?.length, 'users')
+
       // Load current winners
       const winners = await WinnersService.getSeasonWinners(season)
+      console.log('🏆 [BracketWinnersAdmin] Loaded winners:', winners)
+
       if (winners) {
+        console.log('🏆 [BracketWinnersAdmin] Setting bracket_winner_user_id:', winners.bracket_winner_user_id)
+        console.log('🏆 [BracketWinnersAdmin] Setting bracket_second_user_id:', winners.bracket_second_user_id)
         setBracketWinner(winners.bracket_winner_user_id || '')
         setBracketSecond(winners.bracket_second_user_id || '')
+      } else {
+        console.log('⚠️ [BracketWinnersAdmin] No winners data found')
       }
     } catch (err: any) {
       console.error('Failed to load data:', err)
@@ -63,16 +105,27 @@ export default function BracketWinnersAdmin({ season }: BracketWinnersAdminProps
       setMessage('')
       setError('')
 
+      console.log('💾 [BracketWinnersAdmin] Saving bracket winners...')
+      console.log('💾 Season:', season)
+      console.log('💾 Winner:', bracketWinner)
+      console.log('💾 Second:', bracketSecond)
+
       await WinnersService.updateBracketWinners(
         season,
         bracketWinner || null,
         bracketSecond || null
       )
 
+      console.log('✅ [BracketWinnersAdmin] Save completed, reloading data...')
+
+      // Reload data to confirm the save worked
+      await loadData()
+
       setMessage('Bracket winners updated successfully!')
       setTimeout(() => setMessage(''), 3000)
     } catch (err: any) {
-      console.error('Failed to save bracket winners:', err)
+      console.error('❌ [BracketWinnersAdmin] Failed to save bracket winners:', err)
+      console.error('Full error:', JSON.stringify(err, null, 2))
       setError(err.message || 'Failed to save bracket winners')
     } finally {
       setSaving(false)
@@ -124,38 +177,64 @@ export default function BracketWinnersAdmin({ season }: BracketWinnersAdminProps
             <label className="block text-sm font-medium text-charcoal-700 mb-2">
               Bracket Winner (1st Place - 2%)
             </label>
-            <Select value={bracketWinner} onValueChange={setBracketWinner}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select winner..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">-- None Selected --</SelectItem>
-                {users.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.display_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Input
+                type="text"
+                placeholder="Search users..."
+                value={winnerSearch}
+                onChange={(e) => setWinnerSearch(e.target.value)}
+                className="mb-2"
+              />
+              <select
+                value={bracketWinner}
+                onChange={(e) => setBracketWinner(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                size={8}
+              >
+                <option value="">-- None Selected --</option>
+                {users
+                  .filter(user =>
+                    user.display_name.toLowerCase().includes(winnerSearch.toLowerCase())
+                  )
+                  .map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.display_name}
+                    </option>
+                  ))}
+              </select>
+            </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-charcoal-700 mb-2">
               Bracket Second (2nd Place - 0.5%)
             </label>
-            <Select value={bracketSecond} onValueChange={setBracketSecond}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select second place..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">-- None Selected --</SelectItem>
-                {users.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.display_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Input
+                type="text"
+                placeholder="Search users..."
+                value={secondSearch}
+                onChange={(e) => setSecondSearch(e.target.value)}
+                className="mb-2"
+              />
+              <select
+                value={bracketSecond}
+                onChange={(e) => setBracketSecond(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                size={8}
+              >
+                <option value="">-- None Selected --</option>
+                {users
+                  .filter(user =>
+                    user.display_name.toLowerCase().includes(secondSearch.toLowerCase())
+                  )
+                  .map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.display_name}
+                    </option>
+                  ))}
+              </select>
+            </div>
           </div>
         </div>
 

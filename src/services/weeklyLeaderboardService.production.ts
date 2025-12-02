@@ -8,6 +8,12 @@ export interface ProductionWeeklyLeaderboardEntry {
   weekly_record: string
   lock_record: string
   week: number
+  wins?: number
+  losses?: number
+  pushes?: number
+  lock_wins?: number
+  lock_losses?: number
+  lock_pushes?: number
   pick_source?: 'authenticated' | 'anonymous' | 'mixed'
   payment_status?: 'Paid' | 'NotPaid' | 'Pending'
   is_verified?: boolean
@@ -39,10 +45,10 @@ export class ProductionWeeklyLeaderboardService {
         controller.abort()
       }, this.API_TIMEOUT)
 
-      // Direct REST API call to Supabase weekly_leaderboard table  
+      // Direct REST API call to Supabase weekly_leaderboard table
       // Show users whose picks are marked as visible on leaderboard (no limit for full leaderboard)
       const response = await fetch(
-        `${this.supabaseUrl}/rest/v1/weekly_leaderboard?select=user_id,display_name,weekly_rank,total_points,wins,losses,pushes,lock_wins,lock_losses,pick_source,payment_status,is_verified&season=eq.${season}&week=eq.${week}&picks_made.gt.0&order=weekly_rank.asc`,
+        `${this.supabaseUrl}/rest/v1/weekly_leaderboard?select=user_id,display_name,weekly_rank,total_points,wins,losses,pushes,lock_wins,lock_losses,lock_pushes,pick_source,payment_status,is_verified&season=eq.${season}&week=eq.${week}&picks_made.gt.0&order=weekly_rank.asc`,
         {
           headers: {
             'apikey': this.supabaseKey,
@@ -86,8 +92,14 @@ export class ProductionWeeklyLeaderboardService {
       weekly_rank: entry.weekly_rank || 0,
       total_points: entry.total_points || 0,
       weekly_record: `${entry.wins || 0}-${entry.losses || 0}-${entry.pushes || 0}`,
-      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`,
+      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}-${entry.lock_pushes || 0}`,
       week: week,
+      wins: entry.wins || 0,
+      losses: entry.losses || 0,
+      pushes: entry.pushes || 0,
+      lock_wins: entry.lock_wins || 0,
+      lock_losses: entry.lock_losses || 0,
+      lock_pushes: entry.lock_pushes || 0,
       pick_source: entry.pick_source || 'authenticated',
       payment_status: entry.payment_status || 'NotPaid',
       is_verified: entry.is_verified || false

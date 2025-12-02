@@ -41,7 +41,7 @@ export class SimpleLeaderboardService {
       season_rank: entry.season_rank || 0,
       total_points: entry.total_points || 0,
       season_record: `${entry.total_wins || 0}-${entry.total_losses || 0}-${entry.total_pushes || 0}`,
-      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}`
+      lock_record: `${entry.lock_wins || 0}-${entry.lock_losses || 0}-${entry.lock_pushes || 0}`
     }))
   }
 }
