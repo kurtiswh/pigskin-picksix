@@ -258,6 +258,14 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
               </Badge>
             )}
           </div>
+          {!winners?.is_finalized && (
+            <div className="mt-4 flex items-center gap-2 text-orange-700 bg-orange-50 border border-orange-200 rounded-md p-3">
+              <span className="text-lg">⚠️</span>
+              <span className="text-sm font-medium">
+                Winners not yet finalized - subject to change
+              </span>
+            </div>
+          )}
         </CardHeader>
       </Card>
 
