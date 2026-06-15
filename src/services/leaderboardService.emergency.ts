@@ -1,36 +1,8 @@
 import { supabase } from '@/lib/supabase'
+import type { EmergencyLeaderboardEntry, UserWeeklyBreakdown, WeeklyPerformance } from './leaderboard.types'
 
-export interface EmergencyLeaderboardEntry {
-  user_id: string
-  display_name: string
-  season_rank: number
-  total_points: number
-  season_record: string
-  lock_record: string
-  total_wins?: number
-  total_losses?: number
-  total_pushes?: number
-  lock_wins?: number
-  lock_losses?: number
-  pick_source?: 'authenticated' | 'anonymous' | 'mixed'
-  payment_status?: 'Paid' | 'NotPaid' | 'Pending'
-  is_verified?: boolean
-}
-
-export interface UserWeeklyBreakdown {
-  user_id: string
-  display_name: string
-  weeks: WeeklyPerformance[]
-}
-
-export interface WeeklyPerformance {
-  week: number
-  points: number
-  record: string // "W-L-P" format
-  lock_record: string // "W-L" format
-  picks_made: number
-  best_week?: boolean // Flag for highlighting best performance
-}
+// Re-exported from the canonical types module for back-compat with existing imports.
+export type { EmergencyLeaderboardEntry, UserWeeklyBreakdown, WeeklyPerformance }
 
 /**
  * Emergency Leaderboard Service - Works with any database structure

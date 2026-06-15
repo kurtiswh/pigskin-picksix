@@ -1,45 +1,8 @@
 import { supabase } from '@/lib/supabase'
+import type { EmergencyWeeklyLeaderboardEntry, WeeklyPickDetail, UserWeeklyPicks } from './leaderboard.types'
 
-export interface EmergencyWeeklyLeaderboardEntry {
-  user_id: string
-  display_name: string
-  weekly_rank: number
-  total_points: number
-  weekly_record: string
-  lock_record: string
-  week: number
-  wins?: number
-  losses?: number
-  pushes?: number
-  lock_wins?: number
-  lock_losses?: number
-  lock_pushes?: number
-  pick_source?: 'authenticated' | 'anonymous' | 'mixed'
-  payment_status?: 'Paid' | 'NotPaid' | 'Pending'
-  is_verified?: boolean
-}
-
-export interface WeeklyPickDetail {
-  game_id: string
-  game_name: string  // "Team A @ Team B"
-  selected_team: string
-  is_lock: boolean
-  result: 'win' | 'loss' | 'push' | null
-  points_earned: number
-  game_status: 'scheduled' | 'in_progress' | 'completed'
-  kickoff_time: string
-}
-
-export interface UserWeeklyPicks {
-  user_id: string
-  display_name: string
-  week: number
-  season: number
-  picks: WeeklyPickDetail[]
-  total_points: number
-  weekly_record: string
-  lock_record: string
-}
+// Re-exported from the canonical types module for back-compat with existing imports.
+export type { EmergencyWeeklyLeaderboardEntry, WeeklyPickDetail, UserWeeklyPicks }
 
 /**
  * Emergency Weekly Leaderboard Service - Works with any database structure

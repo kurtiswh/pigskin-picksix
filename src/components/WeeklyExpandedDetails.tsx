@@ -1,7 +1,7 @@
 import React from 'react'
 import { Lock, Clock, CheckCircle, XCircle, Minus, Calendar } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { UserWeeklyPicks, WeeklyPickDetail } from '@/services/weeklyLeaderboardService.emergency'
+import { UserWeeklyPicks, WeeklyPickDetail } from '@/services/leaderboard.types'
 
 interface WeeklyExpandedDetailsProps {
   data: UserWeeklyPicks

@@ -1,7 +1,7 @@
 import React from 'react'
 import { Trophy, TrendingUp, Lock, Calendar } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { UserWeeklyBreakdown, WeeklyPerformance } from '@/services/leaderboardService.emergency'
+import { UserWeeklyBreakdown, WeeklyPerformance } from '@/services/leaderboard.types'
 
 interface SeasonExpandedDetailsProps {
   data: UserWeeklyBreakdown
