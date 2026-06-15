@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { fetchAppSettings, clearAppSettingsCache, FALLBACK_ACTIVE_SEASON } from '@/lib/season'
 
 interface CurrentSeasonContextType {
@@ -50,4 +50,22 @@ export function useCurrentSeason() {
     throw new Error('useCurrentSeason must be used within a CurrentSeasonProvider')
   }
   return ctx
+}
+
+/**
+ * Season state for a selector/dropdown: starts at the active season and updates
+ * to it once loaded from the DB, but never overrides a value the user has set.
+ * Drop-in replacement for `useState(2025)` style season defaults.
+ */
+export function useSeasonState(): [number, React.Dispatch<React.SetStateAction<number>>] {
+  const { activeSeason, loading } = useCurrentSeason()
+  const [season, setSeason] = useState(activeSeason)
+  const defaulted = useRef(false)
+  useEffect(() => {
+    if (!loading && !defaulted.current) {
+      setSeason(activeSeason)
+      defaulted.current = true
+    }
+  }, [loading, activeSeason])
+  return [season, setSeason]
 }

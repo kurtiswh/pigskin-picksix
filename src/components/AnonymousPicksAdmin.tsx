@@ -1691,7 +1691,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     try {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
       const apiKey = ENV.SUPABASE_ANON_KEY
-      const currentSeason = 2025 // TODO: Make this dynamic
+      const currentSeason = selectedSeason // active/selected season from component state
 
       const response = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?user_id=eq.${userId}&season=eq.${currentSeason}`, {
         method: 'GET',

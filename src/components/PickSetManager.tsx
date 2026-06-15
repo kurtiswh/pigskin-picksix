@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useSeasonState } from '@/hooks/useCurrentSeason'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -51,7 +52,7 @@ export default function PickSetManager() {
   const { user } = useAuth()
   const [pickSets, setPickSets] = useState<PickSetInfo[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedSeason, setSelectedSeason] = useState<number>(2025)
+  const [selectedSeason, setSelectedSeason] = useSeasonState()
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set())
   const [userPickComparisons, setUserPickComparisons] = useState<{ [key: string]: any[] }>({})
   const [loadingComparisons, setLoadingComparisons] = useState<{ [key: string]: boolean }>({})

@@ -10,6 +10,7 @@ import { getActiveWeek } from '@/services/weekService'
 import { ENV } from '@/lib/env'
 import AdminGameSelector from '@/components/AdminGameSelector'
 import WeekControls from '@/components/WeekControls'
+import SeasonSettingsAdmin from '@/components/SeasonSettingsAdmin'
 import UserManagement from '@/components/UserManagement'
 import ApiStatusWidget from '@/components/ApiStatusWidget'
 import ApiQuotaWidget from '@/components/ApiQuotaWidget'
@@ -997,6 +998,7 @@ export default function AdminDashboard() {
         {activeTab === 'controls' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-pigskin-900">Week Controls</h2>
+            <SeasonSettingsAdmin />
             <WeekControls
               weekSettings={weekSettings}
               onUpdateSettings={handleUpdateSettings}

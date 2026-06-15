@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useSeasonState } from '@/hooks/useCurrentSeason'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -56,7 +57,7 @@ interface SelectedPick {
 
 export default function CustomPickCombinationManager() {
   const { user } = useAuth()
-  const [selectedSeason, setSelectedSeason] = useState<number>(2025)
+  const [selectedSeason, setSelectedSeason] = useSeasonState()
   const [selectedUser, setSelectedUser] = useState<string>('')
   const [selectedWeek, setSelectedWeek] = useState<string>('')
   const [availableUsers, setAvailableUsers] = useState<{id: string, display_name: string}[]>([])

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSeasonState } from '@/hooks/useCurrentSeason'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,7 +36,7 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
   const [progress, setProgress] = useState({ current: 0, total: 0, status: '' })
   const [result, setResult] = useState<UploadResult | null>(null)
   const [error, setError] = useState('')
-  const [season, setSeason] = useState(2025) // Default to 2025 for new uploads
+  const [season, setSeason] = useSeasonState() // Defaults to the active season for new uploads
 
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

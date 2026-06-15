@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
+import { getActiveSeason } from '@/lib/season'
 
 export default function DatabaseDebugger() {
   const [results, setResults] = useState<string[]>([])
@@ -56,8 +57,8 @@ export default function DatabaseDebugger() {
     try {
       addResult('💰 Testing payment queries...')
       
-      const currentSeason = new Date().getFullYear()
-      
+      const currentSeason = await getActiveSeason()
+
       // Count payments for current season
       const { count, error: countError } = await supabase
         .from('leaguesafe_payments')

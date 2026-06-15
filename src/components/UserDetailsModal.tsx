@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { FALLBACK_ACTIVE_SEASON } from '@/lib/season'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,7 +27,7 @@ export default function UserDetailsModal({
   onDeleteUser,
   onUpdatePaymentStatus,
   onRefresh,
-  currentSeason = 2025
+  currentSeason = FALLBACK_ACTIVE_SEASON
 }: UserDetailsModalProps) {
   const [loading, setLoading] = useState(false)
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>('')

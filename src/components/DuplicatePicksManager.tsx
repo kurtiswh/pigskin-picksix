@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useSeasonState } from '@/hooks/useCurrentSeason'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -40,7 +41,7 @@ export default function DuplicatePicksManager() {
   const [duplicateScenarios, setDuplicateScenarios] = useState<DuplicatePickScenario[]>([])
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<string | null>(null)
-  const [selectedSeason, setSelectedSeason] = useState<number>(2025)
+  const [selectedSeason, setSelectedSeason] = useSeasonState()
   const [editingPreference, setEditingPreference] = useState<{
     scenario: DuplicatePickScenario
     preference: PickPreference

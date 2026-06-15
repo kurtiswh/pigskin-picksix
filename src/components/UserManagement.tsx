@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSeasonState } from '@/hooks/useCurrentSeason'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,7 +32,7 @@ export default function UserManagement() {
   const [searchTerm, setSearchTerm] = useState('')
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all')
   const [error, setError] = useState('')
-  const [currentSeason, setCurrentSeason] = useState(2025) // Default to 2025 (current season)
+  const [currentSeason, setCurrentSeason] = useSeasonState() // Defaults to the active season
   const [matchingPayment, setMatchingPayment] = useState<LeagueSafePayment | null>(null)
   const [selectedUser, setSelectedUser] = useState<UserWithPayment | null>(null)
   const [showMergeModal, setShowMergeModal] = useState(false)
