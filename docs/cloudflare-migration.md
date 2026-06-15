@@ -3,26 +3,29 @@
 This is the **interactive** checklist for steps that need your accounts/credentials.
 The code/config is already in the repo (branch `phase3-cloudflare-keys`).
 
-## 1. Rotate the exposed keys (do this first — they're in git history)
+## 1. Rotate the Resend key (do this first — it's in git history)
 
-Both keys were committed in `.env.example` and shipped in the old client bundle, so
-treat them as compromised.
+The Resend key was committed in `.env.example` and shipped in the old client
+bundle, so treat it as compromised. Resend can send email as your domain, so this
+one matters.
 
 - **Resend:** https://resend.com/api-keys → revoke the old key (`re_2qTSnsg5…`),
   create a new one.
-- **CFBD:** https://collegefootballdata.com/ → regenerate your API key.
+- **CFBD:** read-only, free tier — no cost risk if exposed, so rotation is
+  **optional**. The client still calls CFBD directly with `VITE_CFBD_API_KEY`
+  (intentional — see Notes). Rotate only if you want the old key invalidated.
 
-## 2. Put the secrets in Supabase (server-side, never in the client)
+## 2. Set the server-side secrets in Supabase
 
 ```bash
-supabase secrets set RESEND_API_KEY=<new_resend_key>
-supabase secrets set CFBD_API_KEY=<new_cfbd_key>
+supabase secrets set RESEND_API_KEY=<new_resend_key>   # used by send-email
+# CFBD secret only needed for the automated live-score cron function:
+supabase secrets set CFBD_API_KEY=<your_cfbd_key>      # used by live-score-updater
 # verify:
 supabase secrets list
 ```
 
-These are read by the Edge Functions (`send-email`, `live-score-updater`, etc.)
-via `Deno.env.get(...)`. Redeploy the functions if needed:
+These are read by the Edge Functions via `Deno.env.get(...)`. Redeploy if needed:
 
 ```bash
 supabase functions deploy send-email
@@ -55,7 +58,8 @@ so there aren't two live copies.
 ## Notes
 - Client build vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) are baked in at
   `npm run build` time. The anon key is safe to expose (RLS-protected).
-- No secret keys are in the client anymore. Keep it that way: anything sensitive
-  goes through a Supabase Edge Function.
-- **CFBD client calls:** still pending a decision — see the Phase 3 status notes.
-  Until that's resolved, `VITE_CFBD_API_KEY` may still be needed at build time.
+- The **Resend** secret is server-side only (send-email Edge Function); it is no
+  longer a client `VITE_` var.
+- **CFBD stays client-side** by choice — it's a read-only, free-tier key with no
+  cost exposure, so it remains `VITE_CFBD_API_KEY` (needed at build time). It's
+  also used server-side by the live-score-updater cron function.
