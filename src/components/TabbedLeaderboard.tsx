@@ -10,7 +10,7 @@ import { EmergencyLeaderboardService } from '@/services/leaderboardService.emerg
 import { ProductionLeaderboardService, ProductionLeaderboardEntry } from '@/services/leaderboardService.production'
 import { EmergencyWeeklyLeaderboardService } from '@/services/weeklyLeaderboardService.emergency'
 import { ProductionWeeklyLeaderboardService, ProductionWeeklyLeaderboardEntry } from '@/services/weeklyLeaderboardService.production'
-import type { EmergencyLeaderboardEntry, UserWeeklyBreakdown, EmergencyWeeklyLeaderboardEntry, UserWeeklyPicks } from '@/services/leaderboard.types'
+import type { EmergencyLeaderboardEntry, EmergencyWeeklyLeaderboardEntry } from '@/services/leaderboard.types'
 import { liveUpdateService, LiveUpdateStatus, LiveUpdateResult } from '@/services/liveUpdateService'
 import { getLatestWeekWithResults } from '@/services/weekService'
 import { LeaderboardService, LeaderboardEntry } from '@/services/leaderboardService'
@@ -458,10 +458,10 @@ export default function TabbedLeaderboard() {
         let data
         console.log(`🔍 Loading expanded data for ${rowKey}, tabType: ${tabType}`)
         if (tabType === 'season') {
-          data = await EmergencyLeaderboardService.getUserWeeklyBreakdown(userId, season)
+          data = await LeaderboardService.getUserWeeklyBreakdown(userId, season)
           console.log('🔍 Season expanded data loaded:', data)
         } else {
-          data = await EmergencyWeeklyLeaderboardService.getUserWeeklyPicks(userId, season, selectedWeek)
+          data = await LeaderboardService.getUserWeeklyPicks(userId, season, selectedWeek)
           console.log('🔍 Weekly expanded data loaded:', data)
         }
         
