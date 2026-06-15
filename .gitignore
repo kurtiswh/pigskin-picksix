@@ -70,3 +70,5 @@ debug-*.sql
 simple-server.js
 test.html
 feature-demo.html
+# Cloudflare Wrangler
+.wrangler/

@@ -33,7 +33,8 @@ export const ENV = {
   SUPABASE_URL: getEnvVar('VITE_SUPABASE_URL'),
   SUPABASE_ANON_KEY: getEnvVar('VITE_SUPABASE_ANON_KEY'),
   CFBD_API_KEY: getEnvVar('VITE_CFBD_API_KEY'),
-  RESEND_API_KEY: getEnvVar('VITE_RESEND_API_KEY'),
+  // RESEND_API_KEY intentionally removed from the client: email is sent by the
+  // Supabase send-email Edge Function, which holds the Resend secret server-side.
 } as const;
 
 // Validation helper

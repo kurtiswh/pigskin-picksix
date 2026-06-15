@@ -1,0 +1,21 @@
+# Cloudflare Workers deployment (replaces Vercel hosting).
+#
+# This is an assets-only Worker: Cloudflare serves the built SPA from ./dist.
+# `not_found_handling = "single-page-application"` returns index.html for any
+# unmatched path, which replaces the Vercel rewrite that pointed everything at
+# /index.html so client-side routing (React Router) works on deep links/refresh.
+#
+# Deploy:
+#   npm run build        # produces ./dist (needs VITE_* vars at build time)
+#   npm run deploy       # wrangler deploy
+#
+# Secret API keys are NOT here -- they live in Supabase Edge Functions
+# (send-email, live-score-updater, etc.) as Supabase secrets, so they are never
+# shipped to the browser.
+
+name = "pigskin-pick-six"
+compatibility_date = "2025-01-01"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"

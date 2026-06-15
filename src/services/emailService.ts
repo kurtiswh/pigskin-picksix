@@ -6,8 +6,9 @@
 import { supabase } from '@/lib/supabase'
 import { UserPreferences } from '@/types'
 import { ENV } from '@/lib/env'
-import { Resend } from 'resend'
-import { 
+// Email is sent server-side via the Supabase `send-email` Edge Function (which
+// holds the Resend secret); the client never instantiates Resend directly.
+import {
   getPickReminderSubject, 
   getPickReminderHtml, 
   getPickReminderText 

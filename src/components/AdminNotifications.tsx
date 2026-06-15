@@ -772,7 +772,7 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
           <div className="grid md:grid-cols-2 gap-4 text-sm">
             <div className="space-y-2">
               <p>✅ Database: <code className="bg-gray-100 px-1 rounded">038_fix_email_jobs_rls_policies.sql</code></p>
-              <p>{ENV.RESEND_API_KEY ? '✅' : '❌'} Email provider: {ENV.RESEND_API_KEY ? 'Resend configured' : 'No Resend API key found'}</p>
+              <p>✅ Email provider: Resend (sent server-side via the send-email Edge Function)</p>
               <p>✅ User preferences: Available in profiles</p>
             </div>
             <div className="space-y-2">

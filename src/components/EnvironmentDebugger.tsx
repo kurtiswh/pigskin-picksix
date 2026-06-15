@@ -27,7 +27,7 @@ export default function EnvironmentDebugger() {
         supabaseUrl: ENV.SUPABASE_URL ? 'Present' : 'Missing',
         supabaseKey: ENV.SUPABASE_ANON_KEY ? 'Present' : 'Missing',
         cfbdKey: ENV.CFBD_API_KEY ? 'Present' : 'Missing',
-        resendKey: ENV.RESEND_API_KEY ? 'Present' : 'Missing',
+        resendKey: 'Server-side (send-email Edge Function)',
         nodeEnv: import.meta.env.MODE || 'unknown',
         isDev: import.meta.env.DEV || false,
         isProd: import.meta.env.PROD || false
