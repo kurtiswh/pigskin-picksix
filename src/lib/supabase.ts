@@ -329,6 +329,26 @@ export type Database = {
           updated_at?: string
         }
       }
+      app_settings: {
+        Row: {
+          id: boolean
+          active_season: number
+          grace_period_weeks: number
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          active_season: number
+          grace_period_weeks?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          active_season?: number
+          grace_period_weeks?: number
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

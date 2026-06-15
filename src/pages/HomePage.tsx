@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
+import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
@@ -14,7 +15,7 @@ export default function HomePage() {
   const navigate = useNavigate()
   
   console.log('🏠 HomePage - User state:', user)
-  const currentSeason = new Date().getFullYear()
+  const { activeSeason: currentSeason } = useCurrentSeason()
   const [currentWeek, setCurrentWeek] = useState(1)
   const [deadline, setDeadline] = useState<Date | null>(null)
   const [topPlayers, setTopPlayers] = useState<LeaderboardEntry[]>([])
@@ -153,7 +154,7 @@ export default function HomePage() {
         .select('*')
         .eq('user_id', user.id)
         .eq('week', currentWeek)
-        .eq('season', new Date().getFullYear())
+        .eq('season', currentSeason)
 
       if (picksData) {
         setUserPicks(picksData)

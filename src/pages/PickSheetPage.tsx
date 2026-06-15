@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { getActiveWeek } from '@/services/weekService'
@@ -30,7 +31,7 @@ export default function PickSheetPage() {
   const [isUpdatingPick, setIsUpdatingPick] = useState(false)
   const [isTogglingLock, setIsTogglingLock] = useState(false)
   
-  const currentSeason = new Date().getFullYear()
+  const { activeSeason: currentSeason } = useCurrentSeason()
   const [currentWeek, setCurrentWeek] = useState(0)
 
   // Check if user has unsaved changes

@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './hooks/useAuth'
+import { CurrentSeasonProvider } from './hooks/useCurrentSeason'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -20,6 +21,7 @@ function App() {
   
   return (
     <AuthProvider>
+      <CurrentSeasonProvider>
       <Router>
         <div className="min-h-screen bg-stone-50">
           <Routes>
@@ -42,6 +44,7 @@ function App() {
           </Routes>
         </div>
       </Router>
+      </CurrentSeasonProvider>
     </AuthProvider>
   )
 }

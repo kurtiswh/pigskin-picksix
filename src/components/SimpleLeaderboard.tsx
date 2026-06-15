@@ -1,12 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { EmergencyLeaderboardService, EmergencyLeaderboardEntry } from '@/services/leaderboardService.emergency'
 import { ProductionLeaderboardService, ProductionLeaderboardEntry } from '@/services/leaderboardService.production'
+import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 
 export default function SimpleLeaderboard() {
-  const [season, setSeason] = useState(2024)
+  const { activeSeason, loading: seasonLoading } = useCurrentSeason()
+  const [season, setSeason] = useState(activeSeason)
+  const seasonDefaulted = useRef(false)
+  useEffect(() => {
+    if (!seasonLoading && !seasonDefaulted.current) {
+      setSeason(activeSeason)
+      seasonDefaulted.current = true
+    }
+  }, [seasonLoading, activeSeason])
   const [data, setData] = useState<EmergencyLeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')

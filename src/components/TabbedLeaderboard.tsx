@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ import { getLatestWeekWithResults } from '@/services/weekService'
 import { LeaderboardService, LeaderboardEntry } from '@/services/leaderboardService'
 import { WeekSettingsService, WeekSettings } from '@/services/weekSettingsService'
 import { useAuth } from '@/hooks/useAuth'
+import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { ExpandableLeaderboardRow, LeaderboardRowContent } from '@/components/ExpandableLeaderboardRow'
 import { SeasonExpandedDetails } from '@/components/SeasonExpandedDetails'
 import { WeeklyExpandedDetails } from '@/components/WeeklyExpandedDetails'
@@ -23,7 +24,17 @@ import WinnersDisplay from '@/components/WinnersDisplay'
 
 export default function TabbedLeaderboard() {
   const { user } = useAuth()
-  const [season, setSeason] = useState(2025)
+  const { activeSeason, loading: seasonLoading } = useCurrentSeason()
+  const [season, setSeason] = useState(activeSeason)
+  // Default the season selector to the active season once it loads from the DB,
+  // but never override a season the user has manually picked.
+  const seasonDefaulted = useRef(false)
+  useEffect(() => {
+    if (!seasonLoading && !seasonDefaulted.current) {
+      setSeason(activeSeason)
+      seasonDefaulted.current = true
+    }
+  }, [seasonLoading, activeSeason])
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null)
   const [selectedSeasonWeek, setSelectedSeasonWeek] = useState<'current' | number>('current')
   const [activeTab, setActiveTab] = useState('season')

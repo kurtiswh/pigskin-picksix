@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { supabase } from '@/lib/supabase'
 import { getActiveWeek } from '@/services/weekService'
 import { getWeekDataDirect } from '@/lib/supabase-direct'
@@ -34,7 +35,7 @@ export default function AnonymousPicksPage() {
   const [showNavWarning, setShowNavWarning] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null)
   
-  const currentSeason = new Date().getFullYear()
+  const { activeSeason: currentSeason } = useCurrentSeason()
   const [currentWeek, setCurrentWeek] = useState(0)
 
   // Check if user has unsaved changes

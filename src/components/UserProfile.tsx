@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { supabase } from '@/lib/supabase'
 import { UserProfile as UserProfileType, UserPreferences, Pick, AnonymousPick, UserPickSet } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 
 export default function UserProfile() {
   const { user, refreshUser } = useAuth()
+  const { activeSeason } = useCurrentSeason()
   const [activeTab, setActiveTab] = useState<'profile' | 'stats'>('profile')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -66,7 +68,7 @@ export default function UserProfile() {
       }
       
       // Calculate comprehensive statistics
-      const currentSeason = new Date().getFullYear()
+      const currentSeason = activeSeason
       const stats = calculateCombinedUserStats(allPicks, allAnonPicks, currentSeason)
       const pickSetsData = generatePickSetsData(allPicks, allAnonPicks)
       

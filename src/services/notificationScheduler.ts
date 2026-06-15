@@ -6,6 +6,7 @@
 import { supabase } from '@/lib/supabase'
 import { EmailService } from './emailService'
 import { AdminEmailSettingsService } from './adminEmailSettings'
+import { getActiveSeason } from '@/lib/season'
 
 export interface NotificationEvent {
   type: 'week_opened' | 'picks_submitted' | 'week_completed' | 'deadline_approaching'
@@ -369,7 +370,7 @@ export class NotificationScheduler {
       if (error) throw error
       if (!user) throw new Error('User not found')
 
-      const currentSeason = new Date().getFullYear()
+      const currentSeason = await getActiveSeason()
       const testWeek = 1
       const testDeadline = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)) // 1 week from now
 

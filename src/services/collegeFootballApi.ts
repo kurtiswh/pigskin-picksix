@@ -5,6 +5,7 @@
 
 import { ENV } from '@/lib/env'
 import { ApiQuotaService } from './apiQuotaService'
+import { getActiveSeason } from '@/lib/season'
 
 const BASE_URL = 'https://api.collegefootballdata.com'
 
@@ -747,8 +748,8 @@ export async function updateGameScores(gameIds: number[]): Promise<CFBGame[]> {
       return []
     }
     
-    // Get current season and week (we'll improve this later)
-    const currentSeason = new Date().getFullYear()
+    // Get current season (admin-controlled) and week
+    const currentSeason = await getActiveSeason()
     const currentWeek = getCurrentWeek(currentSeason)
     
     // Use scoreboard API for real live data

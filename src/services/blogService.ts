@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { BlogPost, BlogPostCreate, BlogPostUpdate, SeasonWeekFilter } from '@/types'
+import { getActiveSeason } from '@/lib/season'
 
 export class BlogService {
   // Get published blog posts with optional season/week filter
@@ -498,16 +499,9 @@ export class BlogService {
 
   // Get the latest completed week (for defaulting new posts)
   static async getLatestWeek(): Promise<{ season: number; week: number | null }> {
-    // This would ideally check against actual game data
-    // For now, return current season and a reasonable default
-    const currentYear = new Date().getFullYear()
+    // Use the admin-controlled active season as the source of truth.
     const currentMonth = new Date().getMonth() + 1
-
-    // Determine season based on month (football season runs Aug-Jan)
-    let season = currentYear
-    if (currentMonth <= 2) {
-      season = currentYear - 1 // Still in previous season if Jan-Feb
-    }
+    const season = await getActiveSeason()
 
     // Default to pre-season in summer, Week 1+ during season
     let week: number | null = null

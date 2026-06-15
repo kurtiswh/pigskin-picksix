@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { Navigate, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { getWeekDataDirect, saveGamesDirect, unsaveGamesDirect } from '@/lib/supabase-direct'
@@ -40,7 +41,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   
-  const currentSeason = new Date().getFullYear()
+  const { activeSeason: currentSeason } = useCurrentSeason()
   const [gameSelectionWeek, setGameSelectionWeek] = useState(0)
   const [currentWeek, setCurrentWeek] = useState(0)
   const maxGames = 15
