@@ -1,5 +1,5 @@
 import React from 'react'
-import { Trophy, TrendingUp, Lock, Calendar } from 'lucide-react'
+import { Trophy, Lock, Calendar } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { UserWeeklyBreakdown, WeeklyPerformance } from '@/services/leaderboard.types'
 
@@ -17,45 +17,42 @@ interface WeeklyPerformanceCardProps {
 
 function WeeklyPerformanceCard({ week, isBestWeek = false }: WeeklyPerformanceCardProps) {
   return (
-    <div className={`p-3 rounded-lg border ${
-      isBestWeek 
-        ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200 ring-1 ring-yellow-200' 
-        : 'bg-white border-gray-200 hover:border-gray-300'
+    <div className={`p-3 rounded-xl border ${
+      isBestWeek
+        ? 'bg-[#fff8ea] border-[#f0dcb0] ring-1 ring-[#C9A04E]/30'
+        : 'bg-white border-[#ece7de] hover:border-[#d8d0c2]'
     } transition-colors`}>
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center space-x-2">
-          <Calendar className="w-4 h-4 text-gray-500" />
+        <div className="flex items-center gap-2 min-w-0">
+          <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
           <span className="font-semibold text-gray-900">Week {week.week}</span>
           {isBestWeek && (
-            <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300">
+            <Badge variant="outline" className="bg-[#C9A04E]/15 text-[#8a6a1f] border-[#e6cf9a]">
               <Trophy className="w-3 h-3 mr-1" />
               Best Week
             </Badge>
           )}
         </div>
-        <div className="flex items-center space-x-1">
-          <TrendingUp className="w-4 h-4 text-[#4B3621]" />
-          <span className="font-bold text-lg text-[#4B3621]">{week.points}</span>
-        </div>
+        <span className="font-extrabold text-lg text-[#4B3621] tabular-nums">{week.points}</span>
       </div>
 
       <div className="grid grid-cols-3 gap-3 text-sm">
         <div className="text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Record</div>
-          <div className="font-medium text-gray-900">{week.record}</div>
+          <div className="text-[10px] text-gray-400 uppercase tracking-wide">Record</div>
+          <div className="font-medium text-gray-700 tabular-nums">{week.record}</div>
         </div>
-        
+
         <div className="text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide flex items-center justify-center space-x-1">
+          <div className="text-[10px] text-gray-400 uppercase tracking-wide flex items-center justify-center gap-1">
             <Lock className="w-3 h-3" />
             <span>Lock</span>
           </div>
-          <div className="font-medium text-gray-900">{week.lock_record}</div>
+          <div className="font-medium text-gray-700 tabular-nums">{week.lock_record}</div>
         </div>
-        
+
         <div className="text-center">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Picks</div>
-          <div className="font-medium text-gray-900">{week.picks_made}</div>
+          <div className="text-[10px] text-gray-400 uppercase tracking-wide">Picks</div>
+          <div className="font-medium text-gray-700 tabular-nums">{week.picks_made}</div>
         </div>
       </div>
     </div>
@@ -137,7 +134,7 @@ export function SeasonExpandedDetails({ data, isLoading = false, asOfWeek, curre
           
           <div className="text-center">
             <div className="text-xs text-gray-500 uppercase tracking-wide">Best Week</div>
-            <div className="font-bold text-lg text-yellow-600">
+            <div className="font-bold text-lg text-[#C9A04E] tabular-nums">
               {bestWeek ? `W${bestWeek.week} (${bestWeek.points})` : 'N/A'}
             </div>
           </div>

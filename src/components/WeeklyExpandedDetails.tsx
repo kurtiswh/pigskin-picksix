@@ -71,16 +71,16 @@ function PickCard({ pick }: PickCardProps) {
   })
 
   return (
-    <div className={`p-4 rounded-lg border transition-colors ${
+    <div className={`p-4 rounded-xl border transition-colors ${
       pick.game_status === 'in_progress' || pick.game_status === 'scheduled'
-        ? 'bg-white border-gray-200 hover:border-gray-300'
+        ? 'bg-white border-[#ece7de] hover:border-[#d8d0c2]'
         : pick.result === 'win'
         ? 'bg-green-50 border-green-200'
         : pick.result === 'loss'
         ? 'bg-red-50 border-red-200'
         : pick.result === 'push'
-        ? 'bg-yellow-50 border-yellow-200'
-        : 'bg-white border-gray-200 hover:border-gray-300'
+        ? 'bg-[#fff8ea] border-[#f0dcb0]'
+        : 'bg-white border-[#ece7de] hover:border-[#d8d0c2]'
     }`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
@@ -104,7 +104,7 @@ function PickCard({ pick }: PickCardProps) {
         
         <div>
           <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Points Earned</div>
-          <div className={`font-bold text-lg ${getResultColor(pick.result, pick.game_status)}`}>
+          <div className={`font-bold text-lg tabular-nums ${getResultColor(pick.result, pick.game_status)}`}>
             {pick.points_earned}
           </div>
         </div>

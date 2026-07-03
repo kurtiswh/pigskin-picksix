@@ -586,7 +586,7 @@ export default function TabbedLeaderboard() {
         
         <div className="mt-4 flex items-center gap-4">
           <Select value={season.toString()} onValueChange={(value) => setSeason(parseInt(value))}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-32 focus:ring-[#C9A04E]/40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -599,7 +599,7 @@ export default function TabbedLeaderboard() {
             placeholder="Search players..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-xs"
+            className="max-w-xs focus-visible:ring-[#C9A04E]/40"
           />
           
           <div className="flex items-center gap-2">
@@ -707,11 +707,21 @@ export default function TabbedLeaderboard() {
       )}
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="season">Season Standings</TabsTrigger>
-          <TabsTrigger value="weekly">Weekly Results</TabsTrigger>
-          <TabsTrigger value="bestfinish">Best Finish</TabsTrigger>
-          <TabsTrigger value="winners">Winners</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 h-auto p-1 bg-[#f1ece3] rounded-xl">
+          {[
+            { v: 'season', label: 'Season Standings' },
+            { v: 'weekly', label: 'Weekly Results' },
+            { v: 'bestfinish', label: 'Best Finish' },
+            { v: 'winners', label: 'Winners' },
+          ].map((t) => (
+            <TabsTrigger
+              key={t.v}
+              value={t.v}
+              className="py-2 text-gray-600 rounded-lg data-[state=active]:bg-[#4B3621] data-[state=active]:text-white data-[state=active]:shadow-sm"
+            >
+              {t.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
         
         <TabsContent value="season" className="mt-6">
@@ -726,7 +736,7 @@ export default function TabbedLeaderboard() {
                 }
               }}
             >
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-48 focus:ring-[#C9A04E]/40">
                 <SelectValue placeholder="Current Season" />
               </SelectTrigger>
               <SelectContent>
@@ -773,7 +783,7 @@ export default function TabbedLeaderboard() {
               value={selectedWeek?.toString() || ''} 
               onValueChange={(value) => setSelectedWeek(parseInt(value))}
             >
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-48 focus:ring-[#C9A04E]/40">
                 <SelectValue placeholder="Select week" />
               </SelectTrigger>
               <SelectContent>
