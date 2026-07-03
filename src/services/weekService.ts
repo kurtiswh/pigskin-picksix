@@ -1,6 +1,33 @@
 import { supabase } from '@/lib/supabase'
 
 /**
+ * Highest week configured for a season (has games selected). Used to bound the
+ * week-picker dropdowns so they only list weeks that actually exist, instead of
+ * a hardcoded range or the latest-week-with-results (which can lag behind).
+ *
+ * @param season - The season year
+ * @returns The max configured week, or 0 if none found
+ */
+export async function getMaxConfiguredWeek(season: number): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from('week_settings')
+      .select('week')
+      .eq('season', season)
+      .eq('games_selected', true)
+      .order('week', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error || !data) return 0
+    return data.week
+  } catch (err) {
+    console.error('getMaxConfiguredWeek error:', err)
+    return 0
+  }
+}
+
+/**
  * Gets the currently active week for display purposes.
  * This stays on the current week until the next week's picks are opened.
  * 

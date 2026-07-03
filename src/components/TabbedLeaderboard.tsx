@@ -10,7 +10,7 @@ import { EmergencyLeaderboardService } from '@/services/leaderboardService.emerg
 import { EmergencyWeeklyLeaderboardService } from '@/services/weeklyLeaderboardService.emergency'
 import type { EmergencyLeaderboardEntry, EmergencyWeeklyLeaderboardEntry } from '@/services/leaderboard.types'
 import { liveUpdateService, LiveUpdateStatus, LiveUpdateResult } from '@/services/liveUpdateService'
-import { getLatestWeekWithResults } from '@/services/weekService'
+import { getLatestWeekWithResults, getMaxConfiguredWeek } from '@/services/weekService'
 import { LeaderboardService, LeaderboardEntry } from '@/services/leaderboardService'
 import { WeekSettingsService, WeekSettings } from '@/services/weekSettingsService'
 import { useAuth } from '@/hooks/useAuth'
@@ -35,6 +35,7 @@ export default function TabbedLeaderboard() {
     }
   }, [seasonLoading, activeSeason])
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null)
+  const [maxWeek, setMaxWeek] = useState<number>(0)
   const [selectedSeasonWeek, setSelectedSeasonWeek] = useState<'current' | number>('current')
   const [activeTab, setActiveTab] = useState('season')
   const [seasonData, setSeasonData] = useState<(LeaderboardEntry | EmergencyLeaderboardEntry)[]>([])
@@ -61,11 +62,16 @@ export default function TabbedLeaderboard() {
   // Check if current user is admin
   const isAdmin = user?.is_admin === true
 
-  // Initialize selectedWeek to the latest week with results
+  // Initialize selectedWeek to the latest week with results, and compute the
+  // season's max configured week to bound the week-picker dropdowns.
   useEffect(() => {
     const initializeWeek = async () => {
-      const latestWeek = await getLatestWeekWithResults(season)
+      const [latestWeek, configuredMax] = await Promise.all([
+        getLatestWeekWithResults(season),
+        getMaxConfiguredWeek(season),
+      ])
       setSelectedWeek(latestWeek)
+      setMaxWeek(configuredMax || latestWeek || 0)
     }
     initializeWeek()
   }, [season])
@@ -725,7 +731,7 @@ export default function TabbedLeaderboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="current">Current Season</SelectItem>
-                {selectedWeek && Array.from({ length: selectedWeek }, (_, i) => i + 1).map((week) => (
+                {Array.from({ length: maxWeek }, (_, i) => i + 1).map((week) => (
                   <SelectItem key={week} value={week.toString()}>
                     Through Week {week}
                   </SelectItem>
@@ -771,7 +777,7 @@ export default function TabbedLeaderboard() {
                 <SelectValue placeholder="Select week" />
               </SelectTrigger>
               <SelectContent>
-                {Array.from({ length: 17 }, (_, i) => i + 1).map((week) => (
+                {Array.from({ length: maxWeek }, (_, i) => i + 1).map((week) => (
                   <SelectItem key={week} value={week.toString()}>
                     Week {week}
                   </SelectItem>
