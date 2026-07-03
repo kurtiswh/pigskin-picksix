@@ -978,27 +978,28 @@ export default function TabbedLeaderboard() {
           </div>
         )}
         
-        {/* Header row - Hidden on mobile */}
-        <div className="hidden md:block border-b bg-gray-50">
-          <div className="grid grid-cols-12 gap-2 p-2 text-sm font-medium text-gray-700">
-            <div className="col-span-1">Rank</div>
-            <div className="col-span-3">
+        {/* Header row - Hidden on mobile (grid aligns with LeaderboardRowContent) */}
+        <div className="hidden md:block bg-[#faf8f4] border-y border-[#ece7de]">
+          <div className="flex items-center px-4 py-2">
+            <div className="grid grid-cols-[64px_minmax(0,1fr)_104px_64px_72px] items-center gap-3 flex-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
               <div className="flex items-center gap-1">
-                Name
+                Rank
                 {liveUpdateStatus?.isRunning && (
                   <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></div>
                 )}
               </div>
+              <div>Player</div>
+              <div>Record</div>
+              <div>Lock</div>
+              <div className="text-right">Points</div>
             </div>
-            {isAdmin && <div className="col-span-2">Source</div>}
-            <div className={`col-span-2 ${isAdmin ? '' : 'col-span-2'}`}>Record</div>
-            <div className="col-span-2">Lock Record</div>
-            <div className="col-span-2">Points</div>
+            {/* spacer aligning with the row's expand chevron */}
+            <div className="ml-4 w-7 shrink-0"></div>
           </div>
         </div>
 
         {/* Expandable rows */}
-        <div className="space-y-1">
+        <div className="border-x border-b border-[#ece7de] rounded-b-lg overflow-hidden">
           {data
             .filter((entry) => 
               searchTerm === '' || 

@@ -49,10 +49,10 @@ export function ExpandableLeaderboardRow({
   }
 
   return (
-    <div className={`bg-white rounded-lg border shadow-sm hover:shadow-md transition-all duration-200 ${isExpanded ? 'ring-1 ring-[#4B3621]/20' : ''} ${className}`}>
+    <div className={`bg-white border-b border-[#ece7de] last:border-b-0 transition-colors duration-200 ${isExpanded ? 'bg-[#faf8f4]' : ''} ${className}`}>
       {/* Main row */}
-      <div 
-        className={`p-4 rounded-t-lg ${canExpand && !isLoading ? 'cursor-pointer hover:bg-gray-50 active:bg-gray-100' : ''} transition-colors duration-150`}
+      <div
+        className={`px-4 py-3 ${canExpand && !isLoading ? 'cursor-pointer hover:bg-[#faf8f4] active:bg-[#f3efe7]' : ''} transition-colors duration-150`}
         onClick={handleToggle}
       >
         <div className="flex items-center justify-between">
@@ -94,7 +94,7 @@ export function ExpandableLeaderboardRow({
           borderTopColor: isExpanded ? undefined : 'transparent'
         }}
       >
-        <div className="bg-gray-50/50 rounded-b-lg">
+        <div className="bg-[#faf8f4]">
           <div className="p-4">
             {expandedContent}
           </div>
@@ -156,148 +156,107 @@ export function LeaderboardRowContent({
     ) : null
   }
   
+  // Weekly rank movement pill. Lives in the rank column so it clearly reads as
+  // "spots moved", not a points change.
   const getRankChangeIndicator = () => {
     if (typeof rankChange !== 'number' || !previousRank) return null
-    
+
     if (rankChange === 0) {
       return (
-        <div className="flex items-center gap-1 text-gray-500" title={`Same rank as last week (#${previousRank})`}>
-          <Minus className="w-3 h-3" />
-          <span className="text-xs">—</span>
-        </div>
+        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-[#f0ece5] text-gray-500 tabular-nums"
+          title={`Same rank as last week (#${previousRank})`}>
+          <Minus className="w-2.5 h-2.5" />
+        </span>
       )
     }
-    
+
     const isPositive = rankChange > 0
     const Icon = isPositive ? TrendingUp : TrendingDown
-    const color = isPositive ? 'text-green-600' : 'text-red-600'
-    const bgColor = isPositive ? 'bg-green-50' : 'bg-red-50'
-    const borderColor = isPositive ? 'border-green-200' : 'border-red-200'
-    
-    const changeText = isPositive ? `+${rankChange}` : `${rankChange}`
+    const cls = isPositive ? 'bg-[#e7f6ec] text-green-700' : 'bg-[#fbe9ec] text-red-600'
+    const changeText = Math.abs(rankChange)
     const direction = isPositive ? 'up' : 'down'
     const title = `Moved ${direction} ${Math.abs(rankChange)} spot${Math.abs(rankChange) !== 1 ? 's' : ''} from #${previousRank} last week`
-    
+
     return (
-      <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${color} ${bgColor} border ${borderColor}`} title={title}>
-        <Icon className="w-3 h-3" />
-        <span className="font-medium">{changeText}</span>
-      </div>
+      <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums ${cls}`} title={title}>
+        <Icon className="w-2.5 h-2.5" />
+        {changeText}
+      </span>
     )
   }
   
+  const trophyColor = rank === 1 ? 'text-yellow-500' : rank === 2 ? 'text-gray-400' : 'text-amber-600'
+
   return (
     <>
-      {/* Desktop Layout */}
-      <div className="hidden md:flex items-center justify-between w-full">
-        <div className="flex items-center space-x-4">
-          {/* Rank */}
-          <div className="flex items-center min-w-[4rem]">
-            <div className="flex flex-col items-start space-y-1">
-              <div className="flex items-center space-x-1">
-                {rank <= 3 ? (
-                  <>
-                    <Trophy className={`w-4 h-4 ${
-                      rank === 1 ? 'text-yellow-500' : 
-                      rank === 2 ? 'text-gray-400' : 
-                      'text-amber-600'
-                    }`} />
-                    <span className="font-bold text-lg">{rank}</span>
-                  </>
-                ) : (
-                  <span className="font-semibold text-gray-700">{rank}</span>
-                )}
-                {isTied && (
-                  <span className="text-xs font-bold text-blue-600 uppercase ml-0.5" title="Tied rank - same points as other players">
-                    T
-                  </span>
-                )}
-              </div>
-              {getRankChangeIndicator()}
-            </div>
-          </div>
-
-          {/* Name and Badges */}
-          <div className="flex-1 flex items-center gap-2">
-            <h3 className="font-semibold text-gray-900 truncate">{displayName}</h3>
-            {getPaymentBadge()}
-            {getSourceBadge()}
+      {/* Desktop Layout — grid aligned with the header row */}
+      <div className="hidden md:grid grid-cols-[64px_minmax(0,1fr)_104px_64px_72px] items-center gap-3 w-full">
+        {/* Rank */}
+        <div className="flex items-center gap-1.5">
+          {rank <= 3 && <Trophy className={`w-4 h-4 shrink-0 ${trophyColor}`} />}
+          <div className="flex flex-col items-start leading-none">
+            <span className="font-extrabold text-[#4B3621] text-base">
+              {isTied && <span className="text-[#2f6fd0]" title="Tied rank">T</span>}{rank}
+            </span>
+            {getRankChangeIndicator() && <span className="mt-1">{getRankChangeIndicator()}</span>}
           </div>
         </div>
 
-        <div className="flex items-center space-x-6">
-          {/* Record */}
-          <div className="text-sm text-gray-600">
-            <div className="font-medium">{record}</div>
-            <div className="flex items-center space-x-1 text-xs">
-              <Lock className="w-3 h-3" />
-              <span>{lockRecord}</span>
-            </div>
-          </div>
-
-          {/* Points */}
-          <div className="text-right min-w-[4rem]">
-            <div className="font-bold text-lg text-[#4B3621]">{points}</div>
-            <div className="text-xs text-gray-500">points</div>
-          </div>
-
+        {/* Name + badges */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-semibold text-gray-900 truncate">{displayName}</span>
+          {getPaymentBadge()}
+          {getSourceBadge()}
         </div>
+
+        {/* Record */}
+        <div className="text-sm text-gray-500 tabular-nums">{record}</div>
+
+        {/* Lock */}
+        <div className="text-sm text-gray-500 tabular-nums flex items-center gap-1">
+          <Lock className="w-3 h-3 shrink-0" />
+          <span>{lockRecord}</span>
+        </div>
+
+        {/* Points */}
+        <div className="text-right font-extrabold text-[#4B3621] text-lg tabular-nums">{points}</div>
       </div>
 
       {/* Mobile Layout */}
       <div className="md:hidden w-full">
-        {/* Mobile Header Row */}
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-2">
-            {rank <= 3 ? (
-              <div className="flex items-center">
-                <Trophy className={`w-4 h-4 ${
-                  rank === 1 ? 'text-yellow-500' : 
-                  rank === 2 ? 'text-gray-400' : 
-                  'text-amber-600'
-                }`} />
-                <span className="font-bold text-lg ml-1">{rank}</span>
-              </div>
-            ) : (
-              <span className="font-bold text-lg text-gray-700">{rank}</span>
-            )}
-            {isTied && (
-              <span className="text-xs font-medium text-blue-600 uppercase bg-blue-50 px-1 py-0.5 rounded">
-                TIE
-              </span>
-            )}
+            {rank <= 3 && <Trophy className={`w-4 h-4 ${trophyColor}`} />}
+            <span className="font-extrabold text-lg text-[#4B3621]">
+              {isTied && <span className="text-[#2f6fd0]">T</span>}{rank}
+            </span>
             {getRankChangeIndicator()}
           </div>
           <div className="text-right">
-            <div className="font-bold text-xl text-[#4B3621]">{points}</div>
-            <div className="text-xs text-gray-500">points</div>
+            <div className="font-extrabold text-xl text-[#4B3621] tabular-nums">{points}</div>
+            <div className="text-[10px] uppercase tracking-wide text-gray-400">points</div>
           </div>
         </div>
-        
-        {/* Player Name */}
-        <div className="font-semibold text-base mb-2 break-words">{displayName}</div>
-        
-        {/* Badges */}
-        <div className="flex gap-2 mb-2 flex-wrap">
+
+        <div className="font-semibold text-base mb-2 break-words flex items-center gap-2 flex-wrap">
+          {displayName}
           {getPaymentBadge()}
           {getSourceBadge()}
         </div>
-        
-        {/* Stats Row - Stack on very small screens */}
+
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <div className="text-xs text-gray-500 uppercase">Record</div>
-            <div className="font-medium">{record}</div>
+            <div className="text-[10px] text-gray-400 uppercase tracking-wide">Record</div>
+            <div className="font-medium text-gray-600 tabular-nums">{record}</div>
           </div>
           <div>
-            <div className="text-xs text-gray-500 uppercase">Lock Record</div>
-            <div className="font-medium flex items-center gap-1">
+            <div className="text-[10px] text-gray-400 uppercase tracking-wide">Lock Record</div>
+            <div className="font-medium text-gray-600 tabular-nums flex items-center gap-1">
               <Lock className="w-3 h-3" />
               <span>{lockRecord}</span>
             </div>
           </div>
         </div>
-
       </div>
     </>
   )

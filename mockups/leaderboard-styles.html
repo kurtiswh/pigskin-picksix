@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pigskin Pick Six — Leaderboard Option A (refined)</title>
+<style>
+  :root{
+    --brown:#4B3621; --gold:#C9A04E; --bg:#F8F7F3; --ink:#2b2320; --muted:#8a8079; --line:#e7e2da;
+    --win:#1f9d55; --loss:#d1495b; --tie:#2f6fd0;
+    --paid:#e6f4ea;--paid-t:#1f7a44; --anon:#efe8f7;--anon-t:#6b3fa0; --mixed:#fdeede;--mixed-t:#b06a1a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);padding:32px 16px 80px;line-height:1.4}
+  .wrap{max-width:720px;margin:0 auto}
+  .page-head{text-align:center;margin-bottom:22px}
+  .page-head h1{color:var(--brown);font-size:22px;letter-spacing:-.3px}
+  .page-head p{color:var(--muted);font-size:13px;margin-top:6px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px 18px 8px;box-shadow:0 1px 2px rgba(75,54,33,.04)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:2px 2px 14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+  .legend b{color:var(--ink)}
+  .badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;letter-spacing:.02em;white-space:nowrap}
+  .b-paid{background:var(--paid);color:var(--paid-t)} .b-anon{background:var(--anon);color:var(--anon-t)} .b-mixed{background:var(--mixed);color:var(--mixed-t)}
+
+  .head,.row{display:grid;grid-template-columns:88px 1fr 96px 56px 64px;align-items:center;gap:10px}
+  .head{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 12px 8px}
+  .head .r{text-align:right}
+  .row{padding:12px;border-top:1px solid var(--line);cursor:pointer;transition:background .15s}
+  .row:hover{background:#faf8f4}
+
+  /* Rank cell: movement pill lives HERE so it clearly means rank change */
+  .rk{display:flex;align-items:center;gap:8px}
+  .rk .num{font-weight:800;color:var(--brown);font-size:16px;min-width:30px;display:flex;align-items:center;gap:4px}
+  .rk .medal{font-size:16px}
+  .move{font-size:10px;font-weight:800;padding:2px 6px;border-radius:6px;font-variant-numeric:tabular-nums}
+  .move.up{background:#e7f6ec;color:var(--win)} .move.down{background:#fbe9ec;color:var(--loss)} .move.flat{background:#f0ece5;color:var(--muted)}
+  .tie{color:var(--tie);font-weight:800}
+
+  .nm{display:flex;align-items:center;gap:8px;font-weight:600}
+  .rec,.lk{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+  .pt{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:var(--brown);font-size:17px}
+  .chev{margin-left:2px;color:var(--muted);font-size:12px;transition:transform .2s}
+  .row.open .chev{transform:rotate(90deg)}
+  .top1{background:linear-gradient(90deg,rgba(201,160,78,.12),transparent 55%)}
+
+  /* Expanded detail */
+  .detail{background:#faf8f4;border-top:1px solid var(--line);padding:14px 18px 18px}
+  .detail h4{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .wk{display:grid;grid-template-columns:70px 1fr 70px 56px 52px;gap:8px;font-size:13px;padding:5px 8px;border-radius:8px;font-variant-numeric:tabular-nums}
+  .wk.hdr{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .wk.best{background:#fff5e2;border:1px solid #f0dcb0}
+  .wk .p{text-align:right;font-weight:700;color:var(--brown)}
+  .wk .m{color:var(--muted)} .star{color:var(--gold)}
+  .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="page-head">
+    <h1>🏈 Option A — Refined rows <span style="font-size:12px;color:var(--muted)">(with ties, expand, fixed arrow)</span></h1>
+    <p>Movement arrow now lives in the Rank column · ties share a rank · click a row to expand.</p>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <div>Rank</div><div>Player</div><div>Record</div><div>Lock</div><div class="r">Points</div>
+    </div>
+    <div class="legend">
+      <span><b>▲ / ▼</b> spots moved since last week</span>
+      <span><b>T4</b> tied rank</span>
+      <span><b>Paid / Anon / Mixed</b> pick source &amp; payment</span>
+    </div>
+
+    <!-- rank 1 (expanded) -->
+    <div class="row open top1">
+      <div class="rk"><span class="medal">🥇</span><span class="num">1</span><span class="move up">▲2</span></div>
+      <div class="nm">Jane Smith <span class="badge b-paid">Paid</span></div>
+      <div class="rec">34-18-2</div><div class="lk">6-2</div>
+      <div class="pt">142 <span class="chev">›</span></div>
+    </div>
+    <div class="detail">
+      <h4>Weekly breakdown — Jane Smith</h4>
+      <div class="wk hdr"><div>Week</div><div>Record</div><div>Lock</div><div></div><div class="p">Pts</div></div>
+      <div class="wk"><div>Week 9</div><div class="m">5-1-0</div><div class="m">1-0</div><div></div><div class="p">11</div></div>
+      <div class="wk"><div>Week 10</div><div class="m">4-2-0</div><div class="m">0-1</div><div></div><div class="p">8</div></div>
+      <div class="wk best"><div><span class="star">★</span> Week 11</div><div class="m">6-0-0</div><div class="m">1-0</div><div class="m">best week</div><div class="p">14</div></div>
+      <div class="wk"><div>Week 12</div><div class="m">4-2-0</div><div class="m">1-0</div><div></div><div class="p">10</div></div>
+    </div>
+
+    <div class="row">
+      <div class="rk"><span class="medal">🥈</span><span class="num">2</span><span class="move down">▼1</span></div>
+      <div class="nm">Bob Jones <span class="badge b-paid">Paid</span></div>
+      <div class="rec">33-19-2</div><div class="lk">5-3</div>
+      <div class="pt">138 <span class="chev">›</span></div>
+    </div>
+
+    <div class="row">
+      <div class="rk"><span class="medal">🥉</span><span class="num">3</span><span class="move flat">—</span></div>
+      <div class="nm">Al West <span class="badge b-mixed">Mixed</span></div>
+      <div class="rec">32-20-2</div><div class="lk">6-2</div>
+      <div class="pt">134 <span class="chev">›</span></div>
+    </div>
+
+    <!-- TIE: two players at 128 share T4, next skips to 6 -->
+    <div class="row">
+      <div class="rk"><span class="num"><span class="tie">T</span>4</span><span class="move up">▲1</span></div>
+      <div class="nm">Chris Kay <span class="badge b-paid">Paid</span></div>
+      <div class="rec">31-21-2</div><div class="lk">4-4</div>
+      <div class="pt">128 <span class="chev">›</span></div>
+    </div>
+    <div class="row">
+      <div class="rk"><span class="num"><span class="tie">T</span>4</span><span class="move flat">—</span></div>
+      <div class="nm">Dana Lee <span class="badge b-paid">Paid</span></div>
+      <div class="rec">31-21-2</div><div class="lk">5-3</div>
+      <div class="pt">128 <span class="chev">›</span></div>
+    </div>
+
+    <div class="row">
+      <div class="rk"><span class="num">6</span><span class="move up">▲3</span></div>
+      <div class="nm">Sam Park <span class="badge b-anon">Anon</span></div>
+      <div class="rec">29-23-2</div><div class="lk">4-4</div>
+      <div class="pt">121 <span class="chev">›</span></div>
+    </div>
+  </div>
+
+  <div class="foot">Row 1 shown expanded · ties = shared rank (T4) · ▲/▼ = weekly rank movement</div>
+</div>
+</body>
+</html>
