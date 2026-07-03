@@ -991,7 +991,7 @@ export default function TabbedLeaderboard() {
         {/* Header row - Hidden on mobile (grid aligns with LeaderboardRowContent) */}
         <div className="hidden md:block bg-[#faf8f4] border-y border-[#ece7de]">
           <div className="flex items-center px-4 py-2">
-            <div className="grid grid-cols-[64px_minmax(0,1fr)_104px_64px_72px] items-center gap-3 flex-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+            <div className="grid grid-cols-[112px_minmax(0,1fr)_104px_64px_72px] items-center gap-3 flex-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
               <div className="flex items-center gap-1">
                 Rank
                 {liveUpdateStatus?.isRunning && (
@@ -1037,11 +1037,19 @@ export default function TabbedLeaderboard() {
             }).length > 1
             
             
+            // Subtle top-3 background tint (gold / silver / bronze)
+            const displayRank = getDisplayRank(entry, data)
+            const rankTint =
+              displayRank === 1 ? 'bg-[#C9A04E]/[0.08]' :
+              displayRank === 2 ? 'bg-slate-400/[0.09]' :
+              displayRank === 3 ? 'bg-amber-700/[0.06]' : ''
+            const tiedTint = isTied && currentRank > 3 ? 'border-l-2 border-l-[#2f6fd0]/50' : ''
+
             return (
               <ExpandableLeaderboardRow
                 key={entry.user_id}
                 isLoading={isLoadingExpansion}
-                className={isTied && currentRank > 3 ? 'bg-blue-50/50 border-l-2 border-l-blue-300' : ''}
+                className={`${rankTint} ${tiedTint}`.trim()}
                 expandedContent={
                   expansionData ? (
                     tabType === 'season' ? (

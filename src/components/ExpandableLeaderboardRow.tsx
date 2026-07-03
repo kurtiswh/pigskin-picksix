@@ -49,7 +49,7 @@ export function ExpandableLeaderboardRow({
   }
 
   return (
-    <div className={`bg-white border-b border-[#ece7de] last:border-b-0 transition-colors duration-200 ${isExpanded ? 'bg-[#faf8f4]' : ''} ${className}`}>
+    <div className={`border-b border-[#ece7de] last:border-b-0 transition-colors duration-200 ${isExpanded ? 'bg-[#faf8f4]' : ''} ${className}`}>
       {/* Main row */}
       <div
         className={`px-4 py-3 ${canExpand && !isLoading ? 'cursor-pointer hover:bg-[#faf8f4] active:bg-[#f3efe7]' : ''} transition-colors duration-150`}
@@ -190,16 +190,14 @@ export function LeaderboardRowContent({
   return (
     <>
       {/* Desktop Layout — grid aligned with the header row */}
-      <div className="hidden md:grid grid-cols-[64px_minmax(0,1fr)_104px_64px_72px] items-center gap-3 w-full">
-        {/* Rank */}
-        <div className="flex items-center gap-1.5">
+      <div className="hidden md:grid grid-cols-[112px_minmax(0,1fr)_104px_64px_72px] items-center gap-3 w-full">
+        {/* Rank + movement pill inline (movement sits between rank and name) */}
+        <div className="flex items-center gap-2">
           {rank <= 3 && <Trophy className={`w-4 h-4 shrink-0 ${trophyColor}`} />}
-          <div className="flex flex-col items-start leading-none">
-            <span className="font-extrabold text-[#4B3621] text-base">
-              {isTied && <span className="text-[#2f6fd0]" title="Tied rank">T</span>}{rank}
-            </span>
-            {getRankChangeIndicator() && <span className="mt-1">{getRankChangeIndicator()}</span>}
-          </div>
+          <span className="font-extrabold text-[#4B3621] text-base tabular-nums">
+            {isTied && <span className="text-[#2f6fd0]" title="Tied rank">T</span>}{rank}
+          </span>
+          {getRankChangeIndicator()}
         </div>
 
         {/* Name + badges */}
