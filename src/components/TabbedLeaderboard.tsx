@@ -7,7 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Download } from 'lucide-react'
 import { EmergencyLeaderboardService } from '@/services/leaderboardService.emergency'
-import { ProductionLeaderboardService, ProductionLeaderboardEntry } from '@/services/leaderboardService.production'
 import { EmergencyWeeklyLeaderboardService } from '@/services/weeklyLeaderboardService.emergency'
 import { ProductionWeeklyLeaderboardService, ProductionWeeklyLeaderboardEntry } from '@/services/weeklyLeaderboardService.production'
 import type { EmergencyLeaderboardEntry, EmergencyWeeklyLeaderboardEntry } from '@/services/leaderboard.types'
@@ -227,20 +226,13 @@ export default function TabbedLeaderboard() {
         // Verify rank change data exists
         const entriesWithRankChanges = entries.filter(e => e.rank_change !== undefined).length
         console.log('📈 [TABBED] Rank changes found for', entriesWithRankChanges, 'entries')
-        } catch (error) {
-          console.log('⚠️ [TABBED] Rank change calculation failed:', error.message, '- falling back')
-        
-          // Strategy 2: Try production service
-          try {
-            const dataPromise = ProductionLeaderboardService.getSeasonLeaderboard(season)
-            entries = await Promise.race([dataPromise, timeoutPromise])
-            console.log('✅ [TABBED] Loaded season data from production service:', entries.length, 'entries')
-          } catch (error) {
-            console.log('⚠️ [TABBED] Production service failed, falling back to emergency service')
-            const dataPromise = EmergencyLeaderboardService.getSeasonLeaderboard(season)
-            entries = await Promise.race([dataPromise, timeoutPromise])
-            console.log('✅ [TABBED] Loaded season data from emergency service:', entries.length, 'entries')
-          }
+        } catch (error: any) {
+          console.log('⚠️ [TABBED] Rank change calculation failed:', error.message, '- falling back to emergency service')
+
+          // Fallback: emergency service (multi-strategy read of the leaderboard)
+          const dataPromise = EmergencyLeaderboardService.getSeasonLeaderboard(season)
+          entries = await Promise.race([dataPromise, timeoutPromise])
+          console.log('✅ [TABBED] Loaded season data from emergency service:', entries.length, 'entries')
         }
       }
       
