@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { Download } from 'lucide-react'
 import { EmergencyLeaderboardService } from '@/services/leaderboardService.emergency'
 import { EmergencyWeeklyLeaderboardService } from '@/services/weeklyLeaderboardService.emergency'
-import { ProductionWeeklyLeaderboardService, ProductionWeeklyLeaderboardEntry } from '@/services/weeklyLeaderboardService.production'
 import type { EmergencyLeaderboardEntry, EmergencyWeeklyLeaderboardEntry } from '@/services/leaderboard.types'
 import { liveUpdateService, LiveUpdateStatus, LiveUpdateResult } from '@/services/liveUpdateService'
 import { getLatestWeekWithResults } from '@/services/weekService'
@@ -275,16 +274,7 @@ export default function TabbedLeaderboard() {
         setTimeout(() => reject(new Error('Overall timeout after 10 seconds')), 10000)
       })
       
-      console.log('🚀 [WEEKLY TABBED] Trying production-optimized weekly service first')
-      let dataPromise
-      
-      try {
-        dataPromise = ProductionWeeklyLeaderboardService.getWeeklyLeaderboard(season, selectedWeek)
-      } catch (error) {
-        console.log('⚠️ [WEEKLY TABBED] Production weekly service failed, falling back to emergency service')
-        dataPromise = EmergencyWeeklyLeaderboardService.getWeeklyLeaderboard(season, selectedWeek)
-      }
-      
+      const dataPromise = EmergencyWeeklyLeaderboardService.getWeeklyLeaderboard(season, selectedWeek)
       const entries = await Promise.race([dataPromise, timeoutPromise])
       
       const loadTime = Date.now() - startTime
