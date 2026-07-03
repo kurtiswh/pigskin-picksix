@@ -1037,12 +1037,12 @@ export default function TabbedLeaderboard() {
             }).length > 1
             
             
-            // Subtle top-3 background tint (gold / silver / bronze)
+            // Distinct top-3 background tints (gold / silver / bronze)
             const displayRank = getDisplayRank(entry, data)
             const rankTint =
-              displayRank === 1 ? 'bg-[#C9A04E]/[0.08]' :
-              displayRank === 2 ? 'bg-slate-400/[0.09]' :
-              displayRank === 3 ? 'bg-amber-700/[0.06]' : ''
+              displayRank === 1 ? 'bg-[#C9A04E]/[0.16]' :   // gold
+              displayRank === 2 ? 'bg-[#9aa4b2]/[0.18]' :   // silver
+              displayRank === 3 ? 'bg-[#c2703d]/[0.13]' : ''// bronze
             const tiedTint = isTied && currentRank > 3 ? 'border-l-2 border-l-[#2f6fd0]/50' : ''
 
             return (

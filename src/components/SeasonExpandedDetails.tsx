@@ -8,7 +8,7 @@ interface SeasonExpandedDetailsProps {
   currentWeek?: number  // To show how far back we're looking
 }
 
-const GRID = 'grid grid-cols-[1fr_92px_72px_56px_60px] gap-2 items-center'
+const GRID = 'grid grid-cols-[130px_104px_84px_60px_64px] gap-3 items-center'
 
 export function SeasonExpandedDetails({ data, isLoading = false, asOfWeek, currentWeek }: SeasonExpandedDetailsProps) {
   if (isLoading) {
@@ -46,7 +46,7 @@ export function SeasonExpandedDetails({ data, isLoading = false, asOfWeek, curre
       </div>
 
       {/* Clean table */}
-      <div className="rounded-xl border border-[#ece7de] overflow-hidden bg-white">
+      <div className="rounded-xl border border-[#ece7de] overflow-hidden bg-white max-w-xl">
         <div className={`${GRID} px-3 py-2 bg-[#faf8f4] border-b border-[#ece7de] text-[10px] font-bold uppercase tracking-wider text-gray-500`}>
           <div>Week</div>
           <div>Record</div>

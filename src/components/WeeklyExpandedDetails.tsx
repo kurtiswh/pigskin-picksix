@@ -6,7 +6,7 @@ interface WeeklyExpandedDetailsProps {
   isLoading?: boolean
 }
 
-const GRID = 'grid grid-cols-[1fr_130px_92px_52px] gap-2 items-center'
+const GRID = 'grid grid-cols-[minmax(0,1fr)_130px_96px_52px] gap-3 items-center'
 
 function isPending(pick: WeeklyPickDetail) {
   return pick.game_status === 'scheduled' || pick.game_status === 'in_progress' || pick.result === null
@@ -55,7 +55,7 @@ export function WeeklyExpandedDetails({ data, isLoading = false }: WeeklyExpande
       </div>
 
       {/* Clean picks table */}
-      <div className="rounded-xl border border-[#ece7de] overflow-hidden bg-white">
+      <div className="rounded-xl border border-[#ece7de] overflow-hidden bg-white max-w-3xl">
         <div className={`${GRID} px-3 py-2 bg-[#faf8f4] border-b border-[#ece7de] text-[10px] font-bold uppercase tracking-wider text-gray-500`}>
           <div>Game</div>
           <div>Pick</div>
