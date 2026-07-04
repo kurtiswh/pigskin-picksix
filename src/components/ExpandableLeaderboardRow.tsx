@@ -52,7 +52,7 @@ export function ExpandableLeaderboardRow({
     <div className={`border-b border-[#ece7de] last:border-b-0 transition-colors duration-200 ${isExpanded ? 'bg-[#faf8f4]' : ''} ${className}`}>
       {/* Main row */}
       <div
-        className={`px-4 py-3 ${canExpand && !isLoading ? 'cursor-pointer hover:bg-[#faf8f4] active:bg-[#f3efe7]' : ''} transition-colors duration-150`}
+        className={`px-4 py-2.5 ${canExpand && !isLoading ? 'cursor-pointer hover:bg-[#faf8f4] active:bg-[#f3efe7]' : ''} transition-colors duration-150`}
         onClick={handleToggle}
       >
         <div className="flex items-center justify-between">
@@ -222,38 +222,25 @@ export function LeaderboardRowContent({
 
       {/* Mobile Layout */}
       <div className="md:hidden w-full">
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex items-center gap-2">
-            {rank <= 3 && <Trophy className={`w-4 h-4 ${trophyColor}`} />}
-            <span className="font-extrabold text-lg text-[#4B3621]">
+        {/* Line 1: rank · movement · name (left), points (right) */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            {rank <= 3 && <Trophy className={`w-4 h-4 shrink-0 ${trophyColor}`} />}
+            <span className="font-extrabold text-[#4B3621] tabular-nums shrink-0">
               {isTied && <span className="text-[#2f6fd0]">T</span>}{rank}
             </span>
             {getRankChangeIndicator()}
+            <span className="font-semibold text-gray-900 truncate">{displayName}</span>
           </div>
-          <div className="text-right">
-            <div className="font-extrabold text-xl text-[#4B3621] tabular-nums">{points}</div>
-            <div className="text-[10px] uppercase tracking-wide text-gray-400">points</div>
-          </div>
+          <span className="font-extrabold text-lg text-[#4B3621] tabular-nums shrink-0">{points}</span>
         </div>
 
-        <div className="font-semibold text-base mb-2 break-words flex items-center gap-2 flex-wrap">
-          {displayName}
+        {/* Line 2: record · lock · badges (compact) */}
+        <div className="mt-0.5 flex items-center gap-3 text-xs text-gray-500 tabular-nums">
+          <span>{record}</span>
+          <span className="flex items-center gap-1"><Lock className="w-3 h-3" />{lockRecord}</span>
           {getPaymentBadge()}
           {getSourceBadge()}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <div className="text-[10px] text-gray-400 uppercase tracking-wide">Record</div>
-            <div className="font-medium text-gray-600 tabular-nums">{record}</div>
-          </div>
-          <div>
-            <div className="text-[10px] text-gray-400 uppercase tracking-wide">Lock Record</div>
-            <div className="font-medium text-gray-600 tabular-nums flex items-center gap-1">
-              <Lock className="w-3 h-3" />
-              <span>{lockRecord}</span>
-            </div>
-          </div>
         </div>
       </div>
     </>

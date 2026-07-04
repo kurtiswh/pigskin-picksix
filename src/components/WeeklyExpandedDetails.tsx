@@ -55,10 +55,10 @@ export function WeeklyExpandedDetails({ data, isLoading = false }: WeeklyExpande
       {/* Picks: 2 columns on desktop, single column (stacked lines) on mobile */}
       <div className="rounded-xl border border-[#ece7de] bg-white overflow-hidden">
         <div className="grid grid-cols-1 xl:grid-cols-2">
-          {picks.map((p) => {
+          {picks.map((p, i) => {
             const r = resultMeta(p)
             return (
-              <div key={p.game_id} className={`px-3.5 py-2.5 border-b border-[#f0ece5] ${r.row}`}>
+              <div key={p.game_id} className={`px-3.5 py-2.5 border-b border-[#f0ece5] ${i % 2 === 1 ? 'xl:border-l xl:border-[#ece7de]' : ''} ${r.row}`}>
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
                   {/* Game */}
                   <div className="flex items-center gap-1.5 min-w-0 sm:flex-1">

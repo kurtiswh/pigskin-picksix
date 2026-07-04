@@ -46,10 +46,10 @@ export function SeasonExpandedDetails({ data, isLoading = false, asOfWeek, curre
       {/* Weeks: 2 columns on desktop to fill the width, single column on mobile */}
       <div className="rounded-xl border border-[#ece7de] bg-white overflow-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-2">
-          {weeks.map((w) => (
+          {weeks.map((w, i) => (
             <div
               key={w.week}
-              className={`flex items-center justify-between gap-3 px-3.5 py-2.5 border-b border-[#f0ece5] ${w.best_week ? 'bg-[#fff8ea]' : ''}`}
+              className={`flex items-center justify-between gap-3 px-3.5 py-2.5 border-b border-[#f0ece5] ${i % 2 === 1 ? 'lg:border-l lg:border-[#ece7de]' : ''} ${w.best_week ? 'bg-[#fff8ea]' : ''}`}
             >
               <div className="flex items-center gap-1.5 font-medium text-gray-900 min-w-0">
                 {w.best_week && <Trophy className="w-3.5 h-3.5 text-[#C9A04E] shrink-0" />}
