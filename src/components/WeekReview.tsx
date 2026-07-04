@@ -63,6 +63,7 @@ interface ReviewData {
   allPicks: PlayerPicks[]
   scoringComplete: boolean
   leaderboardComplete: boolean
+  customMessage: string
 }
 
 const WEEKS = Array.from({ length: 14 }, (_, i) => i + 1)
@@ -91,7 +92,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
         supabase.rpc('detect_overpick_entries', { p_week: week, p_season: season }),
         supabase.rpc('wr_unpaid_submitters', { p_week: week, p_season: season }),
         supabase.rpc('wr_all_picks', { p_week: week, p_season: season }),
-        supabase.from('week_settings').select('scoring_complete, leaderboard_complete')
+        supabase.from('week_settings').select('scoring_complete, leaderboard_complete, admin_custom_message')
           .eq('season', season).eq('week', week).maybeSingle(),
       ])
 
@@ -135,7 +136,9 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
         allPicks,
         scoringComplete: (wsRes.data as any)?.scoring_complete ?? false,
         leaderboardComplete: (wsRes.data as any)?.leaderboard_complete ?? false,
+        customMessage: (wsRes.data as any)?.admin_custom_message ?? '',
       })
+      setNoticeMsg((wsRes.data as any)?.admin_custom_message ?? '')
     } catch (err: any) {
       console.error('WeekReview load failed:', err)
       setError(err?.message || 'Failed to load week review data')
@@ -180,6 +183,19 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
       if (e) throw e
       await loadReview()
     } catch (err: any) { setError(err?.message || 'Failed to drop pick') } finally { setDroppingId(null) }
+  }
+
+  const [noticeMsg, setNoticeMsg] = useState('')
+  const [savingNotice, setSavingNotice] = useState(false)
+  const saveNotice = async () => {
+    setSavingNotice(true); setError('')
+    try {
+      const { error: e } = await supabase.from('week_settings')
+        .update({ admin_custom_message: noticeMsg || null })
+        .eq('season', season).eq('week', week)
+      if (e) throw e
+      await loadReview()
+    } catch (err: any) { setError(err?.message || 'Failed to save notice') } finally { setSavingNotice(false) }
   }
 
   const publish = async () => {
@@ -418,6 +434,19 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
       {/* Publish */}
       <Card className={scoringClean ? 'border-green-200' : 'border-amber-200'}>
         <CardContent className="p-5">
+          {/* Optional leaderboard notice banner for this week */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-charcoal-700 mb-1">📝 Leaderboard notice (optional)</label>
+            <div className="flex gap-2">
+              <Input placeholder="Message shown in the leaderboard banner for this week…"
+                value={noticeMsg} onChange={e => setNoticeMsg(e.target.value)} className="flex-1" />
+              <Button variant="outline" onClick={saveNotice}
+                disabled={savingNotice || noticeMsg === (data?.customMessage || '')}>
+                {savingNotice ? 'Saving…' : 'Save notice'}
+              </Button>
+            </div>
+          </div>
+
           {!scoringClean && (
             <div className="text-sm text-amber-800 mb-3">
               <b>Publish is blocked</b> until every completed game is scored and scoring integrity shows 0 issues.
