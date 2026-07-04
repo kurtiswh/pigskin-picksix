@@ -618,11 +618,10 @@ export class LiveUpdateService {
       return { should: true, reason: 'Games scheduled today' }
     }
     
-    if (isInWindow) {
-      return { should: true, reason: 'In polling window (Thursday 6pm - Sunday 8am Central)' }
-    }
-
-    return { should: false, reason: 'Outside polling window and no active/approaching games' }
+    // Do NOT auto-start on the polling window alone — only when there are real
+    // active/approaching games or games scheduled today. This prevents CFBD
+    // polling off-season (the Thu-Sun window would otherwise poll with 0 games).
+    return { should: false, reason: 'No active/approaching games' }
   }
 
   /**
