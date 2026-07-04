@@ -31,7 +31,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth()
-  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'weekreview' | 'users' | 'pickmanagement' | 'notifications'>('games')
+  const [activeTab, setActiveTab] = useState<'setup' | 'weekreview' | 'scores' | 'winners' | 'users' | 'notifications'>('weekreview')
   const [cfbGames, setCfbGames] = useState<CFBGame[]>([])
   const [savedGames, setSavedGames] = useState<CFBGame[]>([]) // Games actually saved to database
   const [tempSelectedGames, setTempSelectedGames] = useState<CFBGame[]>([]) // UI-only selections
@@ -865,76 +865,26 @@ export default function AdminDashboard() {
       <main className="container mx-auto px-4 py-8">
         {/* Navigation Tabs */}
         <div className="flex space-x-1 mb-8 bg-white p-1 rounded-lg shadow-sm">
-          <button
-            onClick={() => setActiveTab('games')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'games'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            Game Selection
-          </button>
-          <button
-            onClick={() => setActiveTab('controls')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'controls'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            Week Controls
-          </button>
-          <button
-            onClick={() => setActiveTab('scores')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'scores'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            Score Updates
-          </button>
-          <button
-            onClick={() => setActiveTab('weekreview')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'weekreview'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            ✅ Week Review
-          </button>
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'users'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            User Management
-          </button>
-          <button
-            onClick={() => setActiveTab('pickmanagement')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'pickmanagement'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            📋 Pick Management
-          </button>
-          <button
-            onClick={() => setActiveTab('notifications')}
-            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === 'notifications'
-                ? 'bg-pigskin-500 text-white'
-                : 'text-charcoal-600 hover:text-pigskin-700'
-            }`}
-          >
-            📧 Notifications
-          </button>
+          {([
+            ['setup', '🏈 Week Setup'],
+            ['weekreview', '✅ Week Review'],
+            ['scores', '📡 Live Scores'],
+            ['winners', '🏆 Season & Winners'],
+            ['users', '👥 People'],
+            ['notifications', '📧 Notifications'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                activeTab === key
+                  ? 'bg-pigskin-500 text-white'
+                  : 'text-charcoal-600 hover:text-pigskin-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* Error Display */}
@@ -950,30 +900,35 @@ export default function AdminDashboard() {
         )}
 
         {/* Tab Content */}
-        {activeTab === 'games' && (
+        {activeTab === 'setup' && (
           <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-pigskin-900">Week Setup</h2>
+
+            {/* Season-level settings */}
+            <SeasonSettingsAdmin />
+
+            {/* Game selection */}
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-pigskin-900">Game Selection</h2>
+              <h3 className="text-lg font-semibold text-pigskin-900">Game Selection</h3>
               {cfbGames.length === 0 && (
                 <Button onClick={fetchCFBGames} disabled={loading}>
                   {loading ? 'Loading...' : 'Load Available Games'}
                 </Button>
               )}
             </div>
-            
+
             {/* API Widgets */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <ApiStatusWidget 
+              <ApiStatusWidget
                 season={currentSeason}
                 onWeekChange={(week) => {
                   setGameSelectionWeek(week)
-                  // Clear games when week changes to force reload
                   setCfbGames([])
                 }}
               />
               <ApiQuotaWidget />
             </div>
-            
+
             {cfbGames.length > 0 ? (
               <AdminGameSelector
                 games={cfbGames}
@@ -993,13 +948,8 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
             )}
-          </div>
-        )}
 
-        {activeTab === 'controls' && (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-pigskin-900">Week Controls</h2>
-            <SeasonSettingsAdmin />
+            {/* Week controls: deadline, open picks, lock times */}
             <WeekControls
               weekSettings={weekSettings}
               onUpdateSettings={handleUpdateSettings}
@@ -1016,19 +966,31 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {activeTab === 'weekreview' && (
+          <div className="space-y-6">
+            <WeekReview season={currentSeason} initialWeek={currentWeek} />
+
+            {/* Advanced pick tools (assign anon, duplicates, unsubmitted, hidden,
+                pick-set management). Folded in from the old Pick Management tab;
+                the common weekly actions live in the Week Review checklist above. */}
+            <details className="bg-white border border-charcoal-100 rounded-lg">
+              <summary className="cursor-pointer px-4 py-3 font-semibold text-pigskin-900">
+                🛠️ Advanced pick tools — assign anonymous, duplicates, unsubmitted, hidden
+              </summary>
+              <div className="p-4 border-t border-charcoal-100">
+                <PickManagement currentWeek={currentWeek} currentSeason={currentSeason} />
+              </div>
+            </details>
+          </div>
+        )}
+
         {activeTab === 'scores' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-pigskin-900">Score Updates</h2>
-
-            {/* Best Finish Configuration */}
-            <BestFinishConfig season={currentSeason} />
-
-            {/* Season Winners Management */}
-            <SeasonWinnersAdmin season={currentSeason} />
-
-            {/* Bracket Winners Management */}
-            <BracketWinnersAdmin season={currentSeason} />
-
+            <h2 className="text-2xl font-bold text-pigskin-900">Live Scores</h2>
+            <p className="text-charcoal-600 text-sm">
+              Live-score monitoring and manual score entry. Weekly scoring close-out &amp; publishing
+              happen in <span className="font-medium">Week Review</span>.
+            </p>
             <ScoreManager
               season={currentSeason}
               week={currentWeek}
@@ -1036,23 +998,19 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {activeTab === 'weekreview' && (
-          <WeekReview season={currentSeason} initialWeek={currentWeek} />
+        {activeTab === 'winners' && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-pigskin-900">Season &amp; Winners</h2>
+            <BestFinishConfig season={currentSeason} />
+            <SeasonWinnersAdmin season={currentSeason} />
+            <BracketWinnersAdmin season={currentSeason} />
+          </div>
         )}
 
         {activeTab === 'users' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-pigskin-900">User Management</h2>
+            <h2 className="text-2xl font-bold text-pigskin-900">People</h2>
             <UserManagement />
-          </div>
-        )}
-
-        {activeTab === 'pickmanagement' && (
-          <div className="space-y-6">
-            <PickManagement 
-              currentWeek={currentWeek}
-              currentSeason={currentSeason}
-            />
           </div>
         )}
 
