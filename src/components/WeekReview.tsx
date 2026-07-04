@@ -2,22 +2,17 @@ import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 
 /**
- * Week Review — the single weekly close-out hub (Part B / Workstream B2).
+ * Week Review — the weekly close-out hub (Part B / B2).
  *
- * Answers one question for the admin: "is this week correct, and can I publish it?"
- * A checklist that must go green before the leaderboard is published:
- *   1. Games scored        — every completed game has a winner + points
- *   2. Scoring integrity    — scoring_discrepancies view returns 0 rows
- *   3. Anonymous picks      — submitted entries not yet tied to an account
- *   4. Over-submissions     — entries with >6 counted picks (7-pick DQ case)
- *   5. Payment gate (FYI)   — submitters who won't appear on the leaderboard
- *
- * Publish is blocked until scoring is complete AND has zero discrepancies.
- * The inline resolve flows for anonymous ties (B3) and disqualification drops
- * (B4) land in later workstreams — for now those items link out / are advisory.
+ * A go/no-go checklist whose rows expand to show the underlying detail and the
+ * action for each: games scored, scoring integrity, anonymous ties, over-picks,
+ * and the payment gate. Plus an "All Picks by week" table (one row per player).
+ * Publish is blocked until scoring is complete and clean. All counts/detail come
+ * from SECURITY DEFINER RPCs so RLS/row-caps can't skew them.
  */
 
 interface WeekReviewProps {
@@ -27,36 +22,45 @@ interface WeekReviewProps {
 
 type ItemState = 'ok' | 'warn' | 'info' | 'loading'
 
-interface Discrepancy {
-  kind: string
-  label: string
-  issue: string
+interface GameRow {
+  id: string
+  matchup: string
+  home_team: string
+  away_team: string
+  home_score: number | null
+  away_score: number | null
+  spread: number | null
+  winner_against_spread: string | null
+  margin_bonus: number | null
+  status: string
+  scored: boolean
 }
-
-interface AnonEntry {
-  name: string | null
-  email: string
-  count: number
-}
-
+interface Discrepancy { kind: string; label: string; issue: string }
+interface AnonEntry { email: string; name: string | null; pick_count: number }
 interface OverpickEntry {
-  user_id: string
-  display_name: string
-  pick_count: number
-  proposed_pick_id: string
-  proposed_desc: string
-  proposed_points: number | null
+  user_id: string; display_name: string; pick_count: number
+  proposed_pick_id: string; proposed_desc: string; proposed_points: number | null
+}
+interface UnpaidEntry { user_id: string; display_name: string; email: string; pick_count: number }
+interface PickCell {
+  matchup: string; selected_team: string; spread: number | null
+  is_lock: boolean; result: string | null; points_earned: number | null; disqualified: boolean
+}
+interface PlayerPicks {
+  user_id: string; display_name: string; is_paid: boolean
+  picks: PickCell[]; total_points: number
 }
 
 interface ReviewData {
+  games: GameRow[]
   completedGames: number
   scoredGames: number
-  unscoredGames: string[]
+  unscoredCount: number
   discrepancies: Discrepancy[]
   anonUnresolved: AnonEntry[]
-  overSubmitted: number
   overpickDetail: OverpickEntry[]
-  unpaidSubmitters: number
+  unpaidList: UnpaidEntry[]
+  allPicks: PlayerPicks[]
   scoringComplete: boolean
   leaderboardComplete: boolean
 }
@@ -69,105 +73,68 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
   const [publishing, setPublishing] = useState(false)
   const [error, setError] = useState('')
   const [data, setData] = useState<ReviewData | null>(null)
+  const [open, setOpen] = useState<Record<string, boolean>>({})
+  const [showAllPicks, setShowAllPicks] = useState(false)
+
+  const toggle = (key: string) => setOpen(o => ({ ...o, [key]: !o[key] }))
 
   const loadReview = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      // --- 1. Games scored -------------------------------------------------
-      const { data: games, error: gamesErr } = await supabase
-        .from('games')
-        .select('id, home_team, away_team, status, home_score, away_score, winner_against_spread')
-        .eq('season', season)
-        .eq('week', week)
-      if (gamesErr) throw gamesErr
+      const [gamesRes, discRes, anonRes, overRes, unpaidRes, allRes, wsRes] = await Promise.all([
+        supabase.from('games')
+          .select('id, home_team, away_team, status, home_score, away_score, spread, winner_against_spread, margin_bonus')
+          .eq('season', season).eq('week', week),
+        supabase.from('scoring_discrepancies').select('kind, label, issue').eq('season', season).eq('week', week),
+        supabase.rpc('wr_anonymous_unmatched', { p_week: week, p_season: season }),
+        supabase.rpc('detect_overpick_entries', { p_week: week, p_season: season }),
+        supabase.rpc('wr_unpaid_submitters', { p_week: week, p_season: season }),
+        supabase.rpc('wr_all_picks', { p_week: week, p_season: season }),
+        supabase.from('week_settings').select('scoring_complete, leaderboard_complete')
+          .eq('season', season).eq('week', week).maybeSingle(),
+      ])
 
-      const completed = (games || []).filter(
-        g => g.status === 'completed' && g.home_score !== null && g.away_score !== null
-      )
-      const scored = completed.filter(g => g.winner_against_spread !== null)
-      const unscored = completed
-        .filter(g => g.winner_against_spread === null)
-        .map(g => `${g.away_team} @ ${g.home_team}`)
+      const games: GameRow[] = (gamesRes.data || []).map((g: any) => ({
+        id: g.id,
+        matchup: `${g.away_team} @ ${g.home_team}`,
+        home_team: g.home_team, away_team: g.away_team,
+        home_score: g.home_score, away_score: g.away_score, spread: g.spread,
+        winner_against_spread: g.winner_against_spread, margin_bonus: g.margin_bonus,
+        status: g.status,
+        scored: g.winner_against_spread !== null,
+      }))
+      const completed = games.filter(g => g.status === 'completed' && g.home_score !== null && g.away_score !== null)
+      const scored = completed.filter(g => g.scored)
 
-      // --- 2. Scoring integrity (independent recompute) --------------------
-      const { data: disc } = await supabase
-        .from('scoring_discrepancies')
-        .select('kind, label, issue')
-        .eq('season', season)
-        .eq('week', week)
-
-      // --- 3. Anonymous picks not yet tied to an account ------------------
-      const { data: anon } = await supabase
-        .from('anonymous_picks')
-        .select('name, email')
-        .eq('season', season)
-        .eq('week', week)
-        .eq('submitted', true)
-        .is('assigned_user_id', null)
-
-      const anonMap = new Map<string, AnonEntry>()
-      for (const a of anon || []) {
-        const e = anonMap.get(a.email) || { name: a.name, email: a.email, count: 0 }
-        e.count++
-        anonMap.set(a.email, e)
+      // group All Picks into per-player rows
+      const byPlayer = new Map<string, PlayerPicks>()
+      for (const r of (allRes.data as any[]) || []) {
+        let pp = byPlayer.get(r.user_id)
+        if (!pp) {
+          pp = { user_id: r.user_id, display_name: r.display_name, is_paid: r.is_paid, picks: [], total_points: 0 }
+          byPlayer.set(r.user_id, pp)
+        }
+        pp.picks.push({
+          matchup: r.matchup, selected_team: r.selected_team, spread: r.spread,
+          is_lock: r.is_lock, result: r.result, points_earned: r.points_earned, disqualified: r.disqualified,
+        })
+        if (!r.disqualified) pp.total_points += r.points_earned || 0
       }
-      const anonUnresolved = Array.from(anonMap.values())
-
-      // --- 4. Over-submissions (>6 counted picks) ------------------------
-      const { data: submittedPicks } = await supabase
-        .from('picks')
-        .select('user_id')
-        .eq('season', season)
-        .eq('week', week)
-        .eq('submitted', true)
-
-      const pickCounts = new Map<string, number>()
-      for (const p of submittedPicks || []) {
-        pickCounts.set(p.user_id, (pickCounts.get(p.user_id) || 0) + 1)
-      }
-
-      // Authoritative over-pick detection (excludes already-disqualified picks,
-      // returns the proposed highest-value non-locked drop per entry).
-      const { data: overpickRows } = await supabase.rpc('detect_overpick_entries', {
-        p_week: week,
-        p_season: season,
-      })
-      const overpickDetail: OverpickEntry[] = overpickRows || []
-      const overSubmitted = overpickDetail.length
-
-      // --- 5. Payment gate (FYI) -----------------------------------------
-      const submitterIds = Array.from(pickCounts.keys())
-      let unpaidSubmitters = 0
-      if (submitterIds.length > 0) {
-        const { data: payments } = await supabase
-          .from('leaguesafe_payments')
-          .select('user_id, status')
-          .eq('season', season)
-          .eq('status', 'Paid')
-        const paidIds = new Set((payments || []).map(p => p.user_id))
-        unpaidSubmitters = submitterIds.filter(id => !paidIds.has(id)).length
-      }
-
-      // --- week_settings publish flags ----------------------------------
-      const { data: ws } = await supabase
-        .from('week_settings')
-        .select('scoring_complete, leaderboard_complete')
-        .eq('season', season)
-        .eq('week', week)
-        .maybeSingle()
+      const allPicks = Array.from(byPlayer.values()).sort((a, b) => b.total_points - a.total_points)
 
       setData({
+        games,
         completedGames: completed.length,
         scoredGames: scored.length,
-        unscoredGames: unscored,
-        discrepancies: disc || [],
-        anonUnresolved,
-        overSubmitted,
-        overpickDetail,
-        unpaidSubmitters,
-        scoringComplete: ws?.scoring_complete ?? false,
-        leaderboardComplete: ws?.leaderboard_complete ?? false,
+        unscoredCount: completed.length - scored.length,
+        discrepancies: (discRes.data as any[]) || [],
+        anonUnresolved: (anonRes.data as any[]) || [],
+        overpickDetail: (overRes.data as any[]) || [],
+        unpaidList: (unpaidRes.data as any[]) || [],
+        allPicks,
+        scoringComplete: (wsRes.data as any)?.scoring_complete ?? false,
+        leaderboardComplete: (wsRes.data as any)?.leaderboard_complete ?? false,
       })
     } catch (err: any) {
       console.error('WeekReview load failed:', err)
@@ -177,72 +144,58 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
     }
   }, [season, week])
 
-  useEffect(() => {
-    loadReview()
-  }, [loadReview])
+  useEffect(() => { loadReview() }, [loadReview])
 
+  // --- actions -------------------------------------------------------------
   const [tying, setTying] = useState(false)
   const autoTieAnon = async () => {
-    setTying(true)
-    setError('')
+    setTying(true); setError('')
     try {
-      const { error: rpcErr } = await supabase.rpc('auto_tie_anonymous_picks', {
-        p_week: week,
-        p_season: season,
-      })
-      if (rpcErr) throw rpcErr
+      const { error: e } = await supabase.rpc('auto_tie_anonymous_picks', { p_week: week, p_season: season })
+      if (e) throw e
       await loadReview()
-    } catch (err: any) {
-      console.error('Auto-tie failed:', err)
-      setError(err?.message || 'Auto-tie failed')
-    } finally {
-      setTying(false)
-    }
+    } catch (err: any) { setError(err?.message || 'Auto-tie failed') } finally { setTying(false) }
+  }
+
+  const [dismissTarget, setDismissTarget] = useState<string | null>(null)
+  const [dismissNote, setDismissNote] = useState('')
+  const [dismissing, setDismissing] = useState(false)
+  const dismissAnon = async (email: string) => {
+    setDismissing(true); setError('')
+    try {
+      const { error: e } = await supabase.rpc('dismiss_anonymous_entry', {
+        p_email: email, p_week: week, p_season: season, p_note: dismissNote || null,
+      })
+      if (e) throw e
+      setDismissTarget(null); setDismissNote('')
+      await loadReview()
+    } catch (err: any) { setError(err?.message || 'Dismiss failed') } finally { setDismissing(false) }
   }
 
   const [droppingId, setDroppingId] = useState<string | null>(null)
   const confirmDrop = async (pickId: string) => {
-    setDroppingId(pickId)
-    setError('')
+    setDroppingId(pickId); setError('')
     try {
-      const { error: rpcErr } = await supabase.rpc('set_pick_disqualified', {
-        p_pick_id: pickId,
-        p_disqualified: true,
-      })
-      if (rpcErr) throw rpcErr
+      const { error: e } = await supabase.rpc('set_pick_disqualified', { p_pick_id: pickId, p_disqualified: true })
+      if (e) throw e
       await loadReview()
-    } catch (err: any) {
-      console.error('Disqualification failed:', err)
-      setError(err?.message || 'Failed to drop pick')
-    } finally {
-      setDroppingId(null)
-    }
+    } catch (err: any) { setError(err?.message || 'Failed to drop pick') } finally { setDroppingId(null) }
   }
 
   const publish = async () => {
     if (!data) return
-    setPublishing(true)
-    setError('')
+    setPublishing(true); setError('')
     try {
-      const { error: upErr } = await supabase
-        .from('week_settings')
+      const { error: e } = await supabase.from('week_settings')
         .update({ scoring_complete: true, leaderboard_complete: true })
-        .eq('season', season)
-        .eq('week', week)
-      if (upErr) throw upErr
+        .eq('season', season).eq('week', week)
+      if (e) throw e
       await loadReview()
-    } catch (err: any) {
-      console.error('Publish failed:', err)
-      setError(err?.message || 'Failed to publish week')
-    } finally {
-      setPublishing(false)
-    }
+    } catch (err: any) { setError(err?.message || 'Failed to publish week') } finally { setPublishing(false) }
   }
 
-  // Publish is blocked until scoring is complete and clean.
-  const scoringClean =
-    !!data && data.completedGames > 0 && data.unscoredGames.length === 0 && data.discrepancies.length === 0
-  const hasWarnings = !!data && (data.anonUnresolved.length > 0 || data.overSubmitted > 0)
+  const scoringClean = !!data && data.completedGames > 0 && data.unscoredCount === 0 && data.discrepancies.length === 0
+  const hasWarnings = !!data && (data.anonUnresolved.length > 0 || data.overpickDetail.length > 0)
 
   return (
     <div className="space-y-6">
@@ -252,14 +205,9 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
           <p className="text-charcoal-600 text-sm">Reconcile scoring, resolve entries, and publish the week.</p>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={week}
-            onChange={e => setWeek(Number(e.target.value))}
-            className="border border-charcoal-200 rounded-md px-3 py-2 text-sm bg-white"
-          >
-            {WEEKS.map(w => (
-              <option key={w} value={w}>Week {w}</option>
-            ))}
+          <select value={week} onChange={e => setWeek(Number(e.target.value))}
+            className="border border-charcoal-200 rounded-md px-3 py-2 text-sm bg-white">
+            {WEEKS.map(w => <option key={w} value={w}>Week {w}</option>)}
           </select>
           <Badge className="bg-gold-500 text-pigskin-900">{season}</Badge>
           <Button variant="outline" size="sm" onClick={loadReview} disabled={loading}>
@@ -268,11 +216,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
         </div>
       </div>
 
-      {error && (
-        <Card className="border-red-200">
-          <CardContent className="p-4 text-red-700 text-sm">⚠️ {error}</CardContent>
-        </Card>
-      )}
+      {error && <Card className="border-red-200"><CardContent className="p-4 text-red-700 text-sm">⚠️ {error}</CardContent></Card>}
 
       {data?.leaderboardComplete && (
         <Card className="border-green-200 bg-green-50">
@@ -282,151 +226,194 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
         </Card>
       )}
 
-      {/* Checklist */}
+      {/* Checklist (expandable) */}
       <div className="space-y-3">
-        <ChecklistRow
-          state={loading ? 'loading' : data && data.completedGames > 0 && data.unscoredGames.length === 0 ? 'ok' : 'warn'}
+        <ExpandRow
+          k="games" open={!!open.games} onToggle={() => toggle('games')}
+          state={loading ? 'loading' : data && data.completedGames > 0 && data.unscoredCount === 0 ? 'ok' : 'warn'}
           title="Games scored"
-          detail={
-            data
-              ? `${data.scoredGames} of ${data.completedGames} completed games have a winner & points assigned.`
-              : '—'
-          }
-          pill={
-            data
-              ? data.unscoredGames.length === 0 && data.completedGames > 0
-                ? 'Complete'
-                : `${data.unscoredGames.length} pending`
-              : ''
-          }
-        />
-        <ChecklistRow
+          detail={data ? `${data.scoredGames} of ${data.completedGames} completed games have a winner & points.` : '—'}
+          pill={data ? (data.unscoredCount === 0 && data.completedGames > 0 ? 'Complete' : `${data.unscoredCount} pending`) : ''}
+        >
+          <GamesTable games={data?.games || []} />
+        </ExpandRow>
+
+        <ExpandRow
+          k="integrity" open={!!open.integrity} onToggle={() => toggle('integrity')}
           state={loading ? 'loading' : data && data.discrepancies.length === 0 ? 'ok' : 'warn'}
           title="Scoring integrity"
-          detail="Independent re-check compares stored results to a fresh recompute."
+          detail="Independent re-check vs stored results."
           pill={data ? `${data.discrepancies.length} issues` : ''}
-        />
-        <ChecklistRow
+        >
+          {data && data.discrepancies.length === 0
+            ? <p className="text-sm text-green-700">✓ No discrepancies — stored results match the recompute.</p>
+            : <DiscrepancyTable rows={data?.discrepancies || []} />}
+        </ExpandRow>
+
+        <ExpandRow
+          k="anon" open={!!open.anon} onToggle={() => toggle('anon')}
           state={loading ? 'loading' : data && data.anonUnresolved.length === 0 ? 'ok' : 'warn'}
           title="Anonymous picks"
-          detail="Submitted entries not yet tied to an account."
+          detail="Submitted entries not tied to an account."
           pill={data ? (data.anonUnresolved.length === 0 ? 'None' : `${data.anonUnresolved.length} to resolve`) : ''}
-        />
-        <ChecklistRow
-          state={loading ? 'loading' : data && data.overSubmitted === 0 ? 'ok' : 'warn'}
+        >
+          <div className="flex justify-end mb-2">
+            <Button size="sm" onClick={autoTieAnon} disabled={tying} className="bg-gold-500 text-pigskin-900 hover:bg-gold-600">
+              {tying ? 'Tying…' : 'Auto-tie matchable entries'}
+            </Button>
+          </div>
+          {(!data || data.anonUnresolved.length === 0)
+            ? <p className="text-sm text-green-700">✓ Nothing to resolve.</p>
+            : (
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-charcoal-500 border-b border-charcoal-100">
+                  <th className="px-3 py-2 font-medium">Name</th><th className="px-3 py-2 font-medium">Email</th>
+                  <th className="px-3 py-2 font-medium">Picks</th><th className="px-3 py-2"></th>
+                </tr></thead>
+                <tbody>
+                  {data.anonUnresolved.map(a => (
+                    <tr key={a.email} className="border-b border-charcoal-50 last:border-0 align-top">
+                      <td className="px-3 py-2 font-medium">{a.name || '(no name)'}</td>
+                      <td className="px-3 py-2 text-charcoal-500">{a.email}</td>
+                      <td className="px-3 py-2">{a.pick_count}</td>
+                      <td className="px-3 py-2 text-right">
+                        {dismissTarget === a.email ? (
+                          <div className="flex flex-col items-end gap-2">
+                            <Input placeholder="Reason (e.g. no payment found)" value={dismissNote}
+                              onChange={e => setDismissNote(e.target.value)} className="w-56 h-8 text-xs" />
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" onClick={() => { setDismissTarget(null); setDismissNote('') }}>Cancel</Button>
+                              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white"
+                                onClick={() => dismissAnon(a.email)} disabled={dismissing}>
+                                {dismissing ? 'Dismissing…' : 'Dismiss with note'}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="outline" onClick={() => { setDismissTarget(a.email); setDismissNote('') }}>
+                            Dismiss…
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          <p className="text-xs text-charcoal-400 mt-2">
+            Auto-tie links paid email-matches. Dismiss (with a note) removes an entry with no matching account from this list.
+          </p>
+        </ExpandRow>
+
+        <ExpandRow
+          k="over" open={!!open.over} onToggle={() => toggle('over')}
+          state={loading ? 'loading' : data && data.overpickDetail.length === 0 ? 'ok' : 'warn'}
           title="Over-submissions"
-          detail="Entries with more than 6 counted picks (7-pick disqualification case)."
-          pill={data ? (data.overSubmitted === 0 ? 'None' : `${data.overSubmitted} to confirm`) : ''}
-        />
-        <ChecklistRow
+          detail="Entries with more than 6 counted picks (7-pick case)."
+          pill={data ? (data.overpickDetail.length === 0 ? 'None' : `${data.overpickDetail.length} to confirm`) : ''}
+        >
+          {(!data || data.overpickDetail.length === 0)
+            ? <p className="text-sm text-green-700">✓ No over-submissions.</p>
+            : (
+              <>
+                <p className="text-sm text-charcoal-600 mb-2">
+                  Proposed drop = <span className="font-medium">highest-value non-locked pick</span> (penalty for over-picking; a
+                  locked pick is never dropped). Nothing is deleted — the pick is excluded from totals.
+                </p>
+                <table className="w-full text-sm">
+                  <thead><tr className="text-left text-charcoal-500 border-b border-charcoal-100">
+                    <th className="px-3 py-2 font-medium">Entry</th><th className="px-3 py-2 font-medium">Picks</th>
+                    <th className="px-3 py-2 font-medium">Proposed drop</th><th className="px-3 py-2 font-medium">Pts</th><th className="px-3 py-2"></th>
+                  </tr></thead>
+                  <tbody>
+                    {data.overpickDetail.map(o => (
+                      <tr key={o.user_id} className="border-b border-charcoal-50 last:border-0">
+                        <td className="px-3 py-2 font-medium">{o.display_name}</td>
+                        <td className="px-3 py-2">{o.pick_count}</td>
+                        <td className="px-3 py-2 text-charcoal-700">{o.proposed_desc}</td>
+                        <td className="px-3 py-2">{o.proposed_points ?? '—'}</td>
+                        <td className="px-3 py-2 text-right">
+                          <Button size="sm" onClick={() => confirmDrop(o.proposed_pick_id)}
+                            disabled={droppingId === o.proposed_pick_id} className="bg-red-600 hover:bg-red-700 text-white">
+                            {droppingId === o.proposed_pick_id ? 'Dropping…' : 'Confirm drop'}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+        </ExpandRow>
+
+        <ExpandRow
+          k="unpaid" open={!!open.unpaid} onToggle={() => toggle('unpaid')}
           state="info"
           title="Payment gate"
-          detail="Unpaid submitters won't appear on the leaderboard (grace period still applies early season)."
-          pill={data ? `FYI · ${data.unpaidSubmitters} unpaid` : ''}
-        />
+          detail="Submitters with no paid entry — excluded from the leaderboard (grace period still applies early)."
+          pill={data ? `FYI · ${data.unpaidList.length} unpaid` : ''}
+        >
+          {(!data || data.unpaidList.length === 0)
+            ? <p className="text-sm text-green-700">✓ Every submitter this week has a paid entry.</p>
+            : (
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-charcoal-500 border-b border-charcoal-100">
+                  <th className="px-3 py-2 font-medium">Player</th><th className="px-3 py-2 font-medium">Email</th><th className="px-3 py-2 font-medium">Picks</th>
+                </tr></thead>
+                <tbody>
+                  {data.unpaidList.map(u => (
+                    <tr key={u.user_id} className="border-b border-charcoal-50 last:border-0">
+                      <td className="px-3 py-2 font-medium">{u.display_name}</td>
+                      <td className="px-3 py-2 text-charcoal-500">{u.email}</td>
+                      <td className="px-3 py-2">{u.pick_count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+        </ExpandRow>
       </div>
 
-      {/* Scoring integrity detail */}
-      {data && data.discrepancies.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">Scoring integrity · detail</CardTitle></CardHeader>
-          <CardContent className="p-0">
+      {/* All Picks by week */}
+      <Card>
+        <CardHeader className="cursor-pointer" onClick={() => setShowAllPicks(s => !s)}>
+          <CardTitle className="text-base flex items-center justify-between">
+            <span>{showAllPicks ? '▾' : '▸'} All Picks — Week {week} ({data?.allPicks.length || 0} players)</span>
+          </CardTitle>
+        </CardHeader>
+        {showAllPicks && (
+          <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-charcoal-500 border-b border-charcoal-100">
-                  <th className="px-4 py-2 font-medium">Kind</th>
-                  <th className="px-4 py-2 font-medium">Item</th>
-                  <th className="px-4 py-2 font-medium">Issue</th>
+                  <th className="px-4 py-2 font-medium">Player</th>
+                  <th className="px-4 py-2 font-medium">Picks (🔒 = lock)</th>
+                  <th className="px-4 py-2 font-medium text-right">Pts</th>
                 </tr>
               </thead>
               <tbody>
-                {data.discrepancies.map((d, i) => (
-                  <tr key={i} className="border-b border-charcoal-50 last:border-0">
-                    <td className="px-4 py-2"><Badge variant="outline">{d.kind}</Badge></td>
-                    <td className="px-4 py-2">{d.label}</td>
-                    <td className="px-4 py-2 text-charcoal-600">{d.issue}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Anonymous picks detail */}
-      {data && data.anonUnresolved.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="text-base">Anonymous picks · resolve</CardTitle>
-              <Button size="sm" onClick={autoTieAnon} disabled={tying} className="bg-gold-500 text-pigskin-900 hover:bg-gold-600">
-                {tying ? 'Tying…' : 'Auto-tie matchable entries'}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-charcoal-600 mb-3">
-              These submitted entries aren't tied to an account yet. "Auto-tie" matches each email to a user
-              (users / leaguesafe email) and links + shows any it can. Anything left has no matching account —
-              resolve those manually in the <span className="font-medium">Pick Management</span> tab.
-            </p>
-            <ul className="text-sm space-y-1">
-              {data.anonUnresolved.map(a => (
-                <li key={a.email} className="flex items-center gap-2">
-                  <span className="font-medium">{a.name || '(no name)'}</span>
-                  <span className="text-charcoal-500">{a.email}</span>
-                  <Badge variant="outline">{a.count} picks</Badge>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Disqualification detail */}
-      {data && data.overpickDetail.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">Over-submissions · confirm drop</CardTitle></CardHeader>
-          <CardContent>
-            <p className="text-sm text-charcoal-600 mb-3">
-              These entries have more than 6 counted picks (a locked pick plus a new set). The proposed drop is the
-              <span className="font-medium"> highest-value non-locked pick</span> — a penalty for over-submitting. The
-              locked pick is never dropped. Nothing is deleted; the dropped pick is excluded from totals.
-            </p>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-charcoal-500 border-b border-charcoal-100">
-                  <th className="px-3 py-2 font-medium">Entry</th>
-                  <th className="px-3 py-2 font-medium">Picks</th>
-                  <th className="px-3 py-2 font-medium">Proposed drop</th>
-                  <th className="px-3 py-2 font-medium">Pts</th>
-                  <th className="px-3 py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.overpickDetail.map(o => (
-                  <tr key={o.user_id} className="border-b border-charcoal-50 last:border-0">
-                    <td className="px-3 py-2 font-medium">{o.display_name}</td>
-                    <td className="px-3 py-2">{o.pick_count}</td>
-                    <td className="px-3 py-2 text-charcoal-700">{o.proposed_desc}</td>
-                    <td className="px-3 py-2">{o.proposed_points ?? '—'}</td>
-                    <td className="px-3 py-2 text-right">
-                      <Button
-                        size="sm"
-                        onClick={() => confirmDrop(o.proposed_pick_id)}
-                        disabled={droppingId === o.proposed_pick_id}
-                        className="bg-red-600 hover:bg-red-700 text-white"
-                      >
-                        {droppingId === o.proposed_pick_id ? 'Dropping…' : 'Confirm drop'}
-                      </Button>
+                {(data?.allPicks || []).map(p => (
+                  <tr key={p.user_id} className="border-b border-charcoal-50 last:border-0 align-top">
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      <span className="font-medium">{p.display_name}</span>
+                      {!p.is_paid && <span className="ml-2 text-xs text-red-600">unpaid</span>}
                     </td>
+                    <td className="px-4 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        {p.picks.map((c, i) => <PickChip key={i} cell={c} />)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 text-right font-semibold">{p.total_points}</td>
                   </tr>
                 ))}
+                {(!data || data.allPicks.length === 0) && (
+                  <tr><td colSpan={3} className="px-4 py-6 text-center text-charcoal-400">No submitted picks for this week.</td></tr>
+                )}
               </tbody>
             </table>
           </CardContent>
-        </Card>
-      )}
+        )}
+      </Card>
 
       {/* Publish */}
       <Card className={scoringClean ? 'border-green-200' : 'border-amber-200'}>
@@ -439,20 +426,14 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
           {scoringClean && hasWarnings && (
             <div className="text-sm text-amber-800 mb-3">
               Scoring is clean, but there are unresolved anonymous picks / over-submissions. You can still publish —
-              those won't affect scored results — but resolving them first is recommended.
+              they don't affect scored results — but resolving them first is recommended.
             </div>
           )}
           <div className="flex justify-end gap-3">
-            <Button
-              onClick={publish}
+            <Button onClick={publish}
               disabled={!scoringClean || publishing || (data?.leaderboardComplete ?? false)}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {publishing
-                ? 'Publishing…'
-                : data?.leaderboardComplete
-                ? `Week ${week} Published ✓`
-                : `Approve & Publish Week ${week}`}
+              className="bg-green-600 hover:bg-green-700 text-white">
+              {publishing ? 'Publishing…' : data?.leaderboardComplete ? `Week ${week} Published ✓` : `Approve & Publish Week ${week}`}
             </Button>
           </div>
         </CardContent>
@@ -461,32 +442,96 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
   )
 }
 
-function ChecklistRow({
-  state,
-  title,
-  detail,
-  pill,
+// ── helpers ────────────────────────────────────────────────────────────────
+function ExpandRow({
+  open, onToggle, state, title, detail, pill, children,
 }: {
-  state: ItemState
-  title: string
-  detail: string
-  pill: string
+  k: string; open: boolean; onToggle: () => void; state: ItemState
+  title: string; detail: string; pill: string; children: React.ReactNode
 }) {
   const styles: Record<ItemState, { bar: string; ic: string; icBg: string; pill: string; glyph: string }> = {
-    ok:      { bar: 'border-l-green-600', ic: 'text-green-700', icBg: 'bg-green-100', pill: 'bg-green-100 text-green-800', glyph: '✓' },
-    warn:    { bar: 'border-l-amber-500', ic: 'text-amber-700', icBg: 'bg-amber-100', pill: 'bg-amber-100 text-amber-800', glyph: '!' },
-    info:    { bar: 'border-l-blue-500',  ic: 'text-blue-700',  icBg: 'bg-blue-100',  pill: 'bg-blue-100 text-blue-800',  glyph: 'i' },
+    ok:      { bar: 'border-l-green-600',    ic: 'text-green-700',    icBg: 'bg-green-100',    pill: 'bg-green-100 text-green-800', glyph: '✓' },
+    warn:    { bar: 'border-l-amber-500',    ic: 'text-amber-700',    icBg: 'bg-amber-100',    pill: 'bg-amber-100 text-amber-800', glyph: '!' },
+    info:    { bar: 'border-l-blue-500',     ic: 'text-blue-700',     icBg: 'bg-blue-100',     pill: 'bg-blue-100 text-blue-800',  glyph: 'i' },
     loading: { bar: 'border-l-charcoal-200', ic: 'text-charcoal-400', icBg: 'bg-charcoal-100', pill: 'bg-charcoal-100 text-charcoal-500', glyph: '…' },
   }
   const s = styles[state]
   return (
-    <div className={`flex items-center gap-4 bg-white border border-charcoal-100 border-l-4 ${s.bar} rounded-lg px-4 py-3`}>
-      <div className={`w-9 h-9 rounded-full grid place-items-center font-bold ${s.icBg} ${s.ic}`}>{s.glyph}</div>
-      <div className="flex-1">
-        <div className="font-semibold text-charcoal-900">{title}</div>
-        <div className="text-sm text-charcoal-500">{detail}</div>
-      </div>
-      {pill && <span className={`text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap ${s.pill}`}>{pill}</span>}
+    <div className={`bg-white border border-charcoal-100 border-l-4 ${s.bar} rounded-lg overflow-hidden`}>
+      <button onClick={onToggle} className="w-full flex items-center gap-4 px-4 py-3 text-left hover:bg-charcoal-50/40">
+        <div className={`w-9 h-9 rounded-full grid place-items-center font-bold ${s.icBg} ${s.ic}`}>{s.glyph}</div>
+        <div className="flex-1">
+          <div className="font-semibold text-charcoal-900">{title}</div>
+          <div className="text-sm text-charcoal-500">{detail}</div>
+        </div>
+        {pill && <span className={`text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap ${s.pill}`}>{pill}</span>}
+        <span className="text-charcoal-400 w-4 text-center">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && <div className="border-t border-charcoal-100 px-4 py-3 bg-charcoal-50/20">{children}</div>}
     </div>
+  )
+}
+
+function GamesTable({ games }: { games: GameRow[] }) {
+  if (games.length === 0) return <p className="text-sm text-charcoal-400">No games for this week.</p>
+  return (
+    <table className="w-full text-sm">
+      <thead><tr className="text-left text-charcoal-500 border-b border-charcoal-100">
+        <th className="px-3 py-2 font-medium">Game</th><th className="px-3 py-2 font-medium">Score</th>
+        <th className="px-3 py-2 font-medium">Spread</th><th className="px-3 py-2 font-medium">Winner ATS</th>
+        <th className="px-3 py-2 font-medium">Bonus</th><th className="px-3 py-2 font-medium">Status</th>
+      </tr></thead>
+      <tbody>
+        {games.map(g => (
+          <tr key={g.id} className="border-b border-charcoal-50 last:border-0">
+            <td className="px-3 py-2">{g.matchup}</td>
+            <td className="px-3 py-2">{g.home_score !== null ? `${g.away_score}–${g.home_score}` : '—'}</td>
+            <td className="px-3 py-2">{g.spread ?? '—'}</td>
+            <td className="px-3 py-2">{g.winner_against_spread ?? <span className="text-amber-600">not scored</span>}</td>
+            <td className="px-3 py-2">{g.margin_bonus ?? '—'}</td>
+            <td className="px-3 py-2">
+              <span className={g.status === 'completed' ? (g.scored ? 'text-green-700' : 'text-amber-600') : 'text-charcoal-400'}>
+                {g.status}{g.status === 'completed' && !g.scored ? ' (pending)' : ''}
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function DiscrepancyTable({ rows }: { rows: Discrepancy[] }) {
+  return (
+    <table className="w-full text-sm">
+      <thead><tr className="text-left text-charcoal-500 border-b border-charcoal-100">
+        <th className="px-3 py-2 font-medium">Kind</th><th className="px-3 py-2 font-medium">Item</th><th className="px-3 py-2 font-medium">Issue</th>
+      </tr></thead>
+      <tbody>
+        {rows.map((d, i) => (
+          <tr key={i} className="border-b border-charcoal-50 last:border-0">
+            <td className="px-3 py-2"><Badge variant="outline">{d.kind}</Badge></td>
+            <td className="px-3 py-2">{d.label}</td>
+            <td className="px-3 py-2 text-charcoal-600">{d.issue}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function PickChip({ cell }: { cell: PickCell }) {
+  const base = 'text-xs px-2 py-0.5 rounded border whitespace-nowrap'
+  let cls = 'bg-charcoal-50 border-charcoal-200 text-charcoal-600' // pending
+  if (cell.disqualified) cls = 'bg-red-50 border-red-300 text-red-500 line-through'
+  else if (cell.result === 'win') cls = 'bg-green-50 border-green-300 text-green-800'
+  else if (cell.result === 'loss') cls = 'bg-red-50 border-red-200 text-red-700'
+  else if (cell.result === 'push') cls = 'bg-amber-50 border-amber-200 text-amber-800'
+  const spread = cell.spread != null ? (cell.spread > 0 ? `+${cell.spread}` : `${cell.spread}`) : ''
+  return (
+    <span className={`${base} ${cls} ${cell.is_lock ? 'ring-2 ring-gold-400 font-semibold' : ''}`}
+      title={`${cell.matchup}${cell.result ? ' · ' + cell.result : ''}${cell.points_earned != null ? ' · ' + cell.points_earned + 'pts' : ''}`}>
+      {cell.is_lock ? '🔒 ' : ''}{cell.selected_team} {spread}
+    </span>
   )
 }
