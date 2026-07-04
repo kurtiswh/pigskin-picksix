@@ -21,6 +21,13 @@ interface AnonymousPick {
 }
 
 export default function AnonymousPicksPage() {
+  // ⚠️ HARD INVARIANT (Part B / B3): this page must NEVER load or display a
+  // visitor's previously-submitted picks. `picks` below always starts empty and
+  // is only ever populated by the current in-session selections. Do not add a
+  // query that reads existing anonymous_picks/picks by email into the UI —
+  // `validateEmail` only checks account existence (returns a boolean), it must
+  // not surface prior picks. Returning entrants see their submitted picks on
+  // their logged-in pick sheet, not here.
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')

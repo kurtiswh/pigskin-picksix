@@ -162,6 +162,25 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
     loadReview()
   }, [loadReview])
 
+  const [tying, setTying] = useState(false)
+  const autoTieAnon = async () => {
+    setTying(true)
+    setError('')
+    try {
+      const { error: rpcErr } = await supabase.rpc('auto_tie_anonymous_picks', {
+        p_week: week,
+        p_season: season,
+      })
+      if (rpcErr) throw rpcErr
+      await loadReview()
+    } catch (err: any) {
+      console.error('Auto-tie failed:', err)
+      setError(err?.message || 'Auto-tie failed')
+    } finally {
+      setTying(false)
+    }
+  }
+
   const publish = async () => {
     if (!data) return
     setPublishing(true)
@@ -299,11 +318,19 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
       {/* Anonymous picks detail */}
       {data && data.anonUnresolved.length > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Anonymous picks · resolve</CardTitle></CardHeader>
+          <CardHeader>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base">Anonymous picks · resolve</CardTitle>
+              <Button size="sm" onClick={autoTieAnon} disabled={tying} className="bg-gold-500 text-pigskin-900 hover:bg-gold-600">
+                {tying ? 'Tying…' : 'Auto-tie matchable entries'}
+              </Button>
+            </div>
+          </CardHeader>
           <CardContent>
             <p className="text-sm text-charcoal-600 mb-3">
-              These submitted entries aren't tied to an account yet. Resolve them in the{' '}
-              <span className="font-medium">Pick Management</span> tab (inline auto-tie lands with Workstream B3).
+              These submitted entries aren't tied to an account yet. "Auto-tie" matches each email to a user
+              (users / leaguesafe email) and links + shows any it can. Anything left has no matching account —
+              resolve those manually in the <span className="font-medium">Pick Management</span> tab.
             </p>
             <ul className="text-sm space-y-1">
               {data.anonUnresolved.map(a => (
