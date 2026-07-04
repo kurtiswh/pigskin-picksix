@@ -622,7 +622,89 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
     )
   }
 
-  // Manual scoring operations
+  // Re-run scoring for the week using ONLY the canonical DB scorer
+  // (calculate_and_update_completed_game) — the single manual scoring entry
+  // point. Replaces the four competing buttons that each called a different RPC.
+  const reRunScoringCanonical = async () => {
+    try {
+      setManualOperationLoading('picks')
+      setError('')
+      setManualOperationResult(null)
+
+      const { data: completedGames, error: gamesError } = await supabase
+        .from('games')
+        .select('id, home_team, away_team')
+        .eq('season', season)
+        .eq('week', selectedWeek)
+        .eq('status', 'completed')
+        .not('home_score', 'is', null)
+        .not('away_score', 'is', null)
+
+      if (gamesError) throw gamesError
+
+      if (!completedGames || completedGames.length === 0) {
+        setManualOperationResult({
+          operation: 'Re-run Scoring',
+          success: true,
+          message: `No completed games found for ${season} Week ${selectedWeek}`,
+          details: 'Nothing to score yet.'
+        })
+        return
+      }
+
+      let gamesProcessed = 0
+      let totalPicksUpdated = 0
+      const errors: string[] = []
+
+      for (const game of completedGames) {
+        setManualOperationResult({
+          operation: 'Re-run Scoring',
+          success: true,
+          message: `Scoring ${game.away_team} @ ${game.home_team}... (${gamesProcessed + 1}/${completedGames.length})`,
+          details: `Games processed: ${gamesProcessed}, Picks updated: ${totalPicksUpdated}`
+        })
+        try {
+          const { data, error } = await supabase.rpc('calculate_and_update_completed_game', {
+            game_id_param: game.id
+          })
+          if (error) throw error
+          const row: any = Array.isArray(data) ? data[0] : data
+          if (row && row.success === false) throw new Error(row.error_message || 'Scoring failed')
+          totalPicksUpdated += (row?.picks_updated ?? 0) + (row?.anonymous_picks_updated ?? 0)
+          gamesProcessed += 1
+        } catch (gameErr: any) {
+          errors.push(`${game.away_team} @ ${game.home_team}: ${gameErr.message}`)
+        }
+      }
+
+      setManualOperationResult({
+        operation: 'Re-run Scoring',
+        success: errors.length === 0,
+        message: errors.length === 0
+          ? `Re-scored ${gamesProcessed} games for ${season} Week ${selectedWeek}`
+          : `Completed with ${errors.length} errors out of ${completedGames.length} games`,
+        details: `Games processed: ${gamesProcessed}/${completedGames.length}, Picks updated: ${totalPicksUpdated}${errors.length > 0 ? `\nErrors: ${errors.join('; ')}` : ''}`
+      })
+
+      await loadGames()
+    } catch (err: any) {
+      console.error('❌ Re-run scoring failed:', err)
+      setManualOperationResult({
+        operation: 'Re-run Scoring',
+        success: false,
+        message: 'Failed to re-run scoring',
+        details: err.message
+      })
+      setError(err.message)
+    } finally {
+      setManualOperationLoading(null)
+    }
+  }
+
+  // ⚠️ LEGACY (Part B / B1): the four functions below are no longer wired to any
+  // button. They call competing RPCs that are being retired in favor of the
+  // single canonical scorer above. Kept temporarily; removed with the DB
+  // function-drop migration in a follow-up cleanup.
   const runManualPicksScoring = async () => {
     try {
       setManualOperationLoading('picks')
@@ -1278,15 +1360,6 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
                     ▶️ Start Auto Updates
                   </Button>
                 )}
-                
-                <Button 
-                  onClick={updateScoresFromAPI} 
-                  disabled={loading}
-                  variant="outline"
-                  className="text-sm"
-                >
-                  Legacy Update
-                </Button>
               </div>
               
               {liveUpdateStatus && (
@@ -1341,83 +1414,27 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
             Manual Scoring Operations
           </CardTitle>
           <p className="text-sm text-gray-600">
-            Manually trigger scoring calculations and leaderboard updates
+            Re-run scoring for this week using the single canonical scorer. Safe to run
+            repeatedly — it recomputes each completed game and cascades points identically
+            to the live updater.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Button 
-              onClick={runManualPicksScoring}
+          <div>
+            <Button
+              onClick={reRunScoringCanonical}
               disabled={manualOperationLoading !== null}
-              variant="outline"
-              className="flex items-center justify-center gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+              className="flex items-center justify-center gap-2 bg-pigskin-600 hover:bg-pigskin-700"
             >
               {manualOperationLoading === 'picks' ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                  Processing...
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Scoring...
                 </>
               ) : (
                 <>
                   <span>🎯</span>
-                  Update Picks Scoring
-                </>
-              )}
-            </Button>
-
-            <Button 
-              onClick={runManualAnonymousPicksScoring}
-              disabled={manualOperationLoading !== null}
-              variant="outline"
-              className="flex items-center justify-center gap-2 border-purple-200 text-purple-700 hover:bg-purple-50"
-            >
-              {manualOperationLoading === 'anonymous_picks' ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <span>🎭</span>
-                  Update Anonymous Picks
-                </>
-              )}
-            </Button>
-
-            <Button 
-              onClick={runManualLeaderboardRecalculation}
-              disabled={manualOperationLoading !== null}
-              variant="outline"
-              className="flex items-center justify-center gap-2 border-green-200 text-green-700 hover:bg-green-50"
-            >
-              {manualOperationLoading === 'leaderboard' ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <span>🏆</span>
-                  Recalculate Leaderboards
-                </>
-              )}
-            </Button>
-
-            <Button 
-              onClick={runManualGameStatsUpdate}
-              disabled={manualOperationLoading !== null}
-              variant="outline"
-              className="flex items-center justify-center gap-2 border-orange-200 text-orange-700 hover:bg-orange-50"
-            >
-              {manualOperationLoading === 'game_stats' ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
-                  Updating...
-                </>
-              ) : (
-                <>
-                  <span>🎯</span>
-                  Update Pick Counts
+                  Re-run Scoring for Week {selectedWeek}
                 </>
               )}
             </Button>

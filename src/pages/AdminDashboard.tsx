@@ -17,7 +17,6 @@ import ApiQuotaWidget from '@/components/ApiQuotaWidget'
 import ScoreManager from '@/components/ScoreManager'
 import WeekReview from '@/components/WeekReview'
 import AdminNotifications from '@/components/AdminNotifications'
-import { GameCompletionTest } from '@/components/GameCompletionTest'
 import PickManagement from '@/components/PickManagement'
 import BestFinishConfig from '@/components/BestFinishConfig'
 import BracketWinnersAdmin from '@/components/BracketWinnersAdmin'
@@ -1029,16 +1028,6 @@ export default function AdminDashboard() {
 
             {/* Bracket Winners Management */}
             <BracketWinnersAdmin season={currentSeason} />
-
-            {/* New Game Completion Testing */}
-            <Card className="border-orange-200 bg-orange-50/50">
-              <CardHeader>
-                <CardTitle className="text-orange-800">🧪 Game Completion Testing (Migration 114)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <GameCompletionTest />
-              </CardContent>
-            </Card>
 
             <ScoreManager
               season={currentSeason}
