@@ -121,8 +121,8 @@ export function BestFinishLeaderboard({ season, searchTerm = '' }: BestFinishLea
     if (isAdmin) {
       return data
     }
-    // Non-admin users only see paid players
-    return data.filter(entry => entry.paymentStatus === 'paid')
+    // Non-admin users only see paid players (payment_status is 'Paid' from the view)
+    return data.filter(entry => entry.paymentStatus?.toLowerCase() === 'paid')
   }
 
   const filteredData = getFilteredData().filter((entry) =>
@@ -201,32 +201,34 @@ export function BestFinishLeaderboard({ season, searchTerm = '' }: BestFinishLea
       <CardContent>
         <div className="overflow-x-auto">
           {/* Competition Info Banner */}
-          <div className="mb-4 p-4 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg border border-amber-200">
+          <div className="mb-4 p-4 bg-[#fff8ea] rounded-xl border border-[#f0dcb0]">
             <div className="flex items-start gap-3">
               <div className="text-2xl">🏆</div>
               <div>
-                <h4 className="font-semibold text-amber-900 mb-1">4th Quarter Championship</h4>
-                <p className="text-sm text-amber-800">
+                <h4 className="font-semibold text-[#8a6a1f] mb-1">4th Quarter Championship</h4>
+                <p className="text-sm text-[#a07c2b]">
                   Total points over final 4 weeks. Tiebreakers: Win % → Lock Win % → Alphabetical
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Header row - Hidden on mobile */}
-          <div className="hidden md:block border-b bg-gray-50">
-            <div className="grid grid-cols-12 gap-2 p-2 text-sm font-medium text-gray-700">
-              <div className="col-span-1">Rank</div>
-              <div className="col-span-3">Name</div>
-              <div className="col-span-2">Record</div>
-              <div className="col-span-2">Lock Record</div>
-              <div className="col-span-2">Win %</div>
-              <div className="col-span-2">Points</div>
+          {/* Header row - Hidden on mobile (grid aligns with LeaderboardRowContent) */}
+          <div className="hidden md:block bg-[#faf8f4] border-y border-[#ece7de]">
+            <div className="flex items-center px-4 py-2">
+              <div className="grid grid-cols-[112px_minmax(0,1fr)_104px_64px_72px] items-center gap-3 flex-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                <div>Rank</div>
+                <div>Player</div>
+                <div>Record</div>
+                <div>Lock</div>
+                <div className="text-right">Points</div>
+              </div>
+              <div className="ml-4 w-7 shrink-0"></div>
             </div>
           </div>
 
           {/* Expandable rows */}
-          <div className="space-y-1">
+          <div className="border-x border-b border-[#ece7de] rounded-b-lg overflow-hidden">
             {filteredData.map((entry) => {
               const rowKey = `${entry.userId}-bestfinish`
               const isExpanded = expandedRows.has(rowKey)
@@ -235,12 +237,18 @@ export function BestFinishLeaderboard({ season, searchTerm = '' }: BestFinishLea
 
               // Check if this rank is tied
               const isTied = filteredData.filter(e => e.totalPoints === entry.totalPoints).length > 1
+              const displayRank = getDisplayRank(entry)
+              const rankTint =
+                displayRank === 1 ? 'bg-[#C9A04E]/[0.16]' :
+                displayRank === 2 ? 'bg-[#9aa4b2]/[0.18]' :
+                displayRank === 3 ? 'bg-[#c2703d]/[0.13]' : ''
+              const tiedTint = isTied && displayRank > 3 ? 'border-l-2 border-l-[#2f6fd0]/50' : ''
 
               return (
                 <ExpandableLeaderboardRow
                   key={entry.userId}
                   isLoading={isLoadingExpansion}
-                  className={isTied && entry.rank > 3 ? 'bg-blue-50/50 border-l-2 border-l-blue-300' : ''}
+                  className={`${rankTint} ${tiedTint}`.trim()}
                   expandedContent={
                     expansionData ? (
                       <BestFinishExpandedDetails
@@ -255,112 +263,20 @@ export function BestFinishLeaderboard({ season, searchTerm = '' }: BestFinishLea
                     className="cursor-pointer"
                     onClick={() => handleRowToggle(entry.userId)}
                   >
-                    {/* Desktop Layout */}
-                    <div className="hidden md:grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-1">
-                        <div className="flex items-center">
-                          {entry.rank <= 3 ? (
-                            <div className="flex items-center">
-                              <span className={`text-2xl mr-1 ${
-                                entry.rank === 1 ? '🥇' :
-                                entry.rank === 2 ? '🥈' :
-                                '🥉'
-                              }`}>
-                                {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : '🥉'}
-                              </span>
-                              <span className="font-bold text-lg">{entry.rank}</span>
-                            </div>
-                          ) : (
-                            <span className="font-semibold text-gray-700">{getDisplayRank(entry)}</span>
-                          )}
-                          {isTied && (
-                            <span className="text-xs font-bold text-blue-600 uppercase ml-1" title="Tied rank">
-                              T
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="col-span-3">
-                        <span className="font-semibold text-gray-900">{entry.displayName}</span>
-                      </div>
-
-                      <div className="col-span-2">
-                        <div className="text-sm">
-                          <div className="font-medium">{entry.record}</div>
-                          <div className="text-xs text-gray-500">
-                            {(entry.winPercentage * 100).toFixed(1)}%
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="col-span-2">
-                        <div className="text-sm">
-                          <div className="font-medium">{entry.lockRecord}</div>
-                          <div className="text-xs text-gray-500">
-                            {(entry.lockWinPercentage * 100).toFixed(1)}%
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="col-span-2">
-                        <div className="text-sm">
-                          <div className="font-medium text-gray-700">
-                            {(entry.winPercentage * 100).toFixed(1)}%
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            Lock: {(entry.lockWinPercentage * 100).toFixed(1)}%
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="col-span-2 text-right">
-                        <div className="font-bold text-lg text-[#4B3621]">{entry.totalPoints}</div>
-                        <div className="text-xs text-gray-500">points</div>
-                      </div>
-                    </div>
-
-                    {/* Mobile Layout */}
-                    <div className="md:hidden">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          {entry.rank <= 3 ? (
-                            <div className="flex items-center">
-                              <span className="text-2xl">
-                                {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : '🥉'}
-                              </span>
-                              <span className="font-bold text-lg ml-1">{entry.rank}</span>
-                            </div>
-                          ) : (
-                            <span className="font-bold text-lg text-gray-700">{getDisplayRank(entry)}</span>
-                          )}
-                          {isTied && (
-                            <span className="text-xs font-medium text-blue-600 uppercase bg-blue-50 px-1 py-0.5 rounded">
-                              TIE
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold text-xl text-[#4B3621]">{entry.totalPoints}</div>
-                          <div className="text-xs text-gray-500">points</div>
-                        </div>
-                      </div>
-
-                      <div className="font-semibold text-base mb-2 break-words">{entry.displayName}</div>
-
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <div className="text-xs text-gray-500 uppercase">Record</div>
-                          <div className="font-medium">{entry.record}</div>
-                          <div className="text-xs text-gray-500">{(entry.winPercentage * 100).toFixed(1)}%</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500 uppercase">Lock Record</div>
-                          <div className="font-medium">{entry.lockRecord}</div>
-                          <div className="text-xs text-gray-500">{(entry.lockWinPercentage * 100).toFixed(1)}%</div>
-                        </div>
-                      </div>
-                    </div>
+                    <LeaderboardRowContent
+                      rank={getDisplayRank(entry)}
+                      displayName={entry.displayName}
+                      record={entry.record}
+                      lockRecord={entry.lockRecord}
+                      points={entry.totalPoints}
+                      paymentStatus={entry.paymentStatus?.toLowerCase() === 'paid' ? 'Paid' : 'NotPaid'}
+                      isExpanded={isExpanded}
+                      isLoading={isLoadingExpansion}
+                      canExpand={true}
+                      onToggle={() => {}}
+                      isAdmin={isAdmin}
+                      isTied={isTied}
+                    />
                   </div>
                 </ExpandableLeaderboardRow>
               )

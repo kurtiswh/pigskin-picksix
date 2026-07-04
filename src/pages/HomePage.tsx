@@ -314,20 +314,22 @@ export default function HomePage() {
               ) : (
                 <div className="space-y-3">
                   {topPlayers.map((player, index) => (
-                    <div key={player.user_id} className="flex justify-between items-center">
-                      <div className="flex items-center space-x-3">
-                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold ${
-                          index === 0 ? 'bg-gold-500 text-pigskin-900' : 
-                          index === 1 ? 'bg-stone-400 text-white' :
-                          index === 2 ? 'bg-amber-600 text-white' : 'bg-stone-200 text-charcoal-700'
+                    <div key={player.user_id} className="flex justify-between items-center gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 tabular-nums ${
+                          index === 0 ? 'bg-[#C9A04E] text-white' :
+                          index === 1 ? 'bg-[#9aa4b2] text-white' :
+                          index === 2 ? 'bg-[#c2703d] text-white' : 'bg-stone-200 text-charcoal-700'
                         }`}>
                           {player.season_rank || (index + 1)}
                         </span>
-                        <span className="font-medium">{player.display_name}</span>
+                        <span className="font-medium text-gray-900 truncate">{player.display_name}</span>
                       </div>
-                      <div className="text-right">
-                        <div className="font-semibold">{player.season_points || 0} pts</div>
-                        <div className="text-sm text-charcoal-500">
+                      <div className="text-right shrink-0">
+                        <div className="font-extrabold text-[#4B3621] tabular-nums">
+                          {player.season_points || 0} <span className="text-xs font-semibold text-gray-400">pts</span>
+                        </div>
+                        <div className="text-xs text-gray-500 tabular-nums">
                           {player.season_record || `${player.total_wins || 0}-${player.total_losses || 0}-${player.total_pushes || 0}`}
                         </div>
                       </div>

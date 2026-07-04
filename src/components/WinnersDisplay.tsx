@@ -271,11 +271,11 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
 
       {/* Prize Pool Info */}
       {winners?.total_pot && (
-        <Card className="border-blue-200 bg-blue-50/30">
+        <Card className="border-[#f0dcb0] bg-[#fff8ea]">
           <CardContent className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="flex items-center gap-3">
-                <DollarSign className="w-6 h-6 text-blue-600" />
+                <DollarSign className="w-6 h-6 text-[#C9A04E]" />
                 <div>
                   <div className="text-sm text-charcoal-600">Total Prize Pool</div>
                   <div className="text-xl font-bold text-charcoal-900">
@@ -284,7 +284,7 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <Calendar className="w-6 h-6 text-blue-600" />
+                <Calendar className="w-6 h-6 text-[#C9A04E]" />
                 <div>
                   <div className="text-sm text-charcoal-600">Weekly Payouts</div>
                   <div className="text-xl font-bold text-charcoal-900">
@@ -293,7 +293,7 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <Award className="w-6 h-6 text-blue-600" />
+                <Award className="w-6 h-6 text-[#C9A04E]" />
                 <div>
                   <div className="text-sm text-charcoal-600">Season Payouts</div>
                   <div className="text-xl font-bold text-charcoal-900">
@@ -311,7 +311,7 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-[#faf8f4] border-b border-[#ece7de]">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Category
@@ -336,7 +336,7 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
                     className={`
                       ${row.isTBD ? 'bg-gray-50' : ''}
                       ${row.isBracket ? 'bg-orange-50/30' : ''}
-                      ${row.isWeekly ? 'bg-blue-50/30 font-semibold' : ''}
+                      ${row.isWeekly ? 'bg-[#fff8ea] font-semibold' : ''}
                       hover:bg-gray-100 transition-colors
                     `}
                   >
@@ -400,10 +400,10 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-blue-600" />
+              <Calendar className="w-5 h-5 text-[#C9A04E]" />
               <CardTitle className="text-xl">Weekly Winners</CardTitle>
             </div>
-            <Badge className="bg-blue-100 text-blue-800">
+            <Badge className="bg-[#C9A04E]/15 text-[#8a6a1f]">
               ${winners?.weekly_payout || 80} per week
             </Badge>
           </div>
@@ -414,7 +414,7 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
               {groupedWeeklyWinners.map(([week, weekWinners]) => (
                 <div
                   key={week}
-                  className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg"
+                  className="flex items-center justify-between p-3 bg-[#fff8ea] border border-[#f0dcb0] rounded-lg"
                 >
                   <div className="flex-1">
                     <div className="text-sm font-medium text-charcoal-900 mb-1">
@@ -431,12 +431,12 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
                       </div>
                     ))}
                     {weekWinners[0]?.total_points !== undefined && (
-                      <div className="text-xs text-blue-700 font-semibold mt-1">
+                      <div className="text-xs text-[#8a6a1f] font-semibold mt-1">
                         {weekWinners[0].total_points} points
                       </div>
                     )}
                   </div>
-                  <div className="text-sm font-bold text-blue-700 ml-2">
+                  <div className="text-sm font-bold text-[#8a6a1f] ml-2">
                     {formatCurrency(winners?.weekly_payout || 80)}
                   </div>
                 </div>
@@ -449,12 +449,12 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
           )}
 
           {groupedWeeklyWinners.length > 0 && (
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="mt-4 p-3 bg-[#fff8ea] rounded-xl border border-[#f0dcb0]">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-charcoal-900">
                   Total Weekly Payouts ({groupedWeeklyWinners.length} weeks)
                 </span>
-                <span className="text-lg font-bold text-blue-700">
+                <span className="text-lg font-bold text-[#8a6a1f]">
                   {formatCurrency(groupedWeeklyWinners.length * (winners?.weekly_payout || 80))}
                 </span>
               </div>
