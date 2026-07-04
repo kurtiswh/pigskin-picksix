@@ -15,6 +15,7 @@ import UserManagement from '@/components/UserManagement'
 import ApiStatusWidget from '@/components/ApiStatusWidget'
 import ApiQuotaWidget from '@/components/ApiQuotaWidget'
 import ScoreManager from '@/components/ScoreManager'
+import WeekReview from '@/components/WeekReview'
 import AdminNotifications from '@/components/AdminNotifications'
 import { GameCompletionTest } from '@/components/GameCompletionTest'
 import PickManagement from '@/components/PickManagement'
@@ -31,7 +32,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth()
-  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'users' | 'pickmanagement' | 'notifications'>('games')
+  const [activeTab, setActiveTab] = useState<'games' | 'controls' | 'scores' | 'weekreview' | 'users' | 'pickmanagement' | 'notifications'>('games')
   const [cfbGames, setCfbGames] = useState<CFBGame[]>([])
   const [savedGames, setSavedGames] = useState<CFBGame[]>([]) // Games actually saved to database
   const [tempSelectedGames, setTempSelectedGames] = useState<CFBGame[]>([]) // UI-only selections
@@ -896,6 +897,16 @@ export default function AdminDashboard() {
             Score Updates
           </button>
           <button
+            onClick={() => setActiveTab('weekreview')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'weekreview'
+                ? 'bg-pigskin-500 text-white'
+                : 'text-charcoal-600 hover:text-pigskin-700'
+            }`}
+          >
+            ✅ Week Review
+          </button>
+          <button
             onClick={() => setActiveTab('users')}
             className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
               activeTab === 'users'
@@ -1034,6 +1045,10 @@ export default function AdminDashboard() {
               week={currentWeek}
             />
           </div>
+        )}
+
+        {activeTab === 'weekreview' && (
+          <WeekReview season={currentSeason} initialWeek={currentWeek} />
         )}
 
         {activeTab === 'users' && (

@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PP6 · Part B — Weekly Process Mockups</title>
+<style>
+  :root{
+    --brown:#4B3621;      /* Pigskin Brown */
+    --gold:#C9A04E;       /* Goal-Post Gold */
+    --bg:#F8F7F3;
+    --charcoal:#2B2622;
+    --ink:#2A2118;
+    --muted:#7A6E60;
+    --line:#E5DFD5;
+    --player:#2F6F8F;     /* players actor */
+    --player-bg:#E7F1F6;
+    --system:#B07E1E;     /* system actor */
+    --system-bg:#FBF1DC;
+    --admin:#4B3621;      /* admin actor */
+    --admin-bg:#EFE9E0;
+    --green:#2E7D4F; --green-bg:#E6F4EC;
+    --amber:#B8860B; --amber-bg:#FBF3DC;
+    --red:#B23A3A;   --red-bg:#FBEAEA;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{color:var(--brown);margin:0 0 .3em}
+  a{color:var(--player)}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+
+  /* Header */
+  header.top{background:linear-gradient(135deg,var(--brown),#3a291a);color:#fff;padding:34px 0 30px}
+  header.top .wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .badge-pp6{width:52px;height:52px;border-radius:12px;background:var(--gold);color:var(--brown);
+       display:grid;place-items:center;font-weight:800;font-size:20px;box-shadow:0 3px 10px rgba(0,0,0,.25)}
+  header.top h1{color:#fff;font-size:26px;margin:0}
+  header.top p{margin:2px 0 0;color:#E9DFcd;font-size:14px}
+  .kicker{letter-spacing:.14em;text-transform:uppercase;font-size:11px;color:var(--gold);font-weight:700}
+
+  /* Sticky nav */
+  nav.sticky{position:sticky;top:0;z-index:20;background:rgba(248,247,243,.95);backdrop-filter:blur(6px);
+       border-bottom:1px solid var(--line)}
+  nav.sticky .wrap{display:flex;gap:6px;flex-wrap:wrap;padding-top:10px;padding-bottom:10px}
+  nav.sticky a{font-size:13px;font-weight:600;color:var(--brown);text-decoration:none;padding:6px 12px;
+       border-radius:999px;border:1px solid var(--line);background:#fff}
+  nav.sticky a:hover{background:var(--gold);border-color:var(--gold)}
+
+  section{padding:40px 0 10px}
+  section > .wrap > .lead{color:var(--muted);max-width:760px;margin:0 0 22px}
+  .sec-kick{margin-bottom:4px}
+
+  /* Actor legend */
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 22px}
+  .legend .chip{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink)}
+  .dot{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .dot.player{background:var(--player)} .dot.system{background:var(--system)} .dot.admin{background:var(--admin)}
+
+  /* Swimlane */
+  .swim-scroll{overflow-x:auto;padding-bottom:8px}
+  .swim{min-width:940px;display:grid;grid-template-columns:96px repeat(8,1fr);gap:8px}
+  .swim .phasehead{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--brown);
+       text-align:center;padding:8px 4px;background:#fff;border:1px solid var(--line);border-radius:8px}
+  .swim .phasehead small{display:block;color:var(--muted);font-weight:600;letter-spacing:0;text-transform:none;font-size:10px;margin-top:2px}
+  .swim .lanelabel{writing-mode:horizontal-tb;font-size:12px;font-weight:800;color:#fff;border-radius:8px;
+       display:grid;place-items:center;text-align:center;padding:6px}
+  .lanelabel.player{background:var(--player)} .lanelabel.system{background:var(--system)} .lanelabel.admin{background:var(--admin)}
+  .cell{min-height:78px;border-radius:8px;border:1px dashed transparent}
+  .cell.empty{border-color:#EDE7DD;background:repeating-linear-gradient(45deg,#fff,#fff 6px,#faf8f4 6px,#faf8f4 12px)}
+  .card{height:100%;border-radius:8px;padding:9px 10px;font-size:12px;border:1px solid var(--line);background:#fff;
+       box-shadow:0 1px 3px rgba(75,54,33,.06)}
+  .card b{display:block;font-size:12.5px;margin-bottom:3px}
+  .card.player{border-top:3px solid var(--player)} .card.player b{color:var(--player)}
+  .card.system{border-top:3px solid var(--system)} .card.system b{color:var(--system)}
+  .card.admin{border-top:3px solid var(--admin)} .card.admin b{color:var(--admin)}
+  .card span{color:var(--muted);font-size:11px}
+  /* state track */
+  .statetrack{min-width:940px;display:grid;grid-template-columns:96px repeat(8,1fr);gap:8px;margin-top:8px}
+  .statetrack .lbl{font-size:10px;font-weight:700;color:var(--muted);display:grid;place-items:center;text-transform:uppercase}
+  .flag{font-size:10.5px;text-align:center;padding:7px 4px;border-radius:7px;background:var(--admin-bg);
+       color:var(--brown);font-weight:700;border:1px solid var(--line)}
+  .flag.on{background:var(--green-bg);color:var(--green);border-color:#CDE7D6}
+  .flag.dash{background:transparent;border:1px dashed #E4DECF;color:#C9BEA9}
+
+  /* Vertical walkthrough */
+  .steps{position:relative;margin-top:6px}
+  .steps::before{content:"";position:absolute;left:19px;top:8px;bottom:8px;width:2px;background:var(--line)}
+  .step{position:relative;padding:0 0 22px 56px}
+  .step .num{position:absolute;left:0;top:0;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;
+       font-weight:800;color:#fff;font-size:15px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+  .num.player{background:var(--player)} .num.system{background:var(--system)} .num.admin{background:var(--admin)}
+  .step .body{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(75,54,33,.05)}
+  .step .body h3{font-size:16px;margin:0 0 2px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .actor-tag{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:999px}
+  .actor-tag.player{background:var(--player-bg);color:var(--player)}
+  .actor-tag.system{background:var(--system-bg);color:var(--system)}
+  .actor-tag.admin{background:var(--admin-bg);color:var(--admin)}
+  .step .desc{color:var(--ink);font-size:14px;margin:6px 0 10px}
+  .meta{display:flex;gap:22px;flex-wrap:wrap;font-size:12.5px;border-top:1px dashed var(--line);padding-top:9px}
+  .meta div{flex:1;min-width:210px}
+  .meta .k{font-weight:800;color:var(--brown);text-transform:uppercase;font-size:10px;letter-spacing:.05em;display:block;margin-bottom:2px}
+  .meta code{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:11.5px;color:var(--brown)}
+
+  /* Screen mockups */
+  .screen{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 6px 24px rgba(75,54,33,.10);margin-bottom:26px}
+  .screen .bar{background:var(--charcoal);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px;font-size:13px}
+  .screen .bar .dots{display:flex;gap:6px;margin-right:6px}
+  .screen .bar .dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .screen .bar .dots i:nth-child(1){background:#ff5f57}.screen .bar .dots i:nth-child(2){background:#febc2e}.screen .bar .dots i:nth-child(3){background:#28c840}
+  .screen .bar .path{color:#cdbfa9;font-size:12px}
+  .screen .app{padding:20px 22px}
+  .screen .apphead{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+  .screen .apphead h3{font-size:20px;margin:0}
+  .screen .apphead .wk{font-size:13px;color:var(--muted)}
+  .wpill{background:var(--gold);color:var(--brown);font-weight:800;font-size:12px;padding:5px 12px;border-radius:999px}
+
+  .checklist{display:grid;gap:12px}
+  .chk{display:grid;grid-template-columns:34px 1fr auto;gap:14px;align-items:center;border:1px solid var(--line);
+       border-radius:11px;padding:13px 15px;background:#fff}
+  .chk.ok{border-left:4px solid var(--green)} .chk.warn{border-left:4px solid var(--amber)} .chk.info{border-left:4px solid var(--player)}
+  .chk .ic{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:16px}
+  .ic.ok{background:var(--green-bg);color:var(--green)} .ic.warn{background:var(--amber-bg);color:var(--amber)} .ic.info{background:var(--player-bg);color:var(--player)}
+  .chk .txt b{display:block;font-size:14.5px;color:var(--ink)} .chk .txt span{font-size:12.5px;color:var(--muted)}
+  .status-pill{font-size:11.5px;font-weight:800;padding:5px 11px;border-radius:999px;white-space:nowrap}
+  .status-pill.ok{background:var(--green-bg);color:var(--green)} .status-pill.warn{background:var(--amber-bg);color:var(--amber)} .status-pill.info{background:var(--player-bg);color:var(--player)}
+  .btn{border:none;border-radius:9px;font-weight:700;font-size:13px;padding:9px 16px;cursor:default}
+  .btn.gold{background:var(--gold);color:var(--brown)} .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--brown)}
+  .btn.pub{background:var(--green);color:#fff;font-size:15px;padding:13px 26px}
+  .btn.disabled{background:#E7E1D6;color:#B0A691}
+
+  .subpanel{margin-top:14px;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+  .subpanel .ph{background:var(--bg);padding:10px 14px;font-weight:700;font-size:13px;color:var(--brown);border-bottom:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);background:#fdfcfa}
+  tr:last-child td{border-bottom:none}
+  td .mini{background:var(--gold);color:var(--brown);font-weight:700;font-size:11px;padding:3px 9px;border-radius:6px;border:none}
+  td .mini.ghost{background:#fff;border:1px solid var(--line);color:var(--brown)}
+  .tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px}
+  .tag.paid{background:var(--green-bg);color:var(--green)} .tag.unpaid{background:var(--red-bg);color:var(--red)}
+  .tag.lock{background:var(--admin-bg);color:var(--brown)}
+  .strike{color:var(--red);text-decoration:line-through;opacity:.8}
+
+  .callout{background:var(--system-bg);border:1px solid #EAD9AE;border-left:4px solid var(--gold);border-radius:10px;
+       padding:14px 16px;font-size:13.5px;margin:8px 0 4px}
+  .callout b{color:var(--brown)}
+  footer{padding:40px 0 60px;color:var(--muted);font-size:12.5px;text-align:center}
+  .note{font-size:12px;color:var(--muted);font-style:italic;margin-top:6px}
+  @media(max-width:640px){header.top h1{font-size:21px}.meta div{min-width:100%}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="badge-pp6">P6</div>
+    <div>
+      <div class="kicker">Pigskin Pick Six Pro</div>
+      <h1>Part B — Weekly Process</h1>
+      <p>End-to-end walkthrough &amp; screen mockups · pick submission → final admin approval</p>
+    </div>
+  </div>
+</header>
+
+<nav class="sticky">
+  <div class="wrap">
+    <a href="#overview">Process overview</a>
+    <a href="#walkthrough">Full walkthrough</a>
+    <a href="#review">Week Review screen</a>
+    <a href="#anon">Anonymous auto-tie</a>
+    <a href="#dq">Disqualification</a>
+  </div>
+</nav>
+
+<!-- ============ OVERVIEW SWIMLANE ============ -->
+<section id="overview">
+  <div class="wrap">
+    <div class="sec-kick kicker sec-kick">The big picture</div>
+    <h2>How a week flows — three actors, eight phases</h2>
+    <p class="lead">Each week moves left to right. Players submit, the system does the automated heavy lifting
+      (locks, scoring, verification), and admins only act at the two ends: building the week and giving final approval.
+      The bottom track shows the <code>week_settings</code> state flags flipping as the week progresses.</p>
+
+    <div class="legend">
+      <span class="chip"><span class="dot player"></span> Players (authenticated + anonymous)</span>
+      <span class="chip"><span class="dot system"></span> System (automated — Edge Function &amp; DB)</span>
+      <span class="chip"><span class="dot admin"></span> Admins</span>
+    </div>
+
+    <div class="swim-scroll">
+      <div class="swim">
+        <!-- header row -->
+        <div class="phasehead" style="background:transparent;border:none"></div>
+        <div class="phasehead">1 · Build<small>select games</small></div>
+        <div class="phasehead">2 · Submit<small>make picks</small></div>
+        <div class="phasehead">3 · Lock<small>freeze picks</small></div>
+        <div class="phasehead">4 · Play<small>games run</small></div>
+        <div class="phasehead">5 · Score<small>live update</small></div>
+        <div class="phasehead">6 · Verify<small>auto-check</small></div>
+        <div class="phasehead">7 · Review<small>admin QA</small></div>
+        <div class="phasehead">8 · Publish<small>go live</small></div>
+
+        <!-- Players lane -->
+        <div class="lanelabel player">Players</div>
+        <div class="cell empty"></div>
+        <div class="card player"><b>Submit picks</b><span>6 ATS + 1 Lock. Auth &amp; anonymous.</span></div>
+        <div class="cell empty"></div>
+        <div class="cell empty"></div>
+        <div class="cell empty"></div>
+        <div class="cell empty"></div>
+        <div class="cell empty"></div>
+        <div class="cell empty"></div>
+
+        <!-- System lane -->
+        <div class="lanelabel system">System</div>
+        <div class="cell empty"></div>
+        <div class="cell empty"></div>
+        <div class="card system"><b>Enforce locks</b><span>Per-game lock time; Thu/Fri auto-lock.</span></div>
+        <div class="card system"><b>Poll scores</b><span>CFBD via Edge Function.</span></div>
+        <div class="card system"><b>Score games</b><span>One writer → canonical RPC.</span></div>
+        <div class="card system"><b>Auto-verify</b><span>Discrepancies, anon tie, DQ calc.</span></div>
+        <div class="cell empty"></div>
+        <div class="cell empty"></div>
+
+        <!-- Admin lane -->
+        <div class="lanelabel admin">Admins</div>
+        <div class="card admin"><b>Build week</b><span>Pick 15 games, spreads, deadline, locks.</span></div>
+        <div class="cell empty"></div>
+        <div class="cell empty"></div>
+        <div class="cell empty"></div>
+        <div class="cell empty"></div>
+        <div class="cell empty"></div>
+        <div class="card admin"><b>Week Review</b><span>Clear the checklist.</span></div>
+        <div class="card admin"><b>Approve &amp; publish</b><span>One button → live.</span></div>
+      </div>
+
+      <!-- state track -->
+      <div class="statetrack">
+        <div class="lbl">state</div>
+        <div class="flag on">games_<br>selected ✓</div>
+        <div class="flag on">picks_<br>open ✓</div>
+        <div class="flag on">games_<br>locked ✓</div>
+        <div class="flag dash">—</div>
+        <div class="flag on">scoring_<br>complete ✓</div>
+        <div class="flag dash">verified</div>
+        <div class="flag dash">reviewed</div>
+        <div class="flag on">leaderboard_<br>complete ✓</div>
+      </div>
+    </div>
+    <p class="note">Admins touch only phases 1, 7, and 8. Everything in between is automated and verifiable.</p>
+  </div>
+</section>
+
+<!-- ============ FULL WALKTHROUGH ============ -->
+<section id="walkthrough">
+  <div class="wrap">
+    <div class="kicker">Step by step</div>
+    <h2>The full walkthrough</h2>
+    <p class="lead">Each step shows who acts, what changes in the database, and what that person sees.</p>
+
+    <div class="steps">
+
+      <div class="step">
+        <div class="num admin">1</div>
+        <div class="body">
+          <h3>Build the week <span class="actor-tag admin">Admin</span></h3>
+          <div class="desc">Admin loads CFBD games, selects up to 15 for the week, sets/edits spreads, sets the deadline
+            and per-game lock times (Thu/Fri games lock early).</div>
+          <div class="meta">
+            <div><span class="k">State change</span><code>games_selected = true</code></div>
+            <div><span class="k">Screen</span>Game Selection · Week Controls</div>
+            <div><span class="k">Player sees</span>Nothing yet — picks not open.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num admin">·</div>
+        <div class="body">
+          <h3>Open picks <span class="actor-tag admin">Admin</span></h3>
+          <div class="desc">Admin flips picks open. The pick sheet becomes available to logged-in players and the
+            public anonymous page goes live.</div>
+          <div class="meta">
+            <div><span class="k">State change</span><code>picks_open = true</code></div>
+            <div><span class="k">Screen</span>Week Controls</div>
+            <div><span class="k">Player sees</span>Pick sheet unlocks.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num player">2</div>
+        <div class="body">
+          <h3>Players submit picks <span class="actor-tag player">Players</span></h3>
+          <div class="desc">Authenticated users pick 6 games ATS + 1 Lock. Non-members use the anonymous page (email + name,
+            no login). <b>The anonymous page always shows a blank sheet</b> — it never displays previously-made picks.</div>
+          <div class="meta">
+            <div><span class="k">Writes</span><code>picks</code> / <code>anonymous_picks</code> · <code>submitted = true</code></div>
+            <div><span class="k">Screen</span>Pick Sheet · Anonymous Picks</div>
+            <div><span class="k">Rule</span>Max 6 picks, exactly 1 lock.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num system">3</div>
+        <div class="body">
+          <h3>Locks enforce (server-side) <span class="actor-tag system">System</span></h3>
+          <div class="desc">Each game freezes at its lock time — Thursday/Friday games auto-lock at their kickoff/6pm CT;
+            Saturday+ games stay editable until the Saturday deadline. A Saturday submission overrides all
+            <em>non-locked</em> picks. Enforcement is in the database, not just the UI.</div>
+          <div class="meta">
+            <div><span class="k">State change</span><code>games_locked = true</code> when all locked</div>
+            <div><span class="k">Enforced by</span>RLS / trigger on <code>picks</code> vs <code>custom_lock_time</code></div>
+            <div><span class="k">Player sees</span>Locked games become read-only.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num system">4</div>
+        <div class="body">
+          <h3>Games play · scores polled <span class="actor-tag system">System</span></h3>
+          <div class="desc">The <code>live-score-updater</code> Edge Function polls CFBD every few minutes during the
+            game window and updates each game's score and status. <b>This is the only thing that pulls live data.</b></div>
+          <div class="meta">
+            <div><span class="k">Writes</span><code>games.home_score / away_score / status</code></div>
+            <div><span class="k">Runs</span>Edge Function on a cron (Thu–Sun window)</div>
+            <div><span class="k">Player sees</span>Live scores on game cards.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num system">5</div>
+        <div class="body">
+          <h3>Live scoring — single writer <span class="actor-tag system">System</span></h3>
+          <div class="desc">When a game completes, the Edge Function calls the <b>one canonical scorer</b>
+            <code>calculate_and_update_completed_game</code>, which computes winner-ATS + margin bonus and cascades
+            points to every pick. No competing browser scorer, no scattered manual buttons.</div>
+          <div class="meta">
+            <div><span class="k">State change</span><code>scoring_complete = true</code> when all scored</div>
+            <div><span class="k">Writes</span>game columns → <code>picks.result / points_earned</code></div>
+            <div><span class="k">Rules</span>20/10/0 · bonus +5/+3/+1 · Lock doubles bonus</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num system">6</div>
+        <div class="body">
+          <h3>Auto-verification <span class="actor-tag system">System</span></h3>
+          <div class="desc">The <code>scoring_discrepancies</code> view independently re-computes every game and pick and flags any
+            mismatch or bad state. Anonymous picks are auto-tied to matching paid accounts, and the disqualification
+            check (>6 counted picks) runs. All of this produces the Week Review queue.</div>
+          <div class="meta">
+            <div><span class="k">Reads</span><code>scoring_discrepancies</code> (view 158)</div>
+            <div><span class="k">Computes</span>anon ties · disqualifications</div>
+            <div><span class="k">Result</span>0 discrepancies = safe to publish</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num admin">7</div>
+        <div class="body">
+          <h3>Week Review (admin QA) <span class="actor-tag admin">Admin</span></h3>
+          <div class="desc">One screen answers "is this week correct?" — a checklist that must go green: games scored,
+            zero discrepancies, anonymous ties resolved, disqualifications confirmed, unpaid submitters noted.
+            Admin resolves anything flagged. <a href="#review">See mockup ↓</a></div>
+          <div class="meta">
+            <div><span class="k">Screen</span>Week Review (new)</div>
+            <div><span class="k">Reads</span>discrepancies · anon queue · DQ calc</div>
+            <div><span class="k">Blocks</span>Publish disabled until green</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="num admin">8</div>
+        <div class="body">
+          <h3>Approve &amp; publish <span class="actor-tag admin">Admin</span></h3>
+          <div class="desc">A single "Approve &amp; Publish Week N" button. Leaderboards become visible (payment-gated,
+            grace period respected for early weeks). The week is done.</div>
+          <div class="meta">
+            <div><span class="k">State change</span><code>scoring_complete</code> + <code>leaderboard_complete = true</code></div>
+            <div><span class="k">Screen</span>Week Review → confirm</div>
+            <div><span class="k">Player sees</span>Updated weekly &amp; season leaderboards.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============ WEEK REVIEW SCREEN ============ -->
+<section id="review">
+  <div class="wrap">
+    <div class="kicker">New screen · the hub</div>
+    <h2>Week Review</h2>
+    <p class="lead">Replaces the ad-hoc "Score Updates" tab as the single close-out screen. The admin works top to bottom;
+      the publish button only enables when scoring is complete and clean.</p>
+
+    <div class="screen">
+      <div class="bar"><div class="dots"><i></i><i></i><i></i></div>
+        <span>Admin Dashboard</span><span class="path">/ Week Review</span></div>
+      <div class="app">
+        <div class="apphead">
+          <div>
+            <h3>Week Review</h3>
+            <div class="wk">Reconcile scoring, resolve entries, and publish the week.</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="wpill">Week 5 · 2025</span>
+            <button class="btn ghost">Change week ▾</button>
+          </div>
+        </div>
+
+        <div class="checklist">
+          <div class="chk ok">
+            <div class="ic ok">✓</div>
+            <div class="txt"><b>Games scored</b><span>14 of 14 completed games have a winner &amp; points assigned.</span></div>
+            <span class="status-pill ok">Complete</span>
+          </div>
+
+          <div class="chk ok">
+            <div class="ic ok">✓</div>
+            <div class="txt"><b>Scoring integrity</b><span>0 discrepancies — independent re-check matches stored results.</span></div>
+            <span class="status-pill ok">0 issues</span>
+          </div>
+
+          <div class="chk warn">
+            <div class="ic warn">!</div>
+            <div class="txt"><b>Anonymous picks</b><span>2 submitted entries not yet tied to an account.</span></div>
+            <span class="status-pill warn">2 to resolve</span>
+          </div>
+
+          <div class="chk warn">
+            <div class="ic warn">!</div>
+            <div class="txt"><b>Disqualifications</b><span>1 player has 7 counted picks (locked + new Saturday set).</span></div>
+            <span class="status-pill warn">1 to confirm</span>
+          </div>
+
+          <div class="chk info">
+            <div class="ic info">i</div>
+            <div class="txt"><b>Payment gate</b><span>3 submitters are unpaid — they won't appear on the leaderboard.</span></div>
+            <span class="status-pill info">FYI · 3 unpaid</span>
+          </div>
+        </div>
+
+        <!-- discrepancy detail (expanded example) -->
+        <div class="subpanel">
+          <div class="ph">Scoring integrity · detail</div>
+          <table>
+            <tr><th>Kind</th><th>Item</th><th>Issue</th><th></th></tr>
+            <tr><td colspan="4" style="text-align:center;color:var(--green);font-weight:700;padding:16px">
+              ✓ No discrepancies for Week 5. Stored results match the independent recompute.</td></tr>
+          </table>
+          <p class="note" style="padding:0 14px 12px">When rows appear here, each shows the human-readable diff (e.g.
+            "winner stored=X calc=Y; pts stored=10 calc=20") with a guarded "re-run scoring" action that calls the same canonical RPC.</p>
+        </div>
+
+        <!-- anonymous queue -->
+        <div class="subpanel">
+          <div class="ph">Anonymous picks · resolve</div>
+          <table>
+            <tr><th>Name / email</th><th>Match found</th><th>Payment</th><th>Action</th></tr>
+            <tr>
+              <td><b>Jordan Mills</b><br><span style="color:var(--muted);font-size:12px">jmills@email.com</span></td>
+              <td>→ Jordan Mills (user)</td>
+              <td><span class="tag paid">Paid</span></td>
+              <td><button class="mini">Tie &amp; show</button></td>
+            </tr>
+            <tr>
+              <td><b>Sam Carter</b><br><span style="color:var(--muted);font-size:12px">scarter@email.com</span></td>
+              <td>→ Sam Carter (leaguesafe)</td>
+              <td><span class="tag unpaid">Not paid</span></td>
+              <td><button class="mini ghost">Tie (hidden)</button></td>
+            </tr>
+          </table>
+          <p class="note" style="padding:0 14px 12px">Paid email-matches auto-tie during the week; only the unresolved remainder lands here.</p>
+        </div>
+
+        <!-- publish -->
+        <div class="callout">
+          <b>Publish is blocked</b> until Anonymous picks and Disqualifications are cleared.
+          Games scored ✓ and Scoring integrity ✓ are already green.
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px">
+          <button class="btn ghost">Preview leaderboard</button>
+          <button class="btn pub disabled">Approve &amp; Publish Week 5</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ANONYMOUS AUTO-TIE ============ -->
+<section id="anon">
+  <div class="wrap">
+    <div class="kicker">Workstream B3</div>
+    <h2>Anonymous auto-tie — one deterministic path</h2>
+    <p class="lead">One rule replaces the several assignment paths. It runs at submission and is re-checkable in Week Review.
+      The anonymous <em>submission</em> page never shows prior picks; the tie only affects what the logged-in user and the leaderboard see.</p>
+
+    <div class="screen">
+      <div class="bar"><div class="dots"><i></i><i></i><i></i></div><span>Auto-tie logic</span></div>
+      <div class="app">
+        <table>
+          <tr><th>Step</th><th>Check</th><th>Result</th></tr>
+          <tr><td>1</td><td>Match <code>email</code> to <code>users.email</code> / <code>users.leaguesafe_email</code> / <code>leaguesafe_payments.leaguesafe_email</code></td><td>Found → set <code>assigned_user_id</code></td></tr>
+          <tr><td>2</td><td>Is that user <span class="tag paid">Paid</span> for the season?</td><td>Yes → <code>show_on_leaderboard = true</code></td></tr>
+          <tr><td>3</td><td>Unpaid or no match</td><td><code>show_on_leaderboard = false</code> → falls to Week Review queue</td></tr>
+        </table>
+        <div class="callout" style="margin-top:16px">
+          <b>Hard requirement:</b> the anonymous picks page loads a <b>blank sheet every time</b>, even for a returning email —
+          it must never query or render previously submitted picks. When that person logs into their real account, their
+          submitted picks appear there (Thu/Fri already locked, only Saturday editable).
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DISQUALIFICATION ============ -->
+<section id="dq">
+  <div class="wrap">
+    <div class="kicker">Workstream B4</div>
+    <h2>Disqualification — the 7-pick case</h2>
+    <p class="lead">Submit Thursday → those are your 6. If a Thu/Fri pick locked and you then submit a full new Saturday set,
+      you can end up with 7 counted picks. The system flags it after games complete and proposes the drop; the admin confirms in Week Review.</p>
+
+    <div class="screen">
+      <div class="bar"><div class="dots"><i></i><i></i><i></i></div><span>Admin Dashboard</span><span class="path">/ Week Review / Disqualification</span></div>
+      <div class="app">
+        <div class="apphead"><div><h3>Casey Nguyen — 7 counted picks</h3>
+          <div class="wk">Locked Thursday pick + full Saturday resubmission. One Saturday pick must be dropped to return to 6.</div></div>
+          <span class="wpill">Week 5 · 2025</span></div>
+
+        <table>
+          <tr><th>Game</th><th>Pick</th><th>Origin</th><th>Status</th><th>Result</th><th>Pts</th></tr>
+          <tr><td>PSU @ OSU</td><td>OSU −3</td><td>Thursday</td><td><span class="tag lock">🔒 Locked</span></td><td>Win</td><td>20</td></tr>
+          <tr><td>MICH @ IU</td><td>MICH −7</td><td>Saturday</td><td>Counted</td><td>Win</td><td>21</td></tr>
+          <tr><td>UGA @ BAMA</td><td>UGA +2</td><td>Saturday</td><td>Counted</td><td>Win</td><td>20</td></tr>
+          <tr><td>ORE @ USC</td><td>ORE −4</td><td>Saturday</td><td>Counted</td><td>Loss</td><td>0</td></tr>
+          <tr style="background:var(--red-bg)"><td class="strike">ND @ CLEM</td><td class="strike">ND −1</td><td>Saturday</td><td><span class="tag unpaid">Proposed drop</span></td><td class="strike">Win</td><td class="strike">23</td></tr>
+          <tr><td>LSU @ TENN</td><td>LSU +6</td><td>Saturday</td><td>Counted</td><td>Push</td><td>10</td></tr>
+          <tr><td>TEX @ OU</td><td>TEX −2</td><td>Saturday</td><td>Counted</td><td>Loss</td><td>0</td></tr>
+        </table>
+
+        <div class="callout" style="margin-top:14px">
+          <b>Why this one:</b> 7 picks counted → the <b>highest-value</b> newly-submitted (Saturday) pick is dropped as a
+          penalty for over-submitting, returning the entry to exactly 6. Here that's ND @ CLEM (23 pts). A locked pick can
+          never be the drop — if the highest-value pick were the lock, the next-highest non-locked pick is dropped instead.
+          Computed after results are known.
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px">
+          <button class="btn ghost">Choose a different drop</button>
+          <button class="btn gold">Confirm drop &amp; recount</button>
+        </div>
+        <p class="note">Covers both directions (over-submission either way). Nothing is deleted — the dropped pick is marked not-counted and excluded from totals.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    PP6 · Part B mockups — companion to <b>docs/PART_B_WEEKLY_PROCESS_PLAN.md</b>. Static visual for review; not wired to data.
+  </div>
+</footer>
+
+</body>
+</html>
