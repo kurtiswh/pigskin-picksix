@@ -539,6 +539,20 @@ export class EmailService {
    * Get users who should receive notifications (only active/paid users)
    * Optimized to avoid URL length issues with large user sets
    */
+  /** Grace-period length (weeks) from app_settings; defaults to 2. */
+  private static async getGracePeriodWeeks(): Promise<number> {
+    try {
+      const { data } = await supabase
+        .from('app_settings')
+        .select('grace_period_weeks')
+        .limit(1)
+        .maybeSingle()
+      return (data as any)?.grace_period_weeks ?? 2
+    } catch {
+      return 2
+    }
+  }
+
   static async getUsersForNotification(
     notificationType: keyof UserPreferences,
     season: number,
@@ -606,9 +620,31 @@ export class EmailService {
         
         eligibleUsers = usersWithoutPicks
       }
-      
+
+      // B5 (roster cleanup): once the season is underway (past the grace period),
+      // stop reminding paid users who have never entered ANY week this season —
+      // they aren't participating and shouldn't keep getting pick reminders.
+      if (notificationType === 'pick_reminders' && eligibleUsers.length > 0) {
+        const graceWeeks = await this.getGracePeriodWeeks()
+        if (week > graceWeeks) {
+          const enteredIds = new Set<string>()
+          const batchSize = 50
+          for (let i = 0; i < eligibleUsers.length; i += batchSize) {
+            const userIds = eligibleUsers.slice(i, i + batchSize).map(u => u.id)
+            const { data: seasonPicks } = await supabase
+              .from('picks')
+              .select('user_id')
+              .eq('season', season)
+              .eq('submitted', true)
+              .in('user_id', userIds)
+            for (const p of seasonPicks || []) enteredIds.add(p.user_id)
+          }
+          eligibleUsers = eligibleUsers.filter(u => enteredIds.has(u.id))
+        }
+      }
+
       return eligibleUsers
-      
+
     } catch (error) {
       console.error('Error getting users for notification:', error)
       // Try fallback method one more time

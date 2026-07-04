@@ -31,6 +31,10 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all')
+  // Roster/entry cleanup (Part B / B5): default the list to actual participants
+  // this season (has picks, or any payment record) rather than every account.
+  const [participationFilter, setParticipationFilter] = useState<'played' | 'all'>('played')
+  const [playedUserIds, setPlayedUserIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState('')
   const [currentSeason, setCurrentSeason] = useSeasonState() // Defaults to the active season
   const [matchingPayment, setMatchingPayment] = useState<LeagueSafePayment | null>(null)
@@ -45,6 +49,26 @@ export default function UserManagement() {
       loadUsers() // loadStats will be called from within loadUsers after users are processed
     }
   }, [currentSeason, selectedUser, matchingPayment]) // Reload when season changes, but not when modal is open
+
+  // Load the set of users who actually played this season (have picks, auth or
+  // tied-anonymous). Used by the "Played this season" participation filter.
+  useEffect(() => {
+    const loadParticipation = async () => {
+      try {
+        const [picksRes, anonRes] = await Promise.all([
+          supabase.from('picks').select('user_id').eq('season', currentSeason),
+          supabase.from('anonymous_picks').select('assigned_user_id').eq('season', currentSeason).not('assigned_user_id', 'is', null),
+        ])
+        const ids = new Set<string>()
+        for (const r of (picksRes.data as any[]) || []) if (r.user_id) ids.add(r.user_id)
+        for (const r of (anonRes.data as any[]) || []) if (r.assigned_user_id) ids.add(r.assigned_user_id)
+        setPlayedUserIds(ids)
+      } catch (e) {
+        console.warn('UserManagement: participation load failed', e)
+      }
+    }
+    loadParticipation()
+  }, [currentSeason])
 
   const loadUsers = async () => {
     try {
@@ -434,10 +458,15 @@ export default function UserManagement() {
       user.email.toLowerCase().includes(searchTerm.toLowerCase())
     
     // Payment status filter
-    const matchesPaymentStatus = paymentStatusFilter === 'all' || 
+    const matchesPaymentStatus = paymentStatusFilter === 'all' ||
       user.payment_status === paymentStatusFilter
-    
-    return matchesSearch && matchesPaymentStatus
+
+    // Participation filter: "played" = has picks this season OR has any payment
+    // record (anything other than "No Payment"). Admins are always shown.
+    const played = playedUserIds.has(user.id) || (user.payment_status && user.payment_status !== 'No Payment')
+    const matchesParticipation = participationFilter === 'all' || user.is_admin || played
+
+    return matchesSearch && matchesPaymentStatus && matchesParticipation
   })
 
   return (
@@ -516,6 +545,15 @@ export default function UserManagement() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-48"
               />
+              <select
+                value={participationFilter}
+                onChange={(e) => setParticipationFilter(e.target.value as 'played' | 'all')}
+                className="border rounded px-3 py-2 text-sm"
+                title="Show only participants this season, or every account"
+              >
+                <option value="played">Played this season</option>
+                <option value="all">All accounts</option>
+              </select>
               <select
                 value={paymentStatusFilter}
                 onChange={(e) => setPaymentStatusFilter(e.target.value)}
