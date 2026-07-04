@@ -39,6 +39,15 @@ interface AnonEntry {
   count: number
 }
 
+interface OverpickEntry {
+  user_id: string
+  display_name: string
+  pick_count: number
+  proposed_pick_id: string
+  proposed_desc: string
+  proposed_points: number | null
+}
+
 interface ReviewData {
   completedGames: number
   scoredGames: number
@@ -46,6 +55,7 @@ interface ReviewData {
   discrepancies: Discrepancy[]
   anonUnresolved: AnonEntry[]
   overSubmitted: number
+  overpickDetail: OverpickEntry[]
   unpaidSubmitters: number
   scoringComplete: boolean
   leaderboardComplete: boolean
@@ -116,7 +126,15 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
       for (const p of submittedPicks || []) {
         pickCounts.set(p.user_id, (pickCounts.get(p.user_id) || 0) + 1)
       }
-      const overSubmitted = Array.from(pickCounts.values()).filter(c => c > 6).length
+
+      // Authoritative over-pick detection (excludes already-disqualified picks,
+      // returns the proposed highest-value non-locked drop per entry).
+      const { data: overpickRows } = await supabase.rpc('detect_overpick_entries', {
+        p_week: week,
+        p_season: season,
+      })
+      const overpickDetail: OverpickEntry[] = overpickRows || []
+      const overSubmitted = overpickDetail.length
 
       // --- 5. Payment gate (FYI) -----------------------------------------
       const submitterIds = Array.from(pickCounts.keys())
@@ -146,6 +164,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
         discrepancies: disc || [],
         anonUnresolved,
         overSubmitted,
+        overpickDetail,
         unpaidSubmitters,
         scoringComplete: ws?.scoring_complete ?? false,
         leaderboardComplete: ws?.leaderboard_complete ?? false,
@@ -178,6 +197,25 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
       setError(err?.message || 'Auto-tie failed')
     } finally {
       setTying(false)
+    }
+  }
+
+  const [droppingId, setDroppingId] = useState<string | null>(null)
+  const confirmDrop = async (pickId: string) => {
+    setDroppingId(pickId)
+    setError('')
+    try {
+      const { error: rpcErr } = await supabase.rpc('set_pick_disqualified', {
+        p_pick_id: pickId,
+        p_disqualified: true,
+      })
+      if (rpcErr) throw rpcErr
+      await loadReview()
+    } catch (err: any) {
+      console.error('Disqualification failed:', err)
+      setError(err?.message || 'Failed to drop pick')
+    } finally {
+      setDroppingId(null)
     }
   }
 
@@ -341,6 +379,51 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
                 </li>
               ))}
             </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Disqualification detail */}
+      {data && data.overpickDetail.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Over-submissions · confirm drop</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-sm text-charcoal-600 mb-3">
+              These entries have more than 6 counted picks (a locked pick plus a new set). The proposed drop is the
+              <span className="font-medium"> highest-value non-locked pick</span> — a penalty for over-submitting. The
+              locked pick is never dropped. Nothing is deleted; the dropped pick is excluded from totals.
+            </p>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-charcoal-500 border-b border-charcoal-100">
+                  <th className="px-3 py-2 font-medium">Entry</th>
+                  <th className="px-3 py-2 font-medium">Picks</th>
+                  <th className="px-3 py-2 font-medium">Proposed drop</th>
+                  <th className="px-3 py-2 font-medium">Pts</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.overpickDetail.map(o => (
+                  <tr key={o.user_id} className="border-b border-charcoal-50 last:border-0">
+                    <td className="px-3 py-2 font-medium">{o.display_name}</td>
+                    <td className="px-3 py-2">{o.pick_count}</td>
+                    <td className="px-3 py-2 text-charcoal-700">{o.proposed_desc}</td>
+                    <td className="px-3 py-2">{o.proposed_points ?? '—'}</td>
+                    <td className="px-3 py-2 text-right">
+                      <Button
+                        size="sm"
+                        onClick={() => confirmDrop(o.proposed_pick_id)}
+                        disabled={droppingId === o.proposed_pick_id}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        {droppingId === o.proposed_pick_id ? 'Dropping…' : 'Confirm drop'}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </CardContent>
         </Card>
       )}
