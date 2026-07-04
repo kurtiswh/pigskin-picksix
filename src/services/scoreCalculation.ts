@@ -251,130 +251,35 @@ export async function updateGameInDatabase(gameResult: GameResult): Promise<void
  * Calculate and update pick results for a completed game with deadlock protection
  */
 export async function calculatePicksForGame(gameId: string, maxRetries: number = 3): Promise<PickResult[]> {
+  // SINGLE SOURCE OF TRUTH (Part B / B1): delegate to the canonical DB scorer
+  // calculate_and_update_completed_game instead of computing pick results
+  // client-side. That function computes winner-ATS + margin bonus, writes the
+  // game columns, and cascades points to every pick and anonymous pick in one
+  // atomic transaction — identical to the live updater's path. Callers of this
+  // function only use the returned array's length as a "picks updated" count.
+  let lastError: any = null
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`🎯 Calculating picks for game ${gameId} (attempt ${attempt}/${maxRetries})`)
-      
-      // Get game details
-      const { data: game, error: gameError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', gameId)
-        .single()
-      
-      if (gameError) throw gameError
-      if (!game || game.home_score === null || game.away_score === null) {
-        throw new Error('Game not found or scores not available')
+      const { data, error } = await supabase.rpc('calculate_and_update_completed_game', {
+        game_id_param: gameId
+      })
+      if (error) throw error
+      const row: any = Array.isArray(data) ? data[0] : data
+      if (row && row.success === false) {
+        throw new Error(row.error_message || 'Canonical scorer reported failure')
       }
-      
-      // Get all picks for this game that haven't been processed yet
-      const { data: picks, error: picksError } = await supabase
-        .from('picks')
-        .select('*')
-        .eq('game_id', gameId)
-        .is('result', null) // Only get unprocessed picks
-      
-      if (picksError) throw picksError
-      if (!picks || picks.length === 0) {
-        console.log(`No unprocessed picks found for game ${gameId}`)
-        return []
-      }
-      
-      console.log(`Found ${picks.length} unprocessed picks for game ${gameId}`)
-      
-      const results: PickResult[] = []
-      const updates: { id: string; result: string; points_earned: number }[] = []
-      
-      // Calculate results for all picks first (no database operations)
-      for (const pick of picks) {
-        const { result, points, bonusPoints } = calculatePickResult(
-          pick.selected_team,
-          game.home_team,
-          game.away_team,
-          game.home_score,
-          game.away_score,
-          game.spread,
-          pick.is_lock
-        )
-        
-        updates.push({
-          id: pick.id,
-          result,
-          points_earned: points
-        })
-        
-        results.push({
-          pick_id: pick.id,
-          result,
-          points_earned: points,
-          bonus_points: bonusPoints
-        })
-      }
-      
-      // Batch update all picks in smaller chunks to avoid deadlocks
-      const CHUNK_SIZE = 10
-      const chunks = []
-      for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
-        chunks.push(updates.slice(i, i + CHUNK_SIZE))
-      }
-      
-      console.log(`Processing ${chunks.length} chunks of picks for game ${gameId}`)
-      
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i]
-        const chunkIds = chunk.map(u => u.id)
-        
-        // Process this chunk with a brief delay between chunks to reduce contention
-        if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200))
-        }
-        
-        // Update picks in this chunk
-        for (const update of chunk) {
-          const { error: updateError } = await supabase
-            .from('picks')
-            .update({
-              result: update.result,
-              points_earned: update.points_earned,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', update.id)
-            .is('result', null) // Only update if still unprocessed
-          
-          if (updateError) {
-            console.error(`❌ Error updating pick ${update.id}:`, updateError)
-            // Remove failed update from results
-            const resultIndex = results.findIndex(r => r.pick_id === update.id)
-            if (resultIndex >= 0) {
-              results.splice(resultIndex, 1)
-            }
-          }
-        }
-        
-        console.log(`✅ Processed chunk ${i + 1}/${chunks.length} for game ${gameId}`)
-      }
-      
-      console.log(`✅ Updated ${results.length} picks for game ${gameId}`)
-      return results
-      
+      const picksUpdated = (row?.picks_updated ?? 0) + (row?.anonymous_picks_updated ?? 0)
+      console.log(`✅ Canonical scorer updated ${picksUpdated} picks for game ${gameId}`)
+      return Array.from({ length: picksUpdated }, () => ({} as PickResult))
     } catch (error: any) {
-      // Check if this is a deadlock error
-      if (error.code === '40P01' && attempt < maxRetries) {
-        const backoffTime = Math.min(1000 * Math.pow(2, attempt - 1) + Math.random() * 1000, 10000)
-        console.log(`🔄 Deadlock detected for game ${gameId}, retrying in ${backoffTime}ms (attempt ${attempt}/${maxRetries})`)
-        await new Promise(resolve => setTimeout(resolve, backoffTime))
-        continue
-      }
-      
-      console.error(`❌ Error calculating picks for game ${gameId} (attempt ${attempt}):`, error)
-      
-      if (attempt === maxRetries) {
-        throw error
+      lastError = error
+      console.error(`❌ Error scoring game ${gameId} (attempt ${attempt}/${maxRetries}):`, error)
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt))
       }
     }
   }
-  
-  throw new Error(`Failed to process picks for game ${gameId} after ${maxRetries} attempts`)
+  throw lastError || new Error(`Failed to score game ${gameId} after ${maxRetries} attempts`)
 }
 
 /**
