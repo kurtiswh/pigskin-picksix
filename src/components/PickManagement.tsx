@@ -916,20 +916,20 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
       if (unpaidAuthError || unpaidAnonError) {
         console.error('Error loading unpaid picks:', unpaidAuthError || unpaidAnonError)
       } else {
-        // Get payment status for all users
-        const allUserIds = new Set([
-          ...(unpaidAuthPicks || []).map(p => p.user_id),
-          ...(unpaidAnonPicks || []).map(p => p.assigned_user_id)
-        ])
-        
-        const { data: paymentStatuses } = await supabase
+        // Load ALL payments for the season (small table) and build a status map.
+        // Do NOT filter with .in('user_id', [hundreds of ids]) — that request URL
+        // can exceed the length limit and silently return nothing, which made
+        // every submitted user default to 'NotPaid' (the phantom "342 unpaid").
+        const { data: paymentStatuses, error: payErr } = await supabase
           .from('leaguesafe_payments')
-          .select('user_id, status')
+          .select('user_id, status, is_matched')
           .eq('season', currentSeason)
-          .in('user_id', Array.from(allUserIds))
-        
+        if (payErr) console.error('⚠️ PickManagement: failed to load payment statuses:', payErr)
+
         const paymentMap = new Map(
-          (paymentStatuses || []).map(p => [p.user_id, p.status])
+          (paymentStatuses || [])
+            .filter((p: any) => p.user_id)
+            .map((p: any) => [p.user_id, (p.status === 'Paid' && p.is_matched) ? 'Paid' : (p.status || 'NotPaid')])
         )
         
         const unpaidUsers: { [key: string]: SubmittedUnpaidPickSet } = {}

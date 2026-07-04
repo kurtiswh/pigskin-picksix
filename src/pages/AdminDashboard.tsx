@@ -23,9 +23,6 @@ import BracketWinnersAdmin from '@/components/BracketWinnersAdmin'
 import SeasonWinnersAdmin from '@/components/SeasonWinnersAdmin'
 import '@/utils/emailTesting' // Load email testing utilities for console access
 import { testPickConfirmationEmail, processTestEmailQueue, testNotificationScheduling, registerGlobalEmailTesting } from '@/utils/emailTesting'
-import { fixIncorrectGames } from '@/scripts/fix-incorrect-games'
-import { checkWinnerConsistency } from '@/scripts/check-winner-consistency'
-import { fixIncompleteScores } from '@/scripts/fix-incomplete-scores'
 import Layout from '@/components/Layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -48,22 +45,16 @@ export default function AdminDashboard() {
   const maxGames = 15
 
 
-  // Force registration of email testing utilities and game fix utilities for console access
+  // Register email testing utilities for console access.
+  // NOTE: the fixIncorrectGames / fixIncompleteScores / checkWinnerConsistency
+  // console scripts were removed here — the previous registration was missing
+  // semicolons, which caused `fixIncorrectGames(window)` to actually RUN on
+  // every admin page load (the auto-firing "Fix N incorrectly scored games?"
+  // dialog). Those were competing client-side scorers; scoring is now handled
+  // only by the canonical DB path.
   useEffect(() => {
     registerGlobalEmailTesting()
     console.log('🧪 Email testing utilities explicitly registered from AdminDashboard')
-    
-    // Register game fix utility for console access
-    if (typeof window !== 'undefined') {
-      (window as any).fixIncorrectGames = fixIncorrectGames
-      (window as any).checkWinnerConsistency = checkWinnerConsistency
-      (window as any).fixIncompleteScores = fixIncompleteScores
-      console.log('🔧 Game utilities registered:')
-      console.log('  - fixIncompleteScores() - fix games marked complete without scores')
-      console.log('  - fixIncorrectGames() - fix games with wrong winners')
-      console.log('  - checkWinnerConsistency() - check for winner calculation errors')
-      console.log('  - checkWinnerConsistency(true) - check and fix errors')
-    }
   }, [])
 
 
