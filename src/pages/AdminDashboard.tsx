@@ -14,7 +14,7 @@ import SeasonSettingsAdmin from '@/components/SeasonSettingsAdmin'
 import UserManagement from '@/components/UserManagement'
 import ApiStatusWidget from '@/components/ApiStatusWidget'
 import ApiQuotaWidget from '@/components/ApiQuotaWidget'
-import ScoreManager from '@/components/ScoreManager'
+import LiveDashboard from '@/components/LiveDashboard'
 import WeekReview from '@/components/WeekReview'
 import AdminNotifications from '@/components/AdminNotifications'
 import PickManagement from '@/components/PickManagement'
@@ -985,17 +985,7 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === 'scores' && (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-pigskin-900">Live Scores</h2>
-            <p className="text-charcoal-600 text-sm">
-              Live-score monitoring and manual score entry. Weekly scoring close-out &amp; publishing
-              happen in <span className="font-medium">Week Review</span>.
-            </p>
-            <ScoreManager
-              season={currentSeason}
-              week={currentWeek}
-            />
-          </div>
+          <LiveDashboard season={currentSeason} initialWeek={currentWeek} />
         )}
 
         {activeTab === 'winners' && (
