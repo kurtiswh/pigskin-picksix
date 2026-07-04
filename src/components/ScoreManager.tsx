@@ -411,6 +411,25 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
   }
 
   // NEW: Unified update using the live update service
+  // Pull the latest scores on demand by invoking the SAME server-side edge
+  // function the cron runs (no browser CFBD polling). Scores also refresh
+  // automatically every 5 min during games.
+  const fetchLatestScores = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const { error: fnErr } = await supabase.functions.invoke('live-score-updater')
+      if (fnErr) throw fnErr
+      await loadGames()
+      await loadStatusData()
+    } catch (err: any) {
+      console.error('Fetch latest scores failed:', err)
+      setError(err?.message || 'Failed to fetch latest scores')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const runUnifiedUpdate = async () => {
     try {
       setLoading(true)
@@ -718,37 +737,19 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Live Update Status */}
-          {liveUpdateStatus && (
-            <div className="flex items-center gap-2">
-              {liveUpdateStatus.isRunning ? (
-                <Badge className="bg-green-100 text-green-800">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></div>
-                  LIVE
-                </Badge>
-              ) : (
-                <Badge className="bg-gray-100 text-gray-600">
-                  MANUAL
-                </Badge>
-              )}
-              
-              {liveUpdateStatus.lastUpdate && (
-                <span className="text-xs text-gray-500">
-                  Last: {liveUpdateStatus.lastUpdate.toLocaleTimeString()}
-                </span>
-              )}
-            </div>
-          )}
-          
-          {/* Control Buttons */}
-          <Button 
-            onClick={runUnifiedUpdate} 
+          <Button
+            onClick={fetchLatestScores}
             disabled={loading}
             className="bg-pigskin-600 hover:bg-pigskin-700"
           >
-            {loading ? 'Updating...' : '🚀 Refresh All'}
+            {loading ? 'Fetching…' : '🔄 Fetch Latest Scores'}
           </Button>
         </div>
+      </div>
+
+      <div className="text-xs text-charcoal-500 bg-charcoal-50 border border-charcoal-100 rounded p-2 -mt-2">
+        ℹ️ Scores update automatically every 5 minutes during games (server-side). Use
+        <span className="font-medium"> Fetch Latest Scores</span> to pull immediately, or enter a score manually below if a game is wrong.
       </div>
 
       {/* Status Monitoring */}
@@ -836,80 +837,6 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
         </CardContent>
       </Card>
 
-      {/* Live Update Controls */}
-      <Card className="border-blue-200">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <span>⚡</span>
-            Live Update System
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3">
-                {liveUpdateStatus?.isRunning ? (
-                  <Button 
-                    onClick={stopLiveUpdates} 
-                    variant="outline" 
-                    className="border-red-200 text-red-600 hover:bg-red-50"
-                  >
-                    ⏹️ Stop Auto Updates
-                  </Button>
-                ) : (
-                  <Button 
-                    onClick={startLiveUpdates} 
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    ▶️ Start Auto Updates
-                  </Button>
-                )}
-              </div>
-              
-              {liveUpdateStatus && (
-                <div className="mt-2 text-xs text-gray-500">
-                  {liveUpdateStatus.isRunning && liveUpdateStatus.nextUpdate && (
-                    <div>Next update: {liveUpdateStatus.nextUpdate.toLocaleTimeString()}</div>
-                  )}
-                  <div>Total updates: {liveUpdateStatus.totalUpdates}</div>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          {/* Live Update Status Details */}
-          {lastUnifiedUpdate && (
-            <div className="text-sm bg-gray-50 rounded p-3">
-              <div className="font-medium mb-1">Last Unified Update:</div>
-              <div className="grid grid-cols-3 gap-4 text-xs">
-                <div>
-                  <div className="text-gray-600">Games Updated</div>
-                  <div className="font-semibold text-blue-600">{lastUnifiedUpdate.gamesUpdated}</div>
-                </div>
-                <div>
-                  <div className="text-gray-600">Picks Processed</div>
-                  <div className="font-semibold text-green-600">{lastUnifiedUpdate.picksProcessed}</div>
-                </div>
-                <div>
-                  <div className="text-gray-600">Status</div>
-                  <div className={`font-semibold ${lastUnifiedUpdate.success ? 'text-green-600' : 'text-red-600'}`}>
-                    {lastUnifiedUpdate.success ? '✅ Success' : '❌ Failed'}
-                  </div>
-                </div>
-              </div>
-              {lastUnifiedUpdate.errors.length > 0 && (
-                <div className="mt-2 text-xs text-red-600">
-                  <div className="font-medium">Errors:</div>
-                  {lastUnifiedUpdate.errors.slice(0, 3).map((error, i) => (
-                    <div key={i}>• {error}</div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Manual Scoring Operations */}
       <Card className="border-amber-200">
         <CardHeader className="pb-3">
@@ -981,208 +908,6 @@ export default function ScoreManager({ season, week: initialWeek }: ScoreManager
           )}
         </CardContent>
       </Card>
-
-      {/* Advanced Monitoring Section (Collapsible) */}
-      <Card className="border-purple-200">
-        <CardHeader className="pb-3 cursor-pointer" onClick={() => setShowAdvancedMonitoring(!showAdvancedMonitoring)}>
-          <CardTitle className="text-base flex items-center gap-2">
-            {showAdvancedMonitoring ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            <TrendingUp className="h-4 w-4" />
-            Advanced Processing Monitor
-            <Badge variant="secondary" className="ml-2">Optional</Badge>
-          </CardTitle>
-        </CardHeader>
-        {showAdvancedMonitoring && (
-          <CardContent className="space-y-4">
-            {/* Status Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-blue-500" />
-                    <div>
-                      <p className="text-sm font-medium">Last Update</p>
-                      <p className="text-xs text-gray-600">{formatTimeAgo(liveUpdateStatus?.lastUpdate || null)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-green-500" />
-                    <div>
-                      <p className="text-sm font-medium">Total Updates</p>
-                      <p className="text-lg font-bold">{liveUpdateStatus?.totalUpdates || 0}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4 text-purple-500" />
-                    <div>
-                      <p className="text-sm font-medium">Picks Processed</p>
-                      <p className="text-lg font-bold">{processingStats.totalPicksProcessed}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className={`h-4 w-4 ${liveUpdateStatus?.errors.length ? 'text-red-500' : 'text-gray-400'}`} />
-                    <div>
-                      <p className="text-sm font-medium">Errors</p>
-                      <p className="text-lg font-bold">{liveUpdateStatus?.errors.length || 0}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Processing Details */}
-            {liveUpdateStatus?.lastPickProcessing && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Latest Processing Cycle</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <p className="font-medium">Games Checked</p>
-                      <p className="text-2xl font-bold text-blue-600">{liveUpdateStatus.lastPickProcessing.gamesChecked}</p>
-                    </div>
-                    <div>
-                      <p className="font-medium">Games Processed</p>
-                      <p className="text-2xl font-bold text-green-600">{liveUpdateStatus.lastPickProcessing.gamesChanged}</p>
-                    </div>
-                    <div>
-                      <p className="font-medium">Picks Updated</p>
-                      <p className="text-2xl font-bold text-purple-600">{liveUpdateStatus.lastPickProcessing.picksProcessed}</p>
-                    </div>
-                    <div>
-                      <p className="font-medium">Success Rate</p>
-                      <p className="text-2xl font-bold text-green-600">
-                        {liveUpdateStatus.lastPickProcessing.success ? '100%' : 
-                         `${Math.round((1 - liveUpdateStatus.lastPickProcessing.errors.length / Math.max(liveUpdateStatus.lastPickProcessing.gamesChecked, 1)) * 100)}%`}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {liveUpdateStatus.lastPickProcessing.gamesChanged > 0 && (
-                    <div className="mt-4">
-                      <p className="text-sm font-medium mb-2">Processing Efficiency</p>
-                      <Progress 
-                        value={Math.min((liveUpdateStatus.lastPickProcessing.picksProcessed / (liveUpdateStatus.lastPickProcessing.gamesChanged * 50)) * 100, 100)} 
-                        className="w-full"
-                      />
-                      <p className="text-xs text-gray-600 mt-1">
-                        {liveUpdateStatus.lastPickProcessing.picksProcessed} picks processed from {liveUpdateStatus.lastPickProcessing.gamesChanged} games
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Recent Errors */}
-            {liveUpdateStatus?.errors.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm text-red-600 flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4" />
-                    Recent Errors ({liveUpdateStatus.errors.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 max-h-32 overflow-y-auto">
-                    {liveUpdateStatus.errors.slice(-5).map((error, index) => (
-                      <div key={index} className="text-xs bg-red-50 p-2 rounded border-l-2 border-red-200">
-                        {error}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </CardContent>
-        )}
-      </Card>
-
-      {/* Scheduled Functions Section (Collapsible) */}
-      <Card className="border-indigo-200">
-        <CardHeader className="pb-3 cursor-pointer" onClick={() => setShowScheduledFunctions(!showScheduledFunctions)}>
-          <CardTitle className="text-base flex items-center gap-2">
-            {showScheduledFunctions ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            <Settings className="h-4 w-4" />
-            Scheduled Functions Manager
-            <Badge variant="secondary" className="ml-2">Manual Control</Badge>
-          </CardTitle>
-        </CardHeader>
-        {showScheduledFunctions && (
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {scheduledFunctions.map((func, index) => (
-                <Card key={func.name} className="h-full">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">{func.displayName}</CardTitle>
-                      <Badge variant="secondary" className="text-xs">
-                        {func.schedule}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent>
-                    <p className="text-gray-600 mb-4 text-sm">{func.description}</p>
-                    
-                    <Button 
-                      onClick={() => executeScheduledFunction(func.name)}
-                      disabled={func.isRunning}
-                      className="w-full mb-2"
-                      size="sm"
-                    >
-                      {func.isRunning ? 'Running...' : `Run ${func.displayName} Now`}
-                    </Button>
-                    
-                    {formatScheduledResult(func.lastResult)}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </CardContent>
-        )}
-      </Card>
-
-      {error && (
-        <Card className="border-red-200">
-          <CardContent className="p-4">
-            <div className="text-red-600 text-sm">
-              ⚠️ {error}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {processingResults && (
-        <Card className="border-green-200">
-          <CardContent className="p-4">
-            <div className="text-green-600 text-sm">
-              ✅ Processing complete: {processingResults.gamesProcessed} games processed, {processingResults.picksUpdated} picks updated
-              {processingResults.errors.length > 0 && (
-                <div className="mt-2 text-red-600">
-                  Errors: {processingResults.errors.join(', ')}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader>
