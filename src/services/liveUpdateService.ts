@@ -551,11 +551,14 @@ export class LiveUpdateService {
     console.log(`📊 API Budget: ~${Math.round(60 / (intervalMs / (60 * 1000)))} calls/hour`)
     console.log(`⏰ Polling window active: Thursday 6pm - Sunday 8am Central`)
     this.startPolling(intervalMs)
-    
-    // ALSO start scheduled pick processing (independent of API polling)
-    const pickProcessingInterval = isGameDay || isInWindow ? 2 * 60 * 1000 : 5 * 60 * 1000 // 2min during polling window, 5min otherwise
-    console.log(`🕐 Starting scheduled pick processing: ${pickProcessingInterval / 1000}s intervals`)
-    this.startScheduledPickProcessing(pickProcessingInterval)
+
+    // NOTE: pick scoring is done server-side by the single canonical path
+    // (DB function calculate_and_update_completed_game, invoked by
+    // cfbdLiveUpdater when a game completes during polling). The old browser
+    // scheduled pick processor (startScheduledPickProcessing /
+    // processPicksDirectlySimple) is intentionally NOT started — it was a
+    // second, independent scorer that could write transient wrong results and
+    // race the DB scorer. One scorer only.
   }
 
   /**
