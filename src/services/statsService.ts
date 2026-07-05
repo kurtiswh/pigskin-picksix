@@ -29,6 +29,10 @@ export interface CareerStats {
   win_pct_rank?: number
   lock_win_pct_rank?: number
   avg_finish_rank?: number
+  championships_rank?: number
+  weekly_wins_rank?: number
+  top10_finishes_rank?: number
+  seasons_played_rank?: number
 }
 
 export class StatsService {

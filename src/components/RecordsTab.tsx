@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth'
 interface Board {
   title: string
   column: string        // player_career_stats column to order by
+  rankKey: keyof CareerStats  // precomputed rank column for the current user's "You: #N"
   asc?: boolean         // lower is better
   minSeasons?: number   // rate stats need a sample
   fmt: (s: CareerStats) => string
@@ -17,38 +18,46 @@ const pct = (v: number | null) => (v == null ? '—' : `${(v * 100).toFixed(1)}%
 // Seasons-played is shown once next to each name (see legend); subs carry the
 // stat-specific context only.
 const BOARDS: Board[] = [
-  { title: 'Most Championships', column: 'championships',
+  { title: 'Most Championships', column: 'championships', rankKey: 'championships_rank',
     fmt: s => `${s.championships}`, sub: s => `${s.top3_finishes} top-3` },
-  { title: 'Career Points', column: 'career_points',
+  { title: 'Career Points', column: 'career_points', rankKey: 'career_points_rank',
     fmt: s => s.career_points.toLocaleString(), sub: s => `${s.avg_season_points}/season` },
-  { title: 'Best Avg Points / Season', column: 'avg_season_points', minSeasons: 3,
+  { title: 'Best Avg Points / Season', column: 'avg_season_points', rankKey: 'avg_season_points_rank', minSeasons: 3,
     fmt: s => `${s.avg_season_points}`, sub: s => `${s.career_points.toLocaleString()} total` },
-  { title: 'Win %', column: 'win_pct', minSeasons: 3,
+  { title: 'Win %', column: 'win_pct', rankKey: 'win_pct_rank', minSeasons: 3,
     fmt: s => pct(s.win_pct), sub: s => `${s.career_wins}-${s.career_losses}-${s.career_pushes}` },
-  { title: 'Lock Win %', column: 'lock_win_pct', minSeasons: 3,
+  { title: 'Lock Win %', column: 'lock_win_pct', rankKey: 'lock_win_pct_rank', minSeasons: 3,
     fmt: s => pct(s.lock_win_pct), sub: s => `${s.career_lock_wins}-${s.career_lock_losses} locks` },
-  { title: 'Most Weekly Wins', column: 'weekly_wins',
+  { title: 'Most Weekly Wins', column: 'weekly_wins', rankKey: 'weekly_wins_rank',
     fmt: s => `${s.weekly_wins}`, sub: s => `${s.championships} titles` },
-  { title: 'Most Top-10 Finishes', column: 'top10_finishes',
+  { title: 'Most Top-10 Finishes', column: 'top10_finishes', rankKey: 'top10_finishes_rank',
     fmt: s => `${s.top10_finishes}`, sub: s => `${s.top3_finishes} top-3` },
-  { title: 'Best Avg Finish', column: 'avg_finish', asc: true, minSeasons: 3,
+  { title: 'Best Avg Finish', column: 'avg_finish', rankKey: 'avg_finish_rank', asc: true, minSeasons: 3,
     fmt: s => `${s.avg_finish}`, sub: s => `best ${s.best_finish}` },
-  { title: 'Most Seasons Played', column: 'seasons_played',
+  { title: 'Most Seasons Played', column: 'seasons_played', rankKey: 'seasons_played_rank',
     fmt: s => `${s.seasons_played}`, sub: s => `${s.championships} titles` },
 ]
 
-function BoardCard({ board, rows, highlightUserId }: { board: Board; rows: CareerStats[]; highlightUserId?: string }) {
+function BoardCard({ board, rows, me }: { board: Board; rows: CareerStats[]; me?: CareerStats | null }) {
   const [expanded, setExpanded] = useState(false)
   const shown = expanded ? rows : rows.slice(0, 10)
+  const myRank = me ? ((me[board.rankKey] as number | null | undefined) ?? null) : null
   return (
     <Card>
       <CardHeader className="py-3">
-        <CardTitle className="text-base text-[#4B3621]">{board.title}</CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-base text-[#4B3621]">{board.title}</CardTitle>
+          {myRank != null && (
+            <span className="text-xs font-semibold bg-[#fbf4e3] text-[#4B3621] border border-[#C9A04E]/50 rounded-full px-2 py-0.5 tabular-nums whitespace-nowrap shrink-0">
+              You: #{myRank}{me?.total_players ? ` of ${me.total_players}` : ''}
+            </span>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="pt-0">
         <ol className="space-y-1">
           {shown.map((s, i) => {
-            const isMe = !!highlightUserId && s.user_id === highlightUserId
+            const isMe = !!me?.user_id && s.user_id === me.user_id
             return (
               <li
                 key={s.user_id}
@@ -121,7 +130,13 @@ export default function RecordsTab() {
   const [boardRows, setBoardRows] = useState<Record<string, CareerStats[]>>({})
   const [weeks, setWeeks] = useState<BiggestWeek[]>([])
   const [teams, setTeams] = useState<TeamAts[]>([])
+  const [me, setMe] = useState<CareerStats | null>(null)
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user?.id) { setMe(null); return }
+    StatsService.getCareerStats(user.id).then(setMe).catch(() => setMe(null))
+  }, [user?.id])
 
   useEffect(() => {
     Promise.all([
@@ -151,7 +166,7 @@ export default function RecordsTab() {
         <span className="text-charcoal-400"> The small number after each name is seasons played.</span>
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {BOARDS.map(b => <BoardCard key={b.title} board={b} rows={boardRows[b.title] || []} highlightUserId={user?.id} />)}
+        {BOARDS.map(b => <BoardCard key={b.title} board={b} rows={boardRows[b.title] || []} me={me} />)}
       </div>
 
       <h2 className="text-xl font-bold text-[#4B3621] mt-10 mb-3">
