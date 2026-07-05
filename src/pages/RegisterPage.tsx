@@ -103,24 +103,21 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pigskin-600 to-pigskin-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#F8F7F3] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center space-x-3">
-            <div className="w-16 h-16 bg-gold-500 rounded-full flex items-center justify-center football-laces">
-              <span className="text-pigskin-900 font-bold text-2xl">P6</span>
-            </div>
-            <div className="text-left">
-              <h1 className="text-2xl font-bold text-white">Pigskin Pick Six</h1>
-              <p className="text-pigskin-100 text-sm">Where meaningless games become meaningful</p>
-            </div>
+          <Link to="/" className="inline-flex flex-col items-center">
+            <span className="font-extrabold tracking-wide text-2xl text-[#4B3621]">
+              PIGSKIN PICK <span className="text-gold-500">SIX</span>
+            </span>
+            <p className="text-charcoal-500 text-sm mt-1">Where meaningless games become meaningful</p>
           </Link>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-center text-2xl">
+            <CardTitle className="text-center text-2xl text-[#4B3621]">
               Join the Competition
             </CardTitle>
             <p className="text-center text-charcoal-600 text-sm mt-2">
@@ -129,9 +126,9 @@ export default function RegisterPage() {
           </CardHeader>
           <CardContent>
             {/* Information Panel */}
-            <div className="mb-6 p-4 rounded-lg border bg-blue-50 border-blue-200">
-              <div className="text-blue-800 text-sm">
-                <div className="font-semibold mb-1">📧 Email Validation</div>
+            <div className="mb-6 p-4 rounded-lg bg-[#faf8f4] border border-[#e7e2da]">
+              <div className="text-charcoal-700 text-sm">
+                <div className="font-semibold mb-1 text-[#4B3621]">📧 Email Validation</div>
                 <p>
                   Enter your email address and we'll check if you're already in our system from LeagueSafe payments. 
                   This helps link your account properly, but you can register either way.
@@ -168,10 +165,10 @@ export default function RegisterPage() {
                   required
                 />
                 {isValidated === true && (
-                  <p className="text-green-600 text-sm mt-1">✅ Your email matches a LeagueSafe payment! Please continue creating an account.</p>
+                  <p className="text-[#1f7a44] text-sm mt-1">✅ Your email matches a LeagueSafe payment! Please continue creating an account.</p>
                 )}
                 {isValidated === false && email.trim() && (
-                  <p className="text-orange-600 text-sm mt-1">
+                  <p className="text-[#b06a1a] text-sm mt-1">
                     ⚠️ Email not found in our system. We're still processing payments, so this could be normal. Please make sure you're: 1) registered and paid in LeagueSafe, 2) using the same email used in LeagueSafe.
                     <br /><br />
                     To learn more about registering & paying, <a href="https://www.pigskinpicksix.com/blog/welcome-the-20th-edition-of-the-pp6" target="_blank" rel="noopener noreferrer" className="text-pigskin-600 hover:text-pigskin-700 underline font-medium">read more here</a>.
@@ -197,20 +194,20 @@ export default function RegisterPage() {
               </div>
 
               {error && (
-                <div className="px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-600">
+                <div className="px-4 py-3 rounded-lg text-sm bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b]">
                   ❌ {error}
                 </div>
               )}
 
               {success && (
-                <div className="px-4 py-3 rounded-lg text-sm bg-green-50 border border-green-200 text-green-700">
+                <div className="px-4 py-3 rounded-lg text-sm bg-[#e6f4ea] border border-[#bfe3cc] text-[#1f7a44]">
                   {success}
                 </div>
               )}
 
-              <Button 
-                type="submit" 
-                className="w-full bg-pigskin-500 hover:bg-pigskin-600" 
+              <Button
+                type="submit"
+                className="w-full bg-[#4B3621] text-white hover:bg-[#3a2a19]"
                 disabled={loading}
               >
                 {loading ? 'Creating Account...' : 'Create Account'}
@@ -232,9 +229,9 @@ export default function RegisterPage() {
         </Card>
 
         <div className="text-center mt-6">
-          <Link 
-            to="/" 
-            className="text-pigskin-100 hover:text-white text-sm transition-colors"
+          <Link
+            to="/"
+            className="text-charcoal-500 hover:text-[#4B3621] text-sm transition-colors"
           >
             ← Back to home
           </Link>

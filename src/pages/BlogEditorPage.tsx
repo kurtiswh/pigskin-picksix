@@ -198,20 +198,20 @@ export default function BlogEditorPage() {
   return (
     <Layout>
       {/* Page Header */}
-      <div className="bg-pigskin-500 text-white py-6">
+      <div className="bg-[#4B3621] text-white py-6">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold">
                 {isEditing ? 'Edit Blog Post' : 'Create New Blog Post'}
               </h1>
-              <p className="text-pigskin-100">
+              <p className="text-white/70">
                 {isEditing ? 'Update your blog post' : 'Write a new blog post'}
               </p>
             </div>
             <Button
               variant="outline"
-              className="border-white text-white hover:bg-white hover:text-pigskin-500"
+              className="border-white text-white hover:bg-white hover:text-[#4B3621]"
               onClick={() => navigate('/blog')}
             >
               ← Back to Blog
@@ -228,7 +228,7 @@ export default function BlogEditorPage() {
             {/* Title */}
             <Card>
               <CardHeader>
-                <CardTitle>Post Content</CardTitle>
+                <CardTitle className="text-[#4B3621]">Post Content</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -250,7 +250,7 @@ export default function BlogEditorPage() {
                   <label className="block text-sm font-medium text-charcoal-700 mb-1">
                     Content *
                   </label>
-                  <div className="bg-white border border-gray-300 rounded-md">
+                  <div className="bg-white border border-[#e7e2da] rounded-md">
                     <ReactQuill
                       value={content}
                       onChange={setContent}
@@ -310,7 +310,7 @@ export default function BlogEditorPage() {
             {/* Recap email rundown (weekly posts) — rich text, used verbatim in the email */}
             {week != null && (
               <Card>
-                <CardHeader><CardTitle>📧 Recap Email Rundown</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-[#4B3621]">📧 Recap Email Rundown</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <p className="text-sm text-charcoal-600">
@@ -331,7 +331,7 @@ export default function BlogEditorPage() {
             {/* Publish Settings */}
             <Card>
               <CardHeader>
-                <CardTitle>Publish Settings</CardTitle>
+                <CardTitle className="text-[#4B3621]">Publish Settings</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -356,7 +356,7 @@ export default function BlogEditorPage() {
             {/* Post Settings */}
             <Card>
               <CardHeader>
-                <CardTitle>Post Settings</CardTitle>
+                <CardTitle className="text-[#4B3621]">Post Settings</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -447,10 +447,10 @@ export default function BlogEditorPage() {
             {/* Email recap to players (weekly recap posts only) */}
             {isEditing && week != null && (
               <Card>
-                <CardHeader><CardTitle className="text-base">📧 Email to players</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-base text-[#4B3621]">📧 Email to players</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   {post?.emailed_at && (
-                    <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                    <div className="text-xs text-[#b06a1a] bg-[#fff5e2] border border-[#f0dcb0] rounded p-2">
                       Already emailed {new Date(post.emailed_at).toLocaleString()}. Sending again will re-send to everyone.
                     </div>
                   )}

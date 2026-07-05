@@ -95,12 +95,12 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-stone-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-[#F8F7F3] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <Card className="max-w-md mx-auto">
           <CardHeader>
             <CardTitle className="text-center">
               <div className="text-4xl mb-4">✅</div>
-              <h1 className="text-2xl font-bold text-green-600">Password Reset Successful!</h1>
+              <h1 className="text-2xl font-bold text-[#1f7a44]">Password Reset Successful!</h1>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -112,9 +112,9 @@ export default function ResetPasswordPage() {
                 Redirecting you to the login page in a few seconds...
               </p>
               <div className="mt-6">
-                <Button 
+                <Button
                   onClick={() => navigate('/login')}
-                  className="w-full bg-pigskin-600 hover:bg-pigskin-700"
+                  className="w-full bg-[#4B3621] text-white hover:bg-[#3a2a19]"
                 >
                   Go to Login
                 </Button>
@@ -127,33 +127,33 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#F8F7F3] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <Card className="max-w-md mx-auto">
         <CardHeader>
           <CardTitle className="text-center">
             <div className="text-4xl mb-4">🔐</div>
-            <h1 className="text-2xl font-bold text-charcoal-800">Reset Your Password</h1>
+            <h1 className="text-2xl font-bold text-[#4B3621]">Reset Your Password</h1>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {tokenValid === false ? (
             <div className="text-center">
               <div className="text-6xl mb-4">⚠️</div>
-              <h2 className="text-xl font-semibold text-red-600 mb-4">Invalid Reset Link</h2>
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm mb-4">
+              <h2 className="text-xl font-semibold text-[#d1495b] mb-4">Invalid Reset Link</h2>
+              <div className="p-3 bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b] rounded-lg text-sm mb-4">
                 {error}
               </div>
               <div className="space-y-3">
                 <Button
                   onClick={() => navigate('/login')}
-                  className="w-full bg-pigskin-600 hover:bg-pigskin-700"
+                  className="w-full bg-[#4B3621] text-white hover:bg-[#3a2a19]"
                 >
                   Request New Password Reset
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => navigate('/login')}
-                  className="w-full"
+                  className="w-full border-[#e7e2da]"
                 >
                   Back to Login
                 </Button>
@@ -161,13 +161,13 @@ export default function ResetPasswordPage() {
             </div>
           ) : tokenValid === null ? (
             <div className="text-center">
-              <div className="w-8 h-8 border-2 border-pigskin-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <div className="w-8 h-8 border-2 border-[#4B3621] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
               <p className="text-charcoal-600">Verifying reset token...</p>
             </div>
           ) : (
             <form onSubmit={handleResetPassword} className="space-y-4">
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                <div className="p-3 bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b] rounded-lg text-sm">
                   {error}
                 </div>
               )}
@@ -208,7 +208,7 @@ export default function ResetPasswordPage() {
               <Button
                 type="submit"
                 disabled={loading || !password || !confirmPassword}
-                className="w-full bg-pigskin-600 hover:bg-pigskin-700"
+                className="w-full bg-[#4B3621] text-white hover:bg-[#3a2a19]"
               >
                 {loading ? (
                   <>
@@ -233,9 +233,9 @@ export default function ResetPasswordPage() {
             </form>
           )}
 
-          <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="text-sm font-medium text-blue-800 mb-2">Password Requirements:</h4>
-            <ul className="text-xs text-blue-700 space-y-1">
+          <div className="mt-6 p-3 bg-[#faf8f4] border border-[#e7e2da] rounded-lg">
+            <h4 className="text-sm font-medium text-[#4B3621] mb-2">Password Requirements:</h4>
+            <ul className="text-xs text-charcoal-700 space-y-1">
               <li>• At least 6 characters long</li>
               <li>• Should be unique and not easily guessable</li>
               <li>• Consider using a mix of letters, numbers, and symbols</li>

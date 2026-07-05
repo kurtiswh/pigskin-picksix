@@ -475,13 +475,13 @@ export default function UserManagement() {
       {stats && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Season {currentSeason} Overview</h3>
+            <h3 className="text-lg font-semibold text-[#4B3621]">Season {currentSeason} Overview</h3>
             <div className="flex items-center space-x-2">
               <label className="text-sm font-medium text-charcoal-700">Season:</label>
               <select
                 value={currentSeason}
                 onChange={(e) => setCurrentSeason(parseInt(e.target.value))}
-                className="border rounded px-3 py-1 text-sm"
+                className="border border-[#e7e2da] rounded px-3 py-1 text-sm text-charcoal-700 bg-white"
               >
                 <option value={2024}>2024</option>
                 <option value={2025}>2025</option>
@@ -492,37 +492,37 @@ export default function UserManagement() {
           <div className="grid md:grid-cols-6 gap-4">
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-pigskin-600">{stats.totalUsers}</div>
+                <div className="text-2xl font-bold text-[#4B3621] tabular-nums">{stats.totalUsers}</div>
                 <div className="text-sm text-charcoal-500">Total Users</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-green-600">{stats.paidUsers}</div>
+                <div className="text-2xl font-bold text-[#1f7a44] tabular-nums">{stats.paidUsers}</div>
                 <div className="text-sm text-charcoal-500">Paid Users</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-red-600">{stats.unpaidUsers}</div>
+                <div className="text-2xl font-bold text-[#d1495b] tabular-nums">{stats.unpaidUsers}</div>
                 <div className="text-sm text-charcoal-500">Unpaid Users</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-orange-600">{stats.unmatchedPayments}</div>
+                <div className="text-2xl font-bold text-[#b06a1a] tabular-nums">{stats.unmatchedPayments}</div>
                 <div className="text-sm text-charcoal-500">Unmatched</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-blue-600">{stats.usersWithPicks}</div>
+                <div className="text-2xl font-bold text-[#4B3621] tabular-nums">{stats.usersWithPicks}</div>
                 <div className="text-sm text-charcoal-500">With Picks</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-gold-600">{stats.adminUsers}</div>
+                <div className="text-2xl font-bold text-[#C9A04E] tabular-nums">{stats.adminUsers}</div>
                 <div className="text-sm text-charcoal-500">Admins</div>
               </CardContent>
             </Card>
@@ -536,7 +536,7 @@ export default function UserManagement() {
       {/* User List */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+          <CardTitle className="flex items-center justify-between text-[#4B3621]">
             <span>User Management</span>
             <div className="flex items-center space-x-2">
               <Input
@@ -548,7 +548,7 @@ export default function UserManagement() {
               <select
                 value={participationFilter}
                 onChange={(e) => setParticipationFilter(e.target.value as 'played' | 'all')}
-                className="border rounded px-3 py-2 text-sm"
+                className="border border-[#e7e2da] rounded px-3 py-2 text-sm text-charcoal-700 bg-white"
                 title="Show only participants this season, or every account"
               >
                 <option value="played">Played this season</option>
@@ -557,7 +557,7 @@ export default function UserManagement() {
               <select
                 value={paymentStatusFilter}
                 onChange={(e) => setPaymentStatusFilter(e.target.value)}
-                className="border rounded px-3 py-2 text-sm"
+                className="border border-[#e7e2da] rounded px-3 py-2 text-sm text-charcoal-700 bg-white"
               >
                 <option value="all">All Status</option>
                 <option value="Paid">Paid</option>
@@ -566,24 +566,24 @@ export default function UserManagement() {
                 <option value="Manual Registration">Manual Registration</option>
                 <option value="Pending">Pending</option>
               </select>
-              <Button 
-                onClick={toggleMergeMode} 
-                variant={mergeMode ? "default" : "outline"} 
+              <Button
+                onClick={toggleMergeMode}
+                variant={mergeMode ? "primary" : "outline"}
                 size="sm"
-                className={mergeMode ? "bg-blue-600 hover:bg-blue-700" : ""}
+                className={mergeMode ? "bg-[#4B3621] text-white hover:bg-[#3a2a19]" : "border-[#e7e2da]"}
               >
                 {mergeMode ? 'Exit Merge Mode' : 'Merge Users'}
               </Button>
               {mergeMode && selectedUsersForMerge.length === 2 && (
-                <Button 
+                <Button
                   onClick={() => setShowMergeModal(true)}
                   size="sm"
-                  className="bg-green-600 hover:bg-green-700"
+                  className="bg-[#1f7a44] text-white hover:bg-[#1a6b3b]"
                 >
                   Start Merge
                 </Button>
               )}
-              <Button onClick={loadUsers} variant="outline" size="sm">
+              <Button onClick={loadUsers} variant="outline" size="sm" className="border-[#e7e2da]">
                 Refresh
               </Button>
             </div>
@@ -591,7 +591,7 @@ export default function UserManagement() {
         </CardHeader>
         <CardContent>
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg mb-4 text-sm">
+            <div className="p-3 bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b] rounded-lg mb-4 text-sm">
               <div className="font-medium mb-1">Error</div>
               <div>{error}</div>
             </div>
@@ -600,7 +600,7 @@ export default function UserManagement() {
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
-                <div className="w-8 h-8 border-4 border-pigskin-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <div className="w-8 h-8 border-4 border-[#4B3621] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                 <div className="text-charcoal-600">Loading users...</div>
               </div>
             </div>
@@ -611,7 +611,7 @@ export default function UserManagement() {
                   Showing {filteredUsers.length} of {users.length} users
                 </div>
                 {mergeMode && (
-                  <div className="text-sm text-blue-600">
+                  <div className="text-sm text-[#4B3621]">
                     {selectedUsersForMerge.length === 0 && 'Select 2 users to merge'}
                     {selectedUsersForMerge.length === 1 && 'Select 1 more user to merge'}
                     {selectedUsersForMerge.length === 2 && 'Ready to merge - click "Start Merge"'}
@@ -628,13 +628,13 @@ export default function UserManagement() {
                   return (
                     <div
                       key={user.id}
-                      className={`flex items-center justify-between p-3 border rounded-lg hover:bg-stone-50 cursor-pointer transition-colors ${
-                        isSelectedForMerge ? 'border-blue-500 bg-blue-100 hover:bg-blue-150' :
-                        user.payment_status === 'No Payment' ? 'border-orange-300 bg-orange-50 hover:bg-orange-100' : 
-                        user.payment_status === 'NotPaid' ? 'border-red-300 bg-red-50 hover:bg-red-100' :
-                        user.payment_status === 'Paid' ? 'border-green-300 bg-green-50 hover:bg-green-100' : 
-                        user.payment_status === 'Manual Registration' ? 'border-blue-300 bg-blue-50 hover:bg-blue-100' :
-                        'border-yellow-300 bg-yellow-50 hover:bg-yellow-100'
+                      className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
+                        isSelectedForMerge ? 'border-[#C9A04E] bg-[#fbf4e3] ring-1 ring-inset ring-[#C9A04E]' :
+                        user.payment_status === 'No Payment' ? 'border-[#f0dcb0] bg-[#fff5e2] hover:bg-[#fdeecb]' :
+                        user.payment_status === 'NotPaid' ? 'border-[#f2c9d1] bg-[#fbe9ec] hover:bg-[#f8dbe1]' :
+                        user.payment_status === 'Paid' ? 'border-[#bfe3cc] bg-[#e6f4ea] hover:bg-[#d7edde]' :
+                        user.payment_status === 'Manual Registration' ? 'border-[#e7e2da] bg-[#faf8f4] hover:bg-[#f2ede4]' :
+                        'border-[#f0dcb0] bg-[#fff5e2] hover:bg-[#fdeecb]'
                       } ${
                         mergeMode && !canSelectForMerge ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
@@ -659,54 +659,54 @@ export default function UserManagement() {
                               }
                             }}
                             disabled={!canSelectForMerge}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            className="w-4 h-4 text-[#4B3621] border-[#e7e2da] rounded focus:ring-[#C9A04E]"
                           />
                         )}
                         <div>
-                          <div className="font-medium">{user.display_name}</div>
+                          <div className="font-medium text-[#4B3621]">{user.display_name}</div>
                           <div className="text-sm text-charcoal-500">{user.email}</div>
                           {user.leaguesafe_email && user.leaguesafe_email !== user.email && (
-                            <div className="text-xs text-blue-600">
+                            <div className="text-xs text-charcoal-500">
                               LeagueSafe: {user.leaguesafe_email}
                             </div>
                           )}
                           {user.leaguesafe_payment && (
-                            <div className="text-xs text-charcoal-500 mt-1">
-                              Entry: ${user.leaguesafe_payment.entry_fee} | 
-                              Paid: ${user.leaguesafe_payment.paid} | 
+                            <div className="text-xs text-charcoal-500 mt-1 tabular-nums">
+                              Entry: ${user.leaguesafe_payment.entry_fee} |
+                              Paid: ${user.leaguesafe_payment.paid} |
                               Owes: ${user.leaguesafe_payment.owes}
                             </div>
                           )}
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-2">
                       {user.is_admin && (
-                        <span className="px-2 py-1 bg-gold-100 text-gold-700 text-xs rounded">
+                        <span className="px-2 py-1 bg-[#faf3e0] border border-[#f0dcb0] text-[#C9A04E] text-xs rounded">
                           Admin
                         </span>
                       )}
-                      
+
                       <span className={`px-2 py-1 text-xs rounded ${
-                        user.payment_status === 'Paid' ? 'bg-green-100 text-green-700' :
-                        user.payment_status === 'NotPaid' ? 'bg-red-100 text-red-700' :
-                        user.payment_status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
-                        user.payment_status === 'Manual Registration' ? 'bg-blue-100 text-blue-700' :
-                        'bg-orange-100 text-orange-700'
+                        user.payment_status === 'Paid' ? 'bg-[#e6f4ea] border border-[#bfe3cc] text-[#1f7a44]' :
+                        user.payment_status === 'NotPaid' ? 'bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b]' :
+                        user.payment_status === 'Pending' ? 'bg-[#fff5e2] border border-[#f0dcb0] text-[#b06a1a]' :
+                        user.payment_status === 'Manual Registration' ? 'bg-[#faf8f4] border border-[#e7e2da] text-charcoal-700' :
+                        'bg-[#fff5e2] border border-[#f0dcb0] text-[#b06a1a]'
                       }`}>
                         {user.payment_status}
                       </span>
-                      
-                      <div className="text-xs text-charcoal-500">
+
+                      <div className="text-xs text-charcoal-500 tabular-nums">
                         {new Date(user.created_at).toLocaleDateString()}
                       </div>
-                      
+
                       {!mergeMode && (
                         <Button
                           variant="outline"
                           size="sm"
-                          className="text-xs"
+                          className="text-xs border-[#e7e2da]"
                           onClick={(e) => {
                             e.stopPropagation()
                             setSelectedUser(user)

@@ -440,46 +440,46 @@ export default function AnonymousPicksPage() {
           <Card className="text-center">
             <CardContent className="p-8">
               <div className="text-6xl mb-4">🏈</div>
-              <h2 className="text-2xl font-bold text-green-700 mb-4">Picks Submitted!</h2>
-              <div className="space-y-3 text-left">
-                <p><strong>Name:</strong> {name}</p>
-                <p><strong>Email:</strong> {email}</p>
-                <p><strong>Validation Status:</strong> {isValidated ? 
-                  <span className="text-green-600 font-semibold">✅ Validated</span> : 
-                  <span className="text-orange-600 font-semibold">⏳ Pending Manual Review</span>
+              <h2 className="text-2xl font-bold text-[#1f7a44] mb-4">Picks Submitted!</h2>
+              <div className="space-y-3 text-left text-charcoal-600">
+                <p><strong className="text-[#4B3621]">Name:</strong> {name}</p>
+                <p><strong className="text-[#4B3621]">Email:</strong> {email}</p>
+                <p><strong className="text-[#4B3621]">Validation Status:</strong> {isValidated ?
+                  <span className="text-[#1f7a44] font-semibold">✅ Validated</span> :
+                  <span className="text-[#b06a1a] font-semibold">⏳ Pending Manual Review</span>
                 }</p>
               </div>
-              
-              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-                <p className="font-semibold text-blue-800 mb-2">📧 Confirmation Email</p>
-                <p className="text-blue-700">
-                  A confirmation email with your submitted picks has been sent to <strong>{email}</strong>. 
+
+              <div className="mt-6 p-4 bg-[#faf8f4] border border-[#e7e2da] rounded-lg text-sm text-charcoal-700 text-left">
+                <p className="font-semibold text-[#4B3621] mb-2">📧 Confirmation Email</p>
+                <p>
+                  A confirmation email with your submitted picks has been sent to <strong>{email}</strong>.
                   If you don't receive it within a few minutes, please check your spam folder.
                 </p>
               </div>
-              
+
               {!isValidated && (
-                <div className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-lg text-sm">
-                  <p className="font-semibold text-orange-800 mb-2">Manual Verification Required</p>
-                  <p className="text-orange-700">
+                <div className="mt-6 p-4 bg-[#fff5e2] border border-[#f0dcb0] rounded-lg text-sm text-[#b06a1a] text-left">
+                  <p className="font-semibold mb-2">Manual Verification Required</p>
+                  <p>
                     We couldn't automatically validate your email address. Your picks have been submitted but won't appear on the leaderboard until manually verified by an admin. You'll be contacted if we need additional information.
                   </p>
                 </div>
               )}
 
               {isValidated && (
-                <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg text-sm">
-                  <p className="font-semibold text-green-800 mb-2">Picks Validated!</p>
-                  <p className="text-green-700">
+                <div className="mt-6 p-4 bg-[#e6f4ea] border border-[#bfe3cc] rounded-lg text-sm text-[#1f7a44] text-left">
+                  <p className="font-semibold mb-2">Picks Validated!</p>
+                  <p>
                     Your email was found in our system. Your picks will be included in scoring and leaderboard calculations.
                   </p>
                 </div>
               )}
 
               <div className="mt-6">
-                <button 
+                <button
                   onClick={() => handleNavigation('/')}
-                  className="text-pigskin-600 hover:text-pigskin-700 font-medium"
+                  className="text-[#4B3621] hover:text-[#3a2a19] font-medium"
                 >
                   ← Back to Home
                 </button>
@@ -496,8 +496,8 @@ export default function AnonymousPicksPage() {
       <Layout>
         <div className="flex items-center justify-center min-h-96">
           <div className="text-center">
-            <div className="w-8 h-8 border-4 border-pigskin-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-pigskin-600">Loading games...</p>
+            <div className="w-8 h-8 border-4 border-[#4B3621] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-charcoal-600">Loading games...</p>
           </div>
         </div>
       </Layout>
@@ -511,13 +511,13 @@ export default function AnonymousPicksPage() {
           <Card>
             <CardContent className="text-center p-8">
               <div className="text-4xl mb-4">⏰</div>
-              <h2 className="text-xl font-bold mb-4">Picks Are Currently Closed</h2>
+              <h2 className="text-xl font-bold text-[#4B3621] mb-4">Picks Are Currently Closed</h2>
               <p className="text-charcoal-600 mb-6">
                 Pick submission is not available at this time. Check back when picks open for the next week.
               </p>
-              <button 
+              <button
                 onClick={() => handleNavigation('/')}
-                className="text-pigskin-600 hover:text-pigskin-700 font-medium"
+                className="text-[#4B3621] hover:text-[#3a2a19] font-medium"
               >
                 ← Back to Home
               </button>
@@ -533,13 +533,13 @@ export default function AnonymousPicksPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Page Title */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-pigskin-900">Anonymous Pick Submission</h1>
-          <p className="text-pigskin-600 mt-2">Submit your picks for Week {currentWeek}</p>
+          <h1 className="text-3xl font-bold text-[#4B3621]">Anonymous Pick Submission</h1>
+          <p className="text-charcoal-600 mt-2">Submit your picks for Week {currentWeek}</p>
         </div>
         {/* User Info Form */}
         <Card>
           <CardHeader>
-            <CardTitle>Your Information</CardTitle>
+            <CardTitle className="text-[#4B3621]">Your Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
@@ -570,10 +570,10 @@ export default function AnonymousPicksPage() {
                   required
                 />
                 {isValidated === true && (
-                  <p className="text-green-600 text-sm mt-1">✅ Email validated - you're in our system!</p>
+                  <p className="text-[#1f7a44] text-sm mt-1">✅ Email validated - you're in our system!</p>
                 )}
                 {isValidated === false && email.trim() && (
-                  <p className="text-orange-600 text-sm mt-1">⚠️ Email not found - picks will require manual verification by admins and won't show in the leaderboard until reviewed and confirmed.</p>
+                  <p className="text-[#b06a1a] text-sm mt-1">⚠️ Email not found - picks will require manual verification by admins and won't show in the leaderboard until reviewed and confirmed.</p>
                 )}
               </div>
             </div>
@@ -583,9 +583,9 @@ export default function AnonymousPicksPage() {
         {/* Game Selection */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+            <CardTitle className="flex items-center justify-between text-[#4B3621]">
               <span>Make Your Picks</span>
-              <span className="text-sm font-normal text-charcoal-500">
+              <span className="text-sm font-normal text-charcoal-500 tabular-nums">
                 Week {currentWeek} • {currentSeason}
                 {deadline && (
                   <> • Deadline: {deadline.toLocaleDateString('en-US', {
@@ -601,9 +601,9 @@ export default function AnonymousPicksPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Instructions:</strong> Pick the winner of each game. You must select exactly 6 games and choose 1 as your "lock" pick (worth double points if correct).
+            <div className="bg-[#faf8f4] border border-[#e7e2da] p-4 rounded-lg">
+              <p className="text-sm text-charcoal-700">
+                <strong className="text-[#4B3621]">Instructions:</strong> Pick the winner of each game. You must select exactly 6 games and choose 1 as your "lock" pick (worth double points if correct).
               </p>
             </div>
 
@@ -638,12 +638,12 @@ export default function AnonymousPicksPage() {
             </div>
 
             <div className="text-center space-y-4">
-              <p className="text-sm text-charcoal-600">
+              <p className="text-sm text-charcoal-600 tabular-nums">
                 Selected: {picks.length}/6 picks • Lock pick: {picks.some(p => p.isLock) ? '✅' : '❌'}
               </p>
 
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">
+                <div className="bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b] p-3 rounded-lg text-sm">
                   {error}
                 </div>
               )}
@@ -653,7 +653,7 @@ export default function AnonymousPicksPage() {
                 disabled={submitting || picks.length !== 6 || !picks.some(p => p.isLock) || !email.trim() || !name.trim()}
                 className={`w-full max-w-md transition-all duration-200 ${
                   !submitting && picks.length === 6 && picks.some(p => p.isLock) && email.trim() && name.trim()
-                    ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.02] ring-2 ring-green-500/30'
+                    ? 'bg-[#4B3621] hover:bg-[#3a2a19] text-white font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.02] ring-2 ring-gold-500/40'
                     : ''
                 }`}
                 size="lg"
@@ -673,40 +673,40 @@ export default function AnonymousPicksPage() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <Card className="max-w-md mx-4">
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
+                <CardTitle className="flex items-center space-x-2 text-[#4B3621]">
                   <span>⚠️</span>
                   <span>Submitted Picks Detected</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="bg-[#fbe9ec] border border-[#f2c9d1] rounded-lg p-4">
                   <div className="flex items-start space-x-3">
-                    <div className="text-red-500 text-xl">🚨</div>
+                    <div className="text-[#d1495b] text-xl">🚨</div>
                     <div>
-                      <div className="font-semibold text-red-800 mb-2">Warning: You Have Unsubmitted Picks!</div>
-                      <div className="text-red-700 text-sm space-y-2">
-                        <p>You have {picks.length} pick{picks.length !== 1 ? 's' : ''} that haven't been submitted yet.</p>
+                      <div className="font-semibold text-[#d1495b] mb-2">Warning: You Have Unsubmitted Picks!</div>
+                      <div className="text-[#d1495b] text-sm space-y-2">
+                        <p className="tabular-nums">You have {picks.length} pick{picks.length !== 1 ? 's' : ''} that haven't been submitted yet.</p>
                         <p><strong>If you leave this page without submitting your picks, they will be WON'T be counted for scoring.</strong></p>
                       </div>
                     </div>
                   </div>
                 </div>
-                
+
                 <p className="text-sm text-charcoal-600 font-medium">
                   Are you sure you want to leave without submitting your picks?
                 </p>
-                
+
                 <div className="flex space-x-3">
                   <Button
                     onClick={confirmNavigation}
-                    className="flex-1 bg-red-600 hover:bg-red-700"
+                    className="flex-1 bg-[#d1495b] hover:bg-[#b83a4b] text-white"
                   >
                     Yes, leave without submitting
                   </Button>
                   <Button
                     onClick={cancelNavigation}
                     variant="outline"
-                    className="flex-1 border-green-500 text-green-700 hover:bg-green-50"
+                    className="flex-1 border-[#e7e2da] text-[#4B3621] hover:bg-[#faf8f4]"
                   >
                     Stay & Submit Picks
                   </Button>

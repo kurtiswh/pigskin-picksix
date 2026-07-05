@@ -277,40 +277,37 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pigskin-600 to-pigskin-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#F8F7F3] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center space-x-3">
-            <div className="w-16 h-16 bg-gold-500 rounded-full flex items-center justify-center football-laces">
-              <span className="text-pigskin-900 font-bold text-2xl">P6</span>
-            </div>
-            <div className="text-left">
-              <h1 className="text-2xl font-bold text-white">Pigskin Pick Six</h1>
-              <p className="text-pigskin-100 text-sm">Where meaningless games become meaningful</p>
-            </div>
+          <Link to="/" className="inline-flex flex-col items-center">
+            <span className="font-extrabold tracking-wide text-2xl text-[#4B3621]">
+              PIGSKIN PICK <span className="text-gold-500">SIX</span>
+            </span>
+            <p className="text-charcoal-500 text-sm mt-1">Where meaningless games become meaningful</p>
           </Link>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-center text-2xl">
+            <CardTitle className="text-center text-2xl text-[#4B3621]">
               {isFirstTime ? 'First Time Setup' : isSignUp ? 'Join the Competition' : 'Welcome Back'}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {/* Mode Selection */}
             {!isFirstTime && !isSignUp && (
-              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800 mb-2">
-                  <strong>Existing league member?</strong> If you were added to the league via LeagueSafe but haven't set up your login yet, 
+              <div className="mb-4 p-4 bg-[#faf8f4] border border-[#e7e2da] rounded-lg">
+                <p className="text-sm text-charcoal-700 mb-2">
+                  <strong>Existing league member?</strong> If you were added to the league via LeagueSafe but haven't set up your login yet,
                 </p>
                 <Link to="/register">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="text-blue-700 border-blue-300 hover:bg-blue-100"
+                    className="border-[#e7e2da]"
                   >
                     Set up first-time login
                   </Button>
@@ -365,17 +362,17 @@ export default function LoginPage() {
 
               {error && (
                 <div className={`px-4 py-3 rounded-lg text-sm ${
-                  isPositiveMessage 
-                    ? 'bg-green-50 border border-green-200 text-green-700'
-                    : 'bg-red-50 border border-red-200 text-red-600'
+                  isPositiveMessage
+                    ? 'bg-[#e6f4ea] border border-[#bfe3cc] text-[#1f7a44]'
+                    : 'bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b]'
                 }`}>
                   {error}
                 </div>
               )}
 
-              <Button 
-                type="submit" 
-                className="w-full" 
+              <Button
+                type="submit"
+                className="w-full bg-[#4B3621] text-white hover:bg-[#3a2a19]"
                 disabled={loading}
               >
                 {loading ? 'Please wait...' : (
@@ -391,7 +388,7 @@ export default function LoginPage() {
               <div className="mt-6">
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-stone-300" />
+                    <div className="w-full border-t border-[#e7e2da]" />
                   </div>
                   <div className="relative flex justify-center text-sm">
                     <span className="px-2 bg-white text-charcoal-500">Or continue with</span>
@@ -441,7 +438,7 @@ export default function LoginPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full mt-2 bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                  className="w-full mt-2 bg-[#fff5e2] border-[#f0dcb0] text-[#b06a1a] hover:bg-[#fdeccb]"
                   onClick={handleTestResend}
                 >
                   🧪 Test Resend API
@@ -494,18 +491,18 @@ export default function LoginPage() {
             )}
 
             {isFirstTime && (
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-sm text-green-800">
-                  <strong>First-time setup:</strong> Use the email address associated with your LeagueSafe payment. 
+              <div className="mt-4 p-4 bg-[#e6f4ea] border border-[#bfe3cc] rounded-lg">
+                <p className="text-sm text-[#1f7a44]">
+                  <strong>First-time setup:</strong> Use the email address associated with your LeagueSafe payment.
                   We'll create your login credentials and link your account automatically.
                 </p>
               </div>
             )}
-            
+
             {isSignUp && !isFirstTime && (
-              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  <strong>Important:</strong> Use the same email address that you used for LeagueSafe registration 
+              <div className="mt-4 p-4 bg-[#faf8f4] border border-[#e7e2da] rounded-lg">
+                <p className="text-sm text-charcoal-700">
+                  <strong>Important:</strong> Use the same email address that you used for LeagueSafe registration
                   to ensure your account is properly linked to your payment.
                 </p>
               </div>
@@ -514,9 +511,9 @@ export default function LoginPage() {
         </Card>
 
         <div className="text-center mt-6">
-          <Link 
-            to="/" 
-            className="text-pigskin-100 hover:text-white text-sm transition-colors"
+          <Link
+            to="/"
+            className="text-charcoal-500 hover:text-[#4B3621] text-sm transition-colors"
           >
             ← Back to home
           </Link>

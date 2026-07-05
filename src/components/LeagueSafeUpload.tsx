@@ -247,7 +247,7 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
+        <CardTitle className="flex items-center space-x-2 text-[#4B3621]">
           <span>📊</span>
           <span>LeagueSafe CSV Upload</span>
         </CardTitle>
@@ -288,34 +288,34 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
             </div>
 
             {file && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="font-medium text-blue-800">File Selected</div>
-                <div className="text-sm text-blue-600">
+              <div className="p-3 bg-[#faf8f4] border border-[#e7e2da] text-charcoal-700 rounded-lg">
+                <div className="font-medium text-[#4B3621]">File Selected</div>
+                <div className="text-sm text-charcoal-600">
                   {file.name} ({Math.round(file.size / 1024)}KB)
                 </div>
               </div>
             )}
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+              <div className="p-3 bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b] rounded-lg text-sm">
                 <div className="font-medium mb-1">Error</div>
                 <div>{error}</div>
               </div>
             )}
 
             {loading && progress.total > 0 && (
-              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="mb-4 p-4 bg-[#faf8f4] border border-[#e7e2da] rounded-lg">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium text-blue-800">Upload Progress</span>
-                  <span className="text-sm text-blue-600">{progress.current} / {progress.total}</span>
+                  <span className="font-medium text-[#4B3621]">Upload Progress</span>
+                  <span className="text-sm text-charcoal-600 tabular-nums">{progress.current} / {progress.total}</span>
                 </div>
-                <div className="w-full bg-blue-200 rounded-full h-2">
-                  <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-200"
+                <div className="w-full bg-[#f0ece5] rounded-full h-2">
+                  <div
+                    className="bg-[#4B3621] h-2 rounded-full transition-all duration-200"
                     style={{ width: `${(progress.current / progress.total) * 100}%` }}
                   ></div>
                 </div>
-                <div className="text-sm text-blue-600 mt-2">{progress.status}</div>
+                <div className="text-sm text-charcoal-600 mt-2">{progress.status}</div>
               </div>
             )}
 
@@ -323,7 +323,7 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
               <Button
                 onClick={processUpload}
                 disabled={!file || loading}
-                className="flex-1"
+                className="flex-1 bg-[#4B3621] text-white hover:bg-[#3a2a19]"
               >
                 {loading ? (
                   <div className="flex items-center space-x-2">
@@ -344,45 +344,45 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
         ) : (
           <div className="space-y-4">
             {/* Results Summary */}
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="font-medium text-blue-800 mb-1">
+            <div className="mb-4 p-3 bg-[#e6f4ea] border border-[#bfe3cc] rounded-lg">
+              <div className="font-medium text-[#1f7a44] mb-1">
                 Import Complete - Season {result.season}
               </div>
             </div>
-            
+
             <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <div className="text-center p-4 border border-green-200 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{result.totalEntries}</div>
-                <div className="text-sm text-green-700">Total Entries</div>
+              <div className="text-center p-4 border border-[#e7e2da] bg-[#faf8f4] rounded-lg">
+                <div className="text-2xl font-bold text-[#4B3621] tabular-nums">{result.totalEntries}</div>
+                <div className="text-sm text-charcoal-600">Total Entries</div>
               </div>
-              <div className="text-center p-4 border border-blue-200 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">{result.matchedPayments}</div>
-                <div className="text-sm text-blue-700">New Payments</div>
+              <div className="text-center p-4 border border-[#bfe3cc] bg-[#e6f4ea] rounded-lg">
+                <div className="text-2xl font-bold text-[#1f7a44] tabular-nums">{result.matchedPayments}</div>
+                <div className="text-sm text-[#1f7a44]">New Payments</div>
               </div>
-              <div className="text-center p-4 border border-yellow-200 bg-yellow-50 rounded-lg">
-                <div className="text-2xl font-bold text-yellow-600">{result.updatedPayments}</div>
-                <div className="text-sm text-yellow-700">Updated</div>
+              <div className="text-center p-4 border border-[#f0dcb0] bg-[#fff5e2] rounded-lg">
+                <div className="text-2xl font-bold text-[#b06a1a] tabular-nums">{result.updatedPayments}</div>
+                <div className="text-sm text-[#b06a1a]">Updated</div>
               </div>
-              <div className="text-center p-4 border border-gray-200 bg-gray-50 rounded-lg">
-                <div className="text-2xl font-bold text-gray-600">{result.skippedDuplicates}</div>
-                <div className="text-sm text-gray-700">Skipped</div>
+              <div className="text-center p-4 border border-[#e7e2da] bg-[#faf8f4] rounded-lg">
+                <div className="text-2xl font-bold text-charcoal-600 tabular-nums">{result.skippedDuplicates}</div>
+                <div className="text-sm text-charcoal-600">Skipped</div>
               </div>
-              <div className="text-center p-4 border border-purple-200 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">{result.newUsers}</div>
-                <div className="text-sm text-purple-700">New Users</div>
+              <div className="text-center p-4 border border-[#e7e2da] bg-[#faf8f4] rounded-lg">
+                <div className="text-2xl font-bold text-[#C9A04E] tabular-nums">{result.newUsers}</div>
+                <div className="text-sm text-charcoal-600">New Users</div>
               </div>
-              <div className="text-center p-4 border border-red-200 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold text-red-600">{result.errors.length}</div>
-                <div className="text-sm text-red-700">Errors</div>
+              <div className="text-center p-4 border border-[#f2c9d1] bg-[#fbe9ec] rounded-lg">
+                <div className="text-2xl font-bold text-[#d1495b] tabular-nums">{result.errors.length}</div>
+                <div className="text-sm text-[#d1495b]">Errors</div>
               </div>
             </div>
 
             {result.existingPayments > 0 && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="font-medium text-blue-800">
+              <div className="p-3 bg-[#faf8f4] border border-[#e7e2da] rounded-lg">
+                <div className="font-medium text-[#4B3621]">
                   Found {result.existingPayments} existing payments for season {result.season}
                 </div>
-                <div className="text-sm text-blue-600">
+                <div className="text-sm text-charcoal-600">
                   Payments were updated or skipped as appropriate to avoid duplicates.
                 </div>
               </div>
@@ -390,13 +390,13 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
 
             {/* Errors */}
             {result.errors.length > 0 && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="font-medium text-red-800 mb-2">
+              <div className="p-4 bg-[#fbe9ec] border border-[#f2c9d1] rounded-lg">
+                <div className="font-medium text-[#d1495b] mb-2">
                   Errors ({result.errors.length})
                 </div>
                 <div className="space-y-1 max-h-32 overflow-y-auto">
                   {result.errors.map((error, index) => (
-                    <div key={index} className="text-sm text-red-700">
+                    <div key={index} className="text-sm text-[#d1495b]">
                       {error}
                     </div>
                   ))}
@@ -406,37 +406,37 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
 
             {/* Success Details */}
             {result.matched.length > 0 && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="font-medium text-green-800 mb-2">
+              <div className="p-4 bg-[#e6f4ea] border border-[#bfe3cc] rounded-lg">
+                <div className="font-medium text-[#1f7a44] mb-2">
                   Successfully Processed ({result.matched.length})
                 </div>
                 <div className="space-y-2 max-h-40 overflow-y-auto">
                   {result.matched.slice(0, 10).map((match, index) => (
                     <div key={index} className="flex items-center justify-between text-sm">
-                      <div className="text-green-700">
-                        <span className="font-medium">{match.name}</span>
-                        <span className="text-green-600 ml-2">{match.email}</span>
+                      <div className="text-charcoal-700">
+                        <span className="font-medium text-[#4B3621]">{match.name}</span>
+                        <span className="text-charcoal-500 ml-2">{match.email}</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className={`px-2 py-1 rounded text-xs ${
-                          match.status === 'Paid' 
-                            ? 'bg-green-100 text-green-700' 
-                            : 'bg-red-100 text-red-700'
+                          match.status === 'Paid'
+                            ? 'bg-[#e6f4ea] border border-[#bfe3cc] text-[#1f7a44]'
+                            : 'bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b]'
                         }`}>
                           {match.status}
                         </span>
                         <span className={`px-2 py-1 rounded text-xs ${
-                          match.action === 'user_created' 
-                            ? 'bg-purple-100 text-purple-700' 
+                          match.action === 'user_created'
+                            ? 'bg-[#faf8f4] border border-[#e7e2da] text-[#4B3621]'
                             : match.action === 'matched'
-                            ? 'bg-blue-100 text-blue-700'
+                            ? 'bg-[#e6f4ea] border border-[#bfe3cc] text-[#1f7a44]'
                             : match.action === 'updated'
-                            ? 'bg-yellow-100 text-yellow-700'
+                            ? 'bg-[#fff5e2] border border-[#f0dcb0] text-[#b06a1a]'
                             : match.action === 'skipped'
-                            ? 'bg-gray-100 text-gray-700'
-                            : 'bg-orange-100 text-orange-700'
+                            ? 'bg-[#faf8f4] border border-[#e7e2da] text-charcoal-600'
+                            : 'bg-[#fff5e2] border border-[#f0dcb0] text-[#b06a1a]'
                         }`}>
-                          {match.action === 'user_created' ? 'New User' : 
+                          {match.action === 'user_created' ? 'New User' :
                            match.action === 'matched' ? 'New Payment' :
                            match.action === 'updated' ? 'Updated' :
                            match.action === 'skipped' ? 'Skipped' : 'Unmatched'}
@@ -445,7 +445,7 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
                     </div>
                   ))}
                   {result.matched.length > 10 && (
-                    <div className="text-xs text-green-600 italic">
+                    <div className="text-xs text-charcoal-500 italic">
                       ... and {result.matched.length - 10} more
                     </div>
                   )}
@@ -453,7 +453,7 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
               </div>
             )}
 
-            <Button onClick={resetUpload} variant="outline" className="w-full">
+            <Button onClick={resetUpload} variant="outline" className="w-full border-[#e7e2da]">
               Upload Another File
             </Button>
           </div>

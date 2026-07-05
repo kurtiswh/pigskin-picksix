@@ -267,7 +267,7 @@ export default function PickSetManager() {
   }, [selectedSeason])
 
   if (loading) {
-    return <div className="flex items-center justify-center p-8">Loading pick sets...</div>
+    return <div className="flex items-center justify-center p-8 text-charcoal-600">Loading pick sets...</div>
   }
 
   // Group pick sets by user and week
@@ -290,7 +290,7 @@ export default function PickSetManager() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-[#4B3621]">Pick Set Manager</h2>
-          <p className="text-gray-600">Choose which specific pick set to use for each user</p>
+          <p className="text-charcoal-600">Choose which specific pick set to use for each user</p>
         </div>
         <Select value={selectedSeason.toString()} onValueChange={(value) => setSelectedSeason(parseInt(value))}>
           <SelectTrigger className="w-32">
@@ -304,7 +304,7 @@ export default function PickSetManager() {
       </div>
 
       {Object.keys(groupedPickSets).length === 0 ? (
-        <Alert>
+        <Alert className="bg-[#faf8f4] border-[#e7e2da] text-charcoal-700">
           <Check className="h-4 w-4" />
           <AlertDescription>
             No users with multiple pick sets found for season {selectedSeason}.
@@ -318,7 +318,7 @@ export default function PickSetManager() {
           </AlertDescription>
         </Alert>
       ) : (
-        <Alert>
+        <Alert className="bg-[#fff5e2] border-[#f0dcb0] text-[#b06a1a]">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             Found {Object.keys(groupedPickSets).length} users with multiple pick sets requiring admin selection.
@@ -345,16 +345,16 @@ export default function PickSetManager() {
           }
 
           return (
-            <Card key={`${group.user_id}-${group.week}`} className={`border-l-4 ${hasCustomCombination ? 'border-l-purple-500 bg-purple-50' : 'border-l-orange-400'}`}>
+            <Card key={`${group.user_id}-${group.week}`} className={`border-l-4 ${hasCustomCombination ? 'border-l-[#C9A04E] bg-[#faf8f4]' : 'border-l-[#C9A04E]'}`}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-[#4B3621]">
                       <User className="h-4 w-4" />
                       {group.display_name}
                       <Badge variant="outline">Week {group.week}</Badge>
                       {hasCustomCombination && (
-                        <Badge className="bg-purple-600 text-white">
+                        <Badge className="bg-[#4B3621] text-white">
                           <Shuffle className="h-3 w-3 mr-1" />
                           Custom Combination
                         </Badge>
@@ -362,7 +362,7 @@ export default function PickSetManager() {
                       {(() => {
                         const selectedPickSet = group.pickSets.find(ps => ps.status === 'SELECTED')
                         return selectedPickSet && !hasCustomCombination ? (
-                          <Badge className="bg-green-600">
+                          <Badge className="bg-[#1f7a44] text-white">
                             <Check className="h-3 w-3 mr-1" />
                             {selectedPickSet.pick_set_type === 'authenticated' ? 'Account Selected' : `${selectedPickSet.pick_set_source} Selected`}
                           </Badge>
@@ -378,23 +378,23 @@ export default function PickSetManager() {
                         if (hasCustomCombination && customCombo) {
                           return (
                             <div className="mt-1">
-                              <span className="block text-purple-600 text-sm font-medium">
+                              <span className="block text-[#b06a1a] text-sm font-medium">
                                 ⚠️ Custom combination active - do not change pick set selection
                               </span>
                               {customCombo.reasoning && (
-                                <span className="block text-purple-600 text-xs mt-1">
+                                <span className="block text-[#b06a1a] text-xs mt-1">
                                   Reason: {customCombo.reasoning}
                                 </span>
                               )}
-                              <span className="block text-purple-500 text-xs mt-1">
+                              <span className="block text-charcoal-500 text-xs mt-1">
                                 Created: {new Date(customCombo.created_at).toLocaleDateString()}
                               </span>
                             </div>
                           )
                         }
-                        
+
                         return selectedPickSet && selectedPickSet.admin_reasoning ? (
-                          <span className="block text-blue-600 text-sm mt-1">
+                          <span className="block text-charcoal-600 text-sm mt-1">
                             Admin note: {selectedPickSet.admin_reasoning}
                           </span>
                         ) : null
@@ -414,7 +414,7 @@ export default function PickSetManager() {
               {isExpanded && (
                 <CardContent className="space-y-4">
                   {isLoading ? (
-                    <div className="text-center py-8">Loading pick set comparison...</div>
+                    <div className="text-center py-8 text-charcoal-500">Loading pick set comparison...</div>
                   ) : pickComparison && pickComparison.length > 0 ? (
                     <div className="space-y-6">
                       {/* Ultra-Compact Pick Set Headers with Timestamps */}
@@ -425,23 +425,23 @@ export default function PickSetManager() {
                           
                           return (
                             <div key={pickSet.pick_set_id} className={`p-2 rounded border-2 ${
-                              isSelected ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'
+                              isSelected ? 'border-[#bfe3cc] bg-[#e6f4ea]' : 'border-[#e7e2da] bg-[#faf8f4]'
                             }`}>
                               <div className="text-center space-y-1">
                                 <div className="flex items-center justify-center gap-1">
-                                  <Badge variant={isSelected ? 'default' : 'outline'} className={isSelected ? 'bg-green-600' : ''} size="sm">
+                                  <Badge variant={isSelected ? 'default' : 'outline'} className={isSelected ? 'bg-[#1f7a44] text-white' : ''} size="sm">
                                     {pickSet.pick_set_type === 'authenticated' ? 'Account' : 'Anon'}
                                   </Badge>
-                                  {isSelected && <Badge className="bg-green-600" size="sm">✓</Badge>}
+                                  {isSelected && <Badge className="bg-[#1f7a44] text-white" size="sm">✓</Badge>}
                                 </div>
-                                <p className="text-xs font-medium break-all" title={pickSet.source}>
+                                <p className="text-xs font-medium break-all text-charcoal-700" title={pickSet.source}>
                                   {pickSet.source}
                                 </p>
-                                <p className="text-xs text-gray-500">
+                                <p className="text-xs text-charcoal-500 tabular-nums">
                                   {pickSet.pick_count}p ({pickSet.lock_count}L)
                                 </p>
                                 {pickSet.submitted_at && (
-                                  <p className="text-xs text-gray-500 font-mono">
+                                  <p className="text-xs text-charcoal-500 font-mono tabular-nums">
                                     {new Date(pickSet.submitted_at).toLocaleDateString()} {new Date(pickSet.submitted_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                   </p>
                                 )}
@@ -464,8 +464,8 @@ export default function PickSetManager() {
 
                       {/* Ultra-Compact 3-Column Pick Comparison */}
                       <div className="space-y-1">
-                        <h4 className="font-medium text-sm flex items-center gap-1">
-                          <Trophy className="h-4 w-4" />
+                        <h4 className="font-medium text-sm flex items-center gap-1 text-[#4B3621]">
+                          <Trophy className="h-4 w-4 text-[#C9A04E]" />
                           Pick Comparison
                         </h4>
                         
@@ -483,39 +483,39 @@ export default function PickSetManager() {
                           return Array.from(allGames.values())
                             .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
                             .map((game: any) => (
-                              <div key={game.id} className="grid gap-1 py-1 border-b border-gray-200" style={{ gridTemplateColumns: `2fr repeat(${pickComparison.length}, 1fr)` }}>
+                              <div key={game.id} className="grid gap-1 py-1 border-b border-[#f0ece5]" style={{ gridTemplateColumns: `2fr repeat(${pickComparison.length}, 1fr)` }}>
                                 {/* Game Info Column */}
                                 <div className="text-xs">
-                                  <p className="font-medium">
+                                  <p className="font-medium text-charcoal-700">
                                     {game.away_team} @ {game.home_team}
                                   </p>
-                                  <div className="text-gray-500 flex items-center gap-2">
-                                    <span>({game.spread > 0 ? '+' : ''}{game.spread})</span>
+                                  <div className="text-charcoal-500 flex items-center gap-2">
+                                    <span className="tabular-nums">({game.spread > 0 ? '+' : ''}{game.spread})</span>
                                     <span>{new Date(game.kickoff_time).toLocaleDateString()}</span>
                                     {game.status === 'completed' && (
-                                      <span className="font-medium">{game.away_score}-{game.home_score}</span>
+                                      <span className="font-medium tabular-nums">{game.away_score}-{game.home_score}</span>
                                     )}
                                   </div>
                                 </div>
-                                
+
                                 {/* Pick Columns */}
                                 {pickComparison.map((pickSet: any) => {
                                   const pick = pickSet.picks?.find((p: any) => p.game.id === game.id)
-                                  
+
                                   return (
                                     <div key={`${pickSet.pick_set_id}-${game.id}`} className={`text-center text-xs p-1 rounded ${
-                                      !pick ? 'text-gray-400' :
-                                      pick.is_lock ? 'bg-yellow-50 border border-yellow-300 font-bold' : 'bg-blue-50 border border-blue-200'
+                                      !pick ? 'text-charcoal-400' :
+                                      pick.is_lock ? 'bg-[#fff5e2] border border-[#f0dcb0] font-bold' : 'bg-[#faf8f4] border border-[#e7e2da]'
                                     }`}>
                                       {pick ? (
                                         <div>
-                                          <div className="font-medium">
+                                          <div className="font-medium text-charcoal-700">
                                             {pick.selected_team} {pick.is_lock && '🔒'}
                                           </div>
                                           {pick.result !== 'pending' && (
-                                            <div className={`text-xs ${
-                                              pick.result === 'win' ? 'text-green-600' : 
-                                              pick.result === 'loss' ? 'text-red-600' : 'text-gray-600'
+                                            <div className={`text-xs tabular-nums ${
+                                              pick.result === 'win' ? 'text-[#1f7a44]' :
+                                              pick.result === 'loss' ? 'text-[#d1495b]' : 'text-charcoal-600'
                                             }`}>
                                               {pick.result === 'win' ? `+${pick.points_earned}` : 
                                                pick.result === 'loss' ? '0' : '10'}
@@ -534,7 +534,7 @@ export default function PickSetManager() {
                       </div>
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-gray-500">No pick sets found for comparison</div>
+                    <div className="text-center py-8 text-charcoal-500">No pick sets found for comparison</div>
                   )}
                 </CardContent>
               )}
@@ -548,7 +548,7 @@ export default function PickSetManager() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <Card className="w-full max-w-lg">
             <CardHeader>
-              <CardTitle>Select Pick Set</CardTitle>
+              <CardTitle className="text-[#4B3621]">Select Pick Set</CardTitle>
               <CardDescription>
                 Add optional reasoning for this selection
               </CardDescription>

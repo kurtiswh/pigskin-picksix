@@ -58,17 +58,17 @@ export default function MagicLoginPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-stone-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-[#F8F7F3] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <Card className="max-w-md mx-auto">
           <CardHeader>
             <CardTitle className="text-center">
               <div className="text-4xl mb-4">🔮</div>
-              <h1 className="text-2xl font-bold text-charcoal-800">Processing Magic Link</h1>
+              <h1 className="text-2xl font-bold text-[#4B3621]">Processing Magic Link</h1>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-center">
-              <div className="w-8 h-8 border-4 border-pigskin-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <div className="w-8 h-8 border-4 border-[#4B3621] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
               <p className="text-charcoal-600">
                 Verifying your magic link...
               </p>
@@ -81,12 +81,12 @@ export default function MagicLoginPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-stone-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-[#F8F7F3] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <Card className="max-w-md mx-auto">
           <CardHeader>
             <CardTitle className="text-center">
               <div className="text-4xl mb-4">✅</div>
-              <h1 className="text-2xl font-bold text-green-600">Magic Link Success!</h1>
+              <h1 className="text-2xl font-bold text-[#1f7a44]">Magic Link Success!</h1>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -98,9 +98,9 @@ export default function MagicLoginPage() {
                 Redirecting you to the dashboard...
               </p>
               <div className="mt-6">
-                <Button 
+                <Button
                   onClick={() => navigate('/')}
-                  className="w-full bg-pigskin-600 hover:bg-pigskin-700"
+                  className="w-full bg-[#4B3621] text-white hover:bg-[#3a2a19]"
                 >
                   Go to Dashboard
                 </Button>
@@ -113,20 +113,20 @@ export default function MagicLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#F8F7F3] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <Card className="max-w-md mx-auto">
         <CardHeader>
           <CardTitle className="text-center">
             <div className="text-4xl mb-4">❌</div>
-            <h1 className="text-2xl font-bold text-red-600">Magic Link Error</h1>
+            <h1 className="text-2xl font-bold text-[#d1495b]">Magic Link Error</h1>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center">
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm mb-6">
+            <div className="p-3 bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b] rounded-lg text-sm mb-6">
               {error}
             </div>
-            
+
             <p className="text-charcoal-600 mb-6">
               This magic link may be invalid, expired, or already used.
             </p>
@@ -134,15 +134,15 @@ export default function MagicLoginPage() {
             <div className="space-y-3">
               <Button
                 onClick={() => navigate('/login')}
-                className="w-full bg-pigskin-600 hover:bg-pigskin-700"
+                className="w-full bg-[#4B3621] text-white hover:bg-[#3a2a19]"
               >
                 Request New Magic Link
               </Button>
-              
+
               <Button
                 variant="outline"
                 onClick={() => navigate('/login')}
-                className="w-full"
+                className="w-full border-[#e7e2da]"
               >
                 Back to Login
               </Button>

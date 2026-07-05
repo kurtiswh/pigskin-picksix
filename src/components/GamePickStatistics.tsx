@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { Card } from '@/components/ui/card'
 import { Lock, TrendingUp, TrendingDown } from 'lucide-react'
 
 interface GamePickStatisticsProps {
@@ -29,20 +30,20 @@ export default function GamePickStatistics({
   // Calculate totals including locks
   const homeTotalPicks = homeTeamPicks + homeTeamLocks
   const awayTotalPicks = awayTeamPicks + awayTeamLocks
-  
+
   // Calculate percentages
   const homePercentage = totalPicks > 0 ? Math.round((homeTotalPicks / totalPicks) * 100) : 0
   const awayPercentage = totalPicks > 0 ? Math.round((awayTotalPicks / totalPicks) * 100) : 0
-  
+
   // Determine which team is favored by picks
   const pickFavorite = homeTotalPicks > awayTotalPicks ? 'home' : awayTotalPicks > homeTotalPicks ? 'away' : null
-  
+
   // Determine spread favorite (negative spread = home favored, positive = away favored)
   const spreadFavorite = spread < 0 ? 'home' : spread > 0 ? 'away' : null
-  
+
   // Check if public is fading the favorite
   const isFadingFavorite = spreadFavorite && pickFavorite && spreadFavorite !== pickFavorite
-  
+
   // Format spread display
   const getSpreadDisplay = (team: 'home' | 'away') => {
     if (team === 'home') {
@@ -51,65 +52,65 @@ export default function GamePickStatistics({
       return spread < 0 ? `+${Math.abs(spread)}` : `-${spread}`
     }
   }
-  
+
   return (
-    <div className={cn("bg-white rounded-lg border p-4 space-y-3", className)}>
+    <Card className={cn("p-4 space-y-3", className)}>
       {/* Title Row */}
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm">Pick Distribution</h3>
+        <h3 className="font-semibold text-sm text-charcoal-800">Pick Distribution</h3>
         {isFadingFavorite && (
-          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">
+          <span className="text-xs bg-[#fff5e2] text-[#b06a1a] px-2 py-1 rounded-full font-medium">
             Fading Favorite
           </span>
         )}
       </div>
-      
+
       {/* Main Stats Row */}
       <div className="grid grid-cols-3 gap-2 text-center">
         {/* Away Team Stats */}
         <div className={cn(
           "space-y-1",
-          winner === 'away' && "text-green-600",
-          winner === 'home' && "text-red-600"
+          winner === 'away' && "text-[#1f7a44]",
+          winner === 'home' && "text-[#d1495b]"
         )}>
-          <div className="font-bold text-2xl">{awayPercentage}%</div>
-          <div className="text-xs font-medium truncate">{awayTeam}</div>
-          <div className="text-xs text-muted-foreground">{getSpreadDisplay('away')}</div>
-          <div className="flex items-center justify-center gap-1 text-xs">
+          <div className="font-bold text-2xl tabular-nums">{awayPercentage}%</div>
+          <div className="text-xs font-medium truncate text-charcoal-800">{awayTeam}</div>
+          <div className="text-xs text-charcoal-500 tabular-nums">{getSpreadDisplay('away')}</div>
+          <div className="flex items-center justify-center gap-1 text-xs tabular-nums">
             <span>{awayTotalPicks}</span>
             {awayTeamLocks > 0 && (
-              <span className="flex items-center text-amber-500">
+              <span className="flex items-center text-[#C9A04E]">
                 ({awayTeamLocks}<Lock className="w-2.5 h-2.5" />)
               </span>
             )}
           </div>
         </div>
-        
+
         {/* Visual Bar */}
         <div className="flex items-center">
           <div className="w-full space-y-2">
-            <div className="text-xs text-center text-muted-foreground">
+            <div className="text-xs text-center text-charcoal-500 tabular-nums">
               {totalPicks} {totalPicks === 1 ? 'pick' : 'picks'}
             </div>
-            <div className="flex h-4 rounded-full overflow-hidden bg-gray-100">
+            <div className="flex h-4 rounded-full overflow-hidden bg-[#f0ece5]">
               {awayTotalPicks > 0 && (
-                <div 
+                <div
                   className={cn(
                     "transition-all duration-500",
-                    winner === 'away' ? "bg-green-500" : 
-                    winner === 'home' ? "bg-red-400" : 
-                    pickFavorite === 'away' ? "bg-blue-500" : "bg-blue-400"
+                    winner === 'away' ? "bg-[#1f7a44]" :
+                    winner === 'home' ? "bg-[#d1495b]" :
+                    "bg-[#b98a3a]"
                   )}
                   style={{ width: `${awayPercentage}%` }}
                 />
               )}
               {homeTotalPicks > 0 && (
-                <div 
+                <div
                   className={cn(
                     "transition-all duration-500 ml-auto",
-                    winner === 'home' ? "bg-green-500" : 
-                    winner === 'away' ? "bg-red-400" : 
-                    pickFavorite === 'home' ? "bg-blue-500" : "bg-blue-400"
+                    winner === 'home' ? "bg-[#1f7a44]" :
+                    winner === 'away' ? "bg-[#d1495b]" :
+                    "bg-[#4B3621]"
                   )}
                   style={{ width: `${homePercentage}%` }}
                 />
@@ -117,38 +118,38 @@ export default function GamePickStatistics({
             </div>
           </div>
         </div>
-        
+
         {/* Home Team Stats */}
         <div className={cn(
           "space-y-1",
-          winner === 'home' && "text-green-600",
-          winner === 'away' && "text-red-600"
+          winner === 'home' && "text-[#1f7a44]",
+          winner === 'away' && "text-[#d1495b]"
         )}>
-          <div className="font-bold text-2xl">{homePercentage}%</div>
-          <div className="text-xs font-medium truncate">{homeTeam}</div>
-          <div className="text-xs text-muted-foreground">{getSpreadDisplay('home')}</div>
-          <div className="flex items-center justify-center gap-1 text-xs">
+          <div className="font-bold text-2xl tabular-nums">{homePercentage}%</div>
+          <div className="text-xs font-medium truncate text-charcoal-800">{homeTeam}</div>
+          <div className="text-xs text-charcoal-500 tabular-nums">{getSpreadDisplay('home')}</div>
+          <div className="flex items-center justify-center gap-1 text-xs tabular-nums">
             <span>{homeTotalPicks}</span>
             {homeTeamLocks > 0 && (
-              <span className="flex items-center text-amber-500">
+              <span className="flex items-center text-[#C9A04E]">
                 ({homeTeamLocks}<Lock className="w-2.5 h-2.5" />)
               </span>
             )}
           </div>
         </div>
       </div>
-      
+
       {/* Biggest Winner/Loser Indicators */}
       {winner && (
-        <div className="pt-2 border-t">
+        <div className="pt-2 border-t border-[#f0ece5]">
           <div className="flex items-center justify-center gap-4 text-xs">
             {pickFavorite === (winner === 'home' ? 'home' : 'away') ? (
-              <div className="flex items-center gap-1 text-green-600">
+              <div className="flex items-center gap-1 text-[#1f7a44]">
                 <TrendingUp className="w-3 h-3" />
                 <span className="font-medium">Public Winner</span>
               </div>
             ) : (
-              <div className="flex items-center gap-1 text-red-600">
+              <div className="flex items-center gap-1 text-[#d1495b]">
                 <TrendingDown className="w-3 h-3" />
                 <span className="font-medium">Public Loser</span>
               </div>
@@ -156,12 +157,12 @@ export default function GamePickStatistics({
           </div>
         </div>
       )}
-      
+
       {/* Additional Stats */}
-      <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground pt-2 border-t">
+      <div className="flex items-center justify-center gap-6 text-xs text-charcoal-500 pt-2 border-t border-[#f0ece5]">
         <div className="flex items-center gap-1">
-          <Lock className="w-3 h-3 text-amber-500" />
-          <span>{homeTeamLocks + awayTeamLocks} locks</span>
+          <Lock className="w-3 h-3 text-[#C9A04E]" />
+          <span className="tabular-nums">{homeTeamLocks + awayTeamLocks} locks</span>
         </div>
         {pickFavorite && (
           <div className="flex items-center gap-1">
@@ -169,6 +170,6 @@ export default function GamePickStatistics({
           </div>
         )}
       </div>
-    </div>
+    </Card>
   )
 }

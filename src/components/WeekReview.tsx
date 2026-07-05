@@ -240,12 +240,12 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-pigskin-900">Week Review</h2>
+          <h2 className="text-2xl font-bold text-[#4B3621]">Week Review</h2>
           <p className="text-charcoal-600 text-sm">Reconcile scoring, resolve entries, and publish the week.</p>
         </div>
         <div className="flex items-center gap-2">
           <select value={week} onChange={e => setWeek(Number(e.target.value))}
-            className="border border-charcoal-200 rounded-md px-3 py-2 text-sm bg-white">
+            className="border border-[#e7e2da] rounded-md px-3 py-2 text-sm bg-white text-charcoal-700">
             {WEEKS.map(w => <option key={w} value={w}>Week {w}</option>)}
           </select>
           <Badge className="bg-gold-500 text-pigskin-900">{season}</Badge>
@@ -255,11 +255,11 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
         </div>
       </div>
 
-      {error && <Card className="border-red-200"><CardContent className="p-4 text-red-700 text-sm">⚠️ {error}</CardContent></Card>}
+      {error && <Card className="border-[#f2c9d1] bg-[#fbe9ec]"><CardContent className="p-4 text-[#d1495b] text-sm">⚠️ {error}</CardContent></Card>}
 
       {data?.leaderboardComplete && (
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="p-4 text-green-800 text-sm font-medium">
+        <Card className="border-[#bfe3cc] bg-[#e6f4ea]">
+          <CardContent className="p-4 text-[#1f7a44] text-sm font-medium">
             ✅ Week {week} is published — the leaderboard is live for this week.
           </CardContent>
         </Card>
@@ -285,7 +285,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
           pill={data ? `${data.discrepancies.length} issues` : ''}
         >
           {data && data.discrepancies.length === 0
-            ? <p className="text-sm text-green-700">✓ No discrepancies — stored results match the recompute.</p>
+            ? <p className="text-sm text-[#1f7a44]">✓ No discrepancies — stored results match the recompute.</p>
             : <DiscrepancyTable rows={data?.discrepancies || []} />}
         </ExpandRow>
 
@@ -302,19 +302,19 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
             </Button>
           </div>
           {(!data || data.anonUnresolved.length === 0)
-            ? <p className="text-sm text-green-700">✓ Nothing to resolve.</p>
+            ? <p className="text-sm text-[#1f7a44]">✓ Nothing to resolve.</p>
             : (
               <table className="w-full text-sm">
-                <thead><tr className="text-left text-charcoal-500 border-b border-charcoal-100">
+                <thead><tr className="text-left text-charcoal-500 border-b border-[#f0ece5]">
                   <th className="px-3 py-2 font-medium">Name</th><th className="px-3 py-2 font-medium">Email</th>
                   <th className="px-3 py-2 font-medium">Picks</th><th className="px-3 py-2"></th>
                 </tr></thead>
                 <tbody>
                   {data.anonUnresolved.map(a => (
-                    <tr key={a.email} className="border-b border-charcoal-50 last:border-0 align-top">
+                    <tr key={a.email} className="border-b border-[#f0ece5] last:border-0 align-top">
                       <td className="px-3 py-2 font-medium">{a.name || '(no name)'}</td>
                       <td className="px-3 py-2 text-charcoal-500">{a.email}</td>
-                      <td className="px-3 py-2">{a.pick_count}</td>
+                      <td className="px-3 py-2 tabular-nums">{a.pick_count}</td>
                       <td className="px-3 py-2 text-right">
                         {dismissTarget === a.email ? (
                           <div className="flex flex-col items-end gap-2">
@@ -322,7 +322,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
                               onChange={e => setDismissNote(e.target.value)} className="w-56 h-8 text-xs" />
                             <div className="flex gap-2">
                               <Button size="sm" variant="outline" onClick={() => { setDismissTarget(null); setDismissNote('') }}>Cancel</Button>
-                              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white"
+                              <Button size="sm" className="bg-[#d1495b] hover:bg-[#b83d4d] text-white"
                                 onClick={() => dismissAnon(a.email)} disabled={dismissing}>
                                 {dismissing ? 'Dismissing…' : 'Dismiss with note'}
                               </Button>
@@ -352,7 +352,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
           pill={data ? (data.overpickDetail.length === 0 ? 'None' : `${data.overpickDetail.length} to confirm`) : ''}
         >
           {(!data || data.overpickDetail.length === 0)
-            ? <p className="text-sm text-green-700">✓ No over-submissions.</p>
+            ? <p className="text-sm text-[#1f7a44]">✓ No over-submissions.</p>
             : (
               <>
                 <p className="text-sm text-charcoal-600 mb-2">
@@ -360,20 +360,20 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
                   locked pick is never dropped). Nothing is deleted — the pick is excluded from totals.
                 </p>
                 <table className="w-full text-sm">
-                  <thead><tr className="text-left text-charcoal-500 border-b border-charcoal-100">
+                  <thead><tr className="text-left text-charcoal-500 border-b border-[#f0ece5]">
                     <th className="px-3 py-2 font-medium">Entry</th><th className="px-3 py-2 font-medium">Picks</th>
                     <th className="px-3 py-2 font-medium">Proposed drop</th><th className="px-3 py-2 font-medium">Pts</th><th className="px-3 py-2"></th>
                   </tr></thead>
                   <tbody>
                     {data.overpickDetail.map(o => (
-                      <tr key={o.user_id} className="border-b border-charcoal-50 last:border-0">
+                      <tr key={o.user_id} className="border-b border-[#f0ece5] last:border-0">
                         <td className="px-3 py-2 font-medium">{o.display_name}</td>
-                        <td className="px-3 py-2">{o.pick_count}</td>
+                        <td className="px-3 py-2 tabular-nums">{o.pick_count}</td>
                         <td className="px-3 py-2 text-charcoal-700">{o.proposed_desc}</td>
-                        <td className="px-3 py-2">{o.proposed_points ?? '—'}</td>
+                        <td className="px-3 py-2 tabular-nums">{o.proposed_points ?? '—'}</td>
                         <td className="px-3 py-2 text-right">
                           <Button size="sm" onClick={() => confirmDrop(o.proposed_pick_id)}
-                            disabled={droppingId === o.proposed_pick_id} className="bg-red-600 hover:bg-red-700 text-white">
+                            disabled={droppingId === o.proposed_pick_id} className="bg-[#d1495b] hover:bg-[#b83d4d] text-white">
                             {droppingId === o.proposed_pick_id ? 'Dropping…' : 'Confirm drop'}
                           </Button>
                         </td>
@@ -393,18 +393,18 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
           pill={data ? `FYI · ${data.unpaidList.length} unpaid` : ''}
         >
           {(!data || data.unpaidList.length === 0)
-            ? <p className="text-sm text-green-700">✓ Every submitter this week has a paid entry.</p>
+            ? <p className="text-sm text-[#1f7a44]">✓ Every submitter this week has a paid entry.</p>
             : (
               <table className="w-full text-sm">
-                <thead><tr className="text-left text-charcoal-500 border-b border-charcoal-100">
+                <thead><tr className="text-left text-charcoal-500 border-b border-[#f0ece5]">
                   <th className="px-3 py-2 font-medium">Player</th><th className="px-3 py-2 font-medium">Email</th><th className="px-3 py-2 font-medium">Picks</th>
                 </tr></thead>
                 <tbody>
                   {data.unpaidList.map(u => (
-                    <tr key={u.user_id} className="border-b border-charcoal-50 last:border-0">
+                    <tr key={u.user_id} className="border-b border-[#f0ece5] last:border-0">
                       <td className="px-3 py-2 font-medium">{u.display_name}</td>
                       <td className="px-3 py-2 text-charcoal-500">{u.email}</td>
-                      <td className="px-3 py-2">{u.pick_count}</td>
+                      <td className="px-3 py-2 tabular-nums">{u.pick_count}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -416,7 +416,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
       {/* All Picks by week */}
       <Card>
         <CardHeader className="cursor-pointer" onClick={() => setShowAllPicks(s => !s)}>
-          <CardTitle className="text-base flex items-center justify-between">
+          <CardTitle className="text-base flex items-center justify-between text-[#4B3621]">
             <span>{showAllPicks ? '▾' : '▸'} All Picks — Week {week} ({data?.allPicks.length || 0} players)</span>
           </CardTitle>
         </CardHeader>
@@ -424,7 +424,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-charcoal-500 border-b border-charcoal-100">
+                <tr className="text-left text-charcoal-500 border-b border-[#f0ece5]">
                   <th className="px-4 py-2 font-medium">Player</th>
                   <th className="px-4 py-2 font-medium">Picks (🔒 = lock)</th>
                   <th className="px-4 py-2 font-medium text-right">Pts</th>
@@ -432,17 +432,17 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
               </thead>
               <tbody>
                 {(data?.allPicks || []).map(p => (
-                  <tr key={p.user_id} className="border-b border-charcoal-50 last:border-0 align-top">
+                  <tr key={p.user_id} className="border-b border-[#f0ece5] last:border-0 align-top">
                     <td className="px-4 py-2 whitespace-nowrap">
                       <span className="font-medium">{p.display_name}</span>
-                      {!p.is_paid && <span className="ml-2 text-xs text-red-600">unpaid</span>}
+                      {!p.is_paid && <span className="ml-2 text-xs text-[#d1495b]">unpaid</span>}
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex flex-wrap gap-1">
                         {p.picks.map((c, i) => <PickChip key={i} cell={c} />)}
                       </div>
                     </td>
-                    <td className="px-4 py-2 text-right font-semibold">{p.total_points}</td>
+                    <td className="px-4 py-2 text-right font-semibold tabular-nums">{p.total_points}</td>
                   </tr>
                 ))}
                 {(!data || data.allPicks.length === 0) && (
@@ -455,7 +455,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
       </Card>
 
       {/* Publish */}
-      <Card className={scoringClean ? 'border-green-200' : 'border-amber-200'}>
+      <Card className={scoringClean ? 'border-[#bfe3cc]' : 'border-[#f0dcb0]'}>
         <CardContent className="p-5">
           {/* Optional leaderboard notice banner for this week */}
           <div className="mb-4">
@@ -471,12 +471,12 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
           </div>
 
           {!scoringClean && (
-            <div className="text-sm text-amber-800 mb-3">
+            <div className="text-sm text-[#b06a1a] mb-3">
               <b>Publish is blocked</b> until every completed game is scored and scoring integrity shows 0 issues.
             </div>
           )}
           {scoringClean && hasWarnings && (
-            <div className="text-sm text-amber-800 mb-3">
+            <div className="text-sm text-[#b06a1a] mb-3">
               Scoring is clean, but there are unresolved anonymous picks / over-submissions. You can still publish —
               they don't affect scored results — but resolving them first is recommended.
             </div>
@@ -484,7 +484,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
           <div className="flex justify-end gap-3">
             <Button onClick={publish}
               disabled={!scoringClean || publishing || (data?.leaderboardComplete ?? false)}
-              className="bg-green-600 hover:bg-green-700 text-white">
+              className="bg-[#1f7a44] hover:bg-[#186237] text-white">
               {publishing ? 'Publishing…' : data?.leaderboardComplete ? `Week ${week} Published ✓` : `Approve & Publish Week ${week}`}
             </Button>
           </div>
@@ -493,7 +493,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
 
       {/* Weekly recap seeding */}
       <Card>
-        <CardHeader><CardTitle className="text-base">📝 Weekly Recap</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base text-[#4B3621]">📝 Weekly Recap</CardTitle></CardHeader>
         <CardContent>
           <p className="text-sm text-charcoal-600 mb-3">
             Generate the week's outliers (winner, group/lock %, upsets, lock report, standings, points by game),
@@ -536,10 +536,10 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
 
 function RecapTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-lg border border-charcoal-100 bg-white p-2.5">
+    <div className="rounded-lg border border-[#e7e2da] bg-white p-2.5">
       <div className="text-[11px] uppercase tracking-wide text-charcoal-500">{label}</div>
-      <div className="text-lg font-bold text-brown leading-tight" style={{ color: '#4B3621' }}>{value}</div>
-      {sub && <div className="text-[11px] text-charcoal-500">{sub}</div>}
+      <div className="text-lg font-bold leading-tight tabular-nums" style={{ color: '#4B3621' }}>{value}</div>
+      {sub && <div className="text-[11px] text-charcoal-500 tabular-nums">{sub}</div>}
     </div>
   )
 }
@@ -552,24 +552,24 @@ function ExpandRow({
   title: string; detail: string; pill: string; children: React.ReactNode
 }) {
   const styles: Record<ItemState, { bar: string; ic: string; icBg: string; pill: string; glyph: string }> = {
-    ok:      { bar: 'border-l-green-600',    ic: 'text-green-700',    icBg: 'bg-green-100',    pill: 'bg-green-100 text-green-800', glyph: '✓' },
-    warn:    { bar: 'border-l-amber-500',    ic: 'text-amber-700',    icBg: 'bg-amber-100',    pill: 'bg-amber-100 text-amber-800', glyph: '!' },
-    info:    { bar: 'border-l-blue-500',     ic: 'text-blue-700',     icBg: 'bg-blue-100',     pill: 'bg-blue-100 text-blue-800',  glyph: 'i' },
-    loading: { bar: 'border-l-charcoal-200', ic: 'text-charcoal-400', icBg: 'bg-charcoal-100', pill: 'bg-charcoal-100 text-charcoal-500', glyph: '…' },
+    ok:      { bar: 'border-l-[#1f7a44]',    ic: 'text-[#1f7a44]',    icBg: 'bg-[#e6f4ea]',    pill: 'bg-[#e6f4ea] text-[#1f7a44]', glyph: '✓' },
+    warn:    { bar: 'border-l-[#b06a1a]',    ic: 'text-[#b06a1a]',    icBg: 'bg-[#fff5e2]',    pill: 'bg-[#fff5e2] text-[#b06a1a]', glyph: '!' },
+    info:    { bar: 'border-l-[#C9A04E]',    ic: 'text-charcoal-700', icBg: 'bg-[#faf8f4]',    pill: 'bg-[#faf8f4] text-charcoal-700', glyph: 'i' },
+    loading: { bar: 'border-l-[#e7e2da]',    ic: 'text-charcoal-400', icBg: 'bg-[#f0ece5]',    pill: 'bg-[#f0ece5] text-charcoal-500', glyph: '…' },
   }
   const s = styles[state]
   return (
-    <div className={`bg-white border border-charcoal-100 border-l-4 ${s.bar} rounded-lg overflow-hidden`}>
-      <button onClick={onToggle} className="w-full flex items-center gap-4 px-4 py-3 text-left hover:bg-charcoal-50/40">
+    <div className={`bg-white border border-[#e7e2da] border-l-4 ${s.bar} rounded-lg overflow-hidden`}>
+      <button onClick={onToggle} className="w-full flex items-center gap-4 px-4 py-3 text-left hover:bg-[#faf8f4]">
         <div className={`w-9 h-9 rounded-full grid place-items-center font-bold ${s.icBg} ${s.ic}`}>{s.glyph}</div>
         <div className="flex-1">
-          <div className="font-semibold text-charcoal-900">{title}</div>
+          <div className="font-semibold text-[#4B3621]">{title}</div>
           <div className="text-sm text-charcoal-500">{detail}</div>
         </div>
-        {pill && <span className={`text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap ${s.pill}`}>{pill}</span>}
+        {pill && <span className={`text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap tabular-nums ${s.pill}`}>{pill}</span>}
         <span className="text-charcoal-400 w-4 text-center">{open ? '▾' : '▸'}</span>
       </button>
-      {open && <div className="border-t border-charcoal-100 px-4 py-3 bg-charcoal-50/20">{children}</div>}
+      {open && <div className="border-t border-[#f0ece5] px-4 py-3 bg-[#faf8f4]/50">{children}</div>}
     </div>
   )
 }
@@ -578,21 +578,21 @@ function GamesTable({ games }: { games: GameRow[] }) {
   if (games.length === 0) return <p className="text-sm text-charcoal-400">No games for this week.</p>
   return (
     <table className="w-full text-sm">
-      <thead><tr className="text-left text-charcoal-500 border-b border-charcoal-100">
+      <thead><tr className="text-left text-charcoal-500 border-b border-[#f0ece5]">
         <th className="px-3 py-2 font-medium">Game</th><th className="px-3 py-2 font-medium">Score</th>
         <th className="px-3 py-2 font-medium">Spread</th><th className="px-3 py-2 font-medium">Winner ATS</th>
         <th className="px-3 py-2 font-medium">Bonus</th><th className="px-3 py-2 font-medium">Status</th>
       </tr></thead>
       <tbody>
         {games.map(g => (
-          <tr key={g.id} className="border-b border-charcoal-50 last:border-0">
+          <tr key={g.id} className="border-b border-[#f0ece5] last:border-0">
             <td className="px-3 py-2">{g.matchup}</td>
-            <td className="px-3 py-2">{g.home_score !== null ? `${g.away_score}–${g.home_score}` : '—'}</td>
-            <td className="px-3 py-2">{g.spread ?? '—'}</td>
-            <td className="px-3 py-2">{g.winner_against_spread ?? <span className="text-amber-600">not scored</span>}</td>
-            <td className="px-3 py-2">{g.margin_bonus ?? '—'}</td>
+            <td className="px-3 py-2 tabular-nums">{g.home_score !== null ? `${g.away_score}–${g.home_score}` : '—'}</td>
+            <td className="px-3 py-2 tabular-nums">{g.spread ?? '—'}</td>
+            <td className="px-3 py-2">{g.winner_against_spread ?? <span className="text-[#b06a1a]">not scored</span>}</td>
+            <td className="px-3 py-2 tabular-nums">{g.margin_bonus ?? '—'}</td>
             <td className="px-3 py-2">
-              <span className={g.status === 'completed' ? (g.scored ? 'text-green-700' : 'text-amber-600') : 'text-charcoal-400'}>
+              <span className={g.status === 'completed' ? (g.scored ? 'text-[#1f7a44]' : 'text-[#b06a1a]') : 'text-charcoal-400'}>
                 {g.status}{g.status === 'completed' && !g.scored ? ' (pending)' : ''}
               </span>
             </td>
@@ -606,12 +606,12 @@ function GamesTable({ games }: { games: GameRow[] }) {
 function DiscrepancyTable({ rows }: { rows: Discrepancy[] }) {
   return (
     <table className="w-full text-sm">
-      <thead><tr className="text-left text-charcoal-500 border-b border-charcoal-100">
+      <thead><tr className="text-left text-charcoal-500 border-b border-[#f0ece5]">
         <th className="px-3 py-2 font-medium">Kind</th><th className="px-3 py-2 font-medium">Item</th><th className="px-3 py-2 font-medium">Issue</th>
       </tr></thead>
       <tbody>
         {rows.map((d, i) => (
-          <tr key={i} className="border-b border-charcoal-50 last:border-0">
+          <tr key={i} className="border-b border-[#f0ece5] last:border-0">
             <td className="px-3 py-2"><Badge variant="outline">{d.kind}</Badge></td>
             <td className="px-3 py-2">{d.label}</td>
             <td className="px-3 py-2 text-charcoal-600">{d.issue}</td>
@@ -624,11 +624,11 @@ function DiscrepancyTable({ rows }: { rows: Discrepancy[] }) {
 
 function PickChip({ cell }: { cell: PickCell }) {
   const base = 'text-xs px-2 py-0.5 rounded border whitespace-nowrap'
-  let cls = 'bg-charcoal-50 border-charcoal-200 text-charcoal-600' // pending
-  if (cell.disqualified) cls = 'bg-red-50 border-red-300 text-red-500 line-through'
-  else if (cell.result === 'win') cls = 'bg-green-50 border-green-300 text-green-800'
-  else if (cell.result === 'loss') cls = 'bg-red-50 border-red-200 text-red-700'
-  else if (cell.result === 'push') cls = 'bg-amber-50 border-amber-200 text-amber-800'
+  let cls = 'bg-[#faf8f4] border-[#e7e2da] text-charcoal-600' // pending
+  if (cell.disqualified) cls = 'bg-[#fbe9ec] border-[#f2c9d1] text-[#d1495b] line-through'
+  else if (cell.result === 'win') cls = 'bg-[#e6f4ea] border-[#bfe3cc] text-[#1f7a44]'
+  else if (cell.result === 'loss') cls = 'bg-[#fbe9ec] border-[#f2c9d1] text-[#d1495b]'
+  else if (cell.result === 'push') cls = 'bg-[#fff5e2] border-[#f0dcb0] text-[#b06a1a]'
   const spread = cell.spread != null ? (cell.spread > 0 ? `+${cell.spread}` : `${cell.spread}`) : ''
   return (
     <span className={`${base} ${cls} ${cell.is_lock ? 'ring-2 ring-gold-400 font-semibold' : ''}`}

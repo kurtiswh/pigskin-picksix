@@ -98,16 +98,16 @@ export default function PaymentMatcher({ payment, users, onMatch, onCancel }: Pa
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <Card className="max-w-2xl mx-4 max-h-[80vh] overflow-auto">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
+          <CardTitle className="flex items-center space-x-2 text-[#4B3621]">
             <span>🔗</span>
             <span>Match Payment to User</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Payment Details */}
-          <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-            <div className="font-medium text-orange-800">LeagueSafe Payment</div>
-            <div className="text-sm text-orange-700 mt-1">
+          <div className="p-4 bg-[#fff5e2] border border-[#f0dcb0] rounded-lg">
+            <div className="font-medium text-[#b06a1a]">LeagueSafe Payment</div>
+            <div className="text-sm text-[#b06a1a] mt-1">
               <div><strong>Name:</strong> {payment.leaguesafe_owner_name}</div>
               <div><strong>Email:</strong> {payment.leaguesafe_email}</div>
               <div><strong>Status:</strong> {payment.status}</div>
@@ -116,7 +116,7 @@ export default function PaymentMatcher({ payment, users, onMatch, onCancel }: Pa
           </div>
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+            <div className="p-3 bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b] rounded-lg text-sm">
               {error}
             </div>
           )}
@@ -134,7 +134,7 @@ export default function PaymentMatcher({ payment, users, onMatch, onCancel }: Pa
           </div>
 
           {/* User List */}
-          <div className="max-h-64 overflow-y-auto border rounded-lg">
+          <div className="max-h-64 overflow-y-auto border border-[#e7e2da] rounded-lg">
             {filteredUsers.length === 0 ? (
               <div className="p-4 text-center text-charcoal-500">
                 No users found matching "{searchTerm}"
@@ -144,32 +144,32 @@ export default function PaymentMatcher({ payment, users, onMatch, onCancel }: Pa
                 {filteredUsers.map(user => (
                   <div
                     key={user.id}
-                    className={`p-3 cursor-pointer hover:bg-stone-50 border-b ${
-                      selectedUserId === user.id ? 'bg-blue-50 border-blue-200' : ''
+                    className={`p-3 cursor-pointer hover:bg-[#faf8f4] border-b border-[#f0ece5] ${
+                      selectedUserId === user.id ? 'bg-[#fbf4e3] ring-1 ring-inset ring-[#C9A04E]' : ''
                     }`}
                     onClick={() => setSelectedUserId(user.id)}
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="font-medium">{user.display_name}</div>
+                        <div className="font-medium text-[#4B3621]">{user.display_name}</div>
                         <div className="text-sm text-charcoal-500">{user.email}</div>
                         {user.leaguesafe_email && user.leaguesafe_email !== user.email && (
-                          <div className="text-xs text-blue-600">
+                          <div className="text-xs text-charcoal-500">
                             LeagueSafe: {user.leaguesafe_email}
                           </div>
                         )}
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className={`px-2 py-1 text-xs rounded ${
-                          user.payment_status === 'Paid' ? 'bg-green-100 text-green-700' :
-                          user.payment_status === 'NotPaid' ? 'bg-red-100 text-red-700' :
-                          user.payment_status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-orange-100 text-orange-700'
+                          user.payment_status === 'Paid' ? 'bg-[#e6f4ea] border border-[#bfe3cc] text-[#1f7a44]' :
+                          user.payment_status === 'NotPaid' ? 'bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b]' :
+                          user.payment_status === 'Pending' ? 'bg-[#fff5e2] border border-[#f0dcb0] text-[#b06a1a]' :
+                          'bg-[#faf8f4] border border-[#e7e2da] text-charcoal-700'
                         }`}>
                           {user.payment_status}
                         </span>
                         {selectedUserId === user.id && (
-                          <span className="text-blue-600">✓ Selected</span>
+                          <span className="text-[#4B3621] font-medium">✓ Selected</span>
                         )}
                       </div>
                     </div>
@@ -180,35 +180,36 @@ export default function PaymentMatcher({ payment, users, onMatch, onCancel }: Pa
           </div>
 
           {/* Action Buttons */}
-          <div className="flex space-x-3 pt-4 border-t">
+          <div className="flex space-x-3 pt-4 border-t border-[#e7e2da]">
             <Button
               onClick={handleMatch}
               disabled={!selectedUserId || loading}
-              className="flex-1"
+              className="flex-1 bg-[#4B3621] text-white hover:bg-[#3a2a19]"
             >
               {loading ? 'Matching...' : 'Match Selected User'}
             </Button>
-            
+
             <Button
               onClick={handleCreateNewUser}
               disabled={loading}
               variant="outline"
-              className="flex-1"
+              className="flex-1 border-[#e7e2da]"
             >
               {loading ? 'Creating...' : 'Create New User'}
             </Button>
-            
+
             <Button
               onClick={onCancel}
               disabled={loading}
               variant="outline"
+              className="border-[#e7e2da]"
             >
               Cancel
             </Button>
           </div>
 
-          <div className="text-xs text-charcoal-500 bg-blue-50 p-2 rounded">
-            <strong>Tip:</strong> Select an existing user to link this payment, or create a new user account 
+          <div className="text-xs text-charcoal-600 bg-[#faf8f4] border border-[#e7e2da] p-2 rounded">
+            <strong>Tip:</strong> Select an existing user to link this payment, or create a new user account
             using the LeagueSafe name and email.
           </div>
         </CardContent>
