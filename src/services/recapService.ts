@@ -102,7 +102,7 @@ export async function createRecapDraft(seed: RecapSeed, authorId: string): Promi
     .insert({
       title: `Week ${seed.week} Recap`,
       content: buildDraftHtml(seed),
-      excerpt: '',
+      excerpt: buildExcerpt(seed),
       season: seed.season,
       week: seed.week,
       is_published: false,
@@ -115,8 +115,35 @@ export async function createRecapDraft(seed: RecapSeed, authorId: string): Promi
   return data as BlogPost
 }
 
+/** Auto-generated, formatted "rundown" bullets from the seed (for the email). */
+export function buildRundownHtml(s: RecapSeed): string {
+  const li = (t: string) => `<li style="margin-bottom:6px;font-size:14px;color:#2A2118">${t}</li>`
+  const items: string[] = []
+  const w = s.winners?.[0]
+  if (w) items.push(li(s.winners.length > 1
+    ? `<b>${s.winners.length} tied</b> for the week at <b>${w.points}</b> pts.`
+    : `<b>${w.name}</b> took the week with <b>${w.points}</b> pts.`))
+  if (s.group_win_pct != null) items.push(li(`Group went <b>${s.group_win_pct}%</b> ATS${s.lock_win_pct != null ? `; locks <b>${s.lock_win_pct}%</b>` : ''}.`))
+  if (s.biggest_upset) items.push(li(`<b>${s.biggest_upset.team}</b> was the fade of the week — only ${s.biggest_upset.pick_pct}% picked them, and they covered.`))
+  if (s.biggest_crowd_miss) items.push(li(`<b>${s.biggest_crowd_miss.pick_pct}%</b> got burned on ${s.biggest_crowd_miss.team}.`))
+  if (s.perfect_count) items.push(li(`${s.perfect_count} perfect card${s.perfect_count > 1 ? 's' : ''} (6-0)${s.winless_count ? `, ${s.winless_count} went 0-6` : ''}.`))
+  if (s.season_leader) items.push(li(`<b>${s.season_leader.name}</b> leads the season with ${s.season_leader.points} pts.`))
+  return `<ul style="margin:0;padding-left:18px">${items.join('')}</ul>`
+}
+
+/** Short plain-text excerpt (blog teaser) auto-generated from the seed. */
+export function buildExcerpt(s: RecapSeed): string {
+  const parts: string[] = []
+  const w = s.winners?.[0]
+  if (w) parts.push(s.winners.length > 1 ? `${s.winners.length} tied at ${w.points}` : `${w.name} won with ${w.points}`)
+  if (s.group_win_pct != null) parts.push(`group ${s.group_win_pct}% ATS`)
+  if (s.biggest_upset) parts.push(`${s.biggest_upset.team} the upset (${s.biggest_upset.pick_pct}%)`)
+  if (s.season_leader) parts.push(`${s.season_leader.name} leads`)
+  return `Week ${s.week}: ${parts.join(' · ')}.`
+}
+
 /** Personalized recap email HTML (inline styles for email clients). */
-export function buildRecapEmailHtml(r: RecapRecipient, post: BlogPost, siteUrl: string): { html: string; text: string } {
+export function buildRecapEmailHtml(r: RecapRecipient, post: BlogPost, siteUrl: string, seed?: RecapSeed | null): { html: string; text: string } {
   const b = r.block
   const delta = b.season_rank_prev != null && b.season_rank != null ? b.season_rank_prev - b.season_rank : null
   const move = delta == null || delta === 0 ? '' : delta > 0 ? ` ▲${delta}` : ` ▼${Math.abs(delta)}`
@@ -129,9 +156,11 @@ export function buildRecapEmailHtml(r: RecapRecipient, post: BlogPost, siteUrl: 
     return `<span style="display:inline-block;margin:2px;padding:3px 9px;border-radius:6px;background:${bg};color:${color};font-size:13px;border:1px solid ${color}33">${lock}${p.team}${pts}</span>`
   }).join(' ')
   const postUrl = `${siteUrl}/blog/${post.slug}`
-  const rundown = post.excerpt?.trim()
-    ? `<p style="font-size:14px;color:#2A2118">${post.excerpt}</p>`
-    : ''
+  // Prefer the auto-generated, formatted rundown from the seed; fall back to the
+  // (plain) excerpt only if no seed is available.
+  const rundown = seed
+    ? buildRundownHtml(seed)
+    : (post.excerpt?.trim() ? `<p style="font-size:14px;color:#2A2118">${post.excerpt}</p>` : '')
   const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;color:#2A2118">
   <div style="background:#4B3621;color:#fff;border-radius:10px;padding:16px 18px;text-align:center">
     <div style="color:#C9A04E;font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:700">Your Week ${post.week}</div>
@@ -153,11 +182,14 @@ export function buildRecapEmailHtml(r: RecapRecipient, post: BlogPost, siteUrl: 
 
 /** Send a single test email to `toEmail`, personalized with that user's block if found (else the first recipient's). */
 export async function sendRecapTest(toEmail: string, post: BlogPost): Promise<boolean> {
-  const recipients = await loadRecipients(post.week!, post.season)
+  const [recipients, seed] = await Promise.all([
+    loadRecipients(post.week!, post.season),
+    loadRecapSeed(post.week!, post.season),
+  ])
   const mine = recipients.find(r => r.email?.toLowerCase() === toEmail.toLowerCase()) || recipients[0]
   if (!mine) throw new Error('No recipients found for this week (no paid entrants).')
   const sample: RecapRecipient = { ...mine, email: toEmail }
-  const { html, text } = buildRecapEmailHtml(sample, post, window.location.origin)
+  const { html, text } = buildRecapEmailHtml(sample, post, window.location.origin, seed)
   return EmailService.sendEmailDirect(toEmail, `[TEST] Week ${post.week} Recap — your results`, html, text)
 }
 
@@ -168,7 +200,10 @@ export async function sendRecapToAll(
   post: BlogPost,
   onProgress?: (p: RecapSendProgress) => void
 ): Promise<RecapSendProgress> {
-  const recipients = await loadRecipients(post.week!, post.season)
+  const [recipients, seed] = await Promise.all([
+    loadRecipients(post.week!, post.season),
+    loadRecapSeed(post.week!, post.season),
+  ])
   const siteUrl = window.location.origin
   const subject = `Week ${post.week} Recap — your results & the rundown 🏈`
   const progress: RecapSendProgress = { sent: 0, failed: 0, total: recipients.length }
@@ -176,7 +211,7 @@ export async function sendRecapToAll(
   for (const r of recipients) {
     if (!r.email) { progress.failed++; continue }
     try {
-      const { html, text } = buildRecapEmailHtml(r, post, siteUrl)
+      const { html, text } = buildRecapEmailHtml(r, post, siteUrl, seed)
       const ok = await EmailService.sendEmailDirect(r.email, subject, html, text)
       ok ? progress.sent++ : progress.failed++
     } catch {
