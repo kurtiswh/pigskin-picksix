@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { LeaderboardService, LeaderboardEntry, SeasonChampion } from '@/services/leaderboardService'
+import { StatsService, SeasonHistoryRow } from '@/services/statsService'
+import { useAuth } from '@/hooks/useAuth'
 import WinnersDisplay from '@/components/WinnersDisplay'
 
 /** Hall of Champions: past-season winners, expandable to full final standings. */
 export default function ChampionsTab() {
+  const { user } = useAuth()
   const [champions, setChampions] = useState<SeasonChampion[]>([])
   const [loading, setLoading] = useState(true)
   const [openSeason, setOpenSeason] = useState<number | null>(null)
   const [standings, setStandings] = useState<Record<number, LeaderboardEntry[]>>({})
   const [loadingSeason, setLoadingSeason] = useState<number | null>(null)
+  // The logged-in user's own finish per season (rank + entrants), for the "You: #N of M" chip.
+  const [myFinishes, setMyFinishes] = useState<Map<number, SeasonHistoryRow>>(new Map())
 
   useEffect(() => {
     LeaderboardService.getSeasonChampions()
@@ -17,6 +22,13 @@ export default function ChampionsTab() {
       .catch(err => console.error('Failed to load champions:', err))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (!user?.id) { setMyFinishes(new Map()); return }
+    StatsService.getSeasonHistory(user.id)
+      .then(rows => setMyFinishes(new Map(rows.map(r => [r.season, r]))))
+      .catch(err => console.error('Failed to load your season history:', err))
+  }, [user?.id])
 
   // Show every season that has a recorded champion (a completed season).
   const pastSeasons = champions
@@ -73,6 +85,14 @@ export default function ChampionsTab() {
                     {best_finish && (
                       <div className="text-sm text-charcoal-500">Best Finish: {best_finish.display_name}</div>
                     )}
+                    {myFinishes.get(season) && (
+                      <div className="mt-1">
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[#fbf4e3] text-[#4B3621] border border-[#C9A04E]/50 rounded-full px-2 py-0.5 tabular-nums">
+                          You: #{myFinishes.get(season)!.rank}
+                          {myFinishes.get(season)!.entrants ? ` of ${myFinishes.get(season)!.entrants}` : ''}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <span className="text-charcoal-400 text-sm">{openSeason === season ? '▲' : '▼'}</span>
                 </div>
@@ -100,17 +120,22 @@ export default function ChampionsTab() {
                             </tr>
                           </thead>
                           <tbody>
-                            {standings[season].map(e => (
-                              <tr key={e.user_id} className="border-b last:border-0 hover:bg-[#F8F7F3]">
-                                <td className="py-2 pr-2 text-charcoal-500">{e.season_rank}</td>
-                                <td className="py-2 pr-2 text-charcoal-800">{e.display_name}</td>
-                                <td className="py-2 pr-2 text-right text-charcoal-600">{e.season_record}</td>
-                                <td className="py-2 pr-2 text-right text-charcoal-600">{e.lock_record}</td>
-                                <td className="py-2 pl-2 text-right font-semibold text-[#4B3621]">
-                                  {e.season_points ?? e.total_points}
-                                </td>
-                              </tr>
-                            ))}
+                            {standings[season].map(e => {
+                              const isMe = !!user?.id && e.user_id === user.id
+                              return (
+                                <tr key={e.user_id} className={`border-b last:border-0 ${isMe ? 'bg-[#fbf4e3]' : 'hover:bg-[#F8F7F3]'}`}>
+                                  <td className="py-2 pr-2 text-charcoal-500 tabular-nums">{e.season_rank}</td>
+                                  <td className={`py-2 pr-2 ${isMe ? 'font-semibold text-[#4B3621]' : 'text-charcoal-800'}`}>
+                                    {e.display_name}{isMe && <span className="ml-2 text-[10px] font-bold uppercase text-[#C9A04E]">You</span>}
+                                  </td>
+                                  <td className="py-2 pr-2 text-right text-charcoal-600 tabular-nums">{e.season_record}</td>
+                                  <td className="py-2 pr-2 text-right text-charcoal-600 tabular-nums">{e.lock_record}</td>
+                                  <td className="py-2 pl-2 text-right font-semibold text-[#4B3621] tabular-nums">
+                                    {e.season_points ?? e.total_points}
+                                  </td>
+                                </tr>
+                              )
+                            })}
                           </tbody>
                         </table>
                       </div>

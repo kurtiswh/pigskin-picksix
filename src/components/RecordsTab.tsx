@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatsService, CareerStats, BiggestWeek, TeamAts } from '@/services/statsService'
+import { useAuth } from '@/hooks/useAuth'
 
 interface Board {
   title: string
@@ -36,7 +37,9 @@ const BOARDS: Board[] = [
     fmt: s => `${s.seasons_played}`, sub: s => `${s.championships} titles` },
 ]
 
-function BoardCard({ board, rows }: { board: Board; rows: CareerStats[] }) {
+function BoardCard({ board, rows, highlightUserId }: { board: Board; rows: CareerStats[]; highlightUserId?: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const shown = expanded ? rows : rows.slice(0, 10)
   return (
     <Card>
       <CardHeader className="py-3">
@@ -44,20 +47,34 @@ function BoardCard({ board, rows }: { board: Board; rows: CareerStats[] }) {
       </CardHeader>
       <CardContent className="pt-0">
         <ol className="space-y-1">
-          {rows.map((s, i) => (
-            <li key={s.user_id} className="flex items-baseline justify-between gap-2 text-sm">
-              <span className="flex items-baseline gap-2 min-w-0">
-                <span className="w-5 text-charcoal-400 tabular-nums">{i + 1}</span>
-                <span className="text-charcoal-800 truncate">{s.display_name}</span>
-                <span className="text-xs text-charcoal-400 tabular-nums shrink-0">{s.seasons_played}</span>
-              </span>
-              <span className="flex items-baseline gap-2 shrink-0">
-                <span className="font-semibold text-[#4B3621] tabular-nums">{board.fmt(s)}</span>
-                <span className="text-xs text-charcoal-400">{board.sub(s)}</span>
-              </span>
-            </li>
-          ))}
+          {shown.map((s, i) => {
+            const isMe = !!highlightUserId && s.user_id === highlightUserId
+            return (
+              <li
+                key={s.user_id}
+                className={`flex items-baseline justify-between gap-2 text-sm rounded px-1 -mx-1 ${isMe ? 'bg-[#fbf4e3] ring-1 ring-[#C9A04E]/50' : ''}`}
+              >
+                <span className="flex items-baseline gap-2 min-w-0">
+                  <span className="w-5 text-charcoal-400 tabular-nums">{i + 1}</span>
+                  <span className={`truncate ${isMe ? 'font-semibold text-[#4B3621]' : 'text-charcoal-800'}`}>{s.display_name}</span>
+                  <span className="text-xs text-charcoal-400 tabular-nums shrink-0">{s.seasons_played}</span>
+                </span>
+                <span className="flex items-baseline gap-2 shrink-0">
+                  <span className="font-semibold text-[#4B3621] tabular-nums">{board.fmt(s)}</span>
+                  <span className="text-xs text-charcoal-400">{board.sub(s)}</span>
+                </span>
+              </li>
+            )
+          })}
         </ol>
+        {rows.length > 10 && (
+          <button
+            onClick={() => setExpanded(e => !e)}
+            className="mt-2 text-xs font-semibold text-[#C9A04E] hover:text-[#4B3621] transition-colors"
+          >
+            {expanded ? 'Show top 10' : `Show all ${rows.length}`}
+          </button>
+        )}
       </CardContent>
     </Card>
   )
@@ -100,6 +117,7 @@ function SimpleTable({ title, note, headers, rows }: {
 
 /** All-Time Records: career leaderboards + pick analytics. */
 export default function RecordsTab() {
+  const { user } = useAuth()
   const [boardRows, setBoardRows] = useState<Record<string, CareerStats[]>>({})
   const [weeks, setWeeks] = useState<BiggestWeek[]>([])
   const [teams, setTeams] = useState<TeamAts[]>([])
@@ -107,8 +125,10 @@ export default function RecordsTab() {
 
   useEffect(() => {
     Promise.all([
+      // Pull up to 100 per board so ties (e.g. everyone with 20 seasons) aren't
+      // truncated; the card shows the top 10 with a "Show all" expander.
       Promise.all(BOARDS.map(b =>
-        StatsService.getTopCareer(b.column, b.asc ?? false, b.minSeasons ?? 1)
+        StatsService.getTopCareer(b.column, b.asc ?? false, b.minSeasons ?? 1, 100)
           .then(rows => [b.title, rows] as const)
       )).then(pairs => setBoardRows(Object.fromEntries(pairs))),
       StatsService.getBiggestWeeks(10).then(setWeeks),
@@ -131,7 +151,7 @@ export default function RecordsTab() {
         <span className="text-charcoal-400"> The small number after each name is seasons played.</span>
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {BOARDS.map(b => <BoardCard key={b.title} board={b} rows={boardRows[b.title] || []} />)}
+        {BOARDS.map(b => <BoardCard key={b.title} board={b} rows={boardRows[b.title] || []} highlightUserId={user?.id} />)}
       </div>
 
       <h2 className="text-xl font-bold text-[#4B3621] mt-10 mb-3">
