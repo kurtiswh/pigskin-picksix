@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { StatsService, CareerStats, BiggestWeek, TeamAts, PerfectWeeks, Contrarian, WeekDifficulty } from '@/services/statsService'
+import { StatsService, CareerStats, BiggestWeek, TeamAts, PerfectWeeks, Contrarian, WeekDifficulty, WeekSlate } from '@/services/statsService'
 import { useAuth } from '@/hooks/useAuth'
 
 interface Board {
@@ -89,13 +89,20 @@ function BoardCard({ board, rows, me }: { board: Board; rows: CareerStats[]; me?
   )
 }
 
-function SimpleTable({ title, note, headers, rows }: {
-  title: string; note?: string; headers: string[]; rows: (string | number)[][]
+function SimpleTable({ title, note, headers, rows, youNote }: {
+  title: string; note?: string; headers: string[]; rows: (string | number)[][]; youNote?: string
 }) {
   return (
     <Card>
       <CardHeader className="py-3">
-        <CardTitle className="text-base text-[#4B3621]">{title}</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <CardTitle className="text-base text-[#4B3621]">{title}</CardTitle>
+          {youNote && (
+            <span className="text-xs font-semibold bg-[#fbf4e3] text-[#4B3621] border border-[#C9A04E]/50 rounded-full px-2 py-0.5 tabular-nums whitespace-nowrap shrink-0">
+              {youNote}
+            </span>
+          )}
+        </div>
         {note && <p className="text-xs text-charcoal-400">{note}</p>}
       </CardHeader>
       <CardContent className="pt-0">
@@ -136,12 +143,18 @@ export default function RecordsTab() {
   const [goose, setGoose] = useState<PerfectWeeks[]>([])
   const [contrarian, setContrarian] = useState<Contrarian[]>([])
   const [weekDiff, setWeekDiff] = useState<WeekDifficulty[]>([])
+  const [hardestSlates, setHardestSlates] = useState<WeekSlate[]>([])
+  const [easiestSlates, setEasiestSlates] = useState<WeekSlate[]>([])
   const [me, setMe] = useState<CareerStats | null>(null)
+  const [myPerfect, setMyPerfect] = useState<PerfectWeeks | null>(null)
+  const [myContrarian, setMyContrarian] = useState<Contrarian | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!user?.id) { setMe(null); return }
+    if (!user?.id) { setMe(null); setMyPerfect(null); setMyContrarian(null); return }
     StatsService.getCareerStats(user.id).then(setMe).catch(() => setMe(null))
+    StatsService.getMyPerfectWeeks(user.id).then(setMyPerfect).catch(() => setMyPerfect(null))
+    StatsService.getMyContrarian(user.id).then(setMyContrarian).catch(() => setMyContrarian(null))
   }, [user?.id])
 
   useEffect(() => {
@@ -158,6 +171,8 @@ export default function RecordsTab() {
       StatsService.getGooseEggs(10).then(setGoose),
       StatsService.getContrarian(10).then(setContrarian),
       StatsService.getWeekDifficulty().then(setWeekDiff),
+      StatsService.getHardestSlates(8).then(setHardestSlates),
+      StatsService.getEasiestSlates(8).then(setEasiestSlates),
     ]).finally(() => setLoading(false))
   }, [])
 
@@ -166,6 +181,11 @@ export default function RecordsTab() {
   const mostPicked = [...teams].sort((a, b) => b.times_picked - a.times_picked).slice(0, 10)
   const bestTeams = [...teamsQualified].sort((a, b) => (b.win_pct ?? 0) - (a.win_pct ?? 0)).slice(0, 10)
   const worstTeams = [...teamsQualified].sort((a, b) => (a.win_pct ?? 0) - (b.win_pct ?? 0)).slice(0, 10)
+
+  // Logged-in user's own fun-stat lines (shown as a chip on each person table)
+  const perfectYou = myPerfect ? `You: ${myPerfect.perfect_weeks}${myPerfect.perfect_rank ? ` · #${myPerfect.perfect_rank}` : ''}` : undefined
+  const gooseYou = myPerfect ? `You: ${myPerfect.goose_weeks}${myPerfect.goose_rank ? ` · #${myPerfect.goose_rank}` : ''}` : undefined
+  const contrarianYou = myContrarian ? `You: ${myContrarian.contrarian_wins}${myContrarian.contrarian_rank ? ` · #${myContrarian.contrarian_rank}` : ''}` : undefined
 
   if (loading) return <div className="text-center text-charcoal-500 py-12">Loading records…</div>
 
@@ -192,13 +212,20 @@ export default function RecordsTab() {
         <SimpleTable title="Worst Teams to Pick (ATS)" note="min 150 decisions" headers={['Team', 'Rec', 'ATS %']}
           rows={worstTeams.map(t => [t.team, `${t.wins}-${t.losses}`, pctStr(t.win_pct)])} />
         <SimpleTable title="Most Perfect Weeks" note="all picks won in a week" headers={['Player', 'Perfect', '0-win']}
+          youNote={perfectYou}
           rows={perfect.map(p => [p.display_name, p.perfect_weeks, p.goose_weeks])} />
         <SimpleTable title="Most Goose Eggs" note="zero wins in a week" headers={['Player', '0-win', 'Perfect']}
+          youNote={gooseYou}
           rows={goose.map(p => [p.display_name, p.goose_weeks, p.perfect_weeks])} />
         <SimpleTable title="Contrarian King" note="correct picks vs. the field's majority" headers={['Player', 'Wins', 'vs-field']}
+          youNote={contrarianYou}
           rows={contrarian.map(c => [c.display_name, c.contrarian_wins, c.contrarian_picks])} />
         <SimpleTable title="Hardest Weeks" note="field ATS win% by week #" headers={['Week', 'ATS %', 'Picks']}
           rows={weekDiff.map(w => [`Week ${w.week}`, pctStr(w.win_pct), w.total_picks.toLocaleString()])} />
+        <SimpleTable title="Hardest Slates Ever" note="lowest field ATS% for a single week" headers={['Slate', 'ATS %', 'Picks']}
+          rows={hardestSlates.map(s => [`${s.season} W${s.week}`, pctStr(s.win_pct), s.total_picks.toLocaleString()])} />
+        <SimpleTable title="Easiest Slates Ever" note="highest field ATS% for a single week" headers={['Slate', 'ATS %', 'Picks']}
+          rows={easiestSlates.map(s => [`${s.season} W${s.week}`, pctStr(s.win_pct), s.total_picks.toLocaleString()])} />
       </div>
     </div>
   )

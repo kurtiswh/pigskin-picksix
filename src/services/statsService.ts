@@ -132,6 +132,34 @@ export class StatsService {
     if (error) { console.error('getWeekDifficulty failed:', error); return [] }
     return (data || []) as WeekDifficulty[]
   }
+
+  /** The logged-in user's own perfect/goose-week counts + ranks. */
+  static async getMyPerfectWeeks(userId: string): Promise<PerfectWeeks | null> {
+    const { data, error } = await supabase.from('stat_perfect_weeks').select('*').eq('user_id', userId).maybeSingle()
+    if (error) { console.error('getMyPerfectWeeks failed:', error); return null }
+    return (data || null) as PerfectWeeks | null
+  }
+
+  /** The logged-in user's own contrarian record + rank. */
+  static async getMyContrarian(userId: string): Promise<Contrarian | null> {
+    const { data, error } = await supabase.from('stat_contrarian').select('*').eq('user_id', userId).maybeSingle()
+    if (error) { console.error('getMyContrarian failed:', error); return null }
+    return (data || null) as Contrarian | null
+  }
+
+  /** All-time hardest specific slates (lowest field ATS%) — e.g. "2016 Week 6". */
+  static async getHardestSlates(limit = 8): Promise<WeekSlate[]> {
+    const { data, error } = await supabase.from('stat_week_slates').select('*').order('win_pct', { ascending: true }).limit(limit)
+    if (error) { console.error('getHardestSlates failed:', error); return [] }
+    return (data || []) as WeekSlate[]
+  }
+
+  /** All-time easiest specific slates (highest field ATS%). */
+  static async getEasiestSlates(limit = 8): Promise<WeekSlate[]> {
+    const { data, error } = await supabase.from('stat_week_slates').select('*').order('win_pct', { ascending: false }).limit(limit)
+    if (error) { console.error('getEasiestSlates failed:', error); return [] }
+    return (data || []) as WeekSlate[]
+  }
 }
 
 export interface SeasonHistoryRow {
@@ -171,6 +199,9 @@ export interface PerfectWeeks {
   display_name: string
   perfect_weeks: number
   goose_weeks: number
+  total_players?: number
+  perfect_rank?: number
+  goose_rank?: number
 }
 
 export interface Contrarian {
@@ -178,9 +209,20 @@ export interface Contrarian {
   display_name: string
   contrarian_wins: number
   contrarian_picks: number
+  total_players?: number
+  contrarian_rank?: number
 }
 
 export interface WeekDifficulty {
+  week: number
+  total_picks: number
+  win_pct: number | null
+  wins: number
+  losses: number
+}
+
+export interface WeekSlate {
+  season: number
   week: number
   total_picks: number
   win_pct: number | null
