@@ -17,6 +17,7 @@ import ApiQuotaWidget from '@/components/ApiQuotaWidget'
 import LiveDashboard from '@/components/LiveDashboard'
 import WeekReview from '@/components/WeekReview'
 import AdminNotifications from '@/components/AdminNotifications'
+import PreseasonSequence from '@/components/PreseasonSequence'
 import PickManagement from '@/components/PickManagement'
 import BestFinishConfig from '@/components/BestFinishConfig'
 import BracketWinnersAdmin from '@/components/BracketWinnersAdmin'
@@ -1007,10 +1008,11 @@ export default function AdminDashboard() {
         {activeTab === 'notifications' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-pigskin-900">Email Notifications</h2>
-            <AdminNotifications 
+            <AdminNotifications
               currentWeek={currentWeek}
               currentSeason={currentSeason}
             />
+            <PreseasonSequence season={currentSeason} />
           </div>
         )}
       </main>
