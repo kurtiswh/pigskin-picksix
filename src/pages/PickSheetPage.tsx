@@ -857,7 +857,7 @@ export default function PickSheetPage() {
         ) : (
           <div className="grid lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
             {/* Games Grid */}
-            <div className="lg:col-span-3 space-y-6">
+            <div className="lg:col-span-3 space-y-6 min-w-0">
               <div>
                 <h2 className="text-2xl font-bold text-pigskin-900 mb-2">
                   Available Games ({games.length})
@@ -937,7 +937,7 @@ export default function PickSheetPage() {
             </div>
 
             {/* Pick Summary Sidebar */}
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-1 min-w-0">
               <PickSummary
                 picks={picks}
                 games={games}

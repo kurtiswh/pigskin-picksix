@@ -58,13 +58,13 @@ export function ExpandableLeaderboardRow({
         className={`px-4 py-2.5 ${canExpand && !isLoading ? 'cursor-pointer hover:bg-[#faf8f4] active:bg-[#f3efe7]' : ''} transition-colors duration-150`}
         onClick={handleToggle}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex-1 min-w-0">
             {children}
           </div>
-          
+
           {canExpand && (
-            <div className="flex items-center ml-4">
+            <div className="flex items-center shrink-0">
               {isLoading ? (
                 <div className="w-4 h-4 animate-spin rounded-full border-2 border-gray-300 border-t-[#4B3621]" />
               ) : (

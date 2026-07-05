@@ -310,7 +310,7 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
     const dim = !!coveredSide && coveredSide !== 'push' && !isCovered
     return (
       <div className={`flex items-center justify-between gap-2 px-4 py-2.5 border-b border-[#f0ece5] ${isCovered ? 'bg-[#e6f4ea]' : ''} ${dim ? 'opacity-60' : ''}`}>
-        <span className="flex items-center gap-2 min-w-0">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
           {ranking ? <span className="text-[11px] bg-[#eef1f5] text-[#4a5568] px-1 rounded font-semibold shrink-0">#{ranking}</span> : null}
           <span className={`font-semibold truncate ${isCovered ? 'text-[#1f7a44]' : mine ? 'text-[#4B3621]' : 'text-charcoal-800'}`}>{team}</span>
           <span className="text-charcoal-500 text-sm tabular-nums shrink-0">{spreadStr}</span>
@@ -360,11 +360,11 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
             <div className="bg-[#4B3621]" style={{ width: `${teamShare('home')}%` }} aria-hidden="true" />
             <div className="bg-[#b98a3a]" style={{ width: `${teamShare('away')}%` }} aria-hidden="true" />
           </div>
-          <div className="flex items-center justify-between gap-2 text-xs tabular-nums">
-            <span className="text-[#4B3621] font-medium truncate">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between text-xs tabular-nums">
+            <span className="text-[#4B3621] font-medium">
               {game.home_team} {homeP} ({teamShare('home')}%){game.home_team_locks ? ` · ${game.home_team_locks}🔒` : ''}
             </span>
-            <span className="text-[#b98a3a] font-medium truncate text-right">
+            <span className="text-[#b98a3a] font-medium sm:text-right">
               {game.away_team} {awayP} ({teamShare('away')}%){game.away_team_locks ? ` · ${game.away_team_locks}🔒` : ''}
             </span>
           </div>
