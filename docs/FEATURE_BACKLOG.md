@@ -61,20 +61,27 @@ list?), how many touches + timing, and where admins edit the sequence content.
 ### 3. LeagueSafe auto-pull of registrations  💭🔴
 **Goal:** auto-import LeagueSafe registrations/payments instead of manual CSV upload.
 
-**Feasibility (honest read):** LeagueSafe has **no known public/developer API.**
-Today the app ingests payments via manual CSV export → `LeagueSafeUpload` →
-`leaguesafe_payments` (+ `PaymentMatcher`). Realistic options, best to worst:
-- **Streamline the CSV path** (easiest, reliable): make import one click, auto-match
-  on upload, flag unmatched. Low risk, no dependency on LeagueSafe internals.
-- **Scheduled fetch of an authenticated export URL** (if LeagueSafe exposes a stable
-  commissioner export link): a server job pulls the CSV/JSON on a schedule. Fragile
-  (breaks if they change the page/auth) and may bump against their ToS — needs
-  investigation of what export endpoints exist for a commissioner account.
-- **Full API integration**: not currently possible (no documented API).
+**Feasibility (verified 2026-07 via LeagueSafe public docs):** LeagueSafe has
+**no API, no webhooks, no scheduled/emailed reports, and no auto-export.** Their
+only outbound email is "AutoNag" (nags *unpaid members* to pay — not a data export
+to the commissioner). So LeagueSafe cannot *push* registration/payment data to us.
+Confirm against our own commissioner dashboard, but nothing public suggests an
+auto-export exists. Today the app ingests via manual CSV export → `LeagueSafeUpload`
+→ `leaguesafe_payments` (+ `PaymentMatcher`).
 
-**Recommendation:** confirm what export/commissioner tools LeagueSafe actually
-offers for our account first; default to streamlining the CSV import unless a
-stable authenticated export exists.
+Realistic options (best to worst) — all reduce OUR effort, since LeagueSafe won't push:
+- **Inbound-email ingestion (recommended):** dedicated address (Resend inbound / a
+  Supabase edge fn) that auto-parses a forwarded LeagueSafe CSV, imports, and
+  auto-matches. Collapses "export → login → upload → match" to "export → forward one
+  email." If LeagueSafe ever does auto-email a report, it drops into this same pipe
+  and becomes fully automatic.
+- **One-click in-app import:** drag-drop CSV → auto-match → flag unmatched. Simplest.
+- **Scheduled fetch of an authenticated export URL** (only if such a stable link
+  exists): fragile, possible ToS issue — investigate first, low priority.
+- **Full API integration:** not possible (no API).
+
+**Recommendation:** build inbound-email ingestion (and/or one-click import). Fully
+hands-off is impossible until LeagueSafe adds a push mechanism.
 
 ---
 
