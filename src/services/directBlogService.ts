@@ -20,8 +20,18 @@ export class DirectBlogService {
       let authToken = this.SUPABASE_KEY
       if (requireAuth) {
         // Admin writes MUST carry the user's JWT. Never silently fall back to the
-        // anon key — that surfaces as confusing 403 RLS errors. Fail clearly instead.
-        const { data: { session } } = await supabase.auth.getSession()
+        // anon key — that surfaces as confusing 403 RLS errors. Keep a generous
+        // timeout guard (getSession can rarely hang) but FAIL CLEARLY, don't degrade.
+        let session: any = null
+        try {
+          const res: any = await Promise.race([
+            supabase.auth.getSession(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('getSession timeout')), 8000)),
+          ])
+          session = res?.data?.session
+        } catch {
+          throw new Error('Could not verify your session — please refresh and try again.')
+        }
         if (session?.access_token) {
           authToken = session.access_token
         } else {
