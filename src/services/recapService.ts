@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { EmailService } from './emailService'
+import { emailShell, emailButton } from '@/templates/emailShell'
 import type { BlogPost } from '@/types/blog'
 
 /**
@@ -175,25 +176,31 @@ export function buildRecapEmailHtml(r: RecapRecipient, post: BlogPost, siteUrl: 
     return `<span style="display:inline-block;margin:2px;padding:3px 9px;border-radius:6px;background:${bg};color:${color};font-size:13px;border:1px solid ${color}33">${lock}${p.team}${pts}</span>`
   }).join(' ')
   const postUrl = `${siteUrl}/blog/${post.slug}`
-  // The (editable) rundown block, formatted; fall back to the excerpt paragraph.
   const rundown = rundownHtml && rundownHtml.trim()
     ? rundownHtml
-    : (post.excerpt?.trim() ? `<p style="font-size:14px;color:#2A2118">${escapeHtml(post.excerpt)}</p>` : '')
-  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;color:#2A2118">
-  <div style="background:#4B3621;color:#fff;border-radius:10px;padding:16px 18px;text-align:center">
-    <div style="color:#C9A04E;font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:700">Your Week ${post.week}</div>
-    <div style="font-size:28px;font-weight:800;margin-top:4px">${b.wins}–${b.losses}${b.pushes ? `–${b.pushes}` : ''} · ${b.points} pts</div>
-    ${rankLine ? `<div style="font-size:13px;color:#E9DFcd;margin-top:4px">${rankLine}</div>` : ''}
-  </div>
-  <p style="font-size:14px">Hey ${r.display_name} — here's how your six landed:</p>
-  <div style="margin:10px 0">${chips}</div>
-  <div style="border-top:1px solid #E5DFD5;margin-top:16px;padding-top:14px">
-    <div style="font-weight:800;color:#4B3621;margin-bottom:6px">The rundown</div>
-    ${rundown || '<p style="font-size:14px;color:#7A6E60">Read the full recap for the week that was.</p>'}
-  </div>
-  <a href="${postUrl}" style="display:block;text-align:center;background:#C9A04E;color:#4B3621;font-weight:800;text-decoration:none;padding:12px;border-radius:9px;margin-top:16px">Read the full Week ${post.week} recap →</a>
-  <div style="font-size:11px;color:#7A6E60;text-align:center;margin-top:16px">You're getting this because you're playing Pigskin Pick Six ${post.season}.</div>
-</div>`
+    : (post.excerpt?.trim() ? `<p style="font-size:15px;color:#2A2118">${escapeHtml(post.excerpt)}</p>` : '')
+
+  // Personalized "Your Week N" stat card (gold-tinted, distinct from the brown header).
+  const statCard = `<div style="background:#FBF3DC;border:1px solid #EAD9AE;border-radius:10px;padding:16px 18px;text-align:center">
+    <div style="color:#8a6d1f;font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:800">Your Week ${post.week}</div>
+    <div style="font-size:28px;font-weight:800;margin-top:4px;color:#4B3621">${b.wins}–${b.losses}${b.pushes ? `–${b.pushes}` : ''} · ${b.points} pts</div>
+    ${rankLine ? `<div style="font-size:13px;color:#8a6d1f;margin-top:4px">${rankLine}</div>` : ''}
+  </div>`
+
+  const bodyInner =
+    statCard +
+    `<p style="font-size:15px;color:#2A2118;margin:16px 0 8px">Hey ${r.display_name} — here's how your six landed:</p>` +
+    `<div style="margin:0 0 8px">${chips}</div>` +
+    `<div style="border-top:1px solid #E5DFD5;margin-top:18px;padding-top:14px">` +
+    `<div style="font-weight:800;color:#4B3621;margin-bottom:6px">The rundown</div>` +
+    `${rundown || '<p style="font-size:15px;color:#7A6E60">Read the full recap for the week that was.</p>'}</div>` +
+    emailButton(`Read the full Week ${post.week} recap →`, postUrl)
+
+  const html = emailShell({
+    subtitle: `Week ${post.week} Recap`,
+    bodyHtml: bodyInner,
+    preheader: `Your Week ${post.week}: ${b.wins}-${b.losses}, ${b.points} pts`,
+  })
   const text = `Your Week ${post.week}: ${b.wins}-${b.losses}, ${b.points} pts${rankLine ? `, ${rankLine}` : ''}. Read the full recap: ${postUrl}`
   return { html, text }
 }

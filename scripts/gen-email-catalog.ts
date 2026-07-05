@@ -8,6 +8,7 @@ import { getWeeklyResultsHtml } from '../src/templates/weeklyResults'
 import { getWeekOpenedHtml } from '../src/templates/weekOpened'
 import { getMagicLinkHtml } from '../src/templates/magicLink'
 import { getPasswordResetHtml } from '../src/templates/passwordReset'
+import { emailShell, emailButton } from '../src/templates/emailShell'
 
 const base = 'https://pigskinpicksix.com'
 const who = 'Jordan Mills'
@@ -33,46 +34,23 @@ const resultPicks = [
   { game: 'Utah @ Baylor', pick: 'Utah -1', result: 'win' as const, points: 20, isLock: false },
 ]
 
-// New recap email (reproduced from recapService.buildRecapEmailHtml with sample data)
-const recapEmail = `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:600px;margin:0 auto;color:#2A2118">
-  <div style="background:#4B3621;color:#fff;border-radius:10px;padding:16px 18px;text-align:center">
-    <div style="color:#C9A04E;font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:700">Your Week 5</div>
-    <div style="font-size:28px;font-weight:800;margin-top:4px">5–1 · 96 pts</div>
-    <div style="font-size:13px;color:#E9DFcd;margin-top:4px">#12 overall ▲6</div>
-  </div>
-  <p style="font-size:14px">Hey Jordan Mills — here's how your six landed:</p>
-  <div style="margin:10px 0">
-    <span style="display:inline-block;margin:2px;padding:3px 9px;border-radius:6px;background:#E6F4EC;color:#2E7D4F;font-size:13px;border:1px solid #2E7D4F33">🔒 Ohio State (0)</span>
-    <span style="display:inline-block;margin:2px;padding:3px 9px;border-radius:6px;background:#E6F4EC;color:#2E7D4F;font-size:13px;border:1px solid #2E7D4F33">Vanderbilt (20)</span>
-    <span style="display:inline-block;margin:2px;padding:3px 9px;border-radius:6px;background:#E6F4EC;color:#2E7D4F;font-size:13px;border:1px solid #2E7D4F33">Oregon (25)</span>
-    <span style="display:inline-block;margin:2px;padding:3px 9px;border-radius:6px;background:#FBF3DC;color:#B8860B;font-size:13px;border:1px solid #B8860B33">LSU (10)</span>
-    <span style="display:inline-block;margin:2px;padding:3px 9px;border-radius:6px;background:#E6F4EC;color:#2E7D4F;font-size:13px;border:1px solid #2E7D4F33">Miami (21)</span>
-    <span style="display:inline-block;margin:2px;padding:3px 9px;border-radius:6px;background:#E6F4EC;color:#2E7D4F;font-size:13px;border:1px solid #2E7D4F33">Utah (20)</span>
-  </div>
-  <div style="border-top:1px solid #E5DFD5;margin-top:16px;padding-top:14px">
-    <div style="font-weight:800;color:#4B3621;margin-bottom:6px">The rundown</div>
-    <ul>
-      <li><strong>Top of the board:</strong> Davis C took the week with 128 pts.</li>
-      <li><strong>The field:</strong> 407 entrants went 54.5% ATS, and just 44% on locks.</li>
-      <li><strong>Fade of the week:</strong> Vanderbilt — only 8% took them, and they covered.</li>
-      <li><strong>Standings:</strong> Casey Nguyen leads the season.</li>
-    </ul>
-  </div>
-  <a href="#" style="display:block;text-align:center;background:#C9A04E;color:#4B3621;font-weight:800;text-decoration:none;padding:12px;border-radius:9px;margin-top:16px">Read the full Week 5 recap →</a>
-  <div style="font-size:11px;color:#7A6E60;text-align:center;margin-top:16px">You're getting this because you're playing Pigskin Pick Six 2025.</div>
-</div>`
+// New recap email — via the shared shell (matches recapService.buildRecapEmailHtml)
+const chip = (bg: string, c: string, label: string) => `<span style="display:inline-block;margin:2px;padding:3px 9px;border-radius:6px;background:${bg};color:${c};font-size:13px;border:1px solid ${c}33">${label}</span>`
+const recapEmail = emailShell({
+  subtitle: 'Week 5 Recap',
+  bodyHtml:
+    `<div style="background:#FBF3DC;border:1px solid #EAD9AE;border-radius:10px;padding:16px 18px;text-align:center"><div style="color:#8a6d1f;font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:800">Your Week 5</div><div style="font-size:28px;font-weight:800;margin-top:4px;color:#4B3621">5–1 · 96 pts</div><div style="font-size:13px;color:#8a6d1f;margin-top:4px">#12 overall ▲6</div></div>` +
+    `<p style="font-size:15px;color:#2A2118;margin:16px 0 8px">Hey Jordan Mills — here's how your six landed:</p>` +
+    `<div style="margin:0 0 8px">${chip('#E6F4EC', '#2E7D4F', '🔒 Ohio State (0)')}${chip('#E6F4EC', '#2E7D4F', 'Vanderbilt (20)')}${chip('#E6F4EC', '#2E7D4F', 'Oregon (25)')}${chip('#FBF3DC', '#B8860B', 'LSU (10)')}${chip('#E6F4EC', '#2E7D4F', 'Miami (21)')}${chip('#E6F4EC', '#2E7D4F', 'Utah (20)')}</div>` +
+    `<div style="border-top:1px solid #E5DFD5;margin-top:18px;padding-top:14px"><div style="font-weight:800;color:#4B3621;margin-bottom:6px">The rundown</div><ul><li><strong>Top of the board:</strong> Davis C took the week with 128 pts.</li><li><strong>The field:</strong> 407 entrants went 54.5% ATS, and just 44% on locks.</li><li><strong>Fade of the week:</strong> Vanderbilt — only 8% took them, and they covered.</li><li><strong>Standings:</strong> Casey Nguyen leads the season.</li></ul></div>` +
+    emailButton('Read the full Week 5 recap →', '#'),
+})
 
-// Preseason signup email (default body template)
-const preseasonEmail = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#2A2118">
-  <p>Hey Jordan Mills,</p>
-  <p>Pigskin Pick Six is back for another season! Here's how to get in:</p>
-  <ul>
-    <li><strong>Pay your entry on LeagueSafe:</strong> <a href="#">join &amp; pay here</a></li>
-    <li><strong>Register / log in:</strong> <a href="https://pigskinpicksix.com">pigskinpicksix.com</a></li>
-    <li><strong>Share your LeagueSafe payment ID / email</strong> so we can match your payment — just reply to this email.</li>
-  </ul>
-  <p>See you on the gridiron. 🏈</p>
-</div>`
+// Preseason signup email — admin body wrapped in the shell
+const preseasonEmail = emailShell({
+  subtitle: 'Sign Up',
+  bodyHtml: `<p>Hey Jordan Mills,</p><p>Pigskin Pick Six is back for another season! Here's how to get in:</p><ul><li><strong>Pay your entry on LeagueSafe:</strong> <a href="#">join &amp; pay here</a></li><li><strong>Register / log in:</strong> <a href="https://pigskinpicksix.com">pigskinpicksix.com</a></li><li><strong>Share your LeagueSafe payment ID / email</strong> so we can match your payment — just reply to this email.</li></ul><p>See you on the gridiron. 🏈</p>`,
+})
 
 const emails: { name: string; note: string; html: string }[] = [
   { name: 'Pick Reminder', note: 'Cron · before each deadline', html: getPickReminderHtml({ userDisplayName: who, week: wk, season, baseUrl: base, deadline, deadlineStr }) },
@@ -107,12 +85,11 @@ code{background:#efe9df;border-radius:4px;padding:1px 5px;font-size:12px}</style
 <h1>🏈 Pigskin Pick Six — Email Catalog</h1>
 <div style="color:#7A6E60;font-size:13px">Every email the system can send, rendered with sample data. Generated for standardizing the look.</div>
 <div class="intro">
-  <b>Consistency notes to resolve:</b>
+  <b>✅ Unified brand shell applied</b> — every email now shares one look via a shared shell:
   <ul style="margin:8px 0 0">
-    <li>Header brown differs: most templates use <code>#8B4513</code> (saddle brown), but the brand / new emails use <code>#4B3621</code> (Pigskin Brown) with gold <code>#C9A04E</code>.</li>
-    <li>Fonts differ: legacy templates use <code>Arial</code>; the recap uses the system font stack.</li>
-    <li>Buttons/footers vary (brown vs green buttons, different sign-offs).</li>
-    <li>Goal: one shared header, palette (Pigskin Brown + Goal-Post Gold), font, button style, and footer across all.</li>
+    <li>Brown header (<code>#4B3621</code>) with the wordmark + a gold rule (<code>#C9A04E</code>) and a per-email subtitle.</li>
+    <li>System font, consistent white body card, one gold button style, tinted callout panels (gold/red/green/info), and a shared footer with an "email preferences" link.</li>
+    <li>Legacy saddle-brown/Arial/green-header variations are gone. Urgency is now shown via a red panel, not a red header.</li>
   </ul>
 </div>
 ${cards}

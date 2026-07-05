@@ -1,104 +1,41 @@
 import type { PicksSubmittedData } from './types'
+import { emailShell, emailButton, emailPanel, p, EMAIL } from './emailShell'
 
 export function getPicksSubmittedSubject(data: PicksSubmittedData): string {
   return `✅ Week ${data.week} Picks Confirmed - ${data.picks.length} Games Selected`
 }
 
 export function getPicksSubmittedHtml(data: PicksSubmittedData): string {
-  console.log('🔧 EMAIL TEMPLATE DEBUG - Raw picks data:', JSON.stringify(data.picks, null, 2))
-  
   const picksHtml = data.picks.map(pick => {
-    console.log('🔧 EMAIL TEMPLATE DEBUG - Processing pick:', pick)
-    
-    // Parse game string to determine home/away teams
     const gameMatch = pick.game.match(/^(.+?)\s+@\s+(.+)$/)
     const awayTeam = gameMatch?.[1]?.trim()
-    const homeTeam = gameMatch?.[2]?.trim()
-    
-    console.log('🔧 EMAIL TEMPLATE DEBUG - Parsed teams:', { awayTeam, homeTeam, pick: pick.pick, spread: pick.spread })
-    
-    // Determine the spread for the picked team
-    // Spread is always relative to the home team
-    // If pick is home team: use spread as-is
-    // If pick is away team: flip the spread sign
     let displaySpread = pick.spread || 0
-    if (pick.pick === awayTeam) {
-      displaySpread = -displaySpread
-    }
-    
-    console.log('🔧 EMAIL TEMPLATE DEBUG - Final display spread:', displaySpread)
-    
-    // Format spread display
+    if (pick.pick === awayTeam) displaySpread = -displaySpread
     const spreadText = displaySpread > 0 ? `+${displaySpread}` : displaySpread.toString()
-    
-    return `
-    <tr style="border-bottom: 1px solid #e5e7eb;">
-      <td style="padding: 12px 8px; color: #1f2937; font-weight: ${pick.isLock ? 'bold' : 'normal'};">
-        ${pick.isLock ? '🔒 ' : ''}${pick.game}
-      </td>
-      <td style="padding: 12px 8px; color: #1f2937; text-align: center; font-weight: ${pick.isLock ? 'bold' : 'normal'};">
-        ${pick.pick} (${spreadText})
-      </td>
-    </tr>
-    `
+    const w = pick.isLock ? 'bold' : 'normal'
+    return `<tr style="border-bottom:1px solid ${EMAIL.line}">
+      <td style="padding:10px 8px;color:${EMAIL.ink};font-weight:${w}">${pick.isLock ? '🔒 ' : ''}${pick.game}</td>
+      <td style="padding:10px 8px;color:${EMAIL.ink};text-align:center;font-weight:${w}">${pick.pick} (${spreadText})</td>
+    </tr>`
   }).join('')
 
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
-      <div style="background-color: #059669; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-        <h1 style="margin: 0; font-size: 24px;">✅ Picks Confirmed!</h1>
-        <p style="margin: 10px 0 0 0; font-size: 16px;">Pigskin Pick Six</p>
-      </div>
-      
-      <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        <h2 style="color: #1f2937; margin-top: 0;">Hi ${data.userDisplayName}!</h2>
-        
-        <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">
-          Your picks for <strong>Week ${data.week}</strong> of the ${data.season} season have been confirmed!
-        </p>
-        
-        <div style="background-color: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 20px; margin: 20px 0;">
-          <p style="color: #15803d; margin: 0 0 10px 0; font-weight: bold;">
-            📅 Submitted: ${data.submittedStr}
-          </p>
-          <p style="color: #15803d; margin: 0; font-size: 14px;">
-            🎯 ${data.picks.length} games selected • ${data.picks.filter(p => p.isLock).length} Lock pick
-          </p>
-        </div>
-        
-        <h3 style="color: #1f2937; margin: 25px 0 15px 0;">Your Picks:</h3>
-        <table style="width: 100%; border-collapse: collapse; background-color: #f9fafb; border-radius: 8px; overflow: hidden;">
-          <thead>
-            <tr style="background-color: #f3f4f6;">
-              <th style="padding: 12px 8px; color: #374151; font-weight: bold; text-align: left;">Game</th>
-              <th style="padding: 12px 8px; color: #374151; font-weight: bold; text-align: center;">Pick</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${picksHtml}
-          </tbody>
-        </table>
-        
-        <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 25px 0;">
-          <p style="color: #92400e; margin: 0; font-size: 14px; text-align: center;">
-            <strong>🔒 Lock Pick:</strong> Your Lock pick (marked with 🔒) earns double the margin bonus if correct!
-          </p>
-        </div>
-        
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${data.baseUrl}/leaderboard" 
-             style="background-color: #8B4513; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-            View Leaderboard
-          </a>
-        </div>
-        
-        <p style="color: #6b7280; font-size: 14px; text-align: center; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-          Good luck this week! 🍀<br>
-          <em>The Pigskin Pick Six Team</em>
-        </p>
-      </div>
-    </div>
-  `.trim()
+  const table = `<table style="width:100%;border-collapse:collapse;background:#fbfaf7;border:1px solid ${EMAIL.line};border-radius:8px;overflow:hidden;margin:6px 0 4px">
+    <thead><tr style="background:#f3efe7">
+      <th style="padding:10px 8px;color:${EMAIL.brown};text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em">Game</th>
+      <th style="padding:10px 8px;color:${EMAIL.brown};text-align:center;font-size:12px;text-transform:uppercase;letter-spacing:.04em">Pick</th>
+    </tr></thead><tbody>${picksHtml}</tbody></table>`
+
+  return emailShell({
+    subtitle: 'Picks Confirmed',
+    heading: `Hi ${data.userDisplayName}!`,
+    preheader: `Your Week ${data.week} picks are in — ${data.picks.length} games, ${data.picks.filter(p => p.isLock).length} lock`,
+    bodyHtml:
+      p(`Your picks for <strong>Week ${data.week}</strong> of the ${data.season} season are confirmed! ✅`) +
+      emailPanel(`<strong>📅 Submitted:</strong> ${data.submittedStr}<br>🎯 ${data.picks.length} games · ${data.picks.filter(p => p.isLock).length} Lock pick`, 'green') +
+      `<h3 style="color:${EMAIL.brown};margin:20px 0 10px;font-size:16px">Your picks</h3>` + table +
+      emailPanel(`<strong>🔒 Lock pick:</strong> the game marked with 🔒 earns double the margin bonus if it hits.`, 'gold') +
+      emailButton('View Leaderboard', `${data.baseUrl}/leaderboard`),
+  })
 }
 
 export function getPicksSubmittedText(data: PicksSubmittedData): string {
