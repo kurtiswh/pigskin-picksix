@@ -3,6 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatsService, CareerStats, BiggestWeek, TeamAts, PerfectWeeks, Contrarian, WeekDifficulty, WeekSlate } from '@/services/statsService'
 import { useAuth } from '@/hooks/useAuth'
 
+// Competition ranking (1,1,3…): equal consecutive values share the lower rank.
+// Input must already be sorted in display order.
+function compRanks(values: any[]): number[] {
+  const r: number[] = []
+  for (let i = 0; i < values.length; i++) {
+    r.push(i > 0 && values[i] === values[i - 1] ? r[i - 1] : i + 1)
+  }
+  return r
+}
+
 interface Board {
   title: string
   column: string        // player_career_stats column to order by
@@ -41,6 +51,7 @@ const BOARDS: Board[] = [
 function BoardCard({ board, rows, me }: { board: Board; rows: CareerStats[]; me?: CareerStats | null }) {
   const [expanded, setExpanded] = useState(false)
   const shown = expanded ? rows : rows.slice(0, 10)
+  const ranks = compRanks(rows.map(s => s[board.column as keyof CareerStats]))
   const myRank = me ? ((me[board.rankKey] as number | null | undefined) ?? null) : null
   return (
     <Card>
@@ -64,7 +75,7 @@ function BoardCard({ board, rows, me }: { board: Board; rows: CareerStats[]; me?
                 className={`flex items-baseline justify-between gap-2 text-sm rounded px-1 -mx-1 ${isMe ? 'bg-[#fbf4e3] ring-1 ring-[#C9A04E]/50' : ''}`}
               >
                 <span className="flex items-baseline gap-2 min-w-0">
-                  <span className="w-5 text-charcoal-400 tabular-nums">{i + 1}</span>
+                  <span className="w-5 text-charcoal-400 tabular-nums">{ranks[i]}</span>
                   <span className={`truncate ${isMe ? 'font-semibold text-[#4B3621]' : 'text-charcoal-800'}`}>{s.display_name}</span>
                   <span className="text-xs text-charcoal-400 tabular-nums shrink-0">{s.seasons_played}</span>
                 </span>
@@ -89,9 +100,10 @@ function BoardCard({ board, rows, me }: { board: Board; rows: CareerStats[]; me?
   )
 }
 
-function SimpleTable({ title, note, headers, rows, youNote }: {
-  title: string; note?: string; headers: string[]; rows: (string | number)[][]; youNote?: string
+function SimpleTable({ title, note, headers, rows, youNote, rankCol }: {
+  title: string; note?: string; headers: string[]; rows: (string | number)[][]; youNote?: string; rankCol?: number
 }) {
+  const ranks = rankCol != null ? compRanks(rows.map(r => r[rankCol])) : rows.map((_, i) => i + 1)
   return (
     <Card>
       <CardHeader className="py-3">
@@ -120,7 +132,7 @@ function SimpleTable({ title, note, headers, rows, youNote }: {
                 <tr key={ri} className="border-b last:border-0">
                   {r.map((c, ci) => (
                     <td key={ci} className={`py-1.5 whitespace-nowrap ${ci === 0 ? 'text-charcoal-800' : 'text-right tabular-nums text-charcoal-600 pl-3'}`}>
-                      {ci === 0 ? <span><span className="w-5 inline-block text-charcoal-400">{ri + 1}</span>{c}</span> : c}
+                      {ci === 0 ? <span><span className="w-5 inline-block text-charcoal-400">{ranks[ri]}</span>{c}</span> : c}
                     </td>
                   ))}
                 </tr>
@@ -203,28 +215,28 @@ export default function RecordsTab() {
         Pick Analytics <span className="text-sm font-normal text-charcoal-500">(2016–2024)</span>
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <SimpleTable title="Biggest Single Weeks" headers={['Player', 'Season/Wk', 'Pts']}
+        <SimpleTable title="Biggest Single Weeks" headers={['Player', 'Season/Wk', 'Pts']} rankCol={2}
           rows={weeks.map(w => [w.display_name, `${w.season} W${w.week}`, w.points])} />
-        <SimpleTable title="Most-Picked Teams" headers={['Team', 'Picks', 'ATS %']}
+        <SimpleTable title="Most-Picked Teams" headers={['Team', 'Picks', 'ATS %']} rankCol={1}
           rows={mostPicked.map(t => [t.team, t.times_picked.toLocaleString(), pctStr(t.win_pct)])} />
-        <SimpleTable title="Best Teams to Pick (ATS)" note="min 150 decisions" headers={['Team', 'Rec', 'ATS %']}
+        <SimpleTable title="Best Teams to Pick (ATS)" note="min 150 decisions" headers={['Team', 'Rec', 'ATS %']} rankCol={2}
           rows={bestTeams.map(t => [t.team, `${t.wins}-${t.losses}`, pctStr(t.win_pct)])} />
-        <SimpleTable title="Worst Teams to Pick (ATS)" note="min 150 decisions" headers={['Team', 'Rec', 'ATS %']}
+        <SimpleTable title="Worst Teams to Pick (ATS)" note="min 150 decisions" headers={['Team', 'Rec', 'ATS %']} rankCol={2}
           rows={worstTeams.map(t => [t.team, `${t.wins}-${t.losses}`, pctStr(t.win_pct)])} />
         <SimpleTable title="Most Perfect Weeks" note="all picks won in a week" headers={['Player', 'Perfect', '0-win']}
-          youNote={perfectYou}
+          youNote={perfectYou} rankCol={1}
           rows={perfect.map(p => [p.display_name, p.perfect_weeks, p.goose_weeks])} />
         <SimpleTable title="Most Goose Eggs" note="zero wins in a week" headers={['Player', '0-win', 'Perfect']}
-          youNote={gooseYou}
+          youNote={gooseYou} rankCol={1}
           rows={goose.map(p => [p.display_name, p.goose_weeks, p.perfect_weeks])} />
         <SimpleTable title="Contrarian King" note="correct picks vs. the field's majority" headers={['Player', 'Wins', 'vs-field']}
-          youNote={contrarianYou}
+          youNote={contrarianYou} rankCol={1}
           rows={contrarian.map(c => [c.display_name, c.contrarian_wins, c.contrarian_picks])} />
-        <SimpleTable title="Hardest Weeks" note="field ATS win% by week #" headers={['Week', 'ATS %', 'Picks']}
+        <SimpleTable title="Hardest Weeks" note="field ATS win% by week #" headers={['Week', 'ATS %', 'Picks']} rankCol={1}
           rows={weekDiff.map(w => [`Week ${w.week}`, pctStr(w.win_pct), w.total_picks.toLocaleString()])} />
-        <SimpleTable title="Hardest Slates Ever" note="lowest field ATS% for a single week" headers={['Slate', 'ATS %', 'Picks']}
+        <SimpleTable title="Hardest Slates Ever" note="lowest field ATS% for a single week" headers={['Slate', 'ATS %', 'Picks']} rankCol={1}
           rows={hardestSlates.map(s => [`${s.season} W${s.week}`, pctStr(s.win_pct), s.total_picks.toLocaleString()])} />
-        <SimpleTable title="Easiest Slates Ever" note="highest field ATS% for a single week" headers={['Slate', 'ATS %', 'Picks']}
+        <SimpleTable title="Easiest Slates Ever" note="highest field ATS% for a single week" headers={['Slate', 'ATS %', 'Picks']} rankCol={1}
           rows={easiestSlates.map(s => [`${s.season} W${s.week}`, pctStr(s.win_pct), s.total_picks.toLocaleString()])} />
       </div>
     </div>
