@@ -29,7 +29,7 @@ These can only be fully validated once a week is actually open with real picks
 
 ## ✨ Feature requests
 
-### 1. Weekly recap seeding + publish-to-list email  🟡 BUILT (pending test/deploy)
+### 1. Weekly recap seeding + publish-to-list email  🟢 SHIPPED
 Built 2026-07: `wr_recap_seed` / `wr_recap_recipients` RPCs (migration 167, applied);
 Week Review "Weekly Recap" card (generate seed → create auto-draft); Blog Editor
 "Email to players" (test-to-self + send-to-all, personalized with each player's own
