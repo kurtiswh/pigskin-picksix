@@ -103,7 +103,7 @@ export async function createRecapDraft(seed: RecapSeed, authorId: string): Promi
       title: `Week ${seed.week} Recap`,
       content: buildDraftHtml(seed),
       excerpt: buildExcerpt(seed),
-      email_rundown: buildRundownText(seed),
+      email_rundown: buildRundownHtml(seed),
       season: seed.season,
       week: seed.week,
       is_published: false,
@@ -123,44 +123,30 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-/** Auto-generated, EDITABLE plain-text rundown (one storyline per line). This is
- *  what the admin edits in the Blog Editor; rundownTextToHtml() formats it for
- *  the email. Convention: "Label: detail" per line -> the label is bolded. */
-export function buildRundownText(s: RecapSeed): string {
-  const lines: string[] = []
+/** Auto-generated rich-text (HTML) rundown — edited WYSIWYG in the Blog Editor
+ *  and used verbatim in the email, so the box matches the email exactly. */
+export function buildRundownHtml(s: RecapSeed): string {
+  const li = (t: string) => `<li>${t}</li>`
+  const items: string[] = []
   const w = s.winners?.[0]
-  if (w) lines.push(s.winners.length > 1
-    ? `Top of the board: ${s.winners.length} tied at ${w.points} pts${nameList(s.winners.map(x => x.name))}.`
-    : `Top of the board: ${w.name} took the week with ${w.points} pts.`)
+  if (w) items.push(li(s.winners.length > 1
+    ? `<strong>Top of the board:</strong> ${s.winners.length} tied at ${w.points} pts${nameList(s.winners.map(x => x.name))}.`
+    : `<strong>Top of the board:</strong> ${w.name} took the week with ${w.points} pts.`))
   if (s.group_win_pct != null)
-    lines.push(`The field: ${s.entrants} entrants went ${s.group_win_pct}% ATS (${s.group_wins}-${s.group_losses})${s.lock_win_pct != null ? `, and just ${s.lock_win_pct}% on locks (${s.lock_hits}/${s.lock_total})` : ''}.`)
+    items.push(li(`<strong>The field:</strong> ${s.entrants} entrants went ${s.group_win_pct}% ATS (${s.group_wins}-${s.group_losses})${s.lock_win_pct != null ? `, and just ${s.lock_win_pct}% on locks (${s.lock_hits}/${s.lock_total})` : ''}.`))
   if (s.perfect_count || s.winless_count)
-    lines.push(`Extremes: ${s.perfect_count} perfect 6-0${nameList(s.perfect)}${s.winless_count ? ` — and ${s.winless_count} winless 0-6${nameList(s.winless)}` : ''}.`)
+    items.push(li(`<strong>Extremes:</strong> ${s.perfect_count} perfect 6-0${nameList(s.perfect)}${s.winless_count ? ` — and ${s.winless_count} winless 0-6${nameList(s.winless)}` : ''}.`))
   if (s.biggest_upset)
-    lines.push(`Fade of the week: ${s.biggest_upset.team} — only ${s.biggest_upset.pick_pct}% of the field took them, and they covered.`)
+    items.push(li(`<strong>Fade of the week:</strong> ${s.biggest_upset.team} — only ${s.biggest_upset.pick_pct}% of the field took them, and they covered.`))
   if (s.biggest_crowd_miss)
-    lines.push(`Crowd got burned: ${s.biggest_crowd_miss.pick_pct}% were on ${s.biggest_crowd_miss.team} and lost.`)
+    items.push(li(`<strong>Crowd got burned:</strong> ${s.biggest_crowd_miss.pick_pct}% were on ${s.biggest_crowd_miss.team} and lost.`))
   if (s.best_lock || s.worst_lock)
-    lines.push(`Lock report: ${s.best_lock ? `best was ${s.best_lock.team} (${s.best_lock.wins} cashed)` : ''}${s.best_lock && s.worst_lock ? '; ' : ''}${s.worst_lock ? `${s.worst_lock.losses} got burned on ${s.worst_lock.game}` : ''}.`)
+    items.push(li(`<strong>Lock report:</strong> ${s.best_lock ? `best was ${s.best_lock.team} (${s.best_lock.wins} cashed)` : ''}${s.best_lock && s.worst_lock ? '; ' : ''}${s.worst_lock ? `${s.worst_lock.losses} got burned on ${s.worst_lock.game}` : ''}.`))
   if (s.biggest_cover)
-    lines.push(`Biggest cover: ${s.biggest_cover.team} rolled for a +${s.biggest_cover.bonus} margin bonus.`)
+    items.push(li(`<strong>Biggest cover:</strong> ${s.biggest_cover.team} rolled for a +${s.biggest_cover.bonus} margin bonus.`))
   if (s.season_leader)
-    lines.push(`Standings: ${s.season_leader.name} leads the season with ${s.season_leader.points} pts.`)
-  return lines.join('\n')
-}
-
-/** Format the editable rundown text into an email list (bold the "Label:" prefix). */
-export function rundownTextToHtml(text: string): string {
-  const lines = (text || '').split('\n').map(l => l.trim()).filter(Boolean)
-  if (!lines.length) return ''
-  const items = lines.map(line => {
-    const idx = line.indexOf(':')
-    const inner = idx > 0 && idx < 40
-      ? `<b>${escapeHtml(line.slice(0, idx))}:</b>${escapeHtml(line.slice(idx + 1))}`
-      : escapeHtml(line)
-    return `<li style="margin-bottom:7px;font-size:14px;line-height:1.45;color:#2A2118">${inner}</li>`
-  }).join('')
-  return `<ul style="margin:0;padding-left:18px">${items}</ul>`
+    items.push(li(`<strong>Standings:</strong> ${s.season_leader.name} leads the season with ${s.season_leader.points} pts.`))
+  return `<ul>${items.join('')}</ul>`
 }
 
 /** Short plain-text excerpt (blog teaser, <=300 chars) auto-generated from the seed. */
@@ -213,13 +199,12 @@ export function buildRecapEmailHtml(r: RecapRecipient, post: BlogPost, siteUrl: 
 }
 
 /** Send a single test email to `toEmail`, personalized with that user's block if found (else the first recipient's). */
-export async function sendRecapTest(toEmail: string, post: BlogPost, rundownText: string): Promise<boolean> {
+export async function sendRecapTest(toEmail: string, post: BlogPost, rundownHtml: string): Promise<boolean> {
   const recipients = await loadRecipients(post.week!, post.season)
   const mine = recipients.find(r => r.email?.toLowerCase() === toEmail.toLowerCase()) || recipients[0]
   if (!mine) throw new Error('No recipients found for this week (no paid entrants).')
   const sample: RecapRecipient = { ...mine, email: toEmail }
-  const rundownHtml = rundownTextToHtml(rundownText || post.email_rundown || '')
-  const { html, text } = buildRecapEmailHtml(sample, post, window.location.origin, rundownHtml)
+  const { html, text } = buildRecapEmailHtml(sample, post, window.location.origin, rundownHtml || post.email_rundown || '')
   return EmailService.sendEmailDirect(toEmail, `[TEST] Week ${post.week} Recap — your results`, html, text)
 }
 
@@ -228,19 +213,19 @@ export interface RecapSendProgress { sent: number; failed: number; total: number
 /** Send the personalized recap to every paid entrant. Throttled; reports progress. */
 export async function sendRecapToAll(
   post: BlogPost,
-  rundownText: string,
+  rundownHtml: string,
   onProgress?: (p: RecapSendProgress) => void
 ): Promise<RecapSendProgress> {
   const recipients = await loadRecipients(post.week!, post.season)
   const siteUrl = window.location.origin
-  const rundownHtml = rundownTextToHtml(rundownText || post.email_rundown || '')
+  const rundown = rundownHtml || post.email_rundown || ''
   const subject = `Week ${post.week} Recap — your results & the rundown 🏈`
   const progress: RecapSendProgress = { sent: 0, failed: 0, total: recipients.length }
 
   for (const r of recipients) {
     if (!r.email) { progress.failed++; continue }
     try {
-      const { html, text } = buildRecapEmailHtml(r, post, siteUrl, rundownHtml)
+      const { html, text } = buildRecapEmailHtml(r, post, siteUrl, rundown)
       const ok = await EmailService.sendEmailDirect(r.email, subject, html, text)
       ok ? progress.sent++ : progress.failed++
     } catch {

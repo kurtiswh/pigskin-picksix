@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import Layout from '@/components/Layout'
-import { sendRecapTest, sendRecapToAll, buildRundownText, loadRecapSeed, type RecapSendProgress } from '@/services/recapService'
+import { sendRecapTest, sendRecapToAll, buildRundownHtml, loadRecapSeed, type RecapSendProgress } from '@/services/recapService'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
 import '@/styles/quill-content.css'
@@ -52,7 +52,7 @@ export default function BlogEditorPage() {
     setRegenLoading(true); setEmailMsg('')
     try {
       const seed = await loadRecapSeed(week, season)
-      setEmailRundown(buildRundownText(seed))
+      setEmailRundown(buildRundownHtml(seed))
     } catch (e: any) { setEmailMsg(`❌ ${e?.message || 'Could not regenerate'}`) } finally { setRegenLoading(false) }
   }
 
@@ -306,6 +306,24 @@ export default function BlogEditorPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Recap email rundown (weekly posts) — rich text, used verbatim in the email */}
+            {week != null && (
+              <Card>
+                <CardHeader><CardTitle>📧 Recap Email Rundown</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-sm text-charcoal-600">
+                      Shown in the recap email below each player's own results. <b>What you see here is exactly what sends.</b>
+                    </p>
+                    <Button type="button" variant="outline" size="sm" onClick={handleRegenRundown} disabled={regenLoading}>
+                      {regenLoading ? 'Regenerating…' : 'Regenerate from data'}
+                    </Button>
+                  </div>
+                  <ReactQuill theme="snow" value={emailRundown} onChange={setEmailRundown} />
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Sidebar */}
@@ -437,20 +455,9 @@ export default function BlogEditorPage() {
                     </div>
                   )}
                   <p className="text-sm text-charcoal-600">
-                    Sends a <b>personalized</b> recap (each player's own results) + the rundown below + a link to this post.
-                    Only paid/entered players for {season}.
+                    Sends a <b>personalized</b> recap (each player's own results) + the <b>Recap Email Rundown</b> (edit it in the
+                    main column) + a link to this post. Only paid/entered players for {season}.
                   </p>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-medium text-charcoal-700">Email rundown (editable — one line per bullet, "Label: detail")</label>
-                      <Button type="button" variant="outline" size="sm" onClick={handleRegenRundown} disabled={regenLoading}>
-                        {regenLoading ? 'Regenerating…' : 'Regenerate from data'}
-                      </Button>
-                    </div>
-                    <Textarea value={emailRundown} onChange={e => setEmailRundown(e.target.value)} rows={8}
-                      placeholder="Top of the board: …&#10;The field: …" />
-                    <div className="text-[11px] text-charcoal-400 mt-1">Each line becomes a bullet in the email; text before the first ":" is bolded. Saved with the post.</div>
-                  </div>
                   <div>
                     <label className="text-xs font-medium text-charcoal-700">Send a test to (works on drafts too — safe to preview)</label>
                     <div className="flex gap-2 mt-1">
