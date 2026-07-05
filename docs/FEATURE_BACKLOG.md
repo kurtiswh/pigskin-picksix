@@ -29,7 +29,11 @@ These can only be fully validated once a week is actually open with real picks
 
 ## ✨ Feature requests
 
-### 1. Weekly recap seeding + publish-to-list email  💭🔴
+### 1. Weekly recap seeding + publish-to-list email  🟡 BUILT (pending test/deploy)
+Built 2026-07: `wr_recap_seed` / `wr_recap_recipients` RPCs (migration 167, applied);
+Week Review "Weekly Recap" card (generate seed → create auto-draft); Blog Editor
+"Email to players" (test-to-self + send-to-all, personalized with each player's own
+results incl. per-game points, + excerpt + link; `emailed_at` guard). Original spec:
 After a week ends and is approved/published in Week Review, auto-generate a
 "recap seed" — the data outliers/highlights that make writing the weekly post
 easier. **We still write the post; this just hands us the raw material.**
