@@ -115,31 +115,60 @@ export async function createRecapDraft(seed: RecapSeed, authorId: string): Promi
   return data as BlogPost
 }
 
-/** Auto-generated, formatted "rundown" bullets from the seed (for the email). */
+const nameList = (names: string[], max = 4) =>
+  !names?.length ? '' : names.length <= max ? ` (${names.join(', ')})` : ` (${names.slice(0, max).join(', ')} +${names.length - max} more)`
+
+/** Auto-generated, formatted, detailed "rundown" from the seed (for the email). */
 export function buildRundownHtml(s: RecapSeed): string {
-  const li = (t: string) => `<li style="margin-bottom:6px;font-size:14px;color:#2A2118">${t}</li>`
+  const li = (t: string) => `<li style="margin-bottom:7px;font-size:14px;line-height:1.45;color:#2A2118">${t}</li>`
   const items: string[] = []
   const w = s.winners?.[0]
+
   if (w) items.push(li(s.winners.length > 1
-    ? `<b>${s.winners.length} tied</b> for the week at <b>${w.points}</b> pts.`
-    : `<b>${w.name}</b> took the week with <b>${w.points}</b> pts.`))
-  if (s.group_win_pct != null) items.push(li(`Group went <b>${s.group_win_pct}%</b> ATS${s.lock_win_pct != null ? `; locks <b>${s.lock_win_pct}%</b>` : ''}.`))
-  if (s.biggest_upset) items.push(li(`<b>${s.biggest_upset.team}</b> was the fade of the week — only ${s.biggest_upset.pick_pct}% picked them, and they covered.`))
-  if (s.biggest_crowd_miss) items.push(li(`<b>${s.biggest_crowd_miss.pick_pct}%</b> got burned on ${s.biggest_crowd_miss.team}.`))
-  if (s.perfect_count) items.push(li(`${s.perfect_count} perfect card${s.perfect_count > 1 ? 's' : ''} (6-0)${s.winless_count ? `, ${s.winless_count} went 0-6` : ''}.`))
-  if (s.season_leader) items.push(li(`<b>${s.season_leader.name}</b> leads the season with ${s.season_leader.points} pts.`))
+    ? `<b>Top of the board:</b> ${s.winners.length} tied at <b>${w.points}</b> pts${nameList(s.winners.map(x => x.name))}.`
+    : `<b>Top of the board:</b> <b>${w.name}</b> took the week with <b>${w.points}</b> pts.`))
+
+  if (s.group_win_pct != null)
+    items.push(li(`<b>The field:</b> ${s.entrants} entrants went <b>${s.group_win_pct}%</b> ATS (${s.group_wins}-${s.group_losses})${s.lock_win_pct != null ? `, and just <b>${s.lock_win_pct}%</b> on locks (${s.lock_hits}/${s.lock_total})` : ''}.`))
+
+  if (s.perfect_count || s.winless_count)
+    items.push(li(`<b>Extremes:</b> ${s.perfect_count} perfect 6-0${nameList(s.perfect)}${s.winless_count ? ` — and ${s.winless_count} winless 0-6${nameList(s.winless)}` : ''}.`))
+
+  if (s.biggest_upset)
+    items.push(li(`<b>Fade of the week:</b> ${s.biggest_upset.team} — only <b>${s.biggest_upset.pick_pct}%</b> of the field took them, and they covered.`))
+
+  if (s.biggest_crowd_miss)
+    items.push(li(`<b>Crowd got burned:</b> <b>${s.biggest_crowd_miss.pick_pct}%</b> were on ${s.biggest_crowd_miss.team} and lost.`))
+
+  if (s.best_lock || s.worst_lock)
+    items.push(li(`<b>Lock report:</b> ${s.best_lock ? `best was <b>${s.best_lock.team}</b> (${s.best_lock.wins} cashed)` : ''}${s.best_lock && s.worst_lock ? '; ' : ''}${s.worst_lock ? `${s.worst_lock.losses} got burned on ${s.worst_lock.game}` : ''}.`))
+
+  if (s.biggest_cover)
+    items.push(li(`<b>Biggest cover:</b> ${s.biggest_cover.team} rolled for a +${s.biggest_cover.bonus} margin bonus.`))
+
+  if (s.season_leader)
+    items.push(li(`<b>Standings:</b> <b>${s.season_leader.name}</b> leads the season with ${s.season_leader.points} pts.`))
+
   return `<ul style="margin:0;padding-left:18px">${items.join('')}</ul>`
 }
 
-/** Short plain-text excerpt (blog teaser) auto-generated from the seed. */
+/** Richer multi-sentence excerpt (blog teaser) auto-generated from the seed. */
 export function buildExcerpt(s: RecapSeed): string {
-  const parts: string[] = []
+  const sentences: string[] = []
   const w = s.winners?.[0]
-  if (w) parts.push(s.winners.length > 1 ? `${s.winners.length} tied at ${w.points}` : `${w.name} won with ${w.points}`)
-  if (s.group_win_pct != null) parts.push(`group ${s.group_win_pct}% ATS`)
-  if (s.biggest_upset) parts.push(`${s.biggest_upset.team} the upset (${s.biggest_upset.pick_pct}%)`)
-  if (s.season_leader) parts.push(`${s.season_leader.name} leads`)
-  return `Week ${s.week}: ${parts.join(' · ')}.`
+  if (w) sentences.push(s.winners.length > 1
+    ? `${s.winners.length} players tied for the Week ${s.week} lead at ${w.points} points`
+    : `${w.name} won Week ${s.week} with ${w.points} points`)
+  if (s.group_win_pct != null)
+    sentences.push(`the field hit ${s.group_win_pct}% ATS${s.lock_win_pct != null ? ` (${s.lock_win_pct}% on locks)` : ''}`)
+  if (s.perfect_count) sentences.push(`${s.perfect_count} went a perfect 6-0${s.winless_count ? ` and ${s.winless_count} went 0-6` : ''}`)
+  const extras: string[] = []
+  if (s.biggest_upset) extras.push(`${s.biggest_upset.team} was the upset (only ${s.biggest_upset.pick_pct}% picked them)`)
+  if (s.biggest_crowd_miss) extras.push(`${s.biggest_crowd_miss.pick_pct}% got burned on ${s.biggest_crowd_miss.team}`)
+  if (s.season_leader) extras.push(`${s.season_leader.name} leads the season`)
+  let out = sentences.join(', ') + '.'
+  if (extras.length) out += ' ' + extras.join('; ') + '.'
+  return out
 }
 
 /** Personalized recap email HTML (inline styles for email clients). */
