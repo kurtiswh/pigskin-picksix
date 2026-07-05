@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { StatsService, CareerStats, BiggestWeek, TeamAts } from '@/services/statsService'
+import { StatsService, CareerStats, BiggestWeek, TeamAts, PerfectWeeks, Contrarian, WeekDifficulty } from '@/services/statsService'
 import { useAuth } from '@/hooks/useAuth'
 
 interface Board {
@@ -132,6 +132,10 @@ export default function RecordsTab() {
   const [boardRows, setBoardRows] = useState<Record<string, CareerStats[]>>({})
   const [weeks, setWeeks] = useState<BiggestWeek[]>([])
   const [teams, setTeams] = useState<TeamAts[]>([])
+  const [perfect, setPerfect] = useState<PerfectWeeks[]>([])
+  const [goose, setGoose] = useState<PerfectWeeks[]>([])
+  const [contrarian, setContrarian] = useState<Contrarian[]>([])
+  const [weekDiff, setWeekDiff] = useState<WeekDifficulty[]>([])
   const [me, setMe] = useState<CareerStats | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -150,6 +154,10 @@ export default function RecordsTab() {
       )).then(pairs => setBoardRows(Object.fromEntries(pairs))),
       StatsService.getBiggestWeeks(10).then(setWeeks),
       StatsService.getTeamAts().then(setTeams),
+      StatsService.getPerfectWeeks(10).then(setPerfect),
+      StatsService.getGooseEggs(10).then(setGoose),
+      StatsService.getContrarian(10).then(setContrarian),
+      StatsService.getWeekDifficulty().then(setWeekDiff),
     ]).finally(() => setLoading(false))
   }, [])
 
@@ -183,6 +191,14 @@ export default function RecordsTab() {
           rows={bestTeams.map(t => [t.team, `${t.wins}-${t.losses}`, pctStr(t.win_pct)])} />
         <SimpleTable title="Worst Teams to Pick (ATS)" note="min 150 decisions" headers={['Team', 'Rec', 'ATS %']}
           rows={worstTeams.map(t => [t.team, `${t.wins}-${t.losses}`, pctStr(t.win_pct)])} />
+        <SimpleTable title="Most Perfect Weeks" note="all picks won in a week" headers={['Player', 'Perfect', '0-win']}
+          rows={perfect.map(p => [p.display_name, p.perfect_weeks, p.goose_weeks])} />
+        <SimpleTable title="Most Goose Eggs" note="zero wins in a week" headers={['Player', '0-win', 'Perfect']}
+          rows={goose.map(p => [p.display_name, p.goose_weeks, p.perfect_weeks])} />
+        <SimpleTable title="Contrarian King" note="correct picks vs. the field's majority" headers={['Player', 'Wins', 'vs-field']}
+          rows={contrarian.map(c => [c.display_name, c.contrarian_wins, c.contrarian_picks])} />
+        <SimpleTable title="Hardest Weeks" note="field ATS win% by week #" headers={['Week', 'ATS %', 'Picks']}
+          rows={weekDiff.map(w => [`Week ${w.week}`, pctStr(w.win_pct), w.total_picks.toLocaleString()])} />
       </div>
     </div>
   )

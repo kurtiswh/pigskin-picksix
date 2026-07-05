@@ -100,6 +100,38 @@ export class StatsService {
     if (error) { console.error('getTeamAts failed:', error); return [] }
     return (data || []) as TeamAts[]
   }
+
+  /** Players with the most perfect weeks (all picks won). */
+  static async getPerfectWeeks(limit = 10): Promise<PerfectWeeks[]> {
+    const { data, error } = await supabase.from('stat_perfect_weeks').select('*')
+      .gt('perfect_weeks', 0).order('perfect_weeks', { ascending: false }).limit(limit)
+    if (error) { console.error('getPerfectWeeks failed:', error); return [] }
+    return (data || []) as PerfectWeeks[]
+  }
+
+  /** Players with the most goose-egg weeks (zero wins). */
+  static async getGooseEggs(limit = 10): Promise<PerfectWeeks[]> {
+    const { data, error } = await supabase.from('stat_perfect_weeks').select('*')
+      .gt('goose_weeks', 0).order('goose_weeks', { ascending: false }).limit(limit)
+    if (error) { console.error('getGooseEggs failed:', error); return [] }
+    return (data || []) as PerfectWeeks[]
+  }
+
+  /** Most correct picks made against the field's majority side. */
+  static async getContrarian(limit = 10): Promise<Contrarian[]> {
+    const { data, error } = await supabase.from('stat_contrarian').select('*')
+      .order('contrarian_wins', { ascending: false }).limit(limit)
+    if (error) { console.error('getContrarian failed:', error); return [] }
+    return (data || []) as Contrarian[]
+  }
+
+  /** Field-wide ATS win% by week number (lowest = hardest). */
+  static async getWeekDifficulty(): Promise<WeekDifficulty[]> {
+    const { data, error } = await supabase.from('stat_week_difficulty').select('*')
+      .order('win_pct', { ascending: true })
+    if (error) { console.error('getWeekDifficulty failed:', error); return [] }
+    return (data || []) as WeekDifficulty[]
+  }
 }
 
 export interface SeasonHistoryRow {
@@ -132,4 +164,26 @@ export interface TeamAts {
   losses: number
   pushes: number
   win_pct: number | null
+}
+
+export interface PerfectWeeks {
+  user_id: string
+  display_name: string
+  perfect_weeks: number
+  goose_weeks: number
+}
+
+export interface Contrarian {
+  user_id: string
+  display_name: string
+  contrarian_wins: number
+  contrarian_picks: number
+}
+
+export interface WeekDifficulty {
+  week: number
+  total_picks: number
+  win_pct: number | null
+  wins: number
+  losses: number
 }
