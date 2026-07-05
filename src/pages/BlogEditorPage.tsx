@@ -418,38 +418,33 @@ export default function BlogEditorPage() {
               <Card>
                 <CardHeader><CardTitle className="text-base">📧 Email to players</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
-                  {!isPublished ? (
-                    <p className="text-sm text-charcoal-600">Publish the post first, then you can email it to the season's players.</p>
-                  ) : (
-                    <>
-                      {post?.emailed_at && (
-                        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-                          Already emailed {new Date(post.emailed_at).toLocaleString()}. Sending again will re-send to everyone.
-                        </div>
-                      )}
-                      <p className="text-sm text-charcoal-600">
-                        Sends a <b>personalized</b> recap (each player's own results) + your excerpt as the rundown + a link to this post.
-                        Only paid/entered players for {season}.
-                      </p>
-                      <div>
-                        <label className="text-xs font-medium text-charcoal-700">Send a test to</label>
-                        <div className="flex gap-2 mt-1">
-                          <Input value={testEmail} onChange={e => setTestEmail(e.target.value)} className="flex-1" />
-                          <Button variant="outline" onClick={handleTestEmail} disabled={testSending || !testEmail.trim()}>
-                            {testSending ? 'Sending…' : 'Send test'}
-                          </Button>
-                        </div>
-                      </div>
-                      <Button onClick={handleSendAll} disabled={sendingAll} className="w-full bg-pigskin-600 hover:bg-pigskin-700 text-white">
-                        {sendingAll ? 'Sending…' : '🚀 Send to all paid players'}
-                      </Button>
-                      {sendProgress && (
-                        <div className="text-xs text-charcoal-600">Sent {sendProgress.sent}/{sendProgress.total}{sendProgress.failed ? ` · ${sendProgress.failed} failed` : ''}</div>
-                      )}
-                      {emailMsg && <div className="text-sm">{emailMsg}</div>}
-                      <p className="text-[11px] text-charcoal-400">Tip: save the post (so your latest excerpt is used) before sending.</p>
-                    </>
+                  {post?.emailed_at && (
+                    <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                      Already emailed {new Date(post.emailed_at).toLocaleString()}. Sending again will re-send to everyone.
+                    </div>
                   )}
+                  <p className="text-sm text-charcoal-600">
+                    Sends a <b>personalized</b> recap (each player's own results) + your excerpt as the rundown + a link to this post.
+                    Only paid/entered players for {season}.
+                  </p>
+                  <div>
+                    <label className="text-xs font-medium text-charcoal-700">Send a test to (works on drafts too — safe to preview)</label>
+                    <div className="flex gap-2 mt-1">
+                      <Input value={testEmail} onChange={e => setTestEmail(e.target.value)} className="flex-1" />
+                      <Button variant="outline" onClick={handleTestEmail} disabled={testSending || !testEmail.trim()}>
+                        {testSending ? 'Sending…' : 'Send test'}
+                      </Button>
+                    </div>
+                  </div>
+                  <Button onClick={handleSendAll} disabled={sendingAll || !isPublished}
+                    className="w-full bg-pigskin-600 hover:bg-pigskin-700 text-white">
+                    {!isPublished ? 'Publish to enable Send to all' : sendingAll ? 'Sending…' : '🚀 Send to all paid players'}
+                  </Button>
+                  {sendProgress && (
+                    <div className="text-xs text-charcoal-600">Sent {sendProgress.sent}/{sendProgress.total}{sendProgress.failed ? ` · ${sendProgress.failed} failed` : ''}</div>
+                  )}
+                  {emailMsg && <div className="text-sm">{emailMsg}</div>}
+                  <p className="text-[11px] text-charcoal-400">Tip: save the post (so your latest excerpt is used) before sending.</p>
                 </CardContent>
               </Card>
             )}
