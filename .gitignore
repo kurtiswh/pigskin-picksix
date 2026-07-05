@@ -75,3 +75,4 @@ feature-demo.html
 
 # Historic import raw data (may contain PII)
 data/imports/
+data/exports/
