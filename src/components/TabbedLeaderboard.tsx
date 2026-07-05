@@ -110,19 +110,6 @@ export default function TabbedLeaderboard() {
     document.getElementById('my-leaderboard-row')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
-  // Auto-scroll to the user's row once, the first time their data is on screen
-  const hasAutoScrolled = useRef(false)
-  useEffect(() => {
-    if (hasAutoScrolled.current || !user) return
-    const data = activeTab === 'season' ? seasonData : activeTab === 'weekly' ? weeklyData : []
-    if (!data.some((e: any) => e.user_id === user.id)) return
-    hasAutoScrolled.current = true
-    const t = setTimeout(() => {
-      document.getElementById('my-leaderboard-row')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }, 450)
-    return () => clearTimeout(t)
-  }, [user, seasonData, weeklyData, activeTab])
-
   const loadWeekSettings = async () => {
     if (selectedWeek === null) return
     
