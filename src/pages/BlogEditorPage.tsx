@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import Layout from '@/components/Layout'
-import { sendRecapTest, sendRecapToAll, type RecapSendProgress } from '@/services/recapService'
+import { sendRecapTest, sendRecapToAll, buildRundownText, loadRecapSeed, type RecapSendProgress } from '@/services/recapService'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
 import '@/styles/quill-content.css'
@@ -40,16 +40,27 @@ export default function BlogEditorPage() {
   const [emailMsg, setEmailMsg] = useState('')
   const [sendingAll, setSendingAll] = useState(false)
   const [sendProgress, setSendProgress] = useState<RecapSendProgress | null>(null)
+  const [emailRundown, setEmailRundown] = useState('')
+  const [regenLoading, setRegenLoading] = useState(false)
 
   useEffect(() => { if (user?.email) setTestEmail(user.email) }, [user?.email])
 
-  const emailPost = (): BlogPost | null => (post ? { ...post, title, excerpt, week, season } : null)
+  const emailPost = (): BlogPost | null => (post ? { ...post, title, excerpt, week, season, email_rundown: emailRundown } : null)
+
+  const handleRegenRundown = async () => {
+    if (week == null) return
+    setRegenLoading(true); setEmailMsg('')
+    try {
+      const seed = await loadRecapSeed(week, season)
+      setEmailRundown(buildRundownText(seed))
+    } catch (e: any) { setEmailMsg(`❌ ${e?.message || 'Could not regenerate'}`) } finally { setRegenLoading(false) }
+  }
 
   const handleTestEmail = async () => {
     const p = emailPost(); if (!p) return
     setTestSending(true); setEmailMsg('')
     try {
-      const ok = await sendRecapTest(testEmail.trim(), p)
+      const ok = await sendRecapTest(testEmail.trim(), p, emailRundown)
       setEmailMsg(ok ? `✅ Test sent to ${testEmail}` : '❌ Test failed to send')
     } catch (e: any) { setEmailMsg(`❌ ${e?.message || 'Test failed'}`) } finally { setTestSending(false) }
   }
@@ -59,7 +70,7 @@ export default function BlogEditorPage() {
     if (!confirm(`Send the Week ${p.week} recap to all paid players? This emails everyone playing for ${p.season}.`)) return
     setSendingAll(true); setEmailMsg(''); setSendProgress(null)
     try {
-      const res = await sendRecapToAll(p, prog => setSendProgress(prog))
+      const res = await sendRecapToAll(p, emailRundown, prog => setSendProgress(prog))
       setEmailMsg(`✅ Sent ${res.sent} of ${res.total}${res.failed ? ` (${res.failed} failed)` : ''}`)
       if (post) setPost({ ...post, emailed_at: new Date().toISOString() })
     } catch (e: any) { setEmailMsg(`❌ ${e?.message || 'Send failed'}`) } finally { setSendingAll(false) }
@@ -100,6 +111,7 @@ export default function BlogEditorPage() {
         setTitle(blogPost.title)
         setContent(blogPost.content)
         setExcerpt(blogPost.excerpt || '')
+        setEmailRundown(blogPost.email_rundown || '')
         setSeason(blogPost.season)
         setWeek(blogPost.week)
         setIsPublished(blogPost.is_published)
@@ -132,6 +144,7 @@ export default function BlogEditorPage() {
         title: title.trim(),
         content: content.trim(),
         excerpt: excerpt.trim() || undefined,
+        email_rundown: emailRundown.trim() || null,
         season,
         week,
         is_published: publishNow || isPublished,
@@ -424,9 +437,20 @@ export default function BlogEditorPage() {
                     </div>
                   )}
                   <p className="text-sm text-charcoal-600">
-                    Sends a <b>personalized</b> recap (each player's own results) + your excerpt as the rundown + a link to this post.
+                    Sends a <b>personalized</b> recap (each player's own results) + the rundown below + a link to this post.
                     Only paid/entered players for {season}.
                   </p>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-charcoal-700">Email rundown (editable — one line per bullet, "Label: detail")</label>
+                      <Button type="button" variant="outline" size="sm" onClick={handleRegenRundown} disabled={regenLoading}>
+                        {regenLoading ? 'Regenerating…' : 'Regenerate from data'}
+                      </Button>
+                    </div>
+                    <Textarea value={emailRundown} onChange={e => setEmailRundown(e.target.value)} rows={8}
+                      placeholder="Top of the board: …&#10;The field: …" />
+                    <div className="text-[11px] text-charcoal-400 mt-1">Each line becomes a bullet in the email; text before the first ":" is bolded. Saved with the post.</div>
+                  </div>
                   <div>
                     <label className="text-xs font-medium text-charcoal-700">Send a test to (works on drafts too — safe to preview)</label>
                     <div className="flex gap-2 mt-1">

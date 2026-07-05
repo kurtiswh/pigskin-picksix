@@ -17,6 +17,7 @@ export interface BlogPost {
   featured_image_url?: string
   slug: string
   attachments?: BlogAttachment[]
+  email_rundown?: string | null
   emailed_at?: string | null
   created_at: string
   updated_at: string
@@ -31,6 +32,7 @@ export interface BlogPostCreate {
   title: string
   content: string
   excerpt?: string
+  email_rundown?: string | null
   season: number
   week?: number | null
   is_published?: boolean
@@ -42,6 +44,7 @@ export interface BlogPostUpdate {
   title?: string
   content?: string
   excerpt?: string
+  email_rundown?: string | null
   season?: number
   week?: number | null
   is_published?: boolean
