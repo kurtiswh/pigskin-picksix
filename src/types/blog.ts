@@ -17,6 +17,7 @@ export interface BlogPost {
   featured_image_url?: string
   slug: string
   attachments?: BlogAttachment[]
+  emailed_at?: string | null
   created_at: string
   updated_at: string
   author?: {

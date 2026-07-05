@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/hooks/useAuth'
+import { loadRecapSeed, createRecapDraft, type RecapSeed } from '@/services/recapService'
 
 /**
  * Week Review — the weekly close-out hub (Part B / B2).
@@ -76,6 +79,11 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
   const [data, setData] = useState<ReviewData | null>(null)
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [showAllPicks, setShowAllPicks] = useState(false)
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const [recap, setRecap] = useState<RecapSeed | null>(null)
+  const [recapLoading, setRecapLoading] = useState(false)
+  const [creatingDraft, setCreatingDraft] = useState(false)
 
   const toggle = (key: string) => setOpen(o => ({ ...o, [key]: !o[key] }))
 
@@ -196,6 +204,21 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
       if (e) throw e
       await loadReview()
     } catch (err: any) { setError(err?.message || 'Failed to save notice') } finally { setSavingNotice(false) }
+  }
+
+  const generateRecap = async () => {
+    setRecapLoading(true); setError('')
+    try {
+      setRecap(await loadRecapSeed(week, season))
+    } catch (err: any) { setError(err?.message || 'Failed to generate recap') } finally { setRecapLoading(false) }
+  }
+  const createDraft = async () => {
+    if (!recap || !user?.id) return
+    setCreatingDraft(true); setError('')
+    try {
+      const post = await createRecapDraft(recap, user.id)
+      navigate(`/admin/blog/edit/${post.id}`)
+    } catch (err: any) { setError(err?.message || 'Failed to create draft'); setCreatingDraft(false) }
   }
 
   const publish = async () => {
@@ -467,6 +490,56 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Weekly recap seeding */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">📝 Weekly Recap</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-charcoal-600 mb-3">
+            Generate the week's outliers (winner, group/lock %, upsets, lock report, standings, points by game),
+            then create a pre-filled draft post you rewrite in your voice.
+          </p>
+          {!recap ? (
+            <Button onClick={generateRecap} disabled={recapLoading} className="bg-pigskin-600 hover:bg-pigskin-700 text-white">
+              {recapLoading ? 'Generating…' : 'Generate Recap Draft'}
+            </Button>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <RecapTile label="Week winner" value={recap.winners?.[0]?.name || '—'} sub={recap.winners?.length > 1 ? `+${recap.winners.length - 1} tied` : recap.winners?.[0] ? `${recap.winners[0].points} pts` : ''} />
+                <RecapTile label="Group win %" value={recap.group_win_pct != null ? `${recap.group_win_pct}%` : '—'} sub={`${recap.group_wins}-${recap.group_losses}`} />
+                <RecapTile label="Lock win %" value={recap.lock_win_pct != null ? `${recap.lock_win_pct}%` : '—'} sub={`${recap.lock_hits}/${recap.lock_total}`} />
+                <RecapTile label="Perfect / winless" value={`${recap.perfect_count} / ${recap.winless_count}`} sub={`${recap.entrants} entrants`} />
+              </div>
+              <ul className="text-sm text-charcoal-700 space-y-1">
+                {recap.biggest_upset && <li>• <b>Upset that hit:</b> {recap.biggest_upset.team} ({recap.biggest_upset.pick_pct}% picked)</li>}
+                {recap.biggest_crowd_miss && <li>• <b>Crowd miss:</b> {recap.biggest_crowd_miss.team} ({recap.biggest_crowd_miss.pick_pct}% picked, lost)</li>}
+                {recap.best_lock && <li>• <b>Best lock:</b> {recap.best_lock.team} ({recap.best_lock.wins} hit)</li>}
+                {recap.worst_lock && <li>• <b>Roughest lock:</b> {recap.worst_lock.losses} burned on {recap.worst_lock.game}</li>}
+                {recap.biggest_cover && <li>• <b>Biggest cover:</b> {recap.biggest_cover.team} (+{recap.biggest_cover.bonus} bonus)</li>}
+                {recap.season_leader && <li>• <b>Season leader:</b> {recap.season_leader.name} ({recap.season_leader.points} pts)</li>}
+              </ul>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={generateRecap} disabled={recapLoading}>Regenerate</Button>
+                <Button onClick={createDraft} disabled={creatingDraft} className="bg-gold-500 text-pigskin-900 hover:bg-gold-600">
+                  {creatingDraft ? 'Creating…' : '✍️ Create draft post →'}
+                </Button>
+              </div>
+              <p className="text-xs text-charcoal-400">Creates an unpublished post with these numbers + section scaffolding, then opens the editor. You write the prose; email-to-players is on the published post.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function RecapTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-lg border border-charcoal-100 bg-white p-2.5">
+      <div className="text-[11px] uppercase tracking-wide text-charcoal-500">{label}</div>
+      <div className="text-lg font-bold text-brown leading-tight" style={{ color: '#4B3621' }}>{value}</div>
+      {sub && <div className="text-[11px] text-charcoal-500">{sub}</div>}
     </div>
   )
 }

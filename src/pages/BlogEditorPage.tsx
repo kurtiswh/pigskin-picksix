@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import Layout from '@/components/Layout'
+import { sendRecapTest, sendRecapToAll, type RecapSendProgress } from '@/services/recapService'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
 import '@/styles/quill-content.css'
@@ -32,6 +33,37 @@ export default function BlogEditorPage() {
   const [week, setWeek] = useState<number | null>(null)
   const [isPublished, setIsPublished] = useState(false)
   const [featuredImageUrl, setFeaturedImageUrl] = useState('')
+
+  // Recap email-to-players state
+  const [testEmail, setTestEmail] = useState('')
+  const [testSending, setTestSending] = useState(false)
+  const [emailMsg, setEmailMsg] = useState('')
+  const [sendingAll, setSendingAll] = useState(false)
+  const [sendProgress, setSendProgress] = useState<RecapSendProgress | null>(null)
+
+  useEffect(() => { if (user?.email) setTestEmail(user.email) }, [user?.email])
+
+  const emailPost = (): BlogPost | null => (post ? { ...post, title, excerpt, week, season } : null)
+
+  const handleTestEmail = async () => {
+    const p = emailPost(); if (!p) return
+    setTestSending(true); setEmailMsg('')
+    try {
+      const ok = await sendRecapTest(testEmail.trim(), p)
+      setEmailMsg(ok ? `✅ Test sent to ${testEmail}` : '❌ Test failed to send')
+    } catch (e: any) { setEmailMsg(`❌ ${e?.message || 'Test failed'}`) } finally { setTestSending(false) }
+  }
+
+  const handleSendAll = async () => {
+    const p = emailPost(); if (!p) return
+    if (!confirm(`Send the Week ${p.week} recap to all paid players? This emails everyone playing for ${p.season}.`)) return
+    setSendingAll(true); setEmailMsg(''); setSendProgress(null)
+    try {
+      const res = await sendRecapToAll(p, prog => setSendProgress(prog))
+      setEmailMsg(`✅ Sent ${res.sent} of ${res.total}${res.failed ? ` (${res.failed} failed)` : ''}`)
+      if (post) setPost({ ...post, emailed_at: new Date().toISOString() })
+    } catch (e: any) { setEmailMsg(`❌ ${e?.message || 'Send failed'}`) } finally { setSendingAll(false) }
+  }
 
   // Redirect non-admin users
   if (!user || !user.is_admin) {
@@ -380,6 +412,47 @@ export default function BlogEditorPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Email recap to players (weekly recap posts only) */}
+            {isEditing && week != null && (
+              <Card>
+                <CardHeader><CardTitle className="text-base">📧 Email to players</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  {!isPublished ? (
+                    <p className="text-sm text-charcoal-600">Publish the post first, then you can email it to the season's players.</p>
+                  ) : (
+                    <>
+                      {post?.emailed_at && (
+                        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                          Already emailed {new Date(post.emailed_at).toLocaleString()}. Sending again will re-send to everyone.
+                        </div>
+                      )}
+                      <p className="text-sm text-charcoal-600">
+                        Sends a <b>personalized</b> recap (each player's own results) + your excerpt as the rundown + a link to this post.
+                        Only paid/entered players for {season}.
+                      </p>
+                      <div>
+                        <label className="text-xs font-medium text-charcoal-700">Send a test to</label>
+                        <div className="flex gap-2 mt-1">
+                          <Input value={testEmail} onChange={e => setTestEmail(e.target.value)} className="flex-1" />
+                          <Button variant="outline" onClick={handleTestEmail} disabled={testSending || !testEmail.trim()}>
+                            {testSending ? 'Sending…' : 'Send test'}
+                          </Button>
+                        </div>
+                      </div>
+                      <Button onClick={handleSendAll} disabled={sendingAll} className="w-full bg-pigskin-600 hover:bg-pigskin-700 text-white">
+                        {sendingAll ? 'Sending…' : '🚀 Send to all paid players'}
+                      </Button>
+                      {sendProgress && (
+                        <div className="text-xs text-charcoal-600">Sent {sendProgress.sent}/{sendProgress.total}{sendProgress.failed ? ` · ${sendProgress.failed} failed` : ''}</div>
+                      )}
+                      {emailMsg && <div className="text-sm">{emailMsg}</div>}
+                      <p className="text-[11px] text-charcoal-400">Tip: save the post (so your latest excerpt is used) before sending.</p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </main>
