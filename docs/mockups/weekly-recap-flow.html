@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PP6 · Weekly Recap Seeding — Flow Mockup</title>
+<style>
+  :root{
+    --brown:#4B3621; --gold:#C9A04E; --bg:#F8F7F3; --charcoal:#2B2622; --ink:#2A2118;
+    --muted:#7A6E60; --line:#E5DFD5; --green:#2E7D4F; --green-bg:#E6F4EC;
+    --amber:#B8860B; --amber-bg:#FBF3DC; --red:#B23A3A; --red-bg:#FBEAEA; --blue:#2F6F8F; --blue-bg:#E7F1F6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--ink);line-height:1.5}
+  h1,h2,h3{color:var(--brown);margin:0 0 .3em}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 20px}
+  header.top{background:linear-gradient(135deg,var(--brown),#3a291a);color:#fff;padding:32px 0 28px}
+  header.top .wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .badge-pp6{width:50px;height:50px;border-radius:12px;background:var(--gold);color:var(--brown);
+       display:grid;place-items:center;font-weight:800;font-size:19px}
+  header.top h1{color:#fff;font-size:24px;margin:0}
+  header.top p{margin:2px 0 0;color:#E9DFcd;font-size:14px}
+  .kicker{letter-spacing:.14em;text-transform:uppercase;font-size:11px;color:var(--gold);font-weight:700}
+  nav.sticky{position:sticky;top:0;z-index:20;background:rgba(248,247,243,.95);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+  nav.sticky .wrap{display:flex;gap:6px;flex-wrap:wrap;padding:10px 20px}
+  nav.sticky a{font-size:13px;font-weight:600;color:var(--brown);text-decoration:none;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:#fff}
+  nav.sticky a:hover{background:var(--gold);border-color:var(--gold)}
+  section{padding:38px 0 8px}
+  section>.wrap>.lead{color:var(--muted);max-width:760px;margin:0 0 22px}
+
+  /* flow stepper */
+  .flow{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;margin-bottom:8px}
+  .flow .step{flex:1;min-width:150px;background:#fff;border:1px solid var(--line);border-top:3px solid var(--gold);border-radius:10px;padding:12px 14px}
+  .flow .step b{display:block;color:var(--brown);font-size:14px}
+  .flow .step span{font-size:12px;color:var(--muted)}
+  .flow .step .n{font-size:11px;font-weight:800;color:var(--gold)}
+
+  /* screen chrome */
+  .screen{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 6px 24px rgba(75,54,33,.10);margin-bottom:26px}
+  .screen .bar{background:var(--charcoal);color:#fff;padding:11px 16px;display:flex;align-items:center;gap:10px;font-size:13px}
+  .screen .bar .dots{display:flex;gap:6px}
+  .screen .bar .dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .screen .bar .dots i:nth-child(1){background:#ff5f57}.screen .bar .dots i:nth-child(2){background:#febc2e}.screen .bar .dots i:nth-child(3){background:#28c840}
+  .screen .bar .path{color:#cdbfa9;font-size:12px}
+  .screen .app{padding:20px 22px}
+  .apphead{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:14px}
+  .apphead h3{font-size:19px;margin:0}
+  .wpill{background:var(--gold);color:var(--brown);font-weight:800;font-size:12px;padding:5px 12px;border-radius:999px}
+  .btn{border:none;border-radius:9px;font-weight:700;font-size:13px;padding:9px 15px;cursor:default;display:inline-block}
+  .btn.gold{background:var(--gold);color:var(--brown)} .btn.brown{background:var(--brown);color:#fff}
+  .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--brown)} .btn.green{background:var(--green);color:#fff}
+
+  /* seed stat tiles */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+  .tile{border:1px solid var(--line);border-radius:10px;padding:11px 13px;background:#fff}
+  .tile .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .tile .val{font-size:22px;font-weight:800;color:var(--brown);line-height:1.15}
+  .tile .sub{font-size:11px;color:var(--muted)}
+  .story{border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff;font-size:13.5px}
+  .story b{color:var(--brown)}
+  .story .tag{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--gold);display:block;margin-bottom:2px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+  th{font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);background:#fdfcfa}
+  .win{color:var(--green);font-weight:700}.loss{color:var(--red)}.push{color:var(--amber)}
+  .subpanel{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:12px}
+  .subpanel .ph{background:var(--bg);padding:9px 13px;font-weight:700;font-size:13px;color:var(--brown);border-bottom:1px solid var(--line)}
+
+  .codebox{background:#2b2622;color:#e8e3da;border-radius:8px;padding:12px 14px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;line-height:1.5;overflow:auto}
+  .codebox .t{color:#C9A04E}.codebox .m{color:#9fbfae}
+  .callout{background:var(--blue-bg);border:1px solid #cfe2ea;border-left:4px solid var(--blue);border-radius:10px;padding:12px 14px;font-size:13.5px;margin:6px 0}
+  .note{font-size:12px;color:var(--muted);font-style:italic;margin-top:6px}
+
+  /* email preview */
+  .inbox{max-width:600px;margin:0 auto;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+  .inbox .ehead{padding:14px 18px;border-bottom:1px solid var(--line);background:#fbfaf7}
+  .inbox .ehead .subj{font-weight:800;color:var(--brown);font-size:15px}
+  .inbox .ehead .from{font-size:12px;color:var(--muted);margin-top:2px}
+  .inbox .ebody{padding:20px 22px}
+  .ebanner{background:var(--brown);color:#fff;border-radius:10px;padding:16px 18px;text-align:center;margin-bottom:16px}
+  .ebanner .wk{color:var(--gold);font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+  .ebanner .rec{font-size:30px;font-weight:800;margin:4px 0 0}
+  .ebanner .meta{font-size:13px;color:#E9DFcd;margin-top:4px}
+  .yourpicks{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+  .chip{font-size:12px;padding:3px 9px;border-radius:6px;border:1px solid var(--line)}
+  .chip.w{background:var(--green-bg);color:var(--green);border-color:#cde7d6}
+  .chip.l{background:var(--red-bg);color:var(--red)}
+  .chip.p{background:var(--amber-bg);color:var(--amber)}
+  .chip.lock{box-shadow:inset 0 0 0 2px var(--gold)}
+  .esum{border-top:1px solid var(--line);margin-top:16px;padding-top:14px}
+  .esum li{margin-bottom:6px;font-size:13.5px}
+  .ecta{display:block;text-align:center;background:var(--gold);color:var(--brown);font-weight:800;text-decoration:none;padding:12px;border-radius:9px;margin-top:16px}
+  .efoot{font-size:11px;color:var(--muted);text-align:center;margin-top:16px}
+
+  /* modal */
+  .modal{border:1px solid var(--line);border-radius:12px;max-width:440px;box-shadow:0 10px 40px rgba(75,54,33,.18);overflow:hidden;background:#fff}
+  .modal .mh{background:var(--brown);color:#fff;padding:12px 16px;font-weight:700}
+  .modal .mb{padding:16px}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--brown);margin-bottom:4px}
+  .field input{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px}
+  .countpill{background:var(--green-bg);color:var(--green);font-weight:800;font-size:12px;padding:4px 10px;border-radius:999px}
+  footer{padding:36px 0 60px;color:var(--muted);font-size:12.5px;text-align:center}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="badge-pp6">P6</div>
+    <div>
+      <div class="kicker">Pigskin Pick Six Pro</div>
+      <h1>Weekly Recap Seeding</h1>
+      <p>Seed the data &amp; a draft → you write it → publish → personalized email to the year's players</p>
+    </div>
+  </div>
+</header>
+<nav class="sticky"><div class="wrap">
+  <a href="#flow">Flow</a>
+  <a href="#seed">1 · Recap seed</a>
+  <a href="#draft">2 · Auto-draft</a>
+  <a href="#send">3 · Email to players</a>
+  <a href="#email">4 · The email</a>
+</div></nav>
+
+<!-- FLOW -->
+<section id="flow">
+  <div class="wrap">
+    <div class="kicker">The whole flow</div>
+    <h2>Five steps, mostly automated</h2>
+    <p class="lead">You only do the creative part (writing). The tool gathers every stat, scaffolds the draft, and personalizes the send.</p>
+    <div class="flow">
+      <div class="step"><span class="n">STEP 1</span><b>Generate seed</b><span>Week Review computes the week's outliers.</span></div>
+      <div class="step"><span class="n">STEP 2</span><b>Auto-draft</b><span>Creates an unpublished post pre-filled with the numbers.</span></div>
+      <div class="step"><span class="n">STEP 3</span><b>You write it</b><span>Rewrite in your voice in the Blog Editor.</span></div>
+      <div class="step"><span class="n">STEP 4</span><b>Publish</b><span>Post goes live on the site.</span></div>
+      <div class="step"><span class="n">STEP 5</span><b>Email players</b><span>Test first, then send personalized recaps.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 1. SEED -->
+<section id="seed">
+  <div class="wrap">
+    <div class="kicker">Step 1 · In Week Review</div>
+    <h2>The recap seed</h2>
+    <p class="lead">After a week is published, a "Recap" panel appears with every number the old posts used — no more digging for stats.</p>
+    <div class="screen">
+      <div class="bar"><div class="dots"><i></i><i></i><i></i></div><span>Admin</span><span class="path">/ Week Review / Recap</span></div>
+      <div class="app">
+        <div class="apphead">
+          <div><h3>Week 5 Recap — data seed</h3><div style="color:var(--muted);font-size:13px">Everything you need to write the post.</div></div>
+          <span class="wpill">Week 5 · 2025</span>
+        </div>
+
+        <div class="tiles">
+          <div class="tile"><div class="lbl">Week winner</div><div class="val">Jordan Mills</div><div class="sub">118 pts</div></div>
+          <div class="tile"><div class="lbl">Group win %</div><div class="val">51.2%</div><div class="sub">1,243–1,186 ATS</div></div>
+          <div class="tile"><div class="lbl">Lock win %</div><div class="val">44%</div><div class="sub">179 of 407 locks hit</div></div>
+          <div class="tile"><div class="lbl">Perfect (6-0)</div><div class="val">2</div><div class="sub">Mills, Nguyen</div></div>
+          <div class="tile"><div class="lbl">Winless (0-6)</div><div class="val">1</div><div class="sub">ouch</div></div>
+          <div class="tile"><div class="lbl">Entrants</div><div class="val">407</div><div class="sub">paid &amp; scored</div></div>
+        </div>
+
+        <div class="story"><span class="tag">Biggest upset that hit</span><b>Vanderbilt +7</b> — only <b>8%</b> picked them, and they covered outright. The fade of the week.</div>
+        <div class="story"><span class="tag">Biggest crowd miss</span><b>Ohio State −3</b> — <b>82%</b> of the field took them and they lost. Ugly.</div>
+        <div class="story"><span class="tag">Lock report</span>Best lock: <b>Georgia</b> (91% of its lockers cashed). Worst: <b>44 people locked USC</b> and got burned.</div>
+        <div class="story"><span class="tag">Biggest cover / bonus</span><b>Oregon</b> covered by 31 → <b>+5</b> margin bonus, the biggest of the week.</div>
+        <div class="story"><span class="tag">Standings drama</span>New leader: <b>Casey Nguyen</b> (up from #3). Biggest riser: <b>Sam Carter +22</b>. Tie at #4 (Lee / Park, 384 pts). Best Finish race tightening.</div>
+
+        <div class="subpanel">
+          <div class="ph">Per-game reference (crowd split &amp; result)</div>
+          <table>
+            <tr><th>Game</th><th>Away %</th><th>Home %</th><th>🔒</th><th>Result</th></tr>
+            <tr><td>Vandy @ Bama</td><td>8%</td><td>92%</td><td>61</td><td class="win">Vandy +7 ✓</td></tr>
+            <tr><td>Ohio St @ Iowa</td><td>82%</td><td>18%</td><td>140</td><td class="loss">OSU −3 ✗</td></tr>
+            <tr><td>Oregon @ UCLA</td><td>74%</td><td>26%</td><td>96</td><td class="win">ORE cover +31 ✓</td></tr>
+            <tr><td>LSU @ Tenn</td><td>39%</td><td>61%</td><td>22</td><td class="push">push</td></tr>
+          </table>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+          <button class="btn ghost">Copy stats</button>
+          <button class="btn gold">✍️ Create draft post →</button>
+        </div>
+        <p class="note">"Create draft post" builds the post below and opens the editor. Data only — the writing is yours.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. DRAFT -->
+<section id="draft">
+  <div class="wrap">
+    <div class="kicker">Step 2–3 · Blog Editor</div>
+    <h2>Auto-created draft, ready to rewrite</h2>
+    <p class="lead">A new unpublished post appears, pre-filled with the stats as HTML + section scaffolding. You replace the scaffolding with your take.</p>
+    <div class="screen">
+      <div class="bar"><div class="dots"><i></i><i></i><i></i></div><span>Admin</span><span class="path">/ Blog / Edit — Week 5 Recap (draft)</span></div>
+      <div class="app">
+        <div class="apphead">
+          <div><h3>Week 5 Recap <span style="font-size:12px;color:var(--amber);font-weight:700">● DRAFT</span></h3></div>
+          <div style="display:flex;gap:8px"><button class="btn ghost">Preview</button><button class="btn green">Publish</button></div>
+        </div>
+        <div class="codebox"><span class="m">&lt;!-- seeded draft — rewrite the prose, keep/trim the numbers --&gt;</span>
+<span class="t">&lt;h2&gt;</span>Top of the Board<span class="t">&lt;/h2&gt;</span>
+<span class="t">&lt;p&gt;</span>[your intro here] Jordan Mills took the week with <span class="t">&lt;strong&gt;</span>118<span class="t">&lt;/strong&gt;</span> points
+(6-0). Two perfect cards this week; one poor soul went 0-6.<span class="t">&lt;/p&gt;</span>
+
+<span class="t">&lt;h2&gt;</span>The Numbers<span class="t">&lt;/h2&gt;</span>
+<span class="t">&lt;ul&gt;</span>
+  <span class="t">&lt;li&gt;</span>Group win %: <span class="t">&lt;strong&gt;</span>51.2%<span class="t">&lt;/strong&gt;</span> · Lock win %: <span class="t">&lt;strong&gt;</span>44%<span class="t">&lt;/strong&gt;</span><span class="t">&lt;/li&gt;</span>
+  <span class="t">&lt;li&gt;</span>Biggest upset that hit: <span class="t">&lt;strong&gt;</span>Vanderbilt +7<span class="t">&lt;/strong&gt;</span> (8% picked)<span class="t">&lt;/li&gt;</span>
+  <span class="t">&lt;li&gt;</span>Biggest crowd miss: <span class="t">&lt;strong&gt;</span>Ohio State −3<span class="t">&lt;/strong&gt;</span> (82% picked, lost)<span class="t">&lt;/li&gt;</span>
+<span class="t">&lt;/ul&gt;</span>
+
+<span class="t">&lt;h2&gt;</span>Lock Report<span class="t">&lt;/h2&gt;</span>
+<span class="t">&lt;p&gt;</span>[your take] 44 people locked USC and paid for it...<span class="t">&lt;/p&gt;</span>
+
+<span class="t">&lt;h2&gt;</span>Standings Drama<span class="t">&lt;/h2&gt;</span>
+<span class="t">&lt;p&gt;</span>Casey Nguyen is your new leader...<span class="t">&lt;/p&gt;</span></div>
+        <p class="note">Content is HTML (matches the existing editor). The seed fills every number so you never leave to look one up.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. SEND -->
+<section id="send">
+  <div class="wrap">
+    <div class="kicker">Step 5 · After publish</div>
+    <h2>Email to players — test first, then send</h2>
+    <p class="lead">A button on the published post. You can fire a test to yourself, confirm the recipient count, then send. It won't double-send.</p>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">
+      <div class="modal">
+        <div class="mh">📧 Email this recap to players</div>
+        <div class="mb">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <span style="font-size:13px;color:var(--muted)">Recipients (paid/entered, 2025)</span>
+            <span class="countpill">407 players</span>
+          </div>
+          <div class="field">
+            <label>Send a test to</label>
+            <input value="kwh@bisoncfo.com" readonly>
+          </div>
+          <button class="btn ghost" style="width:100%;margin-bottom:14px">✉️ Send test email (personalized to me)</button>
+          <div class="callout" style="margin:0 0 14px">Test uses <b>your</b> Week 5 results so you see exactly what a player gets.</div>
+          <button class="btn brown" style="width:100%">🚀 Send to all 407 players</button>
+          <p class="note">Only paid/entered players for the season. Stamps <code>emailed_at</code> so re-opening won't resend.</p>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div class="callout"><b>Who gets it:</b> exactly the season's paid/entered list (the same set the leaderboard shows). Unpaid/never-entered are excluded.</div>
+        <div class="callout"><b>Personalized:</b> each recipient's email is rendered with their own results (one email job per player), then the shared summary + link.</div>
+        <div class="callout"><b>Safe:</b> test-to-self before any blast; single confirmed send; guarded against duplicates.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. EMAIL -->
+<section id="email">
+  <div class="wrap">
+    <div class="kicker">What a player receives</div>
+    <h2>The email — their results + the rundown + link</h2>
+    <p class="lead">Personalized top (their week), then a short shared summary, then a button to the full post on the site.</p>
+    <div class="inbox">
+      <div class="ehead">
+        <div class="subj">Week 5 Recap — your results &amp; the rundown 🏈</div>
+        <div class="from">Pigskin Pick Six &lt;noreply@pigskinpicksix.com&gt; · to you</div>
+      </div>
+      <div class="ebody">
+        <div class="ebanner">
+          <div class="wk">Your Week 5</div>
+          <div class="rec">5–1 · 92 pts</div>
+          <div class="meta">#12 overall ▲6 · Lock: ✓ Georgia</div>
+        </div>
+
+        <div style="font-size:14px">Hey Jordan — solid week. Here's how your six landed:</div>
+        <div class="yourpicks">
+          <span class="chip w lock">🔒 Georgia ✓</span>
+          <span class="chip w">Vandy +7 ✓</span>
+          <span class="chip w">Oregon ✓</span>
+          <span class="chip l">Ohio St ✗</span>
+          <span class="chip w">Miami ✓</span>
+          <span class="chip w">Utah ✓</span>
+        </div>
+
+        <div class="esum">
+          <div style="font-weight:800;color:var(--brown);margin-bottom:6px">The rundown</div>
+          <ul>
+            <li>Group went <b>51.2%</b> ATS; locks a rough <b>44%</b>.</li>
+            <li><b>Vanderbilt +7</b> was the fade of the week (8% picked, covered). <b>82%</b> got burned on Ohio State.</li>
+            <li><b>Casey Nguyen</b> is your new overall leader.</li>
+          </ul>
+        </div>
+
+        <a href="#" class="ecta">Read the full Week 5 recap →</a>
+        <div class="efoot">You're getting this because you're playing Pigskin Pick Six 2025. · Manage email preferences</div>
+      </div>
+    </div>
+    <p class="note" style="text-align:center">The "Your Week 5" block + pick chips are unique per recipient; everything below "The rundown" is shared.</p>
+  </div>
+</section>
+
+<footer><div class="wrap">PP6 · Weekly Recap Seeding — flow mockup for review. Static; not wired to data.</div></footer>
+</body>
+</html>
