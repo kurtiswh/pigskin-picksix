@@ -8,33 +8,28 @@ interface Props {
   currentSeasonPoints?: number
 }
 
-// Percentile of a value among the pool (returns "top N%" note), direction-aware.
-function topPct(pool: number[], val: number | null, higherBetter: boolean): string | null {
-  if (val == null || pool.length === 0) return null
-  const better = pool.filter(v => (higherBetter ? v > val : v < val)).length
-  const pct = Math.max(1, Math.round(((better + 1) / pool.length) * 100))
-  return `top ${pct}%`
-}
-
 export default function CareerStatsCard({ userId, bestWeekScore, currentSeasonPoints }: Props) {
-  const [all, setAll] = useState<CareerStats[]>([])
+  const [stats, setStats] = useState<CareerStats | null>(null)
   const [history, setHistory] = useState<SeasonHistoryRow[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     Promise.all([
-      StatsService.getAllCareerStats().then(setAll),
+      StatsService.getCareerStats(userId).then(setStats),
       StatsService.getSeasonHistory(userId).then(setHistory),
     ]).finally(() => setLoading(false))
   }, [userId])
 
   if (loading) return null
-  const stats = all.find(s => s.user_id === userId) || null
   if (!stats && bestWeekScore == null && currentSeasonPoints == null) return null
 
   const pctFmt = (v: number | null) => (v == null ? '—' : `${(v * 100).toFixed(1)}%`)
-  const col = (fn: (s: CareerStats) => number | null) =>
-    all.map(fn).filter((v): v is number => v != null)
+  // "top N%" from the player's rank among all players (computed in the view).
+  const topPct = (rank?: number) => {
+    const total = stats?.total_players
+    if (!rank || !total) return null
+    return `top ${Math.max(1, Math.round((rank / total) * 100))}%`
+  }
 
   type Tile = { label: string; value: string | number; note?: string | null }
   const tiles: Tile[] = []
@@ -43,16 +38,16 @@ export default function CareerStatsCard({ userId, bestWeekScore, currentSeasonPo
       { label: 'Seasons', value: stats.seasons_played },
       { label: 'Championships', value: stats.championships },
       { label: 'Career Points', value: stats.career_points?.toLocaleString?.() ?? stats.career_points,
-        note: topPct(col(s => s.career_points), stats.career_points, true) },
+        note: topPct(stats.career_points_rank) },
       { label: 'Avg Pts / Season', value: stats.avg_season_points,
-        note: topPct(col(s => s.avg_season_points), stats.avg_season_points, true) },
+        note: topPct(stats.avg_season_points_rank) },
       { label: 'Best Finish', value: `#${stats.best_finish}` },
       { label: 'Avg Finish', value: stats.avg_finish,
-        note: topPct(col(s => s.avg_finish), stats.avg_finish, false) },
+        note: topPct(stats.avg_finish_rank) },
       { label: 'Win %', value: pctFmt(stats.win_pct),
-        note: topPct(col(s => s.win_pct), stats.win_pct, true) },
+        note: topPct(stats.win_pct_rank) },
       { label: 'Lock Win %', value: pctFmt(stats.lock_win_pct),
-        note: topPct(col(s => s.lock_win_pct), stats.lock_win_pct, true) },
+        note: topPct(stats.lock_win_pct_rank) },
       { label: 'Top-10s', value: stats.top10_finishes },
       { label: 'Weekly Wins', value: stats.weekly_wins },
     )

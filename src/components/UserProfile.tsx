@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { supabase } from '@/lib/supabase'
 import { UserProfile as UserProfileType, UserPreferences, Pick, AnonymousPick, UserPickSet } from '@/types'
+import PickSetsHistory from '@/components/PickSetsHistory'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import CareerStatsCard from '@/components/CareerStatsCard'
@@ -478,144 +479,10 @@ export default function UserProfile() {
         />
       )}
 
-      {activeTab === 'picks' && pickSets.length > 0 && (
-            <Card>
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg">Pick Sets History</h3>
-                  <div className="space-y-3">
-                    {pickSets.map((pickSet, index) => (
-                      <div key={index} className="border rounded-lg p-4 bg-stone-50">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center space-x-3">
-                            <div className="flex items-center space-x-2">
-                              <span className="font-medium">
-                                Week {pickSet.week}, {pickSet.season}
-                              </span>
-                              <Badge 
-                                variant={pickSet.pickType === 'authenticated' ? 'default' : 'secondary'}
-                                className={pickSet.pickType === 'authenticated' 
-                                  ? 'bg-pigskin-500 text-white' 
-                                  : 'bg-gray-500 text-white'
-                                }
-                              >
-                                {pickSet.pickType === 'authenticated' ? 'Registered' : 'Anonymous'}
-                              </Badge>
-                              <Badge 
-                                variant={pickSet.submitted ? 'default' : 'outline'}
-                                className={pickSet.submitted 
-                                  ? 'bg-green-500 text-white' 
-                                  : 'text-orange-600 border-orange-300'
-                                }
-                              >
-                                {pickSet.submitted ? 'Submitted' : 'Not Submitted'}
-                              </Badge>
-                              {!pickSet.isActive && (
-                                <Badge variant="outline" className="text-red-600 border-red-300">
-                                  Inactive
-                                </Badge>
-                              )}
-                              {pickSet.conflictStatus === 'active_conflict' && (
-                                <Badge variant="outline" className="text-orange-600 border-orange-300">
-                                  Conflict
-                                </Badge>
-                              )}
-                              {pickSet.conflictStatus === 'resolved_conflict' && (
-                                <Badge variant="outline" className="text-blue-600 border-blue-300">
-                                  Resolved
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-semibold text-pigskin-600">
-                              {pickSet.points} points
-                            </div>
-                            <div className="text-sm text-charcoal-500">
-                              {pickSet.pickCount} picks
-                            </div>
-                            {pickSet.submitted_at && (
-                              <div className="text-xs text-charcoal-400">
-                                Submitted: {new Date(pickSet.submitted_at).toLocaleDateString()} {new Date(pickSet.submitted_at).toLocaleTimeString()}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div className="text-center">
-                            <div className="text-green-600 font-semibold">{pickSet.wins}</div>
-                            <div className="text-charcoal-500">Wins</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-red-600 font-semibold">{pickSet.losses}</div>
-                            <div className="text-charcoal-500">Losses</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-yellow-600 font-semibold">{pickSet.pushes}</div>
-                            <div className="text-charcoal-500">Pushes</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-pigskin-600 font-semibold">
-                              {(pickSet.lockWins || 0)}-{(pickSet.lockLosses || 0)}
-                            </div>
-                            <div className="text-charcoal-500">Lock Record</div>
-                          </div>
-                        </div>
-
-                        {/* Status explanation */}
-                        {pickSet.conflictStatus !== 'no_conflict' && (
-                          <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
-                            {pickSet.conflictStatus === 'active_conflict' && (
-                              <span className="text-orange-700">
-                                ⚠️ This pick set conflicts with another pick set for the same week. 
-                                Only one set can be active for scoring.
-                              </span>
-                            )}
-                            {pickSet.conflictStatus === 'resolved_conflict' && (
-                              <span className="text-blue-700">
-                                ✅ This pick set conflict has been resolved. 
-                                Your {pickSet.pickType} picks are being used for scoring.
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {!pickSet.isActive && pickSet.conflictStatus === 'no_conflict' && (
-                          <div className="mt-3 p-2 bg-gray-50 border border-gray-200 rounded text-sm">
-                            <span className="text-gray-700">
-                              ℹ️ This pick set is inactive and not being used for scoring calculations.
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Admin Note Display */}
-                        {pickSet.admin_note && (
-                          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
-                            <div className="flex items-start space-x-2">
-                              <span className="text-blue-600 font-medium">📝 Admin Note:</span>
-                              <span className="text-blue-800">{pickSet.admin_note}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Pick Sets Summary */}
-                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-                    <div className="font-medium text-blue-800 mb-1">Pick Sets Explanation:</div>
-                    <ul className="text-blue-700 space-y-1">
-                      <li>• <strong>Registered:</strong> Picks made while logged into your account</li>
-                      <li>• <strong>Anonymous:</strong> Picks made before login that were matched to your account</li>
-                      <li>• <strong>Active:</strong> These picks count toward your scores and leaderboard ranking</li>
-                      <li>• <strong>Inactive:</strong> These picks don't count (usually when you have both types for the same week)</li>
-                    </ul>
-                  </div>
-                </div>
-                </CardContent>
-              </Card>
+      {activeTab === 'picks' && (
+        <PickSetsHistory pickSets={pickSets} />
       )}
+
     </div>
   )
 }

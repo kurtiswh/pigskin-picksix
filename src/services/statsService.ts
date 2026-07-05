@@ -23,12 +23,22 @@ export interface CareerStats {
   best_finish_titles: number
   lock_titles: number
   weekly_wins: number
+  total_players?: number
+  career_points_rank?: number
+  avg_season_points_rank?: number
+  win_pct_rank?: number
+  lock_win_pct_rank?: number
+  avg_finish_rank?: number
 }
 
 export class StatsService {
-  static async getAllCareerStats(): Promise<CareerStats[]> {
-    const { data, error } = await supabase.from('player_career_stats').select('*')
-    if (error) { console.error('getAllCareerStats failed:', error); return [] }
+  /** Top-N players for a career-stats column (server-side ordered — avoids the
+   *  1000-row response cap that a client-side "fetch all + sort" would hit). */
+  static async getTopCareer(column: string, ascending: boolean, minSeasons = 1, limit = 10): Promise<CareerStats[]> {
+    let q = supabase.from('player_career_stats').select('*').not(column, 'is', null)
+    if (minSeasons > 1) q = q.gte('seasons_played', minSeasons)
+    const { data, error } = await q.order(column, { ascending }).limit(limit)
+    if (error) { console.error(`getTopCareer(${column}) failed:`, error); return [] }
     return (data || []) as CareerStats[]
   }
 
