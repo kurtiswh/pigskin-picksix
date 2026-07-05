@@ -437,7 +437,36 @@ export class WinnersService {
    * Get display-friendly winner data with user names
    */
   static async getWinnersWithNames(season: number) {
-    // Use live calculation from leaderboards instead of stored data
-    return this.getLiveWinnersFromLeaderboards(season)
+    // Prefer the stored, finalized season_winners row (authoritative — this is
+    // how historic seasons, incl. pre-2016 standings-only years, are recorded).
+    // Fall back to live calculation for the in-progress season (not yet stored).
+    const { data: stored } = await supabase
+      .from('season_winners')
+      .select('*')
+      .eq('season', season)
+      .maybeSingle()
+
+    const populated = stored && (stored.point_winner_user_id || stored.is_finalized)
+    if (!populated) {
+      return this.getLiveWinnersFromLeaderboards(season)
+    }
+
+    const idFields = [
+      'point_winner_user_id', 'point_second_user_id', 'point_third_user_id',
+      'point_fourth_user_id', 'point_fifth_user_id', 'point_sixth_user_id',
+      'point_seventh_user_id', 'point_eighth_user_id', 'point_ninth_user_id',
+      'point_tenth_user_id', 'lock_winner_user_id', 'lock_second_user_id',
+      'bracket_winner_user_id', 'bracket_second_user_id', 'best_finish_user_id',
+    ]
+    const ids = new Set<string>()
+    idFields.forEach(f => { if (stored[f]) ids.add(stored[f]) })
+    ;(stored.weekly_winners || []).forEach((w: any) => { if (w?.user_id) ids.add(w.user_id) })
+
+    const { data: users } = ids.size
+      ? await supabase.from('users').select('id, display_name').in('id', [...ids])
+      : { data: [] as any[] }
+    const userMap = new Map((users || []).map((u: any) => [u.id, u.display_name]))
+
+    return { winners: stored, userMap, payoutStructure: PAYOUT_PERCENTAGES }
   }
 }

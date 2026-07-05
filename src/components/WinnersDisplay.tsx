@@ -7,6 +7,8 @@ import { SeasonWinners, PAYOUT_PERCENTAGES } from '@/types/winners'
 
 interface WinnersDisplayProps {
   season: number
+  /** Hide payout percentage + dollar columns (used for historical archive view). */
+  hidePayouts?: boolean
 }
 
 interface WinnerRow {
@@ -21,7 +23,7 @@ interface WinnerRow {
   isTBD?: boolean
 }
 
-export default function WinnersDisplay({ season }: WinnersDisplayProps) {
+export default function WinnersDisplay({ season, hidePayouts = false }: WinnersDisplayProps) {
   const [winners, setWinners] = useState<SeasonWinners | null>(null)
   const [userMap, setUserMap] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -248,7 +250,7 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
                   Season {season} Winners
                 </CardTitle>
                 <p className="text-sm text-charcoal-600 mt-1">
-                  Final standings and payout distribution
+                  {hidePayouts ? 'Season winners' : 'Final standings and payout distribution'}
                 </p>
               </div>
             </div>
@@ -319,10 +321,12 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Winner
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">
-                    Percentage
-                  </th>
-                  {winners?.total_pot && (
+                  {!hidePayouts && (
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      Percentage
+                    </th>
+                  )}
+                  {!hidePayouts && winners?.total_pot && (
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">
                       Amount
                     </th>
@@ -362,10 +366,12 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
                         {row.displayName}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <span className="text-sm text-charcoal-700">{row.percentage}</span>
-                    </td>
-                    {winners?.total_pot && (
+                    {!hidePayouts && (
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <span className="text-sm text-charcoal-700">{row.percentage}</span>
+                      </td>
+                    )}
+                    {!hidePayouts && winners?.total_pot && (
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <span className="text-sm font-semibold text-pigskin-700">
                           {row.amount || '-'}
@@ -403,9 +409,11 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
               <Calendar className="w-5 h-5 text-[#C9A04E]" />
               <CardTitle className="text-xl">Weekly Winners</CardTitle>
             </div>
-            <Badge className="bg-[#C9A04E]/15 text-[#8a6a1f]">
-              ${winners?.weekly_payout || 80} per week
-            </Badge>
+            {!hidePayouts && (
+              <Badge className="bg-[#C9A04E]/15 text-[#8a6a1f]">
+                ${winners?.weekly_payout || 80} per week
+              </Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -436,9 +444,11 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
                       </div>
                     )}
                   </div>
-                  <div className="text-sm font-bold text-[#8a6a1f] ml-2">
-                    {formatCurrency(winners?.weekly_payout || 80)}
-                  </div>
+                  {!hidePayouts && (
+                    <div className="text-sm font-bold text-[#8a6a1f] ml-2">
+                      {formatCurrency(winners?.weekly_payout || 80)}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -448,7 +458,7 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
             </div>
           )}
 
-          {groupedWeeklyWinners.length > 0 && (
+          {!hidePayouts && groupedWeeklyWinners.length > 0 && (
             <div className="mt-4 p-3 bg-[#fff8ea] rounded-xl border border-[#f0dcb0]">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-charcoal-900">
@@ -464,6 +474,7 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
       </Card>
 
       {/* Notes */}
+      {!hidePayouts && (
       <Card className="border-yellow-200 bg-yellow-50/30">
         <CardContent className="p-4">
           <div className="text-sm text-charcoal-700 space-y-2">
@@ -484,6 +495,7 @@ export default function WinnersDisplay({ season }: WinnersDisplayProps) {
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   )
 }

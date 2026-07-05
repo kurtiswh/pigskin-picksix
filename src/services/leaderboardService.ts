@@ -27,7 +27,73 @@ export interface LeaderboardEntry {
   pick_source?: 'authenticated' | 'anonymous' | 'mixed'
 }
 
+export interface SeasonChampion {
+  season: number
+  champion: { display_name: string; total_points: number | null; record: string | null } | null
+  best_finish: { display_name: string } | null
+}
+
 export class LeaderboardService {
+  /**
+   * Distinct seasons that have game data, newest first. Powers the season
+   * selector so historic seasons appear automatically once loaded.
+   */
+  static async getAvailableSeasons(): Promise<number[]> {
+    const { data, error } = await supabase
+      .from('games')
+      .select('season')
+      .order('season', { ascending: false })
+    if (error) {
+      console.error('getAvailableSeasons failed:', error)
+      return []
+    }
+    return [...new Set((data || []).map(r => r.season as number))]
+  }
+
+  /**
+   * Season champions across all seasons (for the History / Hall of Champions
+   * overview): the points winner and the Best Finish winner per season.
+   */
+  static async getSeasonChampions(): Promise<SeasonChampion[]> {
+    // Champions come from season_winners (covers every season, incl. pre-2016
+    // standings-only years). Points/record are joined from season_leaderboard
+    // where available (2016+, which have pick-level data).
+    const [swRes, slRes] = await Promise.all([
+      supabase.from('season_winners').select('season, point_winner_user_id, best_finish_user_id'),
+      supabase.from('season_leaderboard')
+        .select('season, total_points, total_wins, total_losses, total_pushes')
+        .eq('season_rank', 1),
+    ])
+    const ids = new Set<string>()
+    for (const r of (swRes.data || []) as any[]) {
+      if (r.point_winner_user_id) ids.add(r.point_winner_user_id)
+      if (r.best_finish_user_id) ids.add(r.best_finish_user_id)
+    }
+    const usersRes = ids.size
+      ? await supabase.from('users').select('id, display_name').in('id', [...ids])
+      : { data: [] as any[] }
+    const nameMap = new Map((usersRes.data || []).map((u: any) => [u.id, u.display_name]))
+    const slMap = new Map((slRes.data || []).map((r: any) => [r.season, r]))
+
+    return ((swRes.data || []) as any[])
+      .filter(r => r.point_winner_user_id)
+      .map(r => {
+        const s: any = slMap.get(r.season)
+        return {
+          season: r.season,
+          champion: {
+            display_name: nameMap.get(r.point_winner_user_id) || 'Unknown',
+            total_points: s ? s.total_points : null,
+            record: s ? `${s.total_wins || 0}-${s.total_losses || 0}-${s.total_pushes || 0}` : null,
+          },
+          best_finish: r.best_finish_user_id
+            ? { display_name: nameMap.get(r.best_finish_user_id) || 'Unknown' }
+            : null,
+        } as SeasonChampion
+      })
+      .sort((a, b) => b.season - a.season)
+  }
+
   /**
    * Create a timeout promise for database queries
    */

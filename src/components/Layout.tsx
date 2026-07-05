@@ -87,6 +87,17 @@ export default function Layout({ children }: LayoutProps) {
               </Link>
 
               <Link
+                to="/history"
+                className={`text-sm font-medium transition-colors ${
+                  isActive('/history')
+                    ? 'text-gold-300'
+                    : 'text-pigskin-100 hover:text-white'
+                }`}
+              >
+                History
+              </Link>
+
+              <Link
                 to="/games"
                 className={`text-sm font-medium transition-colors ${
                   isActive('/games')
@@ -227,6 +238,18 @@ export default function Layout({ children }: LayoutProps) {
                   }`}
                 >
                   Leaderboard
+                </Link>
+
+                <Link
+                  to="/history"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`text-sm font-medium transition-colors ${
+                    isActive('/history')
+                      ? 'text-gold-300'
+                      : 'text-pigskin-100 hover:text-white'
+                  }`}
+                >
+                  History
                 </Link>
 
                 <Link

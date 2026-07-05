@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { UserProfile as UserProfileType, UserPreferences, Pick, AnonymousPick, UserPickSet } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import CareerStatsCard from '@/components/CareerStatsCard'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
@@ -358,6 +359,9 @@ export default function UserProfile() {
           </CardTitle>
         </CardHeader>
       </Card>
+
+      {/* All-time career stats (only renders if the player has historic data) */}
+      {user && <CareerStatsCard userId={user.id} />}
 
       {/* Navigation Tabs */}
       <div className="flex space-x-1 bg-white p-1 rounded-lg shadow-sm">

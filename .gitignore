@@ -72,3 +72,6 @@ test.html
 feature-demo.html
 # Cloudflare Wrangler
 .wrangler/
+
+# Historic import raw data (may contain PII)
+data/imports/

@@ -9,6 +9,7 @@ import MagicLoginPage from './pages/MagicLoginPage'
 import PickSheetPage from './pages/PickSheetPage'
 import AnonymousPicksPage from './pages/AnonymousPicksPage'
 import LeaderboardPage from './pages/LeaderboardPage'
+import HistoryPage from './pages/HistoryPage'
 import AdminDashboard from './pages/AdminDashboard'
 import ProfilePage from './pages/ProfilePage'
 import BlogPage from './pages/BlogPage'
@@ -33,6 +34,8 @@ function App() {
             <Route path="/picks" element={<PickSheetPage />} />
             <Route path="/anonymous-picks" element={<AnonymousPicksPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/history" element={<HistoryPage />} />
+            <Route path="/records" element={<HistoryPage initialTab="records" />} />
             <Route path="/games" element={<GamesPage />} />
             <Route path="/games/:season/:week" element={<GamesPage />} />
             <Route path="/admin" element={<AdminDashboard />} />

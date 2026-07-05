@@ -583,15 +583,10 @@ export default function TabbedLeaderboard() {
         })()}
         
         <div className="mt-4 flex items-center gap-4">
-          <Select value={season.toString()} onValueChange={(value) => setSeason(parseInt(value))}>
-            <SelectTrigger className="w-32 focus:ring-[#C9A04E]/40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2025">2025</SelectItem>
-              <SelectItem value="2024">2024</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Main leaderboard is locked to the current season; past seasons live on the History page. */}
+          <div className="px-3 py-1.5 rounded-md bg-[#4B3621] text-white text-sm font-semibold">
+            {season} Season
+          </div>
           
           <Input
             placeholder="Search players..."
