@@ -90,31 +90,6 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
     }
   }
 
-  const handleSendWeeklyResults = async () => {
-    try {
-      setLoading(true)
-      setStatus('Sending weekly results...')
-      
-      await NotificationScheduler.onWeekCompleted(currentWeek, currentSeason)
-      setStatus('✅ Weekly results queued! Processing emails...')
-      
-      // Auto-process email queue to send weekly results immediately
-      try {
-        const result = await NotificationScheduler.processEmailQueue()
-        setStatus(`✅ Weekly results sent! Processed ${result.processed} emails (${result.errors} errors)`)
-      } catch (processError) {
-        console.warn('Could not auto-process weekly results emails:', processError)
-        setStatus('✅ Weekly results queued! Click "Process Email Queue" to send them.')
-      }
-      
-    } catch (error) {
-      console.error('Error sending weekly results:', error)
-      setStatus('❌ Error sending weekly results: ' + (error as Error).message)
-    } finally {
-      setLoading(false)
-      setTimeout(() => setStatus(''), 8000) // Longer timeout for combined message
-    }
-  }
 
   const handleProcessEmailQueue = async () => {
     try {
@@ -225,39 +200,6 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
       
     } catch (error) {
       console.error('Error updating open picks settings:', error)
-      
-      // Provide specific error messages for common issues
-      let errorMessage = (error as Error).message
-      if (errorMessage.includes('row-level security policy')) {
-        errorMessage = 'Permission denied. Please make sure you are logged in as an admin user.'
-      } else if (errorMessage.includes('Auth session missing')) {
-        errorMessage = 'Authentication required. Please log in to save email settings.'
-      } else if (errorMessage.includes('JWT expired') || errorMessage.includes('refresh token')) {
-        errorMessage = 'Your session has expired. Please log in again.'
-      }
-      
-      setStatus('❌ Error updating settings: ' + errorMessage)
-    } finally {
-      setLoading(false)
-      setTimeout(() => setStatus(''), 3000)
-    }
-  }
-
-  const handleUpdateWeeklyResultsSettings = async () => {
-    if (!emailSettings) return
-    
-    try {
-      setLoading(true)
-      setStatus('Updating weekly results settings...')
-      
-      await AdminEmailSettingsService.updateWeeklyResultsSettings(currentSeason, emailSettings.weekly_results)
-      setStatus('✅ Weekly results settings updated successfully!')
-      
-      // Reload settings to sync UI with database
-      await loadEmailSettings()
-      
-    } catch (error) {
-      console.error('Error updating weekly results settings:', error)
       
       // Provide specific error messages for common issues
       let errorMessage = (error as Error).message
