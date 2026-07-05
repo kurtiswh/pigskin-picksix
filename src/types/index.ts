@@ -69,6 +69,14 @@ export interface UserPickSet {
   submitted?: boolean
   submitted_at?: string
   admin_note?: string
+  picks?: PickDetail[]
+}
+
+export interface PickDetail {
+  team: string
+  result: 'win' | 'loss' | 'push' | null
+  is_lock: boolean
+  points: number
 }
 
 export interface Game {

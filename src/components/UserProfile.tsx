@@ -203,18 +203,20 @@ export default function UserProfile() {
           conflictStatus: 'no_conflict',
           submitted: pick.submitted,
           submitted_at: pick.submitted_at,
-          admin_note: pick.admin_note
+          admin_note: pick.admin_note,
+          picks: []
         })
       }
-      
+
       const pickSet = pickSetsMap.get(key)!
       pickSet.pickCount++
       pickSet.points += pick.points_earned || 0
-      
+      pickSet.picks!.push({ team: pick.selected_team, result: pick.result ?? null, is_lock: !!pick.is_lock, points: pick.points_earned || 0 })
+
       if (pick.result === 'win') pickSet.wins++
       else if (pick.result === 'loss') pickSet.losses++
       else if (pick.result === 'push') pickSet.pushes++
-      
+
       if (pick.is_lock) {
         if (pick.result === 'win') pickSet.lockWins = (pickSet.lockWins || 0) + 1
         else if (pick.result === 'loss') pickSet.lockLosses = (pickSet.lockLosses || 0) + 1
@@ -248,18 +250,20 @@ export default function UserProfile() {
           conflictStatus: 'no_conflict',
           submitted: pick.submitted,
           submitted_at: pick.submitted_at,
-          admin_note: pick.admin_note
+          admin_note: pick.admin_note,
+          picks: []
         })
       }
-      
+
       const pickSet = pickSetsMap.get(key)!
       pickSet.pickCount++
       pickSet.points += pick.points_earned || 0
-      
+      pickSet.picks!.push({ team: pick.selected_team, result: pick.result ?? null, is_lock: !!pick.is_lock, points: pick.points_earned || 0 })
+
       if (pick.result === 'win') pickSet.wins++
       else if (pick.result === 'loss') pickSet.losses++
       else if (pick.result === 'push') pickSet.pushes++
-      
+
       if (pick.is_lock) {
         if (pick.result === 'win') pickSet.lockWins = (pickSet.lockWins || 0) + 1
         else if (pick.result === 'loss') pickSet.lockLosses = (pickSet.lockLosses || 0) + 1
