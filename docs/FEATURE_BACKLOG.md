@@ -91,24 +91,30 @@ hands-off is impossible until LeagueSafe adds a push mechanism.
 
 ## 🧹 Cleanup / tech debt
 
-- 🔴 **Per-game locks on `anonymous_picks`** — currently only authenticated `picks`
-  are lock-enforced server-side (migrations 161/161b).
-- 🔴 **`update-game-statistics` cron cadence** — runs once (Sat 16:00 UTC); the Live
-  Scores pick counts refresh from it, so consider running it more often on game day.
-- 🔴 **Drop unused `VITE_SPORTRADAR_API_KEY`** (not used anywhere).
-- 🔴 **Dedupe ~21 paid/unpaid duplicate account pairs** (merge tooling exists in People).
-- 🔴 **2024 bad-state data** — a few games in a bad state + 1 test anon pick to clean.
-- 🔴 **Build chunk-size warning** — main bundle >500KB; code-split if it grows.
-- 🔴 **Reconcile `auth.uid()` vs `public.users.id` mismatch** — some merged admin
-  accounts (kurtiswh@gmail.com, jstovall5) have `public.users.id` ≠ their
-  `auth.users.id`. Any RLS keyed on `auth.uid() = user_id` (picks, payments)
-  mis-sees them. Admin recognition was patched to also match by JWT email
-  (migration 168), but the underlying id mismatch should be reconciled so those
-  accounts' own picks/payments RLS behaves. Check whether non-admin players have
-  the same mismatch.
-- 🔴 **Retire remaining legacy live-update service code** — `liveUpdateService` /
-  `cfbdLiveUpdater` browser paths are no longer used by the UI (Live Scores is now
-  server-cron driven); audit and remove what's dead.
+- 🟢 **Per-game locks on `anonymous_picks`** — done (migration 172): consolidated 4
+  wide-open insert policies into one lock-gated policy (`game_is_open_for_picks`).
+- 🟢 **`update-game-statistics` cron cadence** — done (172): now every 30 min Thu–Sun.
+- 🟢 **Drop unused `VITE_SPORTRADAR_API_KEY`** — done (removed from vite-env.d.ts + .env.example).
+- 🟢 **Build chunk-size** — done: vendor split (react/supabase/quill chunks); main
+  bundle ~1.2MB → ~674KB. Route-based lazy loading later if it needs to go lower.
+- 🟡 **2024 bad-state data** — test anon pick removed (172). Remaining: 4 completed
+  2024 games have NULL away scores (missing data) + 1 in-progress game. 2024 has
+  **zero picks**, so these are harmless view-noise; fixing needs a CFBD re-fetch of
+  those scores. Low priority.
+- 🔴 **Reconcile `auth.uid()` vs `public.users.id` mismatch** — DEFERRED (risky). Some
+  merged accounts (kurtiswh@gmail.com, jstovall5) have `public.users.id` ≠ their
+  `auth.users.id`; any RLS keyed on `auth.uid() = user_id` (picks, payments) mis-sees
+  them. Admin recognition is patched via JWT email (migration 168). Real fix =
+  reconcile ids, which cascades across picks/payments/FKs — needs a careful, backed-up
+  migration + audit of how many players are affected. Don't rush.
+- 🔴 **Dedupe ~21 paid/unpaid duplicate account pairs** — DEFERRED (needs judgment).
+  Each pair needs an admin decision on the survivor; use the merge tool in People.
+  Not safe to auto-merge blindly.
+- 🔴 **Retire legacy live-update service code** — DEFERRED (not actually dead).
+  `liveUpdateService`/`cfbdLiveUpdater` are still imported by GameCompletionTest,
+  ScheduledFunctionsManager, PickProcessingMonitor, **TabbedLeaderboard** (public),
+  GamesPage, AdminDashboard. Retiring means auditing/refactoring each (esp. the
+  public leaderboard's browser polling) — a careful task, not a quick delete.
 
 ---
 

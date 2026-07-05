@@ -11,4 +11,16 @@ export default defineConfig({
   },
   // Ensure environment variables are available in production
   envPrefix: ['VITE_'],
+  build: {
+    rollupOptions: {
+      output: {
+        // Split large vendor deps into their own chunks to cut the main bundle.
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          supabase: ['@supabase/supabase-js'],
+          quill: ['react-quill'],
+        },
+      },
+    },
+  },
 })
