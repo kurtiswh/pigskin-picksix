@@ -9,7 +9,6 @@ import GameResultCard from '@/components/GameResultCard'
 import GameStatsOverview from '@/components/GameStatsOverview'
 import GamePickStatistics from '@/components/GamePickStatistics'
 import { supabase } from '@/lib/supabase'
-import { liveUpdateService } from '@/services/liveUpdateService'
 import { getActiveWeek } from '@/services/weekService'
 import { useAuth } from '@/hooks/useAuth'
 import type { Pick } from '@/types'
@@ -71,10 +70,7 @@ export default function GamesPage() {
   const [error, setError] = useState('')
   const [offline, setOffline] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  
-  // Live update integration
-  const [liveUpdateStatus, setLiveUpdateStatus] = useState(liveUpdateService.getStatus())
-  
+
   const isAdmin = user?.is_admin === true
   const isPickDeadlinePassed = weekSettings 
     ? new Date() > new Date(weekSettings.deadline)
@@ -111,25 +107,19 @@ export default function GamesPage() {
     console.log(`📊 Loading data for Season ${currentSeason}, Week ${currentWeek}`)
     loadGames()
     loadWeekSettings()
-    updateLiveStatus()
-    
-    // Set up live status monitoring
-    const statusInterval = setInterval(updateLiveStatus, 10000)
-    const refreshInterval = setInterval(checkForAutoRefresh, 30000)
-    
-    // Add game status refresh timer for real-time countdown updates
+
+    // Re-render periodically so time-based status (countdowns) stays current
     const gameRefreshInterval = setInterval(() => {
-      setGames(currentGames => [...currentGames]) // Force re-render to update time-based status
+      setGames(currentGames => [...currentGames])
     }, 30000)
-    
-    // Periodic data refresh (silent background update)
+
+    // Silent background refresh of scores/stats (server-side automation is the
+    // source of truth; this just keeps the on-screen data reasonably fresh)
     const dataRefreshInterval = setInterval(() => {
-      silentUpdateGames() // Background refresh without UI disruption
-    }, 60000) // Every minute
-    
+      silentUpdateGames()
+    }, 60000)
+
     return () => {
-      clearInterval(statusInterval)
-      clearInterval(refreshInterval)
       clearInterval(gameRefreshInterval)
       clearInterval(dataRefreshInterval)
     }
@@ -149,18 +139,6 @@ export default function GamesPage() {
       navigate(newPath, { replace: true })
     }
   }, [currentSeason, currentWeek, navigate])
-
-  const updateLiveStatus = () => {
-    setLiveUpdateStatus(liveUpdateService.getStatus())
-  }
-
-  const checkForAutoRefresh = () => {
-    if (liveUpdateService.shouldRefreshLeaderboard()) {
-      console.log('🔄 Auto-refreshing games due to live updates')
-      silentUpdateGames()
-      liveUpdateService.acknowledgeLeaderboardRefresh()
-    }
-  }
 
   const loadGames = async () => {
     try {
@@ -279,48 +257,6 @@ export default function GamesPage() {
     setCurrentSeason(parseInt(season))
   }
 
-  const runManualUpdate = async () => {
-    // Restrict manual API updates to admin users only
-    if (!isAdmin) {
-      console.warn('⚠️ Manual API updates are restricted to admin users only')
-      alert('Manual API updates are restricted to admin users to preserve API quota.')
-      return
-    }
-    
-    try {
-      setLoading(true)
-      console.log(`🔄 Admin manual update for Week ${currentWeek}, Season ${currentSeason}...`)
-      const result = await liveUpdateService.manualUpdate(currentSeason, currentWeek)
-      
-      if (result.success) {
-        console.log(`✅ Manual update successful:`)
-        console.log(`   - Games updated: ${result.gamesUpdated}`)
-        console.log(`   - Picks processed: ${result.picksProcessed}`)
-        if (result.errors.length > 0) {
-          console.log(`   - Warnings: ${result.errors.join(', ')}`)
-        }
-        await loadGames()
-      } else {
-        console.error('❌ Manual update failed:', result.errors)
-        setError('Manual update failed: ' + result.errors.join(', '))
-      }
-    } catch (err: any) {
-      console.error('❌ Manual update error:', err)
-      setError('Manual update error: ' + err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const startLiveUpdates = async () => {
-    await liveUpdateService.startSmartPolling()
-    updateLiveStatus()
-  }
-
-  const stopLiveUpdates = () => {
-    liveUpdateService.stopPolling()
-    updateLiveStatus()
-  }
 
   return (
     <Layout>

@@ -2,12 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Download } from 'lucide-react'
 import type { EmergencyLeaderboardEntry, EmergencyWeeklyLeaderboardEntry } from '@/services/leaderboard.types'
-import { liveUpdateService, LiveUpdateStatus, LiveUpdateResult } from '@/services/liveUpdateService'
 import { getLatestWeekWithResults, getMaxConfiguredWeek } from '@/services/weekService'
 import { LeaderboardService, LeaderboardEntry, EmergencyLeaderboardService, EmergencyWeeklyLeaderboardService } from '@/services/leaderboardService'
 import { WeekSettingsService, WeekSettings } from '@/services/weekSettingsService'
@@ -41,8 +39,6 @@ export default function TabbedLeaderboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [strategy, setStrategy] = useState('')
-  const [liveUpdateStatus, setLiveUpdateStatus] = useState<LiveUpdateStatus | null>(null)
-  const [lastUnifiedUpdate, setLastUnifiedUpdate] = useState<LiveUpdateResult | null>(null)
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
   
   // State for expandable rows
@@ -76,7 +72,6 @@ export default function TabbedLeaderboard() {
 
   useEffect(() => {
     loadSeasonData()
-    updateLiveStatus()
     loadWeekSettings()
   }, [season, selectedSeasonWeek])
 
@@ -91,20 +86,6 @@ export default function TabbedLeaderboard() {
       loadWeeklyData()
     }
   }, [selectedWeek, season, activeTab])
-
-  useEffect(() => {
-    // Set up periodic live status updates and check for auto-start
-    updateLiveStatus()
-    checkAutoStart()
-    
-    const statusInterval = setInterval(updateLiveStatus, 10000) // Update every 10 seconds
-    const refreshInterval = setInterval(checkForAutoRefresh, 30000) // Check for refresh every 30 seconds
-    
-    return () => {
-      clearInterval(statusInterval)
-      clearInterval(refreshInterval)
-    }
-  }, [])
 
   // Scroll to top functionality
   useEffect(() => {
@@ -151,55 +132,6 @@ export default function TabbedLeaderboard() {
     } catch (error) {
       console.error('Error loading week settings:', error)
       setWeekSettings(null)
-    }
-  }
-
-  const updateLiveStatus = () => {
-    setLiveUpdateStatus(liveUpdateService.getStatus())
-  }
-
-  const checkForAutoRefresh = async () => {
-    // Only auto-refresh if live updates are running and we're not already loading
-    if (!liveUpdateStatus?.isRunning || loading) return
-    
-    try {
-      // Check if the live update service indicates leaderboard should be refreshed
-      if (liveUpdateService.shouldRefreshLeaderboard()) {
-        console.log('🔄 [TABBED] Auto-refreshing leaderboard after game/pick updates')
-        
-        // Refresh the current active tab
-        if (activeTab === 'season') {
-          await loadSeasonData()
-          setStrategy('Auto-refreshed after updates')
-        } else if (activeTab === 'weekly') {
-          await loadWeeklyData()
-          setStrategy('Auto-refreshed after updates')
-        }
-        
-        // Acknowledge that we've refreshed
-        liveUpdateService.acknowledgeLeaderboardRefresh()
-      }
-    } catch (error: any) {
-      console.error('❌ [TABBED] Auto-refresh check failed:', error)
-    }
-  }
-
-  const checkAutoStart = async () => {
-    if (!isAdmin) return // Only auto-start for admin users
-    
-    try {
-      const autoStartCheck = await liveUpdateService.shouldAutoStart()
-      if (autoStartCheck.should) {
-        console.log(`🤖 [TABBED] Auto-start conditions met: ${autoStartCheck.reason}`)
-        await liveUpdateService.autoStartIfNeeded()
-        updateLiveStatus()
-        setStrategy(`Auto-started: ${autoStartCheck.reason}`)
-      } else {
-        console.log(`⏸️ [TABBED] No auto-start: ${autoStartCheck.reason}`)
-        setStrategy(`Monitoring: ${autoStartCheck.reason}`)
-      }
-    } catch (error: any) {
-      console.error('❌ [TABBED] Auto-start check failed:', error)
     }
   }
 
@@ -330,62 +262,6 @@ export default function TabbedLeaderboard() {
     if (value === 'weekly' && weeklyData.length === 0) {
       loadWeeklyData()
     }
-  }
-
-  // Unified update using the live update service
-  const runUnifiedUpdate = async () => {
-    // Restrict manual API updates to admin users only
-    if (!isAdmin) {
-      console.warn('⚠️ Manual API updates are restricted to admin users only')
-      setError('Manual API updates are restricted to admin users to preserve API quota.')
-      return
-    }
-    
-    try {
-      setLoading(true)
-      setError('')
-      console.log('🚀 [TABBED] Admin running unified update (games + picks)...')
-      
-      const result = await liveUpdateService.manualUpdate(season, selectedWeek)
-      setLastUnifiedUpdate(result)
-      
-      if (result.success) {
-        console.log(`✅ [TABBED] Unified update complete: ${result.gamesUpdated} games, ${result.picksProcessed} picks`)
-        setStrategy(`Updated: ${result.gamesUpdated} games, ${result.picksProcessed} picks`)
-      } else {
-        setError('Some updates failed - check console for details')
-        setStrategy('Update failed - check console')
-      }
-
-      // Reload current tab data
-      if (activeTab === 'season') {
-        await loadSeasonData()
-      } else if (activeTab === 'weekly') {
-        await loadWeeklyData()
-      }
-      
-      updateLiveStatus()
-
-    } catch (err: any) {
-      console.error('❌ [TABBED] Unified update error:', err)
-      setError(err.message || 'Failed to update')
-      setStrategy('Update error')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Live update control functions
-  const startLiveUpdates = () => {
-    liveUpdateService.startSmartPolling()
-    updateLiveStatus()
-    setStrategy('Live updates started')
-  }
-
-  const stopLiveUpdates = () => {
-    liveUpdateService.stopPolling()
-    updateLiveStatus()
-    setStrategy('Live updates stopped')
   }
 
   const getCurrentData = () => {
@@ -545,8 +421,8 @@ export default function TabbedLeaderboard() {
         {/* Dynamic Notice Banner */}
         {(() => {
           const noticeData = WeekSettingsService.getNoticeMessage(
-            weekSettings, 
-            liveUpdateStatus?.isRunning || false
+            weekSettings,
+            false
           )
           
           const bgColor = noticeData.type === 'final' ? 'bg-green-50 border-green-400' : 
@@ -877,47 +753,12 @@ export default function TabbedLeaderboard() {
 
     return (
       <div className="overflow-x-auto">
-        {/* Live Status Header */}
-        {liveUpdateStatus?.isRunning && (
-          <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-green-700">Live Updates Active</span>
-                <span className="text-xs text-green-600">
-                  Leaderboard refreshes automatically as games complete
-                </span>
-                {liveUpdateStatus.shouldRefreshLeaderboard && (
-                  <Badge className="bg-blue-100 text-blue-800 animate-pulse">
-                    🔄 Refresh Pending
-                  </Badge>
-                )}
-              </div>
-              <div className="text-right">
-                {liveUpdateStatus.nextUpdate && (
-                  <span className="text-xs text-green-600">
-                    Next check: {liveUpdateStatus.nextUpdate.toLocaleTimeString()}
-                  </span>
-                )}
-                {liveUpdateStatus.lastResult && (
-                  <div className="text-xs text-green-500 mt-1">
-                    Last: {liveUpdateStatus.lastResult.gamesUpdated}g / {liveUpdateStatus.lastResult.picksProcessed}p
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-        
         {/* Header row - Hidden on mobile (grid aligns with LeaderboardRowContent) */}
         <div className="hidden md:block bg-[#faf8f4] border-y border-[#ece7de]">
           <div className="flex items-center px-4 py-2">
             <div className="grid grid-cols-[112px_minmax(0,1fr)_104px_64px_72px] items-center gap-3 flex-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
               <div className="flex items-center gap-1">
                 Rank
-                {liveUpdateStatus?.isRunning && (
-                  <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></div>
-                )}
               </div>
               <div>Player</div>
               <div>Record</div>
