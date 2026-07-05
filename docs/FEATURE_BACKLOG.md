@@ -99,6 +99,13 @@ hands-off is impossible until LeagueSafe adds a push mechanism.
 - 🔴 **Dedupe ~21 paid/unpaid duplicate account pairs** (merge tooling exists in People).
 - 🔴 **2024 bad-state data** — a few games in a bad state + 1 test anon pick to clean.
 - 🔴 **Build chunk-size warning** — main bundle >500KB; code-split if it grows.
+- 🔴 **Reconcile `auth.uid()` vs `public.users.id` mismatch** — some merged admin
+  accounts (kurtiswh@gmail.com, jstovall5) have `public.users.id` ≠ their
+  `auth.users.id`. Any RLS keyed on `auth.uid() = user_id` (picks, payments)
+  mis-sees them. Admin recognition was patched to also match by JWT email
+  (migration 168), but the underlying id mismatch should be reconciled so those
+  accounts' own picks/payments RLS behaves. Check whether non-admin players have
+  the same mismatch.
 - 🔴 **Retire remaining legacy live-update service code** — `liveUpdateService` /
   `cfbdLiveUpdater` browser paths are no longer used by the UI (Live Scores is now
   server-cron driven); audit and remove what's dead.
