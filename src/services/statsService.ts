@@ -39,16 +39,18 @@ export class StatsService {
     return (data as CareerStats) || null
   }
 
-  /** Per-season finishes + awards for one player, newest season first. */
+  /** Per-season finishes + awards + field size for one player, newest first. */
   static async getSeasonHistory(userId: string): Promise<SeasonHistoryRow[]> {
-    const [finRes, winRes] = await Promise.all([
+    const [finRes, winRes, entRes] = await Promise.all([
       supabase.from('all_season_finishes').select('*').eq('user_id', userId),
       supabase.from('season_winners').select(
         'season, point_winner_user_id, point_second_user_id, point_third_user_id, ' +
         'best_finish_user_id, lock_winner_user_id, lock_second_user_id, weekly_winners'),
+      supabase.from('season_entrant_counts').select('season, entrants'),
     ])
     if (finRes.error) { console.error('getSeasonHistory failed:', finRes.error); return [] }
     const winsBySeason = new Map<number, any>((winRes.data || []).map((w: any) => [w.season, w]))
+    const entrantsBySeason = new Map<number, number>((entRes.data || []).map((e: any) => [e.season, e.entrants]))
 
     return ((finRes.data || []) as any[]).map(f => {
       const w = winsBySeason.get(f.season)
@@ -67,6 +69,7 @@ export class StatsService {
         season: f.season, rank: f.rank, total_points: f.total_points,
         wins: f.wins, losses: f.losses, pushes: f.pushes,
         lock_wins: f.lock_wins, lock_losses: f.lock_losses, awards,
+        entrants: entrantsBySeason.get(f.season) ?? null,
       } as SeasonHistoryRow
     }).sort((a, b) => b.season - a.season)
   }
@@ -95,6 +98,7 @@ export interface SeasonHistoryRow {
   lock_wins: number
   lock_losses: number
   awards: string[]
+  entrants: number | null
 }
 
 export interface BiggestWeek {

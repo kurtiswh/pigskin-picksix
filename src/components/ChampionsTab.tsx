@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { LeaderboardService, LeaderboardEntry, SeasonChampion } from '@/services/leaderboardService'
-import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import WinnersDisplay from '@/components/WinnersDisplay'
 
 /** Hall of Champions: past-season winners, expandable to full final standings. */
 export default function ChampionsTab() {
-  const { activeSeason, loading: seasonLoading } = useCurrentSeason()
   const [champions, setChampions] = useState<SeasonChampion[]>([])
   const [loading, setLoading] = useState(true)
   const [openSeason, setOpenSeason] = useState<number | null>(null)
@@ -20,7 +18,8 @@ export default function ChampionsTab() {
       .finally(() => setLoading(false))
   }, [])
 
-  const pastSeasons = champions.filter(c => seasonLoading || c.season < activeSeason)
+  // Show every season that has a recorded champion (a completed season).
+  const pastSeasons = champions
 
   const toggleSeason = async (season: number) => {
     if (openSeason === season) { setOpenSeason(null); return }

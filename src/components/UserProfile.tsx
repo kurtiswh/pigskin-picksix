@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 export default function UserProfile() {
   const { user, refreshUser } = useAuth()
   const { activeSeason } = useCurrentSeason()
-  const [activeTab, setActiveTab] = useState<'profile' | 'stats'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'stats' | 'picks'>('profile')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -29,7 +29,10 @@ export default function UserProfile() {
     if (user) {
       loadUserProfile()
     }
-  }, [user])
+    // Depend on the stable id, not the user object (whose identity can change on
+    // unrelated auth-context re-renders) — avoids repeated profile reloads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   const loadUserProfile = async () => {
     if (!user) return
@@ -382,6 +385,16 @@ export default function UserProfile() {
         >
           Statistics
         </button>
+        <button
+          onClick={() => setActiveTab('picks')}
+          className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            activeTab === 'picks'
+              ? 'bg-pigskin-500 text-white'
+              : 'text-charcoal-600 hover:text-pigskin-700'
+          }`}
+        >
+          Pick Sets
+        </button>
       </div>
 
       {/* Success/Error Messages */}
@@ -458,16 +471,14 @@ export default function UserProfile() {
 
 
       {activeTab === 'stats' && user && (
-        <div className="space-y-6">
-          {/* All-time career stats + season-by-season (historic, 2006-2024) */}
-          <CareerStatsCard
-            userId={user.id}
-            bestWeekScore={userProfile?.stats?.best_week_score}
-            currentSeasonPoints={userProfile?.stats?.current_season_points}
-          />
+        <CareerStatsCard
+          userId={user.id}
+          bestWeekScore={userProfile?.stats?.best_week_score}
+          currentSeasonPoints={userProfile?.stats?.current_season_points}
+        />
+      )}
 
-          {/* Current-season pick sets detail */}
-          {pickSets.length > 0 && (
+      {activeTab === 'picks' && pickSets.length > 0 && (
             <Card>
               <CardContent className="pt-6">
                 <div className="space-y-4">
@@ -604,8 +615,6 @@ export default function UserProfile() {
                 </div>
                 </CardContent>
               </Card>
-            )}
-          </div>
       )}
     </div>
   )

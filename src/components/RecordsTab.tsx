@@ -132,7 +132,7 @@ export default function RecordsTab() {
   return (
     <div className="max-w-6xl mx-auto">
       <p className="text-charcoal-600 mb-4">
-        Career leaders across every Pigskin Pick Six season (2006–2024).
+        Career leaders across every Pigskin Pick Six season (2006–2025).
         <span className="text-charcoal-400"> The small number after each name is seasons played.</span>
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
