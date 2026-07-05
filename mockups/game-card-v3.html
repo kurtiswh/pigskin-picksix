@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PP6 — Game Card v3</title>
+<style>
+  :root{
+    --brown:#4B3621; --gold:#C9A04E; --golddk:#b98a3a; --cream:#F8F7F3; --fill:#faf8f4;
+    --line:#e7e2da; --line2:#f0ece5; --track:#eef0ec; --ink:#2b2320; --muted:#8a8079;
+    --win:#1f7a44; --winbg:#e6f4ea; --winbd:#bfe3cc;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceae4;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;padding:30px}
+  h1{color:var(--brown);font-size:20px;margin:0 0 4px}
+  h2{color:var(--brown);font-size:16px;margin:34px 0 4px;border-top:2px solid #d9d4cb;padding-top:20px}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:13px;max-width:760px}
+  .tab{font-variant-numeric:tabular-nums}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:26px;align-items:start}
+  .variant{max-width:400px}
+  .vlabel{font-weight:800;color:var(--brown);margin:0 0 2px;font-size:14px}
+  .vnote{color:var(--muted);font-size:12px;margin:0 0 10px;min-height:52px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.04);margin-bottom:14px}
+  .hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--fill);border-bottom:1px solid var(--line2);font-size:13px;color:var(--muted)}
+  .badge{border-radius:999px;padding:3px 12px;font-size:12px;font-weight:700;background:var(--win);color:#fff}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 16px;border-bottom:1px solid var(--line2)}
+  .row .l{display:flex;align-items:center;gap:9px;min-width:0}
+  .rk{font-size:12px;background:#eef1f5;color:#4a5568;border-radius:5px;padding:1px 5px;font-weight:700}
+  .tm{font-weight:800;font-size:16px}
+  .sp{color:var(--muted);font-size:14px}
+  .sc{font-weight:800;font-size:19px;width:30px;text-align:right}
+  .cover{font-size:10px;background:var(--winbg);color:var(--win);border:1px solid var(--winbd);padding:2px 8px;border-radius:999px;font-weight:700;white-space:nowrap}
+  .muted{color:var(--muted)} .win{color:var(--win)} .winrow{background:var(--winbg)} .dim{opacity:.6}
+  .cnt{color:var(--muted);font-size:13px}
+  .foot{display:flex;justify-content:space-between;padding:8px 16px;background:var(--fill);font-size:12px;color:var(--muted)}
+  /* two-tone split bar (Set A) */
+  .split{display:flex;width:100%}
+  .split .h{background:var(--brown)} .split .a{background:var(--golddk)}
+  .cap{display:flex;justify-content:space-between;gap:8px;padding:8px 16px;font-size:12px}
+  .cap .hc{color:var(--brown);font-weight:600} .cap .ac{color:var(--golddk);font-weight:600}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:middle;margin-right:5px}
+  /* in-row scaled gauge (Set B): track=week max, gold=locks, brown=other picks */
+  .gauge{position:relative;height:7px;background:var(--track);border-radius:999px;overflow:hidden;margin-top:5px}
+  .gauge .lk{position:absolute;left:0;top:0;bottom:0;background:var(--gold)}
+  .gauge .pk{position:absolute;top:0;bottom:0;background:var(--brown)}
+  .brow{padding:9px 16px;border-bottom:1px solid var(--line2)}
+  .brow .top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .legend{font-size:11px;color:var(--muted);padding:6px 16px 0}
+</style>
+</head>
+<body>
+<h1>Game card — tweaks + the scaled-row idea</h1>
+<p class="sub">Set A = small tweaks to what we have (fixing the heavy full-bleed band). Set B = distribution built into each team's row, scaled so 100% = the week's biggest single-team pick count (here <b>173</b>, Texas A&M). Bar length shows pick volume vs. the whole slate; the gold part of each bar = that team's locks.</p>
+
+<!-- ============ SET A ============ -->
+<h2>Set A · tweaks to the current design</h2>
+<div class="grid">
+
+  <!-- A1 -->
+  <div class="variant">
+    <div class="vlabel">A1 · Inset rounded bar</div>
+    <div class="vnote">Same as now, but the split bar is inset with side margins, rounded, and thinner — reads as a chart element, not a structural band spanning the card.</div>
+    <div class="card">
+      <div class="hdr"><span>Game 13</span><span class="badge">Final</span></div>
+      <div class="row dim"><span class="l"><span class="tm">Virginia Tech</span><span class="sp tab">+9.5</span></span><span class="sc tab">7</span></div>
+      <div class="row winrow"><span class="l"><span class="rk">#17</span><span class="tm win">Virginia</span><span class="sp tab">-9.5</span><span class="cover">COVERED +20</span></span><span class="sc tab win">27</span></div>
+      <div style="padding:9px 16px 2px"><div class="split" style="height:6px;border-radius:999px"><div class="h" style="width:70%"></div><div class="a" style="width:30%"></div></div></div>
+      <div class="cap tab"><span class="hc">Virginia 61 (70%) · 8🔒</span><span class="ac">Va Tech 26 (30%) · 4🔒</span></div>
+      <div class="foot"><span>Final · Scott Stadium</span><span class="tab">87 picks · 12🔒</span></div>
+    </div>
+  </div>
+
+  <!-- A2 -->
+  <div class="variant">
+    <div class="vlabel">A2 · No bar — color-keyed caption</div>
+    <div class="vnote">Drop the band entirely. A small colored square keys each side to its color, and the numbers carry the split. Lightest option.</div>
+    <div class="card">
+      <div class="hdr"><span>Game 13</span><span class="badge">Final</span></div>
+      <div class="row dim"><span class="l"><span class="tm">Virginia Tech</span><span class="sp tab">+9.5</span></span><span class="sc tab">7</span></div>
+      <div class="row winrow"><span class="l"><span class="rk">#17</span><span class="tm win">Virginia</span><span class="sp tab">-9.5</span><span class="cover">COVERED +20</span></span><span class="sc tab win">27</span></div>
+      <div class="cap tab" style="border-top:1px solid var(--line2)"><span class="hc"><span class="dot" style="background:var(--brown)"></span>Virginia 61 (70%) · 8🔒</span><span class="ac"><span class="dot" style="background:var(--golddk)"></span>Va Tech 26 (30%) · 4🔒</span></div>
+      <div class="foot"><span>Final · Scott Stadium</span><span class="tab">87 picks · 12🔒</span></div>
+    </div>
+  </div>
+
+  <!-- A3 -->
+  <div class="variant">
+    <div class="vlabel">A3 · Labels first, thin bar under</div>
+    <div class="vnote">Caption labels sit on top; a thin inset two-tone bar tucks directly beneath them (no border lines around it), so bar + numbers read as one grouped unit.</div>
+    <div class="card">
+      <div class="hdr"><span>Game 13</span><span class="badge">Final</span></div>
+      <div class="row dim"><span class="l"><span class="tm">Virginia Tech</span><span class="sp tab">+9.5</span></span><span class="sc tab">7</span></div>
+      <div class="row winrow"><span class="l"><span class="rk">#17</span><span class="tm win">Virginia</span><span class="sp tab">-9.5</span><span class="cover">COVERED +20</span></span><span class="sc tab win">27</span></div>
+      <div style="padding:9px 16px 10px">
+        <div class="tab" style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px"><span style="color:var(--brown);font-weight:600">Virginia 61 (70%) · 8🔒</span><span style="color:var(--golddk);font-weight:600">Va Tech 26 (30%) · 4🔒</span></div>
+        <div class="split" style="height:5px;border-radius:999px"><div class="h" style="width:70%"></div><div class="a" style="width:30%"></div></div>
+      </div>
+      <div class="foot"><span>Final · Scott Stadium</span><span class="tab">87 picks · 12🔒</span></div>
+    </div>
+  </div>
+
+  <!-- A4 -->
+  <div class="variant">
+    <div class="vlabel">A4 · Merge split into footer</div>
+    <div class="vnote">No separate section: the split becomes a thin inset bar sitting just above the footer, and the per-side counts move into the footer line itself. Most compact.</div>
+    <div class="card">
+      <div class="hdr"><span>Game 13</span><span class="badge">Final</span></div>
+      <div class="row dim"><span class="l"><span class="tm">Virginia Tech</span><span class="sp tab">+9.5</span></span><span class="sc tab">7</span></div>
+      <div class="row winrow" style="border-bottom:none"><span class="l"><span class="rk">#17</span><span class="tm win">Virginia</span><span class="sp tab">-9.5</span><span class="cover">COVERED +20</span></span><span class="sc tab win">27</span></div>
+      <div style="padding:8px 16px 0"><div class="split" style="height:5px;border-radius:999px"><div class="h" style="width:70%"></div><div class="a" style="width:30%"></div></div></div>
+      <div class="foot tab" style="color:var(--ink)"><span><span class="dot" style="background:var(--brown)"></span>Virginia 61 · 70% · 8🔒</span><span><span class="dot" style="background:var(--golddk)"></span>Va Tech 26 · 30% · 4🔒</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============ SET B ============ -->
+<h2>Set B · distribution inside each row, scaled to the week's max (173)</h2>
+<p class="sub" style="margin-top:-2px">Each variant shows a high-volume game (Texas, 279 picks) and a low-volume game (Virginia, 87 picks) using the <b>same</b> scale, so you can see the bars get shorter when fewer people picked the game. Gold = locks, brown = non-lock picks; full track = 173.</p>
+<div class="grid">
+
+  <!-- B1 -->
+  <div class="variant">
+    <div class="vlabel">B1 · Gauge under each team</div>
+    <div class="vnote">A thin scaled gauge sits under each team's name. Length = picks vs. the week max; gold leading segment = locks. Count · locks at the row's right.</div>
+    <div class="card">
+      <div class="hdr"><span>Game 4</span><span class="badge">Final</span></div>
+      <div class="brow dim"><div class="top"><span class="l"><span class="rk">#3</span><span class="tm">Texas A&M</span><span class="sp tab">-2.5</span></span><span style="display:flex;gap:12px;align-items:center"><span class="cnt tab">173 · 44🔒</span><span class="sc tab">17</span></span></div><div class="gauge"><div class="lk" style="width:25.4%"></div><div class="pk" style="left:25.4%;width:74.6%"></div></div></div>
+      <div class="brow winrow"><div class="top"><span class="l"><span class="rk">#16</span><span class="tm win">Texas</span><span class="sp tab">+2.5</span><span class="cover">COVERED +21</span></span><span style="display:flex;gap:12px;align-items:center"><span class="cnt tab">106 · 20🔒</span><span class="sc tab win">27</span></span></div><div class="gauge"><div class="lk" style="width:11.6%"></div><div class="pk" style="left:11.6%;width:49.7%"></div></div></div>
+      <div class="foot"><span>Final · DKR-Texas Memorial</span><span class="tab">279 picks · 64🔒</span></div>
+    </div>
+    <div class="card">
+      <div class="hdr"><span>Game 13</span><span class="badge">Final</span></div>
+      <div class="brow dim"><div class="top"><span class="l"><span class="tm">Virginia Tech</span><span class="sp tab">+9.5</span></span><span style="display:flex;gap:12px;align-items:center"><span class="cnt tab">26 · 4🔒</span><span class="sc tab">7</span></span></div><div class="gauge"><div class="lk" style="width:2.3%"></div><div class="pk" style="left:2.3%;width:12.7%"></div></div></div>
+      <div class="brow winrow"><div class="top"><span class="l"><span class="rk">#17</span><span class="tm win">Virginia</span><span class="sp tab">-9.5</span><span class="cover">COVERED +20</span></span><span style="display:flex;gap:12px;align-items:center"><span class="cnt tab">61 · 8🔒</span><span class="sc tab win">27</span></span></div><div class="gauge"><div class="lk" style="width:4.6%"></div><div class="pk" style="left:4.6%;width:30.6%"></div></div></div>
+      <div class="foot"><span>Final · Scott Stadium</span><span class="tab">87 picks · 12🔒</span></div>
+    </div>
+    <div class="legend"><span class="dot" style="background:var(--gold)"></span>locks &nbsp; <span class="dot" style="background:var(--brown)"></span>other picks &nbsp;·&nbsp; full width = 173 (week's most-picked team)</div>
+  </div>
+
+  <!-- B2 -->
+  <div class="variant">
+    <div class="vlabel">B2 · Full-row background track</div>
+    <div class="vnote">The scaled gauge becomes a faint background fill behind the whole row (locks gold, picks brown, both low-opacity). Team/score sit on top. Consistent scale = comparable across games.</div>
+    <div class="card">
+      <div class="hdr"><span>Game 4</span><span class="badge">Final</span></div>
+      <div class="row dim" style="position:relative;overflow:hidden"><span style="position:absolute;inset:0;background:var(--gold);opacity:.22;width:25.4%"></span><span style="position:absolute;top:0;bottom:0;left:25.4%;background:var(--brown);opacity:.16;width:74.6%"></span><span class="l" style="position:relative"><span class="rk">#3</span><span class="tm">Texas A&M</span><span class="sp tab">-2.5</span></span><span style="position:relative;display:flex;gap:12px;align-items:center"><span class="cnt tab">173 · 44🔒</span><span class="sc tab">17</span></span></div>
+      <div class="row winrow" style="position:relative;overflow:hidden"><span style="position:absolute;inset:0;background:var(--gold);opacity:.3;width:11.6%"></span><span style="position:absolute;top:0;bottom:0;left:11.6%;background:var(--brown);opacity:.16;width:49.7%"></span><span class="l" style="position:relative"><span class="rk">#16</span><span class="tm win">Texas</span><span class="sp tab">+2.5</span><span class="cover">COVERED +21</span></span><span style="position:relative;display:flex;gap:12px;align-items:center"><span class="cnt tab">106 · 20🔒</span><span class="sc tab win">27</span></span></div>
+      <div class="foot"><span>Final · DKR-Texas Memorial</span><span class="tab">279 picks · 64🔒</span></div>
+    </div>
+    <div class="card">
+      <div class="hdr"><span>Game 13</span><span class="badge">Final</span></div>
+      <div class="row dim" style="position:relative;overflow:hidden"><span style="position:absolute;inset:0;background:var(--gold);opacity:.22;width:2.3%"></span><span style="position:absolute;top:0;bottom:0;left:2.3%;background:var(--brown);opacity:.16;width:12.7%"></span><span class="l" style="position:relative"><span class="tm">Virginia Tech</span><span class="sp tab">+9.5</span></span><span style="position:relative;display:flex;gap:12px;align-items:center"><span class="cnt tab">26 · 4🔒</span><span class="sc tab">7</span></span></div>
+      <div class="row winrow" style="position:relative;overflow:hidden"><span style="position:absolute;inset:0;background:var(--gold);opacity:.3;width:4.6%"></span><span style="position:absolute;top:0;bottom:0;left:4.6%;background:var(--brown);opacity:.16;width:30.6%"></span><span class="l" style="position:relative"><span class="rk">#17</span><span class="tm win">Virginia</span><span class="sp tab">-9.5</span><span class="cover">COVERED +20</span></span><span style="position:relative;display:flex;gap:12px;align-items:center"><span class="cnt tab">61 · 8🔒</span><span class="sc tab win">27</span></span></div>
+      <div class="foot"><span>Final · Scott Stadium</span><span class="tab">87 picks · 12🔒</span></div>
+    </div>
+    <div class="legend"><span class="dot" style="background:var(--gold)"></span>locks &nbsp; <span class="dot" style="background:var(--brown)"></span>other picks &nbsp;·&nbsp; full width = 173</div>
+  </div>
+
+  <!-- B3 -->
+  <div class="variant">
+    <div class="vlabel">B3 · Right-side sparkline column</div>
+    <div class="vnote">Keeps rows clean; a fixed gauge column sits between the count and the score. Bars align vertically so it's easy to compare the two teams' volume at a glance.</div>
+    <div class="card">
+      <div class="hdr"><span>Game 4</span><span class="badge">Final</span></div>
+      <div class="row dim"><span class="l"><span class="rk">#3</span><span class="tm">Texas A&M</span><span class="sp tab">-2.5</span></span><span style="display:flex;gap:10px;align-items:center"><span class="cnt tab" style="width:58px;text-align:right">173 · 44🔒</span><span class="gauge" style="width:70px;margin:0"><span class="lk" style="width:25.4%"></span><span class="pk" style="left:25.4%;width:74.6%"></span></span><span class="sc tab">17</span></span></div>
+      <div class="row winrow"><span class="l"><span class="rk">#16</span><span class="tm win">Texas</span><span class="sp tab">+2.5</span><span class="cover">COVERED +21</span></span><span style="display:flex;gap:10px;align-items:center"><span class="cnt tab" style="width:58px;text-align:right">106 · 20🔒</span><span class="gauge" style="width:70px;margin:0"><span class="lk" style="width:11.6%"></span><span class="pk" style="left:11.6%;width:49.7%"></span></span><span class="sc tab win">27</span></span></div>
+      <div class="foot"><span>Final · DKR-Texas Memorial</span><span class="tab">279 picks · 64🔒</span></div>
+    </div>
+    <div class="card">
+      <div class="hdr"><span>Game 13</span><span class="badge">Final</span></div>
+      <div class="row dim"><span class="l"><span class="tm">Virginia Tech</span><span class="sp tab">+9.5</span></span><span style="display:flex;gap:10px;align-items:center"><span class="cnt tab" style="width:58px;text-align:right">26 · 4🔒</span><span class="gauge" style="width:70px;margin:0"><span class="lk" style="width:2.3%"></span><span class="pk" style="left:2.3%;width:12.7%"></span></span><span class="sc tab">7</span></span></div>
+      <div class="row winrow"><span class="l"><span class="rk">#17</span><span class="tm win">Virginia</span><span class="sp tab">-9.5</span><span class="cover">COVERED +20</span></span><span style="display:flex;gap:10px;align-items:center"><span class="cnt tab" style="width:58px;text-align:right">61 · 8🔒</span><span class="gauge" style="width:70px;margin:0"><span class="lk" style="width:4.6%"></span><span class="pk" style="left:4.6%;width:30.6%"></span></span><span class="sc tab win">27</span></span></div>
+      <div class="foot"><span>Final · Scott Stadium</span><span class="tab">87 picks · 12🔒</span></div>
+    </div>
+    <div class="legend"><span class="dot" style="background:var(--gold)"></span>locks &nbsp; <span class="dot" style="background:var(--brown)"></span>other picks &nbsp;·&nbsp; full column = 173</div>
+  </div>
+
+  <!-- B4 -->
+  <div class="variant">
+    <div class="vlabel">B4 · Gauge under team + % of max</div>
+    <div class="vnote">Like B1 but the label reads "picks · locks · (% of the biggest game's team)", so the volume-vs-slate story is spelled out, not just implied by length.</div>
+    <div class="card">
+      <div class="hdr"><span>Game 4</span><span class="badge">Final</span></div>
+      <div class="brow dim"><div class="top"><span class="l"><span class="rk">#3</span><span class="tm">Texas A&M</span><span class="sp tab">-2.5</span></span><span class="sc tab">17</span></div><div class="gauge"><div class="lk" style="width:25.4%"></div><div class="pk" style="left:25.4%;width:74.6%"></div></div><div class="cnt tab" style="font-size:11px;margin-top:4px">173 picks · 44🔒 · 100% of max</div></div>
+      <div class="brow winrow"><div class="top"><span class="l"><span class="rk">#16</span><span class="tm win">Texas</span><span class="sp tab">+2.5</span><span class="cover">COVERED +21</span></span><span class="sc tab win">27</span></div><div class="gauge"><div class="lk" style="width:11.6%"></div><div class="pk" style="left:11.6%;width:49.7%"></div></div><div class="cnt tab" style="font-size:11px;margin-top:4px">106 picks · 20🔒 · 61% of max</div></div>
+      <div class="foot"><span>Final · DKR-Texas Memorial</span><span class="tab">279 picks · 64🔒</span></div>
+    </div>
+    <div class="card">
+      <div class="hdr"><span>Game 13</span><span class="badge">Final</span></div>
+      <div class="brow dim"><div class="top"><span class="l"><span class="tm">Virginia Tech</span><span class="sp tab">+9.5</span></span><span class="sc tab">7</span></div><div class="gauge"><div class="lk" style="width:2.3%"></div><div class="pk" style="left:2.3%;width:12.7%"></div></div><div class="cnt tab" style="font-size:11px;margin-top:4px">26 picks · 4🔒 · 15% of max</div></div>
+      <div class="brow winrow"><div class="top"><span class="l"><span class="rk">#17</span><span class="tm win">Virginia</span><span class="sp tab">-9.5</span><span class="cover">COVERED +20</span></span><span class="sc tab win">27</span></div><div class="gauge"><div class="lk" style="width:4.6%"></div><div class="pk" style="left:4.6%;width:30.6%"></div></div><div class="cnt tab" style="font-size:11px;margin-top:4px">61 picks · 8🔒 · 35% of max</div></div>
+      <div class="foot"><span>Final · Scott Stadium</span><span class="tab">87 picks · 12🔒</span></div>
+    </div>
+    <div class="legend"><span class="dot" style="background:var(--gold)"></span>locks &nbsp; <span class="dot" style="background:var(--brown)"></span>other picks</div>
+  </div>
+
+</div>
+</body>
+</html>

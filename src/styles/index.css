@@ -4,7 +4,8 @@
 
 @layer base {
   body {
-    @apply bg-stone-50 text-charcoal-900 font-sans;
+    @apply text-charcoal-900 font-sans;
+    background-color: #F8F7F3; /* cream — matches redesigned surfaces */
   }
 }
 
@@ -18,7 +19,7 @@
   }
   
   .card {
-    @apply bg-white rounded-xl shadow-lg border border-stone-200;
+    @apply bg-white rounded-lg shadow-sm border border-[#e7e2da];
   }
   
   .card-dark {

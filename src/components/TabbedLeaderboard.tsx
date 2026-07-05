@@ -124,6 +124,24 @@ export default function TabbedLeaderboard() {
     })
   }
 
+  // Jump to the logged-in user's own row
+  const jumpToMyRow = () => {
+    document.getElementById('my-leaderboard-row')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  // Auto-scroll to the user's row once, the first time their data is on screen
+  const hasAutoScrolled = useRef(false)
+  useEffect(() => {
+    if (hasAutoScrolled.current || !user) return
+    const data = activeTab === 'season' ? seasonData : activeTab === 'weekly' ? weeklyData : []
+    if (!data.some((e: any) => e.user_id === user.id)) return
+    hasAutoScrolled.current = true
+    const t = setTimeout(() => {
+      document.getElementById('my-leaderboard-row')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 450)
+    return () => clearTimeout(t)
+  }, [user, seasonData, weeklyData, activeTab])
+
   const loadWeekSettings = async () => {
     if (selectedWeek === null) return
     
@@ -566,17 +584,10 @@ export default function TabbedLeaderboard() {
                        '⚠️ IMPORTANT NOTICE'
           
           return (
-            <div className={`mt-4 mb-6 p-4 border-2 rounded-lg ${bgColor}`}>
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0">
-                  {icon}
-                </div>
-                <div className="flex-1">
-                  <h3 className={`text-lg font-bold ${textColor} mb-1`}>{title}</h3>
-                  <p className={`${messageColor} font-medium`}>
-                    {noticeData.message}
-                  </p>
-                </div>
+            <div className={`mt-4 mb-5 px-4 py-2.5 border rounded-lg ${bgColor}`}>
+              <div className="flex items-center gap-2.5">
+                <span className={`text-sm font-bold ${textColor}`}>{title}</span>
+                <span className={`text-sm ${messageColor}`}>{noticeData.message}</span>
               </div>
             </div>
           )
@@ -594,113 +605,30 @@ export default function TabbedLeaderboard() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="max-w-xs focus-visible:ring-[#C9A04E]/40"
           />
-          
-          <div className="flex items-center gap-2">
-            {/* Live Update Status */}
-            {liveUpdateStatus && (
-              <div className="flex items-center gap-2">
-                {liveUpdateStatus.isRunning ? (
-                  <Badge className="bg-green-100 text-green-800">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></div>
-                    LIVE
-                  </Badge>
-                ) : (
-                  <Badge className="bg-gray-100 text-gray-600">
-                    MANUAL
-                  </Badge>
-                )}
-                
-                {liveUpdateStatus.lastUpdate && (
-                  <span className="text-xs text-gray-500">
-                    Last: {liveUpdateStatus.lastUpdate.toLocaleTimeString()}
-                  </span>
-                )}
-              </div>
-            )}
-            
-          </div>
-          
-          {strategy && (
-            <span className="text-sm text-gray-600">
-              Status: {strategy}
-            </span>
-          )}
+
+          {(() => {
+            if (!user) return null
+            const data = getCurrentData()
+            const me = data.find((e: any) => e.user_id === user.id)
+            if (!me) return null
+            const myRank = getDisplayRank(me, data)
+            return (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={jumpToMyRow}
+                className="border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10 whitespace-nowrap"
+              >
+                Jump to my spot · #{myRank}
+              </Button>
+            )
+          })()}
         </div>
       </div>
 
-      {/* Live Update Controls - Admin Only */}
-      {isAdmin && (
-        <Card className="border-blue-200 mb-6">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium">⚡ Live Updates:</span>
-                {liveUpdateStatus?.isRunning ? (
-                  <Button 
-                    onClick={stopLiveUpdates} 
-                    variant="outline" 
-                    size="sm"
-                    className="border-red-200 text-red-600 hover:bg-red-50"
-                  >
-                    ⏹️ Stop Auto Updates
-                  </Button>
-                ) : (
-                  <Button 
-                    onClick={startLiveUpdates} 
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    ▶️ Start Auto Updates
-                  </Button>
-                )}
-              </div>
-              
-              {liveUpdateStatus && (
-                <div className="text-xs text-gray-500">
-                  {liveUpdateStatus.isRunning && liveUpdateStatus.nextUpdate && (
-                    <div>Next update: {liveUpdateStatus.nextUpdate.toLocaleTimeString()}</div>
-                  )}
-                  <div>Total updates: {liveUpdateStatus.totalUpdates}</div>
-                </div>
-              )}
-            </div>
-            
-            {/* Last Update Results */}
-            {lastUnifiedUpdate && (
-              <div className="mt-3 text-sm bg-gray-50 rounded p-3">
-                <div className="font-medium mb-1">Last Unified Update:</div>
-                <div className="grid grid-cols-3 gap-4 text-xs">
-                  <div>
-                    <div className="text-gray-600">Games Updated</div>
-                    <div className="font-semibold text-blue-600">{lastUnifiedUpdate.gamesUpdated}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-600">Picks Processed</div>
-                    <div className="font-semibold text-green-600">{lastUnifiedUpdate.picksProcessed}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-600">Status</div>
-                    <div className={`font-semibold ${lastUnifiedUpdate.success ? 'text-green-600' : 'text-red-600'}`}>
-                      {lastUnifiedUpdate.success ? '✅ Success' : '❌ Failed'}
-                    </div>
-                  </div>
-                </div>
-                {lastUnifiedUpdate.errors.length > 0 && (
-                  <div className="mt-2 text-xs text-red-600">
-                    <div className="font-medium">Errors:</div>
-                    {lastUnifiedUpdate.errors.slice(0, 3).map((error, i) => (
-                      <div key={i}>• {error}</div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-auto p-1 bg-[#f1ece3] rounded-xl">
+        <TabsList className="inline-flex flex-wrap h-auto p-1 bg-[#F8F7F3] border border-[#e7e2da] rounded-lg">
           {[
             { v: 'season', label: 'Season Standings' },
             { v: 'weekly', label: 'Weekly Results' },
@@ -710,7 +638,7 @@ export default function TabbedLeaderboard() {
             <TabsTrigger
               key={t.v}
               value={t.v}
-              className="py-2 text-gray-600 rounded-lg data-[state=active]:bg-[#4B3621] data-[state=active]:text-white data-[state=active]:shadow-sm"
+              className="py-1.5 text-sm font-semibold text-charcoal-600 rounded-md data-[state=active]:bg-[#4B3621] data-[state=active]:text-white"
             >
               {t.label}
             </TabsTrigger>
@@ -1037,12 +965,16 @@ export default function TabbedLeaderboard() {
               displayRank === 2 ? 'bg-[#9aa4b2]/[0.18]' :   // silver
               displayRank === 3 ? 'bg-[#c2703d]/[0.13]' : ''// bronze
             const tiedTint = isTied && currentRank > 3 ? 'border-l-2 border-l-[#2f6fd0]/50' : ''
+            const isMe = !!user && entry.user_id === user.id
+            // The logged-in user's own row: gold ring + tint overrides the rank tint
+            const meHighlight = isMe ? 'ring-2 ring-inset ring-[#C9A04E] bg-[#fbf4e3]' : rankTint
 
             return (
               <ExpandableLeaderboardRow
                 key={entry.user_id}
+                id={isMe ? 'my-leaderboard-row' : undefined}
                 isLoading={isLoadingExpansion}
-                className={`${rankTint} ${tiedTint}`.trim()}
+                className={`${meHighlight} ${tiedTint}`.trim()}
                 expandedContent={
                   expansionData ? (
                     tabType === 'season' ? (
@@ -1078,6 +1010,7 @@ export default function TabbedLeaderboard() {
                     rankChange={activeTab === 'season' ? ('rank_change' in entry ? entry.rank_change : undefined) : undefined}
                     previousRank={activeTab === 'season' ? ('previous_rank' in entry ? entry.previous_rank : undefined) : undefined}
                     trend={activeTab === 'season' ? ('trend' in entry ? entry.trend : undefined) : undefined}
+                    isCurrentUser={isMe}
                   />
                 </div>
               </ExpandableLeaderboardRow>

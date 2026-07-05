@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PP6 — full-width bar vs inset</title>
+<style>
+  :root{
+    --brown:#4B3621; --gold:#C9A04E; --golddk:#b98a3a; --fill:#faf8f4;
+    --line:#e7e2da; --line2:#f0ece5; --ink:#2b2320; --muted:#8a8079;
+    --win:#1f7a44; --winbg:#e6f4ea; --winbd:#bfe3cc;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceae4;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;padding:30px}
+  h1{color:var(--brown);font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 20px;font-size:13px;max-width:760px}
+  .tab{font-variant-numeric:tabular-nums}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:26px;align-items:start}
+  .variant{max-width:400px}
+  .vlabel{font-weight:800;color:var(--brown);margin:0 0 2px;font-size:14px}
+  .vnote{color:var(--muted);font-size:12px;margin:0 0 10px;min-height:56px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+  .hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 16px;background:var(--fill);border-bottom:1px solid var(--line2);font-size:12.5px;color:var(--muted)}
+  .hdr .loc{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .badge{border-radius:999px;padding:3px 12px;font-size:12px;font-weight:700;background:var(--win);color:#fff;white-space:nowrap;flex-shrink:0}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 16px;border-bottom:1px solid var(--line2)}
+  .row .l{display:flex;align-items:center;gap:9px;min-width:0}
+  .rk{font-size:12px;background:#eef1f5;color:#4a5568;border-radius:5px;padding:1px 5px;font-weight:700}
+  .tm{font-weight:800;font-size:16px}
+  .sp{color:var(--muted);font-size:14px}
+  .sc{font-weight:800;font-size:19px;width:30px;text-align:right}
+  .cover{font-size:10px;background:var(--winbg);color:var(--win);border:1px solid var(--winbd);padding:2px 8px;border-radius:999px;font-weight:700;white-space:nowrap}
+  .win{color:var(--win)} .winrow{background:var(--winbg)} .dim{opacity:.6}
+  .fw{display:flex;width:100%;height:7px}         /* full-bleed bar */
+  .fw .h{background:var(--brown)} .fw .a{background:var(--golddk)}
+  .inset{display:flex;width:100%;height:6px;border-radius:999px;overflow:hidden}
+  .inset .h{background:var(--brown)} .inset .a{background:var(--golddk)}
+  .band{background:var(--fill)}
+  .lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .lbl .tot{text-transform:none;letter-spacing:normal}
+  .cap{display:flex;justify-content:space-between;gap:8px;font-size:12px}
+  .cap .hc{color:var(--brown);font-weight:600} .cap .ac{color:var(--golddk);font-weight:600}
+</style>
+</head>
+<body>
+<h1>Full-width bar — where does the "Pick distribution" label go?</h1>
+<p class="sub">Ole Miss game (Ole Miss covered -7, final 38–19). Brown = Mississippi State's share (home), gold = Ole Miss's (away). FW1 is what's built now (inset). The rest keep the bar full-bleed edge-to-edge like your screenshot, varying how the label sits with it.</p>
+
+<div class="grid">
+
+  <!-- FW1: current inset -->
+  <div class="variant">
+    <div class="vlabel">FW1 · Inset (current build)</div>
+    <div class="vnote">Bar is rounded + padded inside the band, sitting under the label. Reads as a chart element but doesn't touch the card edges.</div>
+    <div class="card">
+      <div class="hdr"><span class="loc">Game 1 · Davis Wade Stadium</span><span class="badge">Final</span></div>
+      <div class="row winrow"><span class="l"><span class="rk">#6</span><span class="tm win">Ole Miss</span><span class="sp tab">-7</span><span class="cover">COVERED +21</span></span><span class="sc tab win">38</span></div>
+      <div class="row dim"><span class="l"><span class="tm">Mississippi State</span><span class="sp tab">+7</span></span><span class="sc tab">19</span></div>
+      <div class="band" style="padding:9px 16px 11px">
+        <div class="lbl" style="margin-bottom:6px"><span>Pick distribution</span><span class="tot tab">259 picks · 29🔒</span></div>
+        <div class="inset" style="margin-bottom:7px"><div class="h" style="width:18%"></div><div class="a" style="width:82%"></div></div>
+        <div class="cap tab"><span class="hc">Miss State 46 (18%) · 2🔒</span><span class="ac">Ole Miss 213 (82%) · 27🔒</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FW2: label on top, full-width bar, caption below -->
+  <div class="variant">
+    <div class="vlabel">FW2 · Label → full-width bar → caption</div>
+    <div class="vnote">Padded label + total on top, then the bar goes edge-to-edge (full-bleed), then the padded per-side caption. The label clearly belongs to the bar right beneath it.</div>
+    <div class="card">
+      <div class="hdr"><span class="loc">Game 1 · Davis Wade Stadium</span><span class="badge">Final</span></div>
+      <div class="row winrow"><span class="l"><span class="rk">#6</span><span class="tm win">Ole Miss</span><span class="sp tab">-7</span><span class="cover">COVERED +21</span></span><span class="sc tab win">38</span></div>
+      <div class="row dim"><span class="l"><span class="tm">Mississippi State</span><span class="sp tab">+7</span></span><span class="sc tab">19</span></div>
+      <div class="band" style="padding-top:9px">
+        <div class="lbl" style="padding:0 16px 6px"><span>Pick distribution</span><span class="tot tab">259 picks · 29🔒</span></div>
+        <div class="fw"><div class="h" style="width:18%"></div><div class="a" style="width:82%"></div></div>
+        <div class="cap tab" style="padding:8px 16px 10px"><span class="hc">Miss State 46 (18%) · 2🔒</span><span class="ac">Ole Miss 213 (82%) · 27🔒</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FW3: full-width bar as divider on top, no uppercase label -->
+  <div class="variant">
+    <div class="vlabel">FW3 · Full-width bar as divider, no label</div>
+    <div class="vnote">Bar bleeds edge-to-edge right under the rows as a bold divider (like your screenshot). No "Pick distribution" label — the per-side caption + total explain it, so nothing competes with the bar.</div>
+    <div class="card">
+      <div class="hdr"><span class="loc">Game 1 · Davis Wade Stadium</span><span class="badge">Final</span></div>
+      <div class="row winrow"><span class="l"><span class="rk">#6</span><span class="tm win">Ole Miss</span><span class="sp tab">-7</span><span class="cover">COVERED +21</span></span><span class="sc tab win">38</span></div>
+      <div class="row dim" style="border-bottom:none"><span class="l"><span class="tm">Mississippi State</span><span class="sp tab">+7</span></span><span class="sc tab">19</span></div>
+      <div class="fw"><div class="h" style="width:18%"></div><div class="a" style="width:82%"></div></div>
+      <div class="band" style="padding:9px 16px">
+        <div class="cap tab" style="margin-bottom:4px"><span class="hc">Miss State 46 (18%) · 2🔒</span><span class="ac">Ole Miss 213 (82%) · 27🔒</span></div>
+        <div class="tab" style="text-align:center;font-size:11px;color:var(--muted)">259 picks · 29🔒</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FW4: full-width bar with inline label to its left -->
+  <div class="variant">
+    <div class="vlabel">FW4 · Bar full-width, label + total in caption row</div>
+    <div class="vnote">Full-bleed bar on top; then a single caption row where the per-side counts sit left/right and the total tucks in the middle. "Pick distribution" is dropped — the layout is self-evident.</div>
+    <div class="card">
+      <div class="hdr"><span class="loc">Game 1 · Davis Wade Stadium</span><span class="badge">Final</span></div>
+      <div class="row winrow"><span class="l"><span class="rk">#6</span><span class="tm win">Ole Miss</span><span class="sp tab">-7</span><span class="cover">COVERED +21</span></span><span class="sc tab win">38</span></div>
+      <div class="row dim" style="border-bottom:none"><span class="l"><span class="tm">Mississippi State</span><span class="sp tab">+7</span></span><span class="sc tab">19</span></div>
+      <div class="fw"><div class="h" style="width:18%"></div><div class="a" style="width:82%"></div></div>
+      <div class="cap tab" style="padding:9px 16px;align-items:center"><span class="hc">Miss State 46 (18%) · 2🔒</span><span style="color:var(--muted);font-size:11px">259 · 29🔒</span><span class="ac">Ole Miss 213 (82%) · 27🔒</span></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

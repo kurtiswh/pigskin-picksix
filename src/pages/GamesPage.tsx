@@ -111,7 +111,6 @@ export default function GamesPage() {
     console.log(`📊 Loading data for Season ${currentSeason}, Week ${currentWeek}`)
     loadGames()
     loadWeekSettings()
-    loadUserPicks()
     updateLiveStatus()
     
     // Set up live status monitoring
@@ -135,6 +134,13 @@ export default function GamesPage() {
       clearInterval(dataRefreshInterval)
     }
   }, [currentSeason, currentWeek])
+
+  useEffect(() => {
+    // Load the user's picks separately so they refresh once auth resolves.
+    // (user is often null on the first render, before useAuth finishes.)
+    if (currentWeek === null) return
+    loadUserPicks()
+  }, [user?.id, currentSeason, currentWeek])
 
   useEffect(() => {
     // Update URL when season/week changes (only if week is determined)
@@ -341,50 +347,14 @@ export default function GamesPage() {
             )}
           </div>
           
-          {/* Live Update Controls (Admin Only) */}
-          {isAdmin && (
-            <div className="flex items-center gap-2">
-              <Badge 
-                variant={liveUpdateStatus.isRunning ? "default" : "secondary"}
-                className={liveUpdateStatus.isRunning ? "bg-green-600" : ""}
-              >
-                {liveUpdateStatus.isRunning ? "🔴 Live" : "⏸️ Paused"}
-              </Badge>
-              
-              <Button
-                onClick={liveUpdateStatus.isRunning ? stopLiveUpdates : startLiveUpdates}
-                variant="outline"
-                size="sm"
-              >
-                {liveUpdateStatus.isRunning ? "Stop Updates" : "Start Live Updates"}
-              </Button>
-              
-              <Button
-                onClick={runManualUpdate}
-                variant="outline"
-                size="sm"
-                disabled={loading}
-              >
-                Manual Update
-              </Button>
-            </div>
-          )}
         </div>
 
         {/* Week and Season Selectors */}
         <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-charcoal-700">Season:</label>
-            <Select value={currentSeason.toString()} onValueChange={handleSeasonChange}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="2024">2024</SelectItem>
-                <SelectItem value="2025">2025</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Season is locked to the current season (past seasons live under History) */}
+          <span className="inline-flex items-center rounded-full bg-[#4B3621] text-white px-3.5 py-1.5 text-sm font-semibold self-center tabular-nums">
+            {currentSeason} Season
+          </span>
 
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-charcoal-700">Week:</label>
@@ -440,28 +410,6 @@ export default function GamesPage() {
         </Card>
       )}
 
-      {/* Live Update Status */}
-      {liveUpdateStatus.lastUpdate && (
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-charcoal-600">
-                Last updated: {liveUpdateStatus.lastUpdate.toLocaleTimeString()}
-              </span>
-              {liveUpdateStatus.nextUpdate && (
-                <span className="text-charcoal-500">
-                  Next update: {liveUpdateStatus.nextUpdate.toLocaleTimeString()}
-                </span>
-              )}
-            </div>
-            {liveUpdateStatus.lastResult && (
-              <div className="text-xs text-charcoal-500 mt-1">
-                {liveUpdateStatus.lastResult.gamesUpdated} games updated, {liveUpdateStatus.lastResult.picksProcessed} picks processed
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Week Stats Overview */}
       <GameStatsOverview 

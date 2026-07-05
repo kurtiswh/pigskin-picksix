@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PP6 — Game Card (between-teams slider)</title>
+<style>
+  :root{
+    --brown:#4B3621; --gold:#C9A04E; --golddk:#b98a3a; --cream:#F8F7F3; --fill:#faf8f4;
+    --line:#e7e2da; --line2:#f0ece5; --ink:#2b2320; --muted:#8a8079;
+    --win:#1f7a44; --winbg:#e6f4ea; --winbd:#bfe3cc;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceae4;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;padding:30px}
+  h1{color:var(--brown);font-size:20px}
+  .sub{color:var(--muted);margin-bottom:24px;font-size:13px;max-width:700px}
+  .tab{font-variant-numeric:tabular-nums}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:26px;align-items:start}
+  .variant{max-width:370px}
+  .vlabel{font-weight:800;color:var(--brown);margin:0 0 2px;font-size:14px}
+  .vnote{color:var(--muted);font-size:12px;margin:0 0 10px;min-height:48px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+  .hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:var(--fill);border-bottom:1px solid var(--line2);font-size:12px;color:var(--muted)}
+  .badge{border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700}
+  .b-final{background:var(--brown);color:#fff}
+  .b-cover{background:var(--winbg);color:var(--win);border:1px solid var(--winbd);font-size:10px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px}
+  .row .l{display:flex;align-items:center;gap:8px;min-width:0}
+  .rk{font-size:11px;background:#eef1f5;color:#4a5568;border-radius:4px;padding:0 4px;font-weight:700}
+  .tm{font-weight:700}
+  .sp{color:var(--muted);font-size:13px}
+  .sc{font-weight:800;font-size:17px}
+  .muted{color:var(--muted)} .win{color:var(--win)}
+  .winrow{background:var(--winbg)}
+  /* the between-teams distribution zone */
+  .dist{padding:6px 14px 8px}
+  .distcap{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.4px}
+  .bar{position:relative;display:flex;width:100%;height:8px;border-radius:999px;overflow:hidden}
+  .bar .a{background:var(--golddk)}      /* away = Texas A&M */
+  .bar .h{background:var(--brown)}        /* home = Texas */
+  .ends{display:flex;justify-content:space-between;margin-top:4px;font-size:11px}
+  .ends .ea{color:var(--golddk);font-weight:600}
+  .ends .eh{color:var(--brown);font-weight:600}
+</style>
+</head>
+<body>
+<h1>Distribution as a slider between the two teams</h1>
+<p class="sub">Away team (Texas A&M) on top, home team (Texas) on the bottom, with the split slider sitting between them. Rows stay clean so the COVERED chip never wraps. Gold = Texas A&M's share, brown = Texas's share. Field: A&M 99 (38%) · 9🔒, Texas 160 (62%) · 20🔒, 259 total.</p>
+
+<div class="grid">
+
+  <!-- V1: labeled slider, "Distribution" caption -->
+  <div class="variant">
+    <div class="vlabel">V1 · Slider + end labels</div>
+    <div class="vnote">A "Distribution" caption over the two-tone slider; each team's picks · % · locks read at the matching end (gold left = A&M, brown right = Texas).</div>
+    <div class="card">
+      <div class="hdr"><span>Game 4</span><span class="badge b-final">Final</span></div>
+      <div class="row"><span class="l"><span class="rk">#3</span><span class="tm">Texas A&M</span><span class="sp tab">-2.5</span></span><span class="sc tab muted">17</span></div>
+      <div class="dist">
+        <div class="distcap"><span>Texas A&M</span><span>Distribution</span><span>Texas</span></div>
+        <div class="bar"><div class="a" style="width:38%"></div><div class="h" style="width:62%"></div></div>
+        <div class="ends tab"><span class="ea">99 · 38% · 9🔒</span><span class="eh">160 · 62% · 20🔒</span></div>
+      </div>
+      <div class="row winrow" style="border-top:1px solid var(--winbd)"><span class="l"><span class="rk">#16</span><span class="tm win">Texas</span><span class="sp tab">+2.5</span><span class="badge b-cover">COVERED +21</span></span><span class="sc tab win">27</span></div>
+    </div>
+  </div>
+
+  <!-- V2: percentages on the bar, counts+locks below -->
+  <div class="variant">
+    <div class="vlabel">V2 · % on the bar</div>
+    <div class="vnote">Taller slider carries the % inside each colored segment; a small line beneath gives picks + locks per side. Clean, glanceable split.</div>
+    <div class="card">
+      <div class="hdr"><span>Game 4</span><span class="badge b-final">Final</span></div>
+      <div class="row"><span class="l"><span class="rk">#3</span><span class="tm">Texas A&M</span><span class="sp tab">-2.5</span></span><span class="sc tab muted">17</span></div>
+      <div class="dist">
+        <div class="bar" style="height:16px;border-radius:6px">
+          <div class="a" style="width:38%;display:flex;align-items:center;padding-left:8px;color:#fff;font-size:10px;font-weight:700">38%</div>
+          <div class="h" style="width:62%;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#fff;font-size:10px;font-weight:700">62%</div>
+        </div>
+        <div class="ends tab"><span class="ea">A&M · 99 picks · 9🔒</span><span class="eh">Texas · 160 · 20🔒</span></div>
+      </div>
+      <div class="row winrow" style="border-top:1px solid var(--winbd)"><span class="l"><span class="rk">#16</span><span class="tm win">Texas</span><span class="sp tab">+2.5</span><span class="badge b-cover">COVERED +21</span></span><span class="sc tab win">27</span></div>
+    </div>
+  </div>
+
+  <!-- V3: tug-of-war with center divider knob -->
+  <div class="variant">
+    <div class="vlabel">V3 · Tug-of-war</div>
+    <div class="vnote">A center divider "knob" makes it read as the field pulling toward Texas. Counts + locks flank each end; no caption needed.</div>
+    <div class="card">
+      <div class="hdr"><span>Game 4</span><span class="badge b-final">Final</span></div>
+      <div class="row"><span class="l"><span class="rk">#3</span><span class="tm">Texas A&M</span><span class="sp tab">-2.5</span></span><span class="sc tab muted">17</span></div>
+      <div class="dist">
+        <div class="bar" style="height:10px">
+          <div class="a" style="width:38%"></div>
+          <div class="h" style="width:62%"></div>
+          <div style="position:absolute;top:-2px;bottom:-2px;left:38%;width:2px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.15)"></div>
+        </div>
+        <div class="ends tab"><span class="ea">A&M 38% · 99 · 9🔒</span><span class="eh">62% Texas · 160 · 20🔒</span></div>
+      </div>
+      <div class="row winrow" style="border-top:1px solid var(--winbd)"><span class="l"><span class="rk">#16</span><span class="tm win">Texas</span><span class="sp tab">+2.5</span><span class="badge b-cover">COVERED +21</span></span><span class="sc tab win">27</span></div>
+    </div>
+  </div>
+
+  <!-- V4: minimal — thin slider, counts inline at ends only -->
+  <div class="variant">
+    <div class="vlabel">V4 · Minimal slider</div>
+    <div class="vnote">Just a thin two-tone slider between the teams with the numbers hugging each end. Lowest-height option, still shows picks · % · locks per side.</div>
+    <div class="card">
+      <div class="hdr"><span>Game 4</span><span class="badge b-final">Final</span></div>
+      <div class="row"><span class="l"><span class="rk">#3</span><span class="tm">Texas A&M</span><span class="sp tab">-2.5</span></span><span class="sc tab muted">17</span></div>
+      <div class="dist" style="padding-top:2px;padding-bottom:6px">
+        <div class="ends tab" style="margin:0 0 3px"><span class="ea">99 · 38% · 9🔒</span><span class="eh">160 · 62% · 20🔒</span></div>
+        <div class="bar" style="height:6px"><div class="a" style="width:38%"></div><div class="h" style="width:62%"></div></div>
+      </div>
+      <div class="row winrow" style="border-top:1px solid var(--winbd)"><span class="l"><span class="rk">#16</span><span class="tm win">Texas</span><span class="sp tab">+2.5</span><span class="badge b-cover">COVERED +21</span></span><span class="sc tab win">27</span></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

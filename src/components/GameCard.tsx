@@ -137,280 +137,140 @@ export default function GameCard({
     onToggleLock(game.id)
   }
 
+  const hasScore = game.home_score != null && game.away_score != null
+
+  const resultChip = () => {
+    if (!userPick?.result) return null
+    const map: Record<string, string> = {
+      win: 'bg-[#e6f4ea] text-[#1f7a44] border-[#bfe3cc]',
+      push: 'bg-[#fff5e2] text-[#b06a1a] border-[#f0dcb0]',
+      loss: 'bg-[#fbe9ec] text-[#d1495b] border-[#f2c9d1]',
+    }
+    const label = userPick.result === 'win' ? 'W' : userPick.result === 'loss' ? 'L' : 'P'
+    return (
+      <span className={cn('inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums', map[userPick.result])}>
+        {label} +{userPick.points_earned || 0}
+      </span>
+    )
+  }
+
+  const teamRow = (team: string, label: string, ranking?: number, score?: number | null) => {
+    const sel = selectedTeam === team
+    const rowDisabled = disabled || (!isPicked && isMaxPicks) || isGameLocked
+    return (
+      <button
+        type="button"
+        onClick={() => handleTeamSelect(team)}
+        disabled={rowDisabled}
+        className={cn(
+          'w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left border-b border-[#f0ece5] transition-colors',
+          sel ? 'bg-[#fbf6ea]' : 'hover:bg-[#faf8f4]',
+          rowDisabled && 'opacity-60 cursor-not-allowed'
+        )}
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          {label && <span className="text-[10px] font-semibold text-charcoal-400 w-9 shrink-0 tracking-wide">{label}</span>}
+          {ranking ? <span className="text-[11px] bg-[#eef1f5] text-[#4a5568] px-1 rounded font-semibold shrink-0">#{ranking}</span> : null}
+          <span className={cn('truncate', sel ? 'font-bold text-[#4B3621]' : 'font-semibold text-charcoal-900')}>{team}</span>
+        </span>
+        <span className="flex items-center gap-2 shrink-0">
+          {hasScore ? <span className="tabular-nums text-charcoal-500 text-sm">{score}</span> : null}
+          <span className={cn('tabular-nums text-sm', sel ? 'font-bold text-[#4B3621]' : 'text-charcoal-500')}>{getSpreadDisplay(team)}</span>
+          {sel && <span className="text-[#C9A04E] font-bold">✓</span>}
+        </span>
+      </button>
+    )
+  }
+
   return (
     <Card className={cn(
-      "relative transition-all duration-300 hover:shadow-xl h-full",
-      isPicked && "ring-2 ring-pigskin-500",
-      isLock && "ring-gold-500 bg-gradient-to-br from-gold-50 to-white",
-      isGameLocked && "opacity-60 bg-stone-100 border-stone-300"
+      'relative overflow-hidden transition-shadow hover:shadow-md',
+      isPicked && !isLock && 'ring-1 ring-[#C9A04E]',
+      isLock && 'ring-2 ring-gold-500',
+      isGameLocked && 'opacity-70'
     )}>
-      {isLock && (
-        <div className="absolute -top-2 -right-2 w-8 h-8 bg-gold-500 text-pigskin-900 rounded-full flex items-center justify-center text-sm font-bold z-10">
-          🔒
-        </div>
-      )}
-      
-      {isGameLocked && (
-        <div className="absolute -top-2 -left-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center text-sm font-bold z-10">
-          🔒
-        </div>
-      )}
-      
-      {/* Warning banner for unsubmitted picks on locked games */}
       {isUnsubmitted && isGameLocked && userPick && (
-        <div className="absolute top-0 left-0 right-0 bg-red-600 text-white text-xs font-bold text-center py-1 rounded-t-lg z-20">
-          ⚠️ NOT SUBMITTED - WON'T COUNT
+        <div className="bg-[#d1495b] text-white text-[11px] font-bold text-center py-1">⚠️ NOT SUBMITTED — WON'T COUNT</div>
+      )}
+
+      {/* Header strip: kickoff / venue + lock timing */}
+      <div className="flex items-center justify-between px-3 py-2 bg-[#faf8f4] border-b border-[#f0ece5] text-xs">
+        <span className="text-charcoal-500 truncate">
+          {formatTime(game.kickoff_time)}{game.neutral_site ? ' · Neutral site' : (game.venue ? ` · ${game.venue}` : '')}
+        </span>
+        <span className={cn('shrink-0 ml-2', isGameLocked ? 'text-[#d1495b] font-semibold' : 'text-[#8a6a1f]')}>
+          {isGameLocked
+            ? '🔒 Locked'
+            : shouldShowLockTimeIndicator
+            ? `🔒 ${formatLockTime(actualLockTime.toISOString())}`
+            : '🔒 lock by kickoff'}
+        </span>
+      </div>
+
+      {/* Team rows (clickable) */}
+      <div>
+        {teamRow(game.away_team, game.neutral_site ? '' : 'AWAY', game.away_ranking, game.away_score)}
+        {teamRow(game.home_team, game.neutral_site ? '' : 'HOME', game.home_ranking, game.home_score)}
+      </div>
+
+      {/* Pick distribution */}
+      {showPickStats && game.total_picks !== undefined && game.total_picks > 0 && (
+        <div className="px-3 py-2 border-b border-[#f0ece5]">
+          <PickStatisticsBar
+            homeTeam={game.home_team}
+            awayTeam={game.away_team}
+            homeTeamPicks={game.home_team_picks || 0}
+            homeTeamLocks={game.home_team_locks || 0}
+            awayTeamPicks={game.away_team_picks || 0}
+            awayTeamLocks={game.away_team_locks || 0}
+            totalPicks={game.total_picks}
+            compact={true}
+            className="text-xs"
+          />
         </div>
       )}
-      
-      {isPicked && onRemovePick && !disabled && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onRemovePick(game.id)
-          }}
-          className={cn(
-            "absolute -top-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold z-10 transition-colors",
-            isLock ? "-left-2" : "-right-2"
-          )}
-          title="Remove pick"
-        >
-          ×
-        </button>
-      )}
-      
-      <CardContent className="p-4 h-full flex flex-col">
-        {/* Game Info Header */}
-        <div className="text-center mb-4">
-          <div className="text-xs text-charcoal-500 mb-1">
-            {formatTime(game.kickoff_time)}
-          </div>
-          
-          {/* Venue and Game Type Indicator */}
-          <div className="text-xs mb-2">
-            {game.neutral_site ? (
-              <div className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
-                <span className="mr-1">⚖️</span>
-                Neutral Site
-                {game.venue && <span className="ml-1 text-purple-600">• {game.venue}</span>}
-              </div>
-            ) : (
-              game.venue && <div className="text-charcoal-400 italic">{game.venue}</div>
-            )}
-          </div>
-          
-          {/* Lock Time Indicator */}
-          {shouldShowLockTimeIndicator && (
-            <div className={cn(
-              "px-2 py-1 rounded text-xs mb-2",
-              isGameLocked 
-                ? "bg-red-100 border border-red-300 text-red-800"
-                : "bg-amber-100 border border-amber-300 text-amber-800"
-            )}>
-              <div className="font-semibold text-center">
-                {isGameLocked 
-                  ? isUnsubmitted && userPick ? "🚨 LOCKED - NOT SUBMITTED" : "🔒 LOCKED" 
-                  : `⏰ Locks: ${formatLockTime(actualLockTime.toISOString())}`
-                }
-              </div>
-            </div>
-          )}
-          
-          <div className="yard-line mb-2"></div>
-        </div>
 
-        {/* Teams */}
-        <div className="space-y-3 flex-1">
-          {/* Away Team */}
+      {/* Footer: lock control + pick/result */}
+      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-[#faf8f4]">
+        {isPicked ? (
           <button
-            onClick={() => handleTeamSelect(game.away_team)}
-            disabled={disabled || (!isPicked && isMaxPicks) || isGameLocked}
+            type="button"
+            onClick={handleLockToggle}
+            disabled={disabled || isGameLocked}
             className={cn(
-              "w-full p-3 rounded-lg border-2 transition-all duration-200 text-left flex justify-between items-center",
-              selectedTeam === game.away_team 
-                ? "border-pigskin-500 bg-pigskin-50 shadow-md" 
-                : "border-stone-200 hover:border-pigskin-300 hover:bg-stone-50",
-              (disabled || isGameLocked) && "opacity-50 cursor-not-allowed",
-              !isPicked && isMaxPicks && "opacity-60 cursor-not-allowed",
-              isGameLocked && "bg-stone-50 border-stone-300"
+              'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors',
+              isLock ? 'bg-gold-200 text-[#7a5a12]' : 'border border-[#4B3621]/30 text-[#4B3621] hover:bg-[#f0ece5]',
+              (disabled || isGameLocked) && 'opacity-60 cursor-not-allowed'
             )}
           >
-            <div className="flex-1">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center space-x-2">
-                  {game.away_ranking && (
-                    <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded font-medium">
-                      #{game.away_ranking}
-                    </span>
-                  )}
-                  <span className="font-semibold text-sm">{game.away_team}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  {!game.neutral_site && (
-                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
-                      AWAY
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="text-xs text-charcoal-500 flex items-center space-x-1">
-                <span>{game.neutral_site ? 'vs' : '@'}</span>
-                <span>{game.home_team}</span>
-                {game.neutral_site && (
-                  <span className="text-purple-600 font-medium">(Neutral)</span>
-                )}
-              </div>
-            </div>
-            <div className="text-right ml-3">
-              <div className="font-bold text-base">{getSpreadDisplay(game.away_team)}</div>
-              {selectedTeam === game.away_team && (
-                <div className="text-xs text-pigskin-600 font-medium">SELECTED</div>
-              )}
-            </div>
+            🔒 {isLock ? 'LOCK' : isGameLocked ? 'Locked' : 'Set Lock'}
           </button>
-
-          {/* Home Team */}
-          <button
-            onClick={() => handleTeamSelect(game.home_team)}
-            disabled={disabled || (!isPicked && isMaxPicks) || isGameLocked}
-            className={cn(
-              "w-full p-3 rounded-lg border-2 transition-all duration-200 text-left flex justify-between items-center",
-              selectedTeam === game.home_team 
-                ? "border-pigskin-500 bg-pigskin-50 shadow-md" 
-                : "border-stone-200 hover:border-pigskin-300 hover:bg-stone-50",
-              (disabled || isGameLocked) && "opacity-50 cursor-not-allowed",
-              !isPicked && isMaxPicks && "opacity-60 cursor-not-allowed",
-              isGameLocked && "bg-stone-50 border-stone-300"
-            )}
-          >
-            <div className="flex-1">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center space-x-2">
-                  {game.home_ranking && (
-                    <span className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded font-medium">
-                      #{game.home_ranking}
-                    </span>
-                  )}
-                  <span className="font-semibold text-sm">{game.home_team}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  {!game.neutral_site && (
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                      HOME
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="text-xs text-charcoal-500 flex items-center space-x-1">
-                <span>vs</span>
-                <span>{game.away_team}</span>
-                {game.neutral_site && (
-                  <span className="text-purple-600 font-medium">(Neutral)</span>
-                )}
-              </div>
-            </div>
-            <div className="text-right ml-3">
-              <div className="font-bold text-base">{getSpreadDisplay(game.home_team)}</div>
-              {selectedTeam === game.home_team && (
-                <div className="text-xs text-pigskin-600 font-medium">SELECTED</div>
-              )}
-            </div>
-          </button>
-        </div>
-
-        {/* Pick Statistics */}
-        {showPickStats && game.total_picks !== undefined && game.total_picks > 0 && (
-          <div className="mt-3 pt-3 border-t border-stone-200">
-            <PickStatisticsBar
-              homeTeam={game.home_team}
-              awayTeam={game.away_team}
-              homeTeamPicks={game.home_team_picks || 0}
-              homeTeamLocks={game.home_team_locks || 0}
-              awayTeamPicks={game.away_team_picks || 0}
-              awayTeamLocks={game.away_team_locks || 0}
-              totalPicks={game.total_picks}
-              compact={true}
-              className="text-xs"
-            />
-          </div>
+        ) : (
+          <span className="text-xs text-charcoal-400">
+            {isGameLocked ? 'Locked — no picks' : isMaxPicks ? 'Max picks reached' : 'Tap a team to pick'}
+          </span>
         )}
-
-        {/* Lock Button */}
         {isPicked && (
-          <div className="mt-4 pt-3 border-t border-stone-200">
-            <Button
-              onClick={handleLockToggle}
-              disabled={disabled || isGameLocked}
-              variant={isLock ? "secondary" : "outline"}
-              size="sm"
-              className="w-full"
-            >
-              {isGameLocked 
-                ? "🔒 GAME LOCKED" 
-                : isLock 
-                ? "🔒 LOCK PICK" 
-                : "Set as Lock Pick"
-              }
-            </Button>
-          </div>
-        )}
-
-        {/* Pick Status */}
-        <div className="mt-2 text-center">
-          {isPicked ? (
-            <div className="space-y-1">
-              <div className="text-sm text-pigskin-600 font-medium">
-                Pick: {selectedTeam} {selectedTeam && getSpreadDisplay(selectedTeam)}
-                {isLock && " (LOCK)"}
-                {isGameLocked && (isUnsubmitted ? " - NOT SUBMITTED" : " - LOCKED")}
-              </div>
-              
-              {/* Win/Loss Result Indicator */}
-              {userPick?.result && (
-                <div className="flex items-center justify-center space-x-2">
-                  {userPick.result === 'win' && (
-                    <div className="flex items-center space-x-1 text-green-700 bg-green-100 px-2 py-1 rounded text-xs font-medium">
-                      <span>✅</span>
-                      <span>WIN</span>
-                      <span>+{userPick.points_earned || 0} pts</span>
-                    </div>
-                  )}
-                  {userPick.result === 'push' && (
-                    <div className="flex items-center space-x-1 text-yellow-700 bg-yellow-100 px-2 py-1 rounded text-xs font-medium">
-                      <span>⚖️</span>
-                      <span>PUSH</span>
-                      <span>+{userPick.points_earned || 0} pts</span>
-                    </div>
-                  )}
-                  {userPick.result === 'loss' && (
-                    <div className="flex items-center space-x-1 text-red-700 bg-red-100 px-2 py-1 rounded text-xs font-medium">
-                      <span>❌</span>
-                      <span>LOSS</span>
-                      <span>+{userPick.points_earned || 0} pts</span>
-                    </div>
-                  )}
-                  
-                  {/* Lock Bonus Indicator */}
-                  {userPick.is_lock && userPick.result === 'win' && (
-                    <div className="text-xs bg-gold-100 text-gold-800 px-2 py-1 rounded font-medium">
-                      🔒 LOCK BONUS
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+          userPick?.result ? (
+            <span className="flex items-center gap-2">
+              {hasScore ? <span className="text-xs text-charcoal-500 tabular-nums">{game.away_score}–{game.home_score}</span> : null}
+              {resultChip()}
+            </span>
           ) : (
-            <div className="text-sm text-charcoal-400">
-              {isGameLocked 
-                ? "Game locked - no picks allowed" 
-                : isMaxPicks 
-                ? "Max picks reached" 
-                : "Click a team to pick"
-              }
-            </div>
-          )}
-        </div>
-      </CardContent>
+            <span className="text-xs text-charcoal-600 truncate">
+              {selectedTeam} {selectedTeam && getSpreadDisplay(selectedTeam)}{isLock ? ' 🔒' : ''}
+            </span>
+          )
+        )}
+      </div>
+
+      {isPicked && onRemovePick && !disabled && !isGameLocked && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemovePick(game.id) }}
+          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/80 hover:bg-[#fbe9ec] text-charcoal-400 hover:text-[#d1495b] flex items-center justify-center text-xs border border-[#e7e2da]"
+          title="Remove pick"
+        >×</button>
+      )}
     </Card>
   )
 }

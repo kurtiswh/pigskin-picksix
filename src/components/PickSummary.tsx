@@ -77,241 +77,95 @@ export default function PickSummary({
   const isUrgent = timeRemaining <= 30 * 60 * 1000 && timeRemaining > 0 // Last 30 minutes
   const isCritical = timeRemaining <= 5 * 60 * 1000 && timeRemaining > 0 // Last 5 minutes
 
+  const totalPoints = picks.reduce((n, p) => n + (p.points_earned || 0), 0)
+  const anyScored = picks.some(p => p.result)
+  const deadlineText = getTimeUntilDeadline()
+
+  const resultChip = (p: Pick) => {
+    if (!p.result) return null
+    const cls = p.result === 'win' ? 'bg-[#e6f4ea] text-[#1f7a44]'
+      : p.result === 'loss' ? 'bg-[#fbe9ec] text-[#d1495b]'
+      : 'bg-[#fff5e2] text-[#b06a1a]'
+    const L = p.result === 'win' ? 'W' : p.result === 'loss' ? 'L' : 'P'
+    return <span className={`text-xs px-1.5 py-0.5 rounded-md font-semibold tabular-nums ${cls}`}>{L} +{p.points_earned || 0}</span>
+  }
+
   return (
     <div className="sticky top-4">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Your Picks ({picks.length}/6)</span>
-            {hasLock && <div className="text-gold-500">🔒</div>}
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center justify-between text-base text-[#4B3621]">
+            <span>Your Picks · {picks.length}/6</span>
+            {hasLock && <span className="text-gold-500">🔒</span>}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Deadline Info */}
+        <CardContent className="space-y-3 pt-0">
           {deadline && (
             <div className={cn(
-              "p-3 rounded-lg text-center text-sm transition-all",
-              isDeadlinePassed 
-                ? "bg-red-50 text-red-700 border border-red-200" 
-                : isCritical 
-                ? "bg-red-100 text-red-800 border border-red-300 animate-pulse" 
-                : isUrgent 
-                ? "bg-yellow-50 text-yellow-800 border border-yellow-300" 
-                : "bg-blue-50 text-blue-700 border border-blue-200"
+              'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold',
+              (isDeadlinePassed || isCritical) ? 'bg-[#fbe9ec] text-[#d1495b]' : 'bg-[#fff5e2] text-[#8a6a1f]'
             )}>
-              <div className="font-medium">
-                {isDeadlinePassed ? '🔒 Picks Closed' : isCritical ? '⚠️ URGENT' : isUrgent ? '⏰ Time Running Out' : '⏱️ Time Remaining'}
-              </div>
-              <div className={cn(
-                "font-mono",
-                isCritical ? "text-base font-bold" : isUrgent ? "text-sm font-semibold" : "text-xs"
-              )}>
-                {isDeadlinePassed ? 
-                  'Deadline has passed' : 
-                  getTimeUntilDeadline() || 'Loading...'
-                }
-              </div>
-              {isCritical && (
-                <div className="text-xs mt-1 text-red-600">
-                  Submit your picks now!
-                </div>
-              )}
+              {isDeadlinePassed ? '🔒 Picks closed' : `⏱ ${deadlineText}`}
             </div>
           )}
 
-          {/* Pick List */}
-          <div className="space-y-2">
-            {picks.length === 0 ? (
-              <div className="text-center py-8 text-charcoal-500">
-                <div className="text-2xl mb-2">🏈</div>
-                <div className="text-sm">No picks selected yet</div>
-                <div className="text-xs">Choose 6 games to get started</div>
-              </div>
-            ) : (
-              picks.map((pick, index) => {
-                const game = getGameInfo(pick.game_id)
-                if (!game) return null
-                
-                return (
-                  <div
-                    key={pick.game_id}
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border",
-                      pick.is_lock 
-                        ? "border-gold-500 bg-gold-50" 
-                        : "border-stone-200 bg-white"
+          {picks.length === 0 ? (
+            <div className="text-sm text-charcoal-400 py-2">No picks yet — tap teams to add them.</div>
+          ) : (
+            <div className="divide-y divide-[#f0ece5]">
+              {picks.map(p => (
+                <div key={p.game_id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    {p.is_lock && <span className="text-gold-500 shrink-0">🔒</span>}
+                    <span className="font-medium text-charcoal-800 truncate">{p.selected_team}</span>
+                    <span className="text-charcoal-500 tabular-nums shrink-0">{getSpreadDisplay(p)}</span>
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    {resultChip(p)}
+                    {!isDeadlinePassed && !arePicksSubmitted && (
+                      <button onClick={() => onRemovePick(p.game_id)} className="text-charcoal-300 hover:text-[#d1495b] text-base leading-none" title="Remove">×</button>
                     )}
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2">
-                        <span className="w-6 h-6 bg-pigskin-500 text-white rounded-full flex items-center justify-center text-xs font-bold">
-                          {index + 1}
-                        </span>
-                        {pick.is_lock && (
-                          <span className="text-gold-600 text-sm">🔒</span>
-                        )}
-                        <div>
-                          <div className="font-medium text-sm">{pick.selected_team}</div>
-                          <div className="text-xs text-charcoal-500">
-                            {pick.selected_team === game.home_team ? 'vs' : '@'} {' '}
-                            {pick.selected_team === game.home_team ? game.away_team : game.home_team}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-sm">{getSpreadDisplay(pick)}</div>
-                      
-                      {/* Points and Result Display */}
-                      {pick.result && pick.points_earned !== null && (
-                        <div className="mt-1 space-y-1">
-                          {pick.result === 'win' && (
-                            <div className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded">
-                              ✅ +{pick.points_earned} pts
-                            </div>
-                          )}
-                          {pick.result === 'push' && (
-                            <div className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded">
-                              ⚖️ +{pick.points_earned} pts
-                            </div>
-                          )}
-                          {pick.result === 'loss' && (
-                            <div className="text-xs bg-red-100 text-red-800 px-1.5 py-0.5 rounded">
-                              ❌ +{pick.points_earned} pts
-                            </div>
-                          )}
-                          
-                          {/* Lock Bonus Indicator */}
-                          {pick.is_lock && pick.result === 'win' && (
-                            <div className="text-xs bg-gold-100 text-gold-800 px-1.5 py-0.5 rounded font-medium">
-                              🔒 LOCK
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      
-                      {!disabled && !pick.result && (
-                        <button
-                          onClick={() => onRemovePick(pick.game_id)}
-                          className="text-xs text-red-500 hover:text-red-700 mt-1"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-
-          {/* Requirements Checklist */}
-          <div className="space-y-2 text-sm">
-            <div className="font-medium text-charcoal-700">Requirements:</div>
-            <div className={cn(
-              "flex items-center space-x-2",
-              picks.length === 6 ? "text-green-600" : "text-charcoal-500"
-            )}>
-              <span>{picks.length === 6 ? '✅' : '⭕'}</span>
-              <span>Select exactly 6 games ({picks.length}/6)</span>
-            </div>
-            <div className={cn(
-              "flex items-center space-x-2",
-              hasLock ? "text-green-600" : "text-charcoal-500"
-            )}>
-              <span>{hasLock ? '✅' : '⭕'}</span>
-              <span>Choose 1 Lock pick ({hasLock ? '1' : '0'}/1)</span>
-            </div>
-          </div>
-
-          {/* Weekly Points Summary */}
-          {picks.some(p => p.result && p.points_earned !== null) && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
-              <div className="font-medium text-blue-800 text-sm">Week Summary:</div>
-              <div className="space-y-1 text-xs">
-                {picks.filter(p => p.result && p.points_earned !== null).map(pick => {
-                  const game = getGameInfo(pick.game_id)
-                  return (
-                    <div key={pick.game_id} className="flex justify-between items-center text-blue-700">
-                      <span>{game?.away_team} @ {game?.home_team} {pick.is_lock ? '🔒' : ''}</span>
-                      <span className={cn(
-                        "font-medium",
-                        pick.result === 'win' ? "text-green-700" : 
-                        pick.result === 'push' ? "text-yellow-700" : "text-red-700"
-                      )}>
-                        {pick.result === 'win' ? '✅' : pick.result === 'push' ? '⚖️' : '❌'} +{pick.points_earned} pts
-                      </span>
-                    </div>
-                  )
-                })}
-                <div className="border-t border-blue-300 pt-1 mt-2 flex justify-between items-center font-bold text-blue-800">
-                  <span>Total Points:</span>
-                  <span>{picks.reduce((total, pick) => total + (pick.points_earned || 0), 0)} pts</span>
+                  </span>
                 </div>
-              </div>
+              ))}
             </div>
           )}
 
-          {/* Submit Button */}
+          {!canSubmit && !isDeadlinePassed && (
+            <div className="text-xs text-charcoal-500 flex items-center gap-4">
+              <span className={picks.length === 6 ? 'text-[#1f7a44] font-medium' : ''}>{picks.length === 6 ? '✓' : '○'} 6 games ({picks.length}/6)</span>
+              <span className={hasLock ? 'text-[#1f7a44] font-medium' : ''}>{hasLock ? '✓' : '○'} 1 Lock</span>
+            </div>
+          )}
+
+          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2">
+            <div className="text-xs text-charcoal-500">{anyScored ? 'Points' : 'Projected'}</div>
+            <div className="text-xl font-bold text-[#4B3621] tabular-nums">{totalPoints} pts</div>
+          </div>
+
           <Button
             onClick={onSubmitPicks}
-            disabled={!canSubmit || isSubmitting || isDeadlinePassed || arePicksSubmitted}
+            disabled={!canSubmit || isSubmitting || !!isDeadlinePassed || arePicksSubmitted}
             className={cn(
-              "w-full transition-all duration-200",
-              canSubmit && !arePicksSubmitted && !isDeadlinePassed
-                ? "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.02] ring-2 ring-green-500/30"
-                : ""
+              'w-full font-bold',
+              canSubmit && !arePicksSubmitted && !isDeadlinePassed && 'bg-[#C9A04E] hover:bg-[#b8903e] text-[#4B3621]'
             )}
             size="lg"
-            variant={arePicksSubmitted ? "outline" : "default"}
+            variant={arePicksSubmitted ? 'outline' : 'default'}
           >
-            {isSubmitting ? (
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Submitting...</span>
-              </div>
-            ) : isDeadlinePassed ? (
-              arePicksSubmitted ? '✅ Submitted (Closed)' : '❌ NOT SUBMITTED - Deadline Passed'
-            ) : !canSubmit ? (
-              <span className="font-bold text-lg">
-                Need {6 - picks.length} more pick{6 - picks.length !== 1 ? 's' : ''}{!hasLock ? ' + Lock' : ''}
-              </span>
-            ) : arePicksSubmitted ? (
-              '✅ Picks Submitted'
-            ) : (
-              'Submit Picks'
-            )}
+            {isSubmitting ? 'Submitting…'
+              : isDeadlinePassed ? (arePicksSubmitted ? '✅ Submitted (Closed)' : '❌ Not submitted')
+              : !canSubmit ? `Need ${6 - picks.length} more${!hasLock ? ' + Lock' : ''}`
+              : arePicksSubmitted ? '✅ Picks Submitted'
+              : 'Submit picks'}
           </Button>
 
-          {arePicksSubmitted && (
-            <div className="text-xs text-center text-green-600 mt-2">
-              Picks submitted! Edit any pick to enable re-submission.
-            </div>
+          {arePicksSubmitted && !isDeadlinePassed && (
+            <div className="text-xs text-center text-[#1f7a44]">Submitted — edit any pick to re-submit.</div>
           )}
-          
-          {/* Warning for deadline passed without submission */}
           {isDeadlinePassed && !arePicksSubmitted && (
-            <div className="bg-red-100 border border-red-300 rounded-lg p-3 mt-3">
-              <div className="text-red-800 text-sm font-medium text-center">
-                ⚠️ Your picks were NOT submitted!
-              </div>
-              <div className="text-red-700 text-xs text-center mt-1">
-                These picks will not count towards your score.
-              </div>
-            </div>
+            <div className="text-xs text-center text-[#d1495b]">⚠️ These picks were not submitted and won't count.</div>
           )}
-
-          {/* Scoring Info */}
-          <div className="text-xs text-charcoal-500 space-y-1 pt-2 border-t border-stone-200">
-            <div className="font-medium">Scoring:</div>
-            <div>• Cover spread: 20 pts + bonus</div>
-            <div>• Push (exact): 10 pts</div>
-            <div>• Miss spread: 0 pts</div>
-            <div>• Lock pick: Double bonus only</div>
-            <div className="text-[10px] text-charcoal-400 mt-1">
-              Bonus: +1 (11-19.5), +3 (20-28.5), +5 (29+)
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

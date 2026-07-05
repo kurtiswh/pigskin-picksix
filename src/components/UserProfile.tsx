@@ -4,6 +4,7 @@ import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { supabase } from '@/lib/supabase'
 import { UserProfile as UserProfileType, UserPreferences, Pick, AnonymousPick, UserPickSet } from '@/types'
 import PickSetsHistory from '@/components/PickSetsHistory'
+import { PillTabs } from '@/components/ui/PillTabs'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import CareerStatsCard from '@/components/CareerStatsCard'
@@ -391,38 +392,15 @@ export default function UserProfile() {
       </Card>
 
       {/* Navigation Tabs */}
-      <div className="flex space-x-1 bg-white p-1 rounded-lg shadow-sm">
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-            activeTab === 'profile'
-              ? 'bg-pigskin-500 text-white'
-              : 'text-charcoal-600 hover:text-pigskin-700'
-          }`}
-        >
-          Profile Info
-        </button>
-        <button
-          onClick={() => setActiveTab('stats')}
-          className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-            activeTab === 'stats'
-              ? 'bg-pigskin-500 text-white'
-              : 'text-charcoal-600 hover:text-pigskin-700'
-          }`}
-        >
-          Statistics
-        </button>
-        <button
-          onClick={() => setActiveTab('picks')}
-          className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-            activeTab === 'picks'
-              ? 'bg-pigskin-500 text-white'
-              : 'text-charcoal-600 hover:text-pigskin-700'
-          }`}
-        >
-          Pick Sets
-        </button>
-      </div>
+      <PillTabs
+        tabs={[
+          { key: 'profile', label: 'Profile Info' },
+          { key: 'stats', label: 'Statistics' },
+          { key: 'picks', label: 'Pick Sets' },
+        ]}
+        value={activeTab}
+        onChange={(k) => setActiveTab(k as 'profile' | 'stats' | 'picks')}
+      />
 
       {/* Success/Error Messages */}
       {error && (

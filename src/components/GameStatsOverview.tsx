@@ -492,206 +492,104 @@ export default function GameStatsOverview({
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Basic Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
-          <div>
-            <div className="text-2xl font-bold text-pigskin-600">{weekStats.totalSubmissions}</div>
-            <div className="text-xs text-charcoal-500">Submissions</div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
+            <div className="text-xl font-bold tabular-nums text-[#4B3621]">{weekStats.totalSubmissions}</div>
+            <div className="text-[11px] text-charcoal-500">Submissions</div>
+            {weekStats.seasonStats && <div className="text-[11px] text-charcoal-400 mt-0.5">Season: {weekStats.seasonStats.totalSubmissions}</div>}
+          </div>
+          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
+            <div className="text-xl font-bold tabular-nums text-[#4B3621]">{weekStats.averageScore}</div>
+            <div className="text-[11px] text-charcoal-500">Average Score</div>
+            {weekStats.seasonStats && <div className="text-[11px] text-charcoal-400 mt-0.5">Season: {weekStats.seasonStats.averageScore}</div>}
+          </div>
+          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
+            <div className="text-xl font-bold tabular-nums text-[#1f7a44]">{weekStats.perfectRecords}</div>
+            <div className="text-[11px] text-charcoal-500">Perfect Records</div>
             {weekStats.seasonStats && (
-              <div className="text-xs text-gray-500 mt-1">
-                Season: {weekStats.seasonStats.totalSubmissions}
+              <div className="text-[11px] mt-0.5">
+                {weekStats.perfectRecords >= weekStats.seasonStats.averagePerfectRecords
+                  ? <span className="text-[#1f7a44]">&uarr; Avg: {weekStats.seasonStats.averagePerfectRecords}</span>
+                  : <span className="text-[#d1495b]">&darr; Avg: {weekStats.seasonStats.averagePerfectRecords}</span>}
               </div>
             )}
           </div>
-          <div>
-            <div className="text-2xl font-bold text-pigskin-600">{weekStats.averageScore}</div>
-            <div className="text-xs text-charcoal-500">Average Score</div>
+          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
+            <div className="text-xl font-bold tabular-nums text-[#d1495b]">{weekStats.zeroRecords}</div>
+            <div className="text-[11px] text-charcoal-500">Zero Records</div>
             {weekStats.seasonStats && (
-              <div className="text-xs text-gray-500 mt-1">
-                Season: {weekStats.seasonStats.averageScore}
+              <div className="text-[11px] mt-0.5">
+                {weekStats.zeroRecords > weekStats.seasonStats.averageZeroRecords
+                  ? <span className="text-[#d1495b]">&uarr; Avg: {weekStats.seasonStats.averageZeroRecords}</span>
+                  : <span className="text-[#1f7a44]">&darr; Avg: {weekStats.seasonStats.averageZeroRecords}</span>}
               </div>
             )}
           </div>
-          <div>
-            <div className="text-2xl font-bold text-green-600">{weekStats.perfectRecords}</div>
-            <div className="text-xs text-charcoal-500">Perfect Records</div>
+          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
+            <div className="text-xl font-bold tabular-nums text-[#b06a1a]">{weekStats.over100Points}</div>
+            <div className="text-[11px] text-charcoal-500">&gt;100 Points</div>
             {weekStats.seasonStats && (
-              <div className="text-xs text-gray-500 mt-1">
-                {weekStats.perfectRecords > weekStats.seasonStats.averagePerfectRecords ? (
-                  <span className="text-green-600">
-                    ↑ Avg: {weekStats.seasonStats.averagePerfectRecords}
-                  </span>
-                ) : weekStats.perfectRecords < weekStats.seasonStats.averagePerfectRecords ? (
-                  <span className="text-red-600">
-                    ↓ Avg: {weekStats.seasonStats.averagePerfectRecords}
-                  </span>
-                ) : (
-                  <span>= Avg: {weekStats.seasonStats.averagePerfectRecords}</span>
-                )}
-              </div>
-            )}
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-red-600">{weekStats.zeroRecords}</div>
-            <div className="text-xs text-charcoal-500">Zero Records</div>
-            {weekStats.seasonStats && (
-              <div className="text-xs text-gray-500 mt-1">
-                {weekStats.zeroRecords > weekStats.seasonStats.averageZeroRecords ? (
-                  <span className="text-red-600">
-                    ↑ Avg: {weekStats.seasonStats.averageZeroRecords}
-                  </span>
-                ) : weekStats.zeroRecords < weekStats.seasonStats.averageZeroRecords ? (
-                  <span className="text-green-600">
-                    ↓ Avg: {weekStats.seasonStats.averageZeroRecords}
-                  </span>
-                ) : (
-                  <span>= Avg: {weekStats.seasonStats.averageZeroRecords}</span>
-                )}
-              </div>
-            )}
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-yellow-600">{weekStats.over100Points}</div>
-            <div className="text-xs text-charcoal-500">&gt;100 Points</div>
-            {weekStats.seasonStats && (
-              <div className="text-xs text-gray-500 mt-1">
-                {weekStats.over100Points > weekStats.seasonStats.averageOver100Points ? (
-                  <span className="text-green-600">
-                    ↑ Avg: {weekStats.seasonStats.averageOver100Points}
-                  </span>
-                ) : weekStats.over100Points < weekStats.seasonStats.averageOver100Points ? (
-                  <span className="text-red-600">
-                    ↓ Avg: {weekStats.seasonStats.averageOver100Points}
-                  </span>
-                ) : (
-                  <span>= Avg: {weekStats.seasonStats.averageOver100Points}</span>
-                )}
+              <div className="text-[11px] mt-0.5">
+                {weekStats.over100Points >= weekStats.seasonStats.averageOver100Points
+                  ? <span className="text-[#1f7a44]">&uarr; Avg: {weekStats.seasonStats.averageOver100Points}</span>
+                  : <span className="text-[#d1495b]">&darr; Avg: {weekStats.seasonStats.averageOver100Points}</span>}
               </div>
             )}
           </div>
         </div>
 
-        {/* Overall Records */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <h4 className="font-medium text-charcoal-700">Overall Record</h4>
-            
-            {/* Week Record */}
-            <div className="text-sm p-3 bg-stone-50 rounded border">
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-medium">Week {week} W-L-P</span>
-                <span className="text-lg font-bold">
-                  {weekStats.overallRecord.wins}-{weekStats.overallRecord.losses}-{weekStats.overallRecord.pushes}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-charcoal-600">Win Percentage</span>
-                <span className="font-bold text-pigskin-600">{weekStats.overallRecord.winPercentage}%</span>
-              </div>
-            </div>
-
-            {/* Season Record */}
-            {weekStats.seasonRecord && (
-              <div className="text-sm p-3 bg-blue-50 rounded border">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium">Season W-L-P</span>
-                  <span className="text-lg font-bold">
-                    {weekStats.seasonRecord.wins}-{weekStats.seasonRecord.losses}-{weekStats.seasonRecord.pushes}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-charcoal-600">Season Win %</span>
-                  <span className="font-bold text-blue-600">{weekStats.seasonRecord.winPercentage}%</span>
-                </div>
-              </div>
-            )}
+        {/* Records — compact tiles */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2">
+            <div className="text-[11px] text-charcoal-500">Week {week} Record</div>
+            <div className="font-bold text-[#4B3621] tabular-nums text-sm">{weekStats.overallRecord.wins}-{weekStats.overallRecord.losses}-{weekStats.overallRecord.pushes} <span className="text-charcoal-500 font-semibold">· {weekStats.overallRecord.winPercentage}%</span></div>
           </div>
-
-          <div className="space-y-2">
-            <h4 className="font-medium text-charcoal-700">Lock Record</h4>
-            
-            {/* Week Lock Record */}
-            <div className="text-sm p-3 bg-yellow-50 rounded border">
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-medium">Week {week} Lock W-L-P</span>
-                <span className="text-lg font-bold">
-                  {weekStats.lockRecord.wins}-{weekStats.lockRecord.losses}-{weekStats.lockRecord.pushes}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-charcoal-600">Lock Win %</span>
-                <span className="font-bold text-pigskin-600">{weekStats.lockRecord.winPercentage}%</span>
-              </div>
+          {weekStats.seasonRecord && (
+            <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2">
+              <div className="text-[11px] text-charcoal-500">Season Record</div>
+              <div className="font-bold text-[#4B3621] tabular-nums text-sm">{weekStats.seasonRecord.wins}-{weekStats.seasonRecord.losses}-{weekStats.seasonRecord.pushes} <span className="text-charcoal-500 font-semibold">· {weekStats.seasonRecord.winPercentage}%</span></div>
             </div>
-
-            {/* Season Lock Record */}
-            {weekStats.seasonLockRecord && (
-              <div className="text-sm p-3 bg-orange-50 rounded border">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium">Season Lock W-L-P</span>
-                  <span className="text-lg font-bold">
-                    {weekStats.seasonLockRecord.wins}-{weekStats.seasonLockRecord.losses}-{weekStats.seasonLockRecord.pushes}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-charcoal-600">Season Lock %</span>
-                  <span className="font-bold text-orange-600">{weekStats.seasonLockRecord.winPercentage}%</span>
-                </div>
-              </div>
-            )}
+          )}
+          <div className="rounded-lg bg-[#fff5e2] border border-[#f0dcb0] px-3 py-2">
+            <div className="text-[11px] text-[#8a6a1f]">Week {week} Lock</div>
+            <div className="font-bold text-[#4B3621] tabular-nums text-sm">{weekStats.lockRecord.wins}-{weekStats.lockRecord.losses}-{weekStats.lockRecord.pushes} <span className="text-[#8a6a1f] font-semibold">· {weekStats.lockRecord.winPercentage}%</span></div>
           </div>
+          {weekStats.seasonLockRecord && (
+            <div className="rounded-lg bg-[#fff5e2] border border-[#f0dcb0] px-3 py-2">
+              <div className="text-[11px] text-[#8a6a1f]">Season Lock</div>
+              <div className="font-bold text-[#4B3621] tabular-nums text-sm">{weekStats.seasonLockRecord.wins}-{weekStats.seasonLockRecord.losses}-{weekStats.seasonLockRecord.pushes} <span className="text-[#8a6a1f] font-semibold">· {weekStats.seasonLockRecord.winPercentage}%</span></div>
+            </div>
+          )}
         </div>
 
-        {/* Notable Games */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <h4 className="font-medium text-charcoal-700">Most Popular Games</h4>
-            
-            {weekStats.mostPopularGame && (
-              <div className="text-sm p-2 bg-green-50 rounded">
-                <div className="font-medium">📈 Most Picked Game</div>
-                <div>{weekStats.mostPopularGame.game}</div>
-                <div className="text-charcoal-500">
-                  {weekStats.mostPopularGame.pickCount} picks ({weekStats.mostPopularGame.percentage}%)
-                </div>
-              </div>
-            )}
-
-            {weekStats.mostPopularLock && (
-              <div className="text-sm p-2 bg-yellow-50 rounded">
-                <div className="font-medium">🔒 Most Popular Lock</div>
-                <div>{weekStats.mostPopularLock.game}</div>
-                <div className="text-charcoal-500">
-                  {weekStats.mostPopularLock.lockCount} locks ({weekStats.mostPopularLock.percentage}%)
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <h4 className="font-medium text-charcoal-700">Notable Results</h4>
-            
-            {weekStats.leastPopularGame && (
-              <div className="text-sm p-2 bg-blue-50 rounded">
-                <div className="font-medium">📉 Least Popular Game</div>
-                <div>{weekStats.leastPopularGame.game}</div>
-                <div className="text-charcoal-500">
-                  {weekStats.leastPopularGame.pickCount} picks ({weekStats.leastPopularGame.percentage}%)
-                </div>
-              </div>
-            )}
-
-            {weekStats.biggestUpset && (
-              <div className="text-sm p-2 bg-red-50 rounded">
-                <div className="font-medium">🚨 Biggest Upset</div>
-                <div>{weekStats.biggestUpset.game}</div>
-                <div className="text-charcoal-500">
-                  Winner had {weekStats.biggestUpset.winnerPickPercentage}% of picks
-                </div>
-              </div>
-            )}
-          </div>
+        {/* Notable — compact one-liners */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+          {weekStats.mostPopularGame && (
+            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-[#faf8f4] border border-[#f0ece5]">
+              <span className="truncate">📈 Most picked · {weekStats.mostPopularGame.game}</span>
+              <span className="text-charcoal-500 tabular-nums shrink-0">{weekStats.mostPopularGame.pickCount} ({weekStats.mostPopularGame.percentage}%)</span>
+            </div>
+          )}
+          {weekStats.leastPopularGame && (
+            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-[#faf8f4] border border-[#f0ece5]">
+              <span className="truncate">📉 Least picked · {weekStats.leastPopularGame.game}</span>
+              <span className="text-charcoal-500 tabular-nums shrink-0">{weekStats.leastPopularGame.pickCount} ({weekStats.leastPopularGame.percentage}%)</span>
+            </div>
+          )}
+          {weekStats.mostPopularLock && (
+            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-[#fff5e2] border border-[#f0dcb0]">
+              <span className="truncate">🔒 Most locked · {weekStats.mostPopularLock.game}</span>
+              <span className="text-[#8a6a1f] tabular-nums shrink-0">{weekStats.mostPopularLock.lockCount} ({weekStats.mostPopularLock.percentage}%)</span>
+            </div>
+          )}
+          {weekStats.biggestUpset && (
+            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-[#fbe9ec] border border-[#f2c9d1]">
+              <span className="truncate">🚨 Biggest upset · {weekStats.biggestUpset.game}</span>
+              <span className="text-[#d1495b] tabular-nums shrink-0">{weekStats.biggestUpset.winnerPickPercentage}% picked winner</span>
+            </div>
+          )}
         </div>
       </CardContent>
-    </Card>
-  )
-}
+      </Card>
+    )
+  }

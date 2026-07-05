@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { supabase } from '@/lib/supabase'
-import PickStatsWidget from './PickStatsWidget'
 import type { Pick } from '@/types'
 
 interface Game {
@@ -255,42 +253,6 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
   }
 
 
-  const getSpreadDisplay = () => {
-    const spread = Math.abs(game.spread)
-    const favorite = game.spread < 0 ? game.home_team : game.away_team
-    return `${favorite} -${spread}`
-  }
-
-  const getWinnerDisplay = () => {
-    if (currentStatus !== 'completed' || homeScore === null || awayScore === null) {
-      return null
-    }
-
-    const margin = homeScore - awayScore
-    
-    // Straight up winner
-    const straightWinner = margin > 0 ? game.home_team : margin < 0 ? game.away_team : 'Tie'
-    
-    // ATS winner (considering spread)
-    let atsWinner
-    const adjustedMargin = margin + game.spread
-    if (adjustedMargin > 0) {
-      // Home team covered - show their actual spread
-      const homeSpread = game.spread > 0 ? `+${game.spread}` : `${game.spread}`
-      atsWinner = `${game.home_team} ${homeSpread}`
-    } else if (adjustedMargin < 0) {
-      // Away team covered - show their actual spread  
-      const awaySpread = game.spread < 0 ? `+${Math.abs(game.spread)}` : `-${game.spread}`
-      atsWinner = `${game.away_team} ${awaySpread}`
-    } else {
-      atsWinner = 'Push'
-    }
-
-    return { straightWinner, atsWinner, margin }
-  }
-
-  const winner = getWinnerDisplay()
-
   const getUserPickInfo = () => {
     if (!userPick) return null
 
@@ -311,177 +273,103 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
 
   const userPickInfo = getUserPickInfo()
 
-  const getTeamPickIndicator = (teamName: string) => {
-    if (!userPickInfo || userPickInfo.selectedTeam !== teamName) return null
+  const hasHomeScore = homeScore != null
+  const hasAwayScore = awayScore != null
+  const homeSpread = game.spread > 0 ? `+${game.spread}` : `${game.spread}`
+  const awaySpread = game.spread < 0 ? `+${Math.abs(game.spread)}` : `-${game.spread}`
+  const totalP = game.total_picks || 0
+  const homeP = (game.home_team_picks || 0) + (game.home_team_locks || 0)
+  const awayP = (game.away_team_picks || 0) + (game.away_team_locks || 0)
+  const locks = (game.home_team_locks || 0) + (game.away_team_locks || 0)
 
-    const isCompleted = currentStatus === 'completed'
-    
-    if (!isCompleted) {
-      // Show pick indicator for non-completed games
-      return (
-        <div className="flex items-center space-x-1">
-          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-medium">
-            MY PICK
-          </span>
-          {userPickInfo.isLock && (
-            <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded font-medium">
-              🔒
-            </span>
-          )}
-        </div>
-      )
+  const myChip = (team: string) => {
+    if (!userPickInfo || userPickInfo.selectedTeam !== team) return null
+    const lock = userPickInfo.isLock ? ' 🔒' : ''
+    if (currentStatus !== 'completed') {
+      return <span className="text-[10px] bg-[#eef1f5] text-[#4a5568] px-1.5 py-0.5 rounded font-semibold whitespace-nowrap">MY PICK{lock}</span>
     }
+    const cls = userPickInfo.isCorrect ? 'bg-[#e6f4ea] text-[#1f7a44]'
+      : userPickInfo.isPush ? 'bg-[#fff5e2] text-[#b06a1a]' : 'bg-[#fbe9ec] text-[#d1495b]'
+    const L = userPickInfo.isCorrect ? 'W' : userPickInfo.isPush ? 'P' : 'L'
+    return <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold whitespace-nowrap ${cls}`}>Your pick · {L}{lock}</span>
+  }
 
-    // Show result indicator for completed games
-    let bgColor = 'bg-gray-100'
-    let textColor = 'text-gray-800'
-    let icon = ''
-    let text = 'MY PICK'
+  const teamShare = (side: 'home' | 'away') => (totalP > 0 ? Math.round(((side === 'home' ? homeP : awayP) / totalP) * 100) : 0)
 
-    if (userPickInfo.isCorrect) {
-      bgColor = 'bg-green-100'
-      textColor = 'text-green-800'
-      icon = '✅'
-      text = `WIN ${userPickInfo.isLock ? '(LOCK)' : ''}`
-    } else if (userPickInfo.isPush) {
-      bgColor = 'bg-yellow-100'
-      textColor = 'text-yellow-800'
-      icon = '⚖️'
-      text = `PUSH ${userPickInfo.isLock ? '(LOCK)' : ''}`
-    } else if (userPickInfo.isWrong) {
-      bgColor = 'bg-red-100'
-      textColor = 'text-red-800'
-      icon = '❌'
-      text = `LOSS ${userPickInfo.isLock ? '(LOCK)' : ''}`
-    }
+  // Which side covered the spread (for the highlighted winner row)
+  const adjustedMargin = (homeScore ?? 0) - (awayScore ?? 0) + game.spread
+  const coveredSide: 'home' | 'away' | 'push' | null =
+    currentStatus === 'completed' && hasHomeScore && hasAwayScore
+      ? (adjustedMargin > 0 ? 'home' : adjustedMargin < 0 ? 'away' : 'push')
+      : null
+  const coverPts = (game.base_points || 20) + (game.margin_bonus || 0)
 
+  const row = (team: string, ranking: number | null | undefined, spreadStr: string, score: number | null, side: 'home' | 'away') => {
+    const mine = userPickInfo?.selectedTeam === team
+    const isCovered = coveredSide === side
+    const dim = !!coveredSide && coveredSide !== 'push' && !isCovered
     return (
-      <div className="flex items-center space-x-1">
-        <span className={`text-xs ${bgColor} ${textColor} px-2 py-0.5 rounded font-medium flex items-center space-x-1`}>
-          {icon && <span>{icon}</span>}
-          <span>{text}</span>
+      <div className={`flex items-center justify-between gap-2 px-4 py-2.5 border-b border-[#f0ece5] ${isCovered ? 'bg-[#e6f4ea]' : ''} ${dim ? 'opacity-60' : ''}`}>
+        <span className="flex items-center gap-2 min-w-0">
+          {ranking ? <span className="text-[11px] bg-[#eef1f5] text-[#4a5568] px-1 rounded font-semibold shrink-0">#{ranking}</span> : null}
+          <span className={`font-semibold truncate ${isCovered ? 'text-[#1f7a44]' : mine ? 'text-[#4B3621]' : 'text-charcoal-800'}`}>{team}</span>
+          <span className="text-charcoal-500 text-sm tabular-nums shrink-0">{spreadStr}</span>
+          {isCovered && (
+            <span className="text-[10px] bg-[#e6f4ea] text-[#1f7a44] border border-[#bfe3cc] px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap shrink-0">COVERED +{coverPts}</span>
+          )}
+          {myChip(team)}
+        </span>
+        <span className="flex items-center shrink-0">
+          <span className={`text-lg font-bold tabular-nums w-7 text-right ${isCovered ? 'text-[#1f7a44]' : 'text-charcoal-900'}`}>{score ?? '—'}</span>
         </span>
       </div>
     )
   }
 
   return (
-    <Card className="hover:shadow-md transition-shadow h-full">
-      <CardContent className="p-4 h-full flex flex-col">
-        {/* Header with game number and status */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-medium text-charcoal-700">Game {gameNumber}</div>
-          {getStatusBadge()}
+    <Card className="overflow-hidden">
+      {/* Header: game # · time · venue + status */}
+      <div className="flex items-center justify-between gap-2 px-4 py-2 bg-[#faf8f4] border-b border-[#f0ece5]">
+        <span className="text-xs font-medium text-charcoal-500 truncate">
+          Game {gameNumber}
+          {currentStatus !== 'completed' && gameTimeDisplay ? ` · ${gameTimeDisplay}` : ''}
+          {game.venue ? ` · ${game.neutral_site ? 'Neutral site' : game.venue}` : ''}
+        </span>
+        {getStatusBadge()}
+      </div>
+
+      {/* Team rows — covering team highlighted green */}
+      {row(game.away_team, game.away_team_ranking, awaySpread, hasAwayScore ? awayScore : null, 'away')}
+      {row(game.home_team, game.home_team_ranking, homeSpread, hasHomeScore ? homeScore : null, 'home')}
+
+      {/* Push strip (covering team gets the COVERED chip on its row instead) */}
+      {coveredSide === 'push' && (
+        <div className="px-4 py-1.5 bg-[#fff5e2] text-[#b06a1a] text-xs font-medium border-b border-[#f0dcb0]">
+          Push · 10 pts
         </div>
+      )}
 
-        {/* ESPN-style stacked team layout */}
-        <div className="flex-1 space-y-3">
-          {/* Away Team */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-stone-50 border">
-            <div className="flex items-center space-x-3">
-              {/* Ranking */}
-              {game.away_team_ranking && (
-                <span className="text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-medium">
-                  #{game.away_team_ranking}
-                </span>
-              )}
-              
-              {/* Team name */}
-              <div className="flex items-center space-x-2">
-                <span className="font-semibold text-lg">{game.away_team}</span>
-              </div>
-            </div>
-            
-            {/* Center section - User pick indicator */}
-            <div className="flex items-center space-x-2">
-              {getTeamPickIndicator(game.away_team)}
-            </div>
-            
-            {/* Away score and spread */}
-            <div className="text-right">
-              <div className="text-2xl font-bold">
-                {awayScore ?? '-'}
-              </div>
-              <div className="text-xs text-charcoal-500">
-                {game.spread < 0 ? `+${Math.abs(game.spread)}` : `-${game.spread}`}
-              </div>
-            </div>
+      {/* Distribution band (bottom): label + total, two-tone split bar, per-side counts */}
+      {showPickStats && totalP > 0 && (
+        <div className="px-4 py-2.5 bg-[#faf8f4]">
+          <div className="flex items-center justify-between mb-1.5 text-[11px] uppercase tracking-wide text-charcoal-500">
+            <span>Pick distribution</span>
+            <span className="tabular-nums normal-case tracking-normal">{totalP} picks · {locks} 🔒</span>
           </div>
-
-          {/* Home Team */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-stone-50 border">
-            <div className="flex items-center space-x-3">
-              {/* Ranking */}
-              {game.home_team_ranking && (
-                <span className="text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-medium">
-                  #{game.home_team_ranking}
-                </span>
-              )}
-              
-              {/* Team name */}
-              <div className="flex items-center space-x-2">
-                <span className="font-semibold text-lg">{game.home_team}</span>
-              </div>
-            </div>
-            
-            {/* Center section - User pick indicator */}
-            <div className="flex items-center space-x-2">
-              {getTeamPickIndicator(game.home_team)}
-            </div>
-            
-            {/* Home score and spread */}
-            <div className="text-right">
-              <div className="text-2xl font-bold">
-                {homeScore ?? '-'}
-              </div>
-              <div className="text-xs text-charcoal-500">
-                {game.spread > 0 ? `+${game.spread}` : `${game.spread}`}
-              </div>
-            </div>
+          <div className="flex h-1.5 w-full rounded-full overflow-hidden mb-1.5">
+            <div className="bg-[#4B3621]" style={{ width: `${teamShare('home')}%` }} aria-hidden="true" />
+            <div className="bg-[#b98a3a]" style={{ width: `${teamShare('away')}%` }} aria-hidden="true" />
           </div>
-
-          {/* Game details bar */}
-          <div className="flex items-center justify-between text-xs text-charcoal-500 pt-2 border-t">
-            <div className="flex items-center space-x-3">
-              {/* Time/Status */}
-              <div>
-                {gameTimeDisplay}
-              </div>
-              
-              {/* Venue */}
-              {game.venue && (
-                <div className="flex items-center">
-                  <span>📍 {game.venue}{game.neutral_site ? ' • NEUTRAL SITE' : ''}</span>
-                </div>
-              )}
-            </div>
-            
+          <div className="flex items-center justify-between gap-2 text-xs tabular-nums">
+            <span className="text-[#4B3621] font-medium truncate">
+              {game.home_team} {homeP} ({teamShare('home')}%){game.home_team_locks ? ` · ${game.home_team_locks}🔒` : ''}
+            </span>
+            <span className="text-[#b98a3a] font-medium truncate text-right">
+              {game.away_team} {awayP} ({teamShare('away')}%){game.away_team_locks ? ` · ${game.away_team_locks}🔒` : ''}
+            </span>
           </div>
-
-          {/* Winner Display (for completed games) */}
-          {winner && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-center">
-              <div className="text-sm font-medium text-green-800">
-                ATS Winner: {winner.atsWinner}
-              </div>
-              <div className="text-sm text-green-700 mt-1">
-                Points Awarded: {winner.atsWinner === 'Push' ? 10 : ((game.base_points || 20) + (game.margin_bonus || 0))}
-              </div>
-            </div>
-          )}
         </div>
-
-        {/* Pick Statistics (only after deadline) */}
-        {showPickStats && pickStats && (
-          <div className="mt-4 pt-3 border-t">
-            <PickStatsWidget 
-              stats={pickStats}
-              game={game}
-              loading={loading}
-            />
-          </div>
-        )}
-      </CardContent>
+      )}
     </Card>
   )
 }

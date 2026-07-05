@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pigskin Pick Six — Redesign Mockups</title>
+<style>
+  :root{
+    --brown:#4B3621; --gold:#C9A04E; --cream:#F8F7F3; --fill:#faf8f4;
+    --line:#e7e2da; --line2:#f0ece5; --ink:#2b2320; --muted:#8a8079;
+    --win:#1f9d55; --winbg:#e6f4ea; --loss:#d1495b; --lossbg:#fbe9ec;
+    --push:#b06a1a; --pushbg:#fff5e2; --gold-soft:#f0dcb0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceae4;color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    font-size:14px;line-height:1.45}
+  .tab-nums{font-variant-numeric:tabular-nums}
+  a{color:inherit}
+  /* layout: sticky index + stacked mockups */
+  .wrap{display:flex;gap:0;align-items:flex-start}
+  .index{position:sticky;top:0;height:100vh;width:210px;flex:none;background:var(--brown);color:#fff;padding:20px 16px;overflow:auto}
+  .index h1{font-size:15px;margin:0 0 4px}
+  .index .sub{color:#d8cbb9;font-size:11px;margin-bottom:18px}
+  .index a{display:block;color:#e9dcc8;text-decoration:none;padding:7px 10px;border-radius:8px;font-size:13px}
+  .index a:hover{background:rgba(255,255,255,.08);color:#fff}
+  .index .leg{margin-top:20px;border-top:1px solid rgba(255,255,255,.15);padding-top:14px;font-size:11px;color:#cbbaa2}
+  .index .chip{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;margin:2px 2px 0 0}
+  .main{flex:1;min-width:0;padding:26px 30px 80px}
+  section.page{max-width:1000px;margin:0 auto 44px;background:#fff;border:1px solid #dcd6cc;border-radius:14px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.06)}
+  .anno{background:var(--brown);color:#fff;padding:14px 20px}
+  .anno h2{margin:0 0 4px;font-size:17px}
+  .anno ul{margin:6px 0 0;padding-left:18px;color:#e6dccd;font-size:12.5px}
+  .anno ul li{margin:2px 0}
+  .browser{background:var(--cream);padding:0}
+  /* app nav */
+  .nav{background:var(--brown);color:#fff;display:flex;align-items:center;gap:22px;padding:12px 22px}
+  .nav .logo{font-weight:800;letter-spacing:.02em}
+  .nav .logo .six{color:var(--gold)}
+  .nav .links{display:flex;gap:18px;font-size:13px;color:#e5d8c5}
+  .nav .links .active{color:var(--gold);font-weight:700}
+  .nav .spacer{flex:1}
+  .nav .avatar{width:28px;height:28px;border-radius:999px;background:var(--gold);color:var(--brown);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px}
+  .body{padding:24px 26px}
+  h3.ph{font-size:24px;color:var(--brown);margin:0 0 3px;font-weight:800}
+  .pheadsub{color:var(--muted);margin:0 0 16px;font-size:13px}
+  /* pill tabs */
+  .tabs{display:inline-flex;gap:4px;background:var(--cream);border:1px solid var(--line);padding:4px;border-radius:10px;margin-bottom:16px}
+  .tabs span{padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;color:#6b6258;cursor:default}
+  .tabs span.on{background:var(--brown);color:#fff}
+  /* cards & tiles */
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px}
+  .card .hd{padding:12px 16px;border-bottom:1px solid var(--line2);font-weight:700;color:var(--brown)}
+  .card .bd{padding:14px 16px}
+  .grid{display:grid;gap:14px}
+  .tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+  .tile{background:var(--fill);border:1px solid var(--line2);border-radius:10px;padding:9px 11px}
+  .tile .v{font-size:19px;font-weight:800;color:var(--brown)}
+  .tile .l{font-size:11px;color:var(--muted)}
+  .tile .pct{font-size:11px;color:#8a6a1f;font-weight:600}
+  /* medal ranks */
+  .medal{width:22px;height:22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff}
+  .g1{background:var(--gold)} .g2{background:#9aa4b2} .g3{background:#c2703d} .g0{background:#d8d2c8;color:#6b6258}
+  /* rows */
+  .row{display:flex;align-items:center;justify-content:between;gap:10px;padding:9px 6px;border-bottom:1px solid var(--line2)}
+  table{width:100%;border-collapse:collapse}
+  th{ text-align:left;font-size:11px;color:var(--muted);font-weight:600;padding:8px 6px;border-bottom:1px solid var(--line)}
+  td{padding:8px 6px;border-bottom:1px solid var(--line2)}
+  tr:last-child td{border-bottom:none}
+  .r{text-align:right} .c{text-align:center}
+  .muted{color:var(--muted)} .bnum{font-weight:800;color:var(--brown)}
+  /* chips */
+  .chip{display:inline-flex;align-items:center;gap:4px;border-radius:6px;border:1px solid;padding:2px 8px;font-size:12px;font-weight:600}
+  .win{background:var(--winbg);color:var(--win);border-color:#bfe3cc}
+  .loss{background:var(--lossbg);color:var(--loss);border-color:#f2c9d1}
+  .push{background:var(--pushbg);color:var(--push);border-color:#f0dcb0}
+  .badge{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700}
+  .b-brown{background:var(--brown);color:#fff} .b-gold{background:var(--gold-soft);color:#7a5a12}
+  .b-paid{background:#e6f4ea;color:#1f7a44} .b-live{background:#fbe9ec;color:#d1495b}
+  .btn{display:inline-block;border-radius:9px;padding:9px 16px;font-weight:700;font-size:13px;text-decoration:none}
+  .btn.p{background:var(--gold);color:var(--brown)} .btn.o{border:1px solid var(--brown);color:var(--brown)}
+  .hero{background:linear-gradient(135deg,#4B3621,#2A1F13);color:#fff;padding:34px 26px;border-radius:0}
+  .hero h2{font-size:30px;margin:0 0 8px;font-weight:800}
+  .hero p{color:#e2d5c2;margin:0 0 18px;font-size:15px;max-width:520px}
+  .lock{color:var(--gold)}
+  .flex{display:flex;gap:12px} .between{justify-content:space-between} .center{align-items:center}
+  .sub{font-size:12px;color:var(--muted)}
+  .divider-note{color:var(--muted);font-size:12px;margin:2px 0 10px}
+  .game{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+  .game .teams{display:grid}
+  .game .team{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line2)}
+  .game .team.sel{background:#fbf6ea}
+  .game .foot{padding:8px 14px;font-size:12px;color:var(--muted);display:flex;justify-content:space-between;background:var(--fill)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="index">
+    <h1>PP6 Redesign</h1>
+    <div class="sub">Mockups for approval · new leaderboard design language</div>
+    <a href="#home">1 · Home</a>
+    <a href="#picks">2 · Picks</a>
+    <a href="#leaderboard">3 · Leaderboard</a>
+    <a href="#history">4 · History</a>
+    <a href="#games">5 · Games</a>
+    <a href="#blog">6 · Blog</a>
+    <a href="#profile">7 · Profile</a>
+    <div class="leg">
+      <div style="color:#fff;font-weight:700;margin-bottom:6px">Palette</div>
+      <span class="chip" style="background:#4B3621;color:#fff">brown</span>
+      <span class="chip" style="background:#C9A04E;color:#4B3621">gold</span>
+      <span class="chip" style="background:#F8F7F3;color:#4B3621">cream</span>
+      <span class="chip" style="background:#e6f4ea;color:#1f7a44">win</span>
+      <span class="chip" style="background:#fbe9ec;color:#d1495b">loss</span>
+      <span class="chip" style="background:#fff5e2;color:#b06a1a">push</span>
+    </div>
+  </nav>
+
+  <div class="main">
+
+  <!-- ============ 1. HOME ============ -->
+  <section class="page" id="home">
+    <div class="anno">
+      <h2>1 · Home</h2>
+      <ul>
+        <li>Slimmer hero; gold accent CTA; football-texture kept subtle.</li>
+        <li>Week-status + Season-Leaders cards rebuilt with cream fills, medal ranks, tabular-nums (leaders already close).</li>
+        <li>Feature/"How it works" cards → gold icon circles instead of raw emoji; compact rounded-lg.</li>
+      </ul>
+    </div>
+    <div class="browser">
+      <div class="nav"><span class="logo">PIGSKIN PICK <span class="six">SIX</span></span>
+        <span class="links"><span class="active">Home</span><span>Picks</span><span>Leaderboard</span><span>History</span><span>Games</span><span>Blog</span></span>
+        <span class="spacer"></span><span class="avatar">KH</span></div>
+      <div class="hero">
+        <h2>Where meaningless games become meaningful</h2>
+        <p>Pick 6 games against the spread each week. One Lock for double the bonus. Season-long glory (and a little money) on the line.</p>
+        <a class="btn p" href="#">Make Your Picks →</a> &nbsp; <a class="btn o" style="border-color:#fff;color:#fff" href="#">View Leaderboard</a>
+      </div>
+      <div class="body">
+        <div class="grid" style="grid-template-columns:1fr 1fr">
+          <div class="card">
+            <div class="hd flex between center">Week 14 · Pick Status <span class="badge b-gold">Closes Sat 11:00a</span></div>
+            <div class="bd">
+              <div class="flex between center" style="margin-bottom:10px"><span class="muted">Your picks</span><span class="bnum tab-nums">6 / 6 · Lock set</span></div>
+              <div class="flex between center" style="margin-bottom:14px"><span class="muted">Time left</span><span class="bnum tab-nums">1d 4h 22m</span></div>
+              <a class="btn p" href="#">Review your picks</a>
+            </div>
+          </div>
+          <div class="card">
+            <div class="hd flex between center">Season Leaders <span class="sub">2025</span></div>
+            <div class="bd" style="padding-top:6px">
+              <table><tbody>
+                <tr><td style="width:26px"><span class="medal g1">1</span></td><td>Garrett C</td><td class="r bnum tab-nums">1,159</td><td class="r muted tab-nums">54-29-1</td></tr>
+                <tr><td><span class="medal g2">2</span></td><td>Kaelye Nelson</td><td class="r bnum tab-nums">1,114</td><td class="r muted tab-nums">53-31-0</td></tr>
+                <tr><td><span class="medal g3">3</span></td><td>Davis C</td><td class="r bnum tab-nums">1,111</td><td class="r muted tab-nums">51-31-2</td></tr>
+                <tr><td><span class="medal g0">4</span></td><td>John Kreeb</td><td class="r bnum tab-nums">1,107</td><td class="r muted tab-nums">51-32-1</td></tr>
+                <tr><td><span class="medal g0">5</span></td><td>Daequan Cook</td><td class="r bnum tab-nums">1,089</td><td class="r muted tab-nums">51-31-2</td></tr>
+              </tbody></table>
+              <a class="btn o" style="margin-top:10px" href="#">Full leaderboard →</a>
+            </div>
+          </div>
+        </div>
+        <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-top:16px">
+          <div class="card"><div class="bd c"><div style="width:40px;height:40px;border-radius:999px;background:var(--gold-soft);display:inline-flex;align-items:center;justify-content:center;font-size:20px">🎯</div><div style="font-weight:700;color:var(--brown);margin-top:8px">Pick 6 ATS</div><div class="sub">Six games vs the spread, one Lock for double bonus.</div></div></div>
+          <div class="card"><div class="bd c"><div style="width:40px;height:40px;border-radius:999px;background:var(--gold-soft);display:inline-flex;align-items:center;justify-content:center;font-size:20px">📊</div><div style="font-weight:700;color:var(--brown);margin-top:8px">Live scoring</div><div class="sub">20 / 10 / 0 with margin bonuses, updated live.</div></div></div>
+          <div class="card"><div class="bd c"><div style="width:40px;height:40px;border-radius:999px;background:var(--gold-soft);display:inline-flex;align-items:center;justify-content:center;font-size:20px">🏆</div><div style="font-weight:700;color:var(--brown);margin-top:8px">19 seasons of history</div><div class="sub">Champions & records back to 2006.</div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. PICKS ============ -->
+  <section class="page" id="picks">
+    <div class="anno">
+      <h2>2 · Picks (Pick Sheet)</h2>
+      <ul>
+        <li>Light page header (brown title on cream) instead of full brown banner; deadline as gold pill.</li>
+        <li>Game cards condensed & cream-tinted; selected team → soft gold fill; Lock as gold pill; tabular spreads.</li>
+        <li>Result chips reuse the win/loss/push palette; sticky pick-summary rail cleaned up.</li>
+      </ul>
+    </div>
+    <div class="browser">
+      <div class="nav"><span class="logo">PIGSKIN PICK <span class="six">SIX</span></span><span class="links"><span>Home</span><span class="active">Picks</span><span>Leaderboard</span><span>History</span><span>Games</span><span>Blog</span></span><span class="spacer"></span><span class="avatar">KH</span></div>
+      <div class="body">
+        <div class="flex between center"><div><h3 class="ph">Week 14 Pick Sheet</h3><p class="pheadsub">Choose 6 games · set 1 Lock</p></div><span class="badge b-gold" style="align-self:center">Closes Sat 11:00a · 1d 4h left</span></div>
+        <div class="grid" style="grid-template-columns:2fr 1fr">
+          <div class="grid" style="grid-template-columns:1fr 1fr">
+            <div class="game">
+              <div class="foot" style="background:#fff;border-bottom:1px solid var(--line2)"><span>Sat 3:30p · Neutral site</span><span class="lock">🔒 lock by kickoff</span></div>
+              <div class="teams">
+                <div class="team"><span>Alabama <span class="muted">#4</span></span><span class="tab-nums muted">+2.5</span></div>
+                <div class="team sel"><span><b>Georgia</b> <span class="muted">#1</span></span><span class="tab-nums" style="color:var(--brown);font-weight:700">-2.5 ✓</span></div>
+              </div>
+              <div class="foot"><span class="badge b-gold">🔒 LOCK</span><span class="muted">Pick: Georgia -2.5</span></div>
+            </div>
+            <div class="game">
+              <div class="foot" style="background:#fff;border-bottom:1px solid var(--line2)"><span>Sat 12:00p</span><span class="muted">completed</span></div>
+              <div class="teams">
+                <div class="team sel"><span><b>Texas</b></span><span class="tab-nums" style="color:var(--brown);font-weight:700">+2.5 ✓</span></div>
+                <div class="team"><span>Texas A&M</span><span class="tab-nums muted">-2.5</span></div>
+              </div>
+              <div class="foot"><span class="chip win">W +21</span><span class="muted tab-nums">27–17</span></div>
+            </div>
+          </div>
+          <div class="card" style="align-self:start">
+            <div class="hd">Your Picks · 6/6</div>
+            <div class="bd" style="padding-top:8px">
+              <div class="row" style="border:none;padding:5px 0"><span class="lock">🔒</span> Georgia -2.5</div>
+              <div class="row" style="border:none;padding:5px 0">Texas +2.5</div>
+              <div class="row" style="border:none;padding:5px 0">Ole Miss -6</div>
+              <div class="sub" style="margin:8px 0">+3 more…</div>
+              <div class="tile" style="margin:8px 0"><div class="l">Projected</div><div class="v tab-nums">64 pts</div></div>
+              <a class="btn p" href="#">Submit picks</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3. LEADERBOARD ============ -->
+  <section class="page" id="leaderboard">
+    <div class="anno">
+      <h2>3 · Leaderboard <span style="font-weight:400;font-size:12px">(mostly done — remaining tweaks)</span></h2>
+      <ul>
+        <li>"Results confirmed" banner → slimmer cream/green style; season shown as a brown pill (no dropdown).</li>
+        <li>Rank-change arrows, payment badges, and row hover unified to the palette; medal top-3.</li>
+        <li>Season / Weekly toggle as brown pill tabs; expandable rows reuse the pick-chip detail.</li>
+      </ul>
+    </div>
+    <div class="browser">
+      <div class="nav"><span class="logo">PIGSKIN PICK <span class="six">SIX</span></span><span class="links"><span>Home</span><span>Picks</span><span class="active">Leaderboard</span><span>History</span><span>Games</span><span>Blog</span></span><span class="spacer"></span><span class="avatar">KH</span></div>
+      <div class="body">
+        <div class="flex between center">
+          <h3 class="ph">Leaderboard</h3>
+          <span class="badge b-brown" style="padding:6px 14px">2025 Season</span>
+        </div>
+        <div style="background:#e6f4ea;border:1px solid #bfe3cc;color:#1f7a44;border-radius:10px;padding:8px 14px;margin:6px 0 14px;font-size:13px">✓ Results confirmed through Week 14 — scoring & standings validated.</div>
+        <div class="tabs"><span class="on">Season Standings</span><span>Weekly Results</span></div>
+        <div class="card">
+          <table>
+            <thead><tr><th style="width:52px">#</th><th>Player</th><th class="r">Record</th><th class="r">Lock</th><th class="r">Points</th><th class="r">Paid</th></tr></thead>
+            <tbody>
+              <tr><td><span class="medal g1">1</span></td><td>Garrett C <span class="sub">▲2</span></td><td class="r muted tab-nums">54-29-1</td><td class="r muted tab-nums">9-4</td><td class="r bnum tab-nums">1,159</td><td class="r"><span class="badge b-paid">Paid</span></td></tr>
+              <tr><td><span class="medal g2">2</span></td><td>Kaelye Nelson <span class="sub">▼1</span></td><td class="r muted tab-nums">53-31-0</td><td class="r muted tab-nums">8-5</td><td class="r bnum tab-nums">1,114</td><td class="r"><span class="badge b-paid">Paid</span></td></tr>
+              <tr><td><span class="medal g3">3</span></td><td>Davis C</td><td class="r muted tab-nums">51-31-2</td><td class="r muted tab-nums">10-3</td><td class="r bnum tab-nums">1,111</td><td class="r"><span class="badge b-paid">Paid</span></td></tr>
+              <tr style="background:#fbf6ea"><td><span class="medal g0">28</span></td><td><b>Kurtis Hanni</b> (you)</td><td class="r muted tab-nums">45-38-1</td><td class="r muted tab-nums">8-5</td><td class="r bnum tab-nums">938</td><td class="r"><span class="badge b-paid">Paid</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4. HISTORY ============ -->
+  <section class="page" id="history">
+    <div class="anno">
+      <h2>4 · History <span style="font-weight:400;font-size:12px">(already redesigned — reference)</span></h2>
+      <ul>
+        <li>Champions + Records tabs (single nav item). Payout $ / % hidden in the archive view.</li>
+        <li>Included here so the whole app visibly shares this language.</li>
+      </ul>
+    </div>
+    <div class="browser">
+      <div class="nav"><span class="logo">PIGSKIN PICK <span class="six">SIX</span></span><span class="links"><span>Home</span><span>Picks</span><span>Leaderboard</span><span class="active">History</span><span>Games</span><span>Blog</span></span><span class="spacer"></span><span class="avatar">KH</span></div>
+      <div class="body">
+        <h3 class="ph">History</h3>
+        <div class="tabs"><span class="on">Champions</span><span>Records</span></div>
+        <div class="card" style="margin-bottom:10px"><div class="bd flex between center"><span style="font-weight:700;color:var(--brown)"><span class="lock">🏆</span> 2024</span><span>Pete Knopp <span class="muted tab-nums">1,079 · 49-32-3</span></span><span class="muted">▼</span></div></div>
+        <div class="card" style="margin-bottom:10px"><div class="bd flex between center"><span style="font-weight:700;color:var(--brown)"><span class="lock">🏆</span> 2016</span><span>Rick Wampler <span class="muted tab-nums">1,205 · 56-27-1</span></span><span class="muted">▼</span></div></div>
+        <div class="card"><div class="bd flex between center"><span style="font-weight:700;color:var(--brown)"><span class="lock">🏆</span> 2006</span><span>Drew Speakes <span class="muted">standings only</span></span><span class="muted">▼</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5. GAMES ============ -->
+  <section class="page" id="games">
+    <div class="anno">
+      <h2>5 · Games &amp; Results</h2>
+      <ul>
+        <li>Team rows → cream fill, subtle borders; scores tabular-nums; status badges recolored to brown/gold (not blue/green utilities).</li>
+        <li>Your-pick indicator + result use the chip palette; ATS-winner strip in soft green; pick-distribution bars stay brown/gold.</li>
+        <li>Week/Season selectors styled to match; lighter page header.</li>
+      </ul>
+    </div>
+    <div class="browser">
+      <div class="nav"><span class="logo">PIGSKIN PICK <span class="six">SIX</span></span><span class="links"><span>Home</span><span>Picks</span><span>Leaderboard</span><span>History</span><span class="active">Games</span><span>Blog</span></span><span class="spacer"></span><span class="avatar">KH</span></div>
+      <div class="body">
+        <div class="flex between center"><h3 class="ph">Games &amp; Results</h3><span class="flex center" style="gap:8px"><span class="badge b-brown" style="padding:6px 12px">2025</span><span class="badge b-brown" style="padding:6px 12px">Week 14 ▾</span></span></div>
+        <p class="pheadsub">Final scores, spreads, and how the field picked.</p>
+        <div class="grid" style="grid-template-columns:repeat(3,1fr)">
+          <div class="game">
+            <div class="foot" style="background:#fff"><span>Game 4</span><span class="badge b-brown">Final</span></div>
+            <div class="teams">
+              <div class="team"><span>Texas A&M <span class="muted">-2.5</span></span><span class="bnum tab-nums" style="font-size:18px">17</span></div>
+              <div class="team sel"><span><b>Texas</b> <span class="chip win" style="margin-left:4px">Your pick · W</span></span><span class="bnum tab-nums" style="font-size:18px">27</span></div>
+            </div>
+            <div style="background:#e6f4ea;color:#1f7a44;font-size:12px;padding:6px 14px;border-top:1px solid #d8ecdf">Texas +2.5 covered · +21 pts</div>
+            <div class="foot"><span>Crowd: 62% Texas</span><span>🔒 18 locks</span></div>
+          </div>
+          <div class="game">
+            <div class="foot" style="background:#fff"><span>Game 1</span><span class="badge b-live">🔴 Live · Q3</span></div>
+            <div class="teams">
+              <div class="team"><span>LSU</span><span class="bnum tab-nums" style="font-size:18px">13</span></div>
+              <div class="team"><span>Oklahoma <span class="muted">-10</span></span><span class="bnum tab-nums" style="font-size:18px">17</span></div>
+            </div>
+            <div class="foot"><span>Crowd: 55% Oklahoma</span><span>🔒 9 locks</span></div>
+          </div>
+          <div class="game">
+            <div class="foot" style="background:#fff"><span>Game 6</span><span class="badge b-gold">Sat 3:30p</span></div>
+            <div class="teams">
+              <div class="team"><span>Georgia Tech <span class="muted">+14</span></span><span class="muted">—</span></div>
+              <div class="team"><span>Georgia <span class="muted">-14</span></span><span class="muted">—</span></div>
+            </div>
+            <div class="foot"><span>Crowd: 71% Georgia</span><span>🔒 22 locks</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 6. BLOG ============ -->
+  <section class="page" id="blog">
+    <div class="anno">
+      <h2>6 · Blog</h2>
+      <ul>
+        <li>Post cards → cream, rounded-lg, brown title, gold "Read more"; meta line in muted small caps.</li>
+        <li>Filter row (season/week) restyled to match selectors elsewhere; DRAFT as a pill.</li>
+        <li>Post page: cleaner article header, attachments recolored from blue → brown/gold.</li>
+      </ul>
+    </div>
+    <div class="browser">
+      <div class="nav"><span class="logo">PIGSKIN PICK <span class="six">SIX</span></span><span class="links"><span>Home</span><span>Picks</span><span>Leaderboard</span><span>History</span><span>Games</span><span class="active">Blog</span></span><span class="spacer"></span><span class="avatar">KH</span></div>
+      <div class="body">
+        <h3 class="ph">The Rundown</h3>
+        <p class="pheadsub">Weekly recaps, insights, and trash talk.</p>
+        <div class="grid">
+          <div class="card"><div class="bd">
+            <div class="sub" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">2025 · Week 14 · Nov 27 · by Commish</div>
+            <div style="font-size:18px;font-weight:800;color:var(--brown)">Chaos Saturday: three top-10 upsets reshuffle the race</div>
+            <p class="muted" style="margin:6px 0 10px">Vanderbilt covering +3 at Tennessee was the pick of the week for 40% of you — and it flipped the top of the board…</p>
+            <a style="color:var(--gold);font-weight:700;text-decoration:none" href="#">Read more →</a>
+          </div></div>
+          <div class="card"><div class="bd">
+            <div class="sub" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">2025 · Week 13 · Nov 20 · by Commish <span class="badge b-gold" style="margin-left:6px">Draft</span></div>
+            <div style="font-size:18px;font-weight:800;color:var(--brown)">Rivalry week preview: the spreads that could swing the title</div>
+            <p class="muted" style="margin:6px 0 10px">Five ranked matchups, three double-digit dogs, and a Lock landscape that rewards the brave…</p>
+            <a style="color:var(--gold);font-weight:700;text-decoration:none" href="#">Read more →</a>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 7. PROFILE ============ -->
+  <section class="page" id="profile">
+    <div class="anno">
+      <h2>7 · Profile <span style="font-weight:400;font-size:12px">(already redesigned — reference + Profile Info polish)</span></h2>
+      <ul>
+        <li>Profile / Statistics / Pick Sets tabs. Career tiles with "top N%" context; season-by-season with field size.</li>
+        <li>Remaining tweak: the Profile Info form styling to match (inputs, buttons, cards).</li>
+      </ul>
+    </div>
+    <div class="browser">
+      <div class="nav"><span class="logo">PIGSKIN PICK <span class="six">SIX</span></span><span class="links"><span>Home</span><span>Picks</span><span>Leaderboard</span><span>History</span><span>Games</span><span>Blog</span></span><span class="spacer"></span><span class="avatar">KH</span></div>
+      <div class="body">
+        <div class="flex center" style="gap:14px;margin-bottom:14px"><span class="avatar" style="width:48px;height:48px;font-size:18px">KH</span><div><div style="font-size:20px;font-weight:800;color:var(--brown)">Kurtis Hanni</div><div class="sub">Member since 2009 · 17 seasons</div></div></div>
+        <div class="tabs"><span>Profile Info</span><span class="on">Statistics</span><span>Pick Sets</span></div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="hd">Career Stats <span class="sub">· all-time · % vs. all players</span></div>
+          <div class="bd">
+            <div class="tiles">
+              <div class="tile"><div class="v tab-nums">17</div><div class="l">Seasons</div></div>
+              <div class="tile"><div class="v tab-nums">0</div><div class="l">Championships</div></div>
+              <div class="tile"><div class="v tab-nums">14,875</div><div class="l">Career Points</div><div class="pct">top 2%</div></div>
+              <div class="tile"><div class="v tab-nums">141.4</div><div class="l">Avg Finish</div><div class="pct">top 23%</div></div>
+              <div class="tile"><div class="v tab-nums">50.1%</div><div class="l">Win %</div><div class="pct">top 44%</div></div>
+              <div class="tile"><div class="v tab-nums">#9</div><div class="l">Best Finish</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd">Season by Season</div>
+          <div class="bd" style="padding-top:6px">
+            <table>
+              <thead><tr><th>Season</th><th class="r">Finish</th><th class="r">Record</th><th class="r">Lock</th><th class="r">Points</th><th>Awards</th></tr></thead>
+              <tbody>
+                <tr><td class="bnum tab-nums">2025</td><td class="r tab-nums">#150 <span class="muted">/ 584</span></td><td class="r muted tab-nums">45-38-1</td><td class="r muted tab-nums">8-5</td><td class="r bnum tab-nums">938</td><td></td></tr>
+                <tr><td class="bnum tab-nums">2016</td><td class="r tab-nums">#9 <span class="muted">/ 379</span></td><td class="r muted tab-nums">48-35-1</td><td class="r muted tab-nums">7-6</td><td class="r bnum tab-nums">1,038</td><td></td></tr>
+                <tr><td class="bnum tab-nums">2010</td><td class="r tab-nums">#106 <span class="muted">/ 138</span></td><td class="r muted tab-nums">32-38-2</td><td class="r muted tab-nums">4-7</td><td class="r bnum tab-nums">717</td><td><span class="chip push">1 weekly win</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  </div>
+</div>
+</body>
+</html>

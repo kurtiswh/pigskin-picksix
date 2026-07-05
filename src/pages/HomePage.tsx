@@ -22,6 +22,10 @@ export default function HomePage() {
   const [userPicks, setUserPicks] = useState<Pick[]>([])
   const [loading, setLoading] = useState(true)
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null)
+  // Season phase: 'inseason' while a week is live/upcoming, 'offseason' between seasons.
+  // Auto-detected so the homepage flips itself back to in-season content when Week 1 nears.
+  const [phase, setPhase] = useState<'inseason' | 'offseason'>('inseason')
+  const nextSeason = currentSeason + 1
 
   // Check for password recovery tokens and redirect to reset password page
   useEffect(() => {
@@ -50,7 +54,7 @@ export default function HomePage() {
     }
     
     fetchHomePageData()
-  }, [])
+  }, [currentSeason])
 
   useEffect(() => {
     if (user) {
@@ -75,6 +79,55 @@ export default function HomePage() {
         setCurrentWeek(weekSettingsData.week)
         setDeadline(new Date(weekSettingsData.deadline))
       }
+
+      // Determine season phase from TIME-BASED signals only. We deliberately do
+      // NOT use week_settings.picks_open — that flag is often left true after a
+      // week ends, which would keep us "in season" forever. Instead we're in
+      // season if: the active week's deadline is still ahead, a game is live,
+      // there's an upcoming game, or a game kicked off within the last few days
+      // (covers a game weekend where the deadline has already passed).
+      const now = new Date()
+      const nowIso = now.toISOString()
+      let inSeason = false
+
+      if (weekSettingsData?.deadline && new Date(weekSettingsData.deadline) > now) {
+        inSeason = true
+      }
+
+      if (!inSeason) {
+        // Live right now, or scheduled to kick off in the future
+        const { data: liveGames } = await supabase
+          .from('games')
+          .select('id')
+          .eq('season', currentSeason)
+          .eq('status', 'in_progress')
+          .limit(1)
+        const { data: upcomingGames } = await supabase
+          .from('games')
+          .select('id')
+          .eq('season', currentSeason)
+          .gt('kickoff_time', nowIso)
+          .limit(1)
+        if ((liveGames && liveGames.length > 0) || (upcomingGames && upcomingGames.length > 0)) {
+          inSeason = true
+        }
+      }
+
+      if (!inSeason) {
+        // A game kicked off within the last 4 days → season still actively underway
+        const recentCutoff = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString()
+        const { data: recentGames } = await supabase
+          .from('games')
+          .select('id')
+          .eq('season', currentSeason)
+          .gt('kickoff_time', recentCutoff)
+          .lte('kickoff_time', nowIso)
+          .limit(1)
+        if (recentGames && recentGames.length > 0) inSeason = true
+      }
+
+      setPhase(inSeason ? 'inseason' : 'offseason')
+      console.log(`🗓️ Season phase: ${inSeason ? 'in-season' : 'offseason'}`)
       
       // Get real leaderboard data (top 5 season leaders) using LeaderboardService
       try {
@@ -191,9 +244,39 @@ export default function HomePage() {
             Where meaningless games become meaningful
           </h1>
           <p className="text-xl md:text-2xl text-pigskin-100 mb-8">
-            Join the ultimate college football pick 'em experience
+            {phase === 'offseason'
+              ? `The ${currentSeason} season is in the books — lock in your spot for ${nextSeason}`
+              : "Join the ultimate college football pick 'em experience"}
           </p>
-          {user ? (
+          {phase === 'offseason' ? (
+            user ? (
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link to="/leaderboard">
+                  <Button size="lg" className="bg-gold-500 hover:bg-gold-600 text-pigskin-900">
+                    View Final Standings
+                  </Button>
+                </Link>
+                <Link to="/history">
+                  <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-pigskin-500">
+                    Hall of Champions
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link to="/register">
+                  <Button size="lg" className="bg-gold-500 hover:bg-gold-600 text-pigskin-900">
+                    Sign Up for {nextSeason}
+                  </Button>
+                </Link>
+                <Link to="/leaderboard">
+                  <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-pigskin-500">
+                    See {currentSeason} Results
+                  </Button>
+                </Link>
+              </div>
+            )
+          ) : user ? (
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/picks">
                 <Button size="lg" className="bg-gold-500 hover:bg-gold-600 text-pigskin-900">
@@ -225,6 +308,7 @@ export default function HomePage() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-12">
+        {phase === 'inseason' ? (
         <div className="grid md:grid-cols-2 gap-8">
           {/* Current Week Info */}
           <Card>
@@ -369,6 +453,114 @@ export default function HomePage() {
             </CardContent>
           </Card>
         </div>
+        ) : (
+        /* Offseason: final results + prompt to sign up for next season */
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Final Standings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>{currentSeason} Final Standings</span>
+                <div className="text-2xl">🏆</div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="animate-pulse space-y-3">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="h-4 bg-stone-200 rounded"></div>
+                  ))}
+                </div>
+              ) : topPlayers.length > 0 ? (
+                <div className="space-y-3">
+                  {/* Champion callout */}
+                  <div className="rounded-lg bg-[#C9A04E]/[0.12] border border-[#C9A04E]/40 px-4 py-3 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-[#8a6a1f]">🏆 Champion</div>
+                      <div className="font-extrabold text-[#4B3621] truncate">{topPlayers[0].display_name}</div>
+                    </div>
+                    <div className="font-extrabold text-[#4B3621] tabular-nums shrink-0">
+                      {topPlayers[0].season_points || 0} <span className="text-xs font-semibold text-gray-400">pts</span>
+                    </div>
+                  </div>
+                  {/* Runners-up */}
+                  {topPlayers.slice(1).map((player, index) => (
+                    <div key={player.user_id} className="flex justify-between items-center gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 tabular-nums ${
+                          index === 0 ? 'bg-[#9aa4b2] text-white' :
+                          index === 1 ? 'bg-[#c2703d] text-white' : 'bg-stone-200 text-charcoal-700'
+                        }`}>
+                          {player.season_rank || (index + 2)}
+                        </span>
+                        <span className="font-medium text-gray-900 truncate">{player.display_name}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-extrabold text-[#4B3621] tabular-nums">
+                          {player.season_points || 0} <span className="text-xs font-semibold text-gray-400">pts</span>
+                        </div>
+                        <div className="text-xs text-gray-500 tabular-nums">
+                          {player.season_record || `${player.total_wins || 0}-${player.total_losses || 0}-${player.total_pushes || 0}`}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <Link to="/leaderboard" className="block">
+                    <Button variant="outline" className="w-full mt-4">View Full Standings</Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="text-center text-charcoal-500 py-4">
+                  <div className="text-lg mb-2">🏈</div>
+                  <p>Final standings will appear here.</p>
+                  <Link to="/leaderboard" className="block mt-4">
+                    <Button variant="outline" className="w-full">View Leaderboard</Button>
+                  </Link>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Offseason CTA / signup prompt */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>See you in {nextSeason}</span>
+                <div className="text-2xl">🏈</div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-charcoal-600">
+                  That's a wrap on {currentSeason} — we're in the offseason, so there are no games this week.{' '}
+                  {user
+                    ? "You're all set. We'll let you know the moment Week 1 picks open."
+                    : `Create your account now so you're ready the second Week 1 of ${nextSeason} kicks off.`}
+                </p>
+                {user ? (
+                  <div className="space-y-2">
+                    <Link to="/history" className="block">
+                      <Button className="w-full">Explore the Hall of Champions</Button>
+                    </Link>
+                    <Link to="/leaderboard" className="block">
+                      <Button variant="outline" className="w-full">Review the {currentSeason} Season</Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Link to="/register" className="block">
+                      <Button className="w-full">Sign Up for {nextSeason}</Button>
+                    </Link>
+                    <Link to="/leaderboard" className="block">
+                      <Button variant="outline" className="w-full">See {currentSeason} Results</Button>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        )}
 
         {/* Features Section */}
         <section className="mt-16">
@@ -379,7 +571,7 @@ export default function HomePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-center">
-                  <div className="text-4xl mb-2">🎯</div>
+                  <div className="w-14 h-14 rounded-full bg-gold-100 flex items-center justify-center mx-auto mb-3 text-2xl">🎯</div>
                   Smart Scoring
                 </CardTitle>
               </CardHeader>
@@ -393,7 +585,7 @@ export default function HomePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-center">
-                  <div className="text-4xl mb-2">⚡</div>
+                  <div className="w-14 h-14 rounded-full bg-gold-100 flex items-center justify-center mx-auto mb-3 text-2xl">⚡</div>
                   Live Updates
                 </CardTitle>
               </CardHeader>
@@ -408,7 +600,7 @@ export default function HomePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-center">
-                  <div className="text-4xl mb-2">🏆</div>
+                  <div className="w-14 h-14 rounded-full bg-gold-100 flex items-center justify-center mx-auto mb-3 text-2xl">🏆</div>
                   Best Finish
                 </CardTitle>
               </CardHeader>

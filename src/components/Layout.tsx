@@ -16,6 +16,24 @@ export default function Layout({ children }: LayoutProps) {
     return location.pathname === path || location.pathname.startsWith(path + '/')
   }
 
+  // Logical order: the weekly loop (Picks → Games → Leaderboard) grouped together,
+  // then content (Blog), then archival (History), then Admin.
+  const navItems = [
+    { to: '/', label: 'Home', exact: true },
+    { to: user ? '/picks' : '/anonymous-picks', label: 'Picks' },
+    { to: '/games', label: 'Games' },
+    { to: '/leaderboard', label: 'Leaderboard' },
+    { to: '/blog', label: 'Blog' },
+    { to: '/history', label: 'History' },
+    ...(user?.is_admin ? [{ to: '/admin', label: 'Admin' }] : []),
+  ]
+
+  const navActive = (item: { to: string; exact?: boolean }) =>
+    item.exact ? location.pathname === '/' : isActive(item.to)
+
+  const navLinkClass = (active: boolean) =>
+    `text-sm font-medium transition-colors ${active ? 'text-gold-300' : 'text-pigskin-100 hover:text-white'}`
+
   const [signingOut, setSigningOut] = useState(false)
 
   const handleSignOut = async () => {
@@ -36,101 +54,25 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
+    <div className="min-h-screen bg-[#F8F7F3] flex flex-col">
       {/* Header */}
       <header className="bg-pigskin-500 text-white shadow-lg">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <Link to="/" className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gold-500 rounded-full flex items-center justify-center football-laces">
-                <span className="text-pigskin-900 font-bold text-lg">P6</span>
-              </div>
-              <div className="hidden sm:block">
-                <h1 className="text-xl font-bold text-white">Pigskin Pick Six</h1>
-              </div>
+            {/* Logo wordmark */}
+            <Link to="/" className="flex items-center">
+              <span className="font-extrabold tracking-wide text-base sm:text-xl text-white">
+                PIGSKIN PICK <span className="text-gold-500">SIX</span>
+              </span>
             </Link>
 
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center space-x-6">
-              <Link
-                to="/"
-                className={`text-sm font-medium transition-colors ${
-                  isActive('/') && location.pathname === '/'
-                    ? 'text-gold-300'
-                    : 'text-pigskin-100 hover:text-white'
-                }`}
-              >
-                Home
-              </Link>
-              
-              <Link
-                to={user ? "/picks" : "/anonymous-picks"}
-                className={`text-sm font-medium transition-colors ${
-                  (user && isActive('/picks')) || (!user && isActive('/anonymous-picks'))
-                    ? 'text-gold-300'
-                    : 'text-pigskin-100 hover:text-white'
-                }`}
-              >
-                Picks
-              </Link>
-              
-              <Link
-                to="/leaderboard"
-                className={`text-sm font-medium transition-colors ${
-                  isActive('/leaderboard')
-                    ? 'text-gold-300'
-                    : 'text-pigskin-100 hover:text-white'
-                }`}
-              >
-                Leaderboard
-              </Link>
-
-              <Link
-                to="/history"
-                className={`text-sm font-medium transition-colors ${
-                  isActive('/history')
-                    ? 'text-gold-300'
-                    : 'text-pigskin-100 hover:text-white'
-                }`}
-              >
-                History
-              </Link>
-
-              <Link
-                to="/games"
-                className={`text-sm font-medium transition-colors ${
-                  isActive('/games')
-                    ? 'text-gold-300'
-                    : 'text-pigskin-100 hover:text-white'
-                }`}
-              >
-                Games
-              </Link>
-
-              <Link
-                to="/blog"
-                className={`text-sm font-medium transition-colors ${
-                  isActive('/blog')
-                    ? 'text-gold-300'
-                    : 'text-pigskin-100 hover:text-white'
-                }`}
-              >
-                Blog
-              </Link>
-
-              {user?.is_admin && (
-                <Link
-                  to="/admin"
-                  className={`text-sm font-medium transition-colors ${
-                    isActive('/admin')
-                      ? 'text-gold-300'
-                      : 'text-pigskin-100 hover:text-white'
-                  }`}
-                >
-                  Admin
+              {navItems.map((item) => (
+                <Link key={item.label} to={item.to} className={navLinkClass(navActive(item))}>
+                  {item.label}
                 </Link>
-              )}
+              ))}
             </nav>
 
             {/* User Menu & Mobile Menu Button */}
@@ -204,91 +146,16 @@ export default function Layout({ children }: LayoutProps) {
           {mobileMenuOpen && (
             <div className="lg:hidden border-t border-pigskin-400 py-4">
               <nav className="flex flex-col space-y-4">
-                <Link
-                  to="/"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`text-sm font-medium transition-colors ${
-                    isActive('/') && location.pathname === '/'
-                      ? 'text-gold-300'
-                      : 'text-pigskin-100 hover:text-white'
-                  }`}
-                >
-                  Home
-                </Link>
-                
-                <Link
-                  to={user ? "/picks" : "/anonymous-picks"}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`text-sm font-medium transition-colors ${
-                    (user && isActive('/picks')) || (!user && isActive('/anonymous-picks'))
-                      ? 'text-gold-300'
-                      : 'text-pigskin-100 hover:text-white'
-                  }`}
-                >
-                  Picks
-                </Link>
-                
-                <Link
-                  to="/leaderboard"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`text-sm font-medium transition-colors ${
-                    isActive('/leaderboard')
-                      ? 'text-gold-300'
-                      : 'text-pigskin-100 hover:text-white'
-                  }`}
-                >
-                  Leaderboard
-                </Link>
-
-                <Link
-                  to="/history"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`text-sm font-medium transition-colors ${
-                    isActive('/history')
-                      ? 'text-gold-300'
-                      : 'text-pigskin-100 hover:text-white'
-                  }`}
-                >
-                  History
-                </Link>
-
-                <Link
-                  to="/games"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`text-sm font-medium transition-colors ${
-                    isActive('/games')
-                      ? 'text-gold-300'
-                      : 'text-pigskin-100 hover:text-white'
-                  }`}
-                >
-                  Games
-                </Link>
-
-                <Link
-                  to="/blog"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`text-sm font-medium transition-colors ${
-                    isActive('/blog')
-                      ? 'text-gold-300'
-                      : 'text-pigskin-100 hover:text-white'
-                  }`}
-                >
-                  Blog
-                </Link>
-
-                {user?.is_admin && (
+                {navItems.map((item) => (
                   <Link
-                    to="/admin"
+                    key={item.label}
+                    to={item.to}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`text-sm font-medium transition-colors ${
-                      isActive('/admin')
-                        ? 'text-gold-300'
-                        : 'text-pigskin-100 hover:text-white'
-                    }`}
+                    className={navLinkClass(navActive(item))}
                   >
-                    Admin
+                    {item.label}
                   </Link>
-                )}
+                ))}
 
                 {/* Mobile-only user actions */}
                 <div className="pt-4 border-t border-pigskin-400">
@@ -355,13 +222,12 @@ export default function Layout({ children }: LayoutProps) {
       {/* Footer */}
       <footer className="bg-charcoal-900 text-charcoal-100 py-8 mt-12">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-8 h-8 bg-gold-500 rounded-full flex items-center justify-center football-laces">
-                  <span className="text-pigskin-900 font-bold text-sm">P6</span>
-                </div>
-                <span className="font-bold">Pigskin Pick Six</span>
+              <div className="mb-4">
+                <span className="font-extrabold tracking-wide text-lg text-white">
+                  PIGSKIN PICK <span className="text-gold-500">SIX</span>
+                </span>
               </div>
               <p className="text-charcoal-300 text-sm">
                 Where meaningless games become meaningful
@@ -369,7 +235,28 @@ export default function Layout({ children }: LayoutProps) {
             </div>
 
             <div>
-              <h3 className="font-semibold mb-4">Quick Links</h3>
+              <h3 className="font-semibold mb-4">Compete</h3>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <Link to={user ? '/picks' : '/anonymous-picks'} className="text-charcoal-300 hover:text-white transition-colors">
+                    Picks
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/games" className="text-charcoal-300 hover:text-white transition-colors">
+                    Games
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/leaderboard" className="text-charcoal-300 hover:text-white transition-colors">
+                    Leaderboard
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-semibold mb-4">Explore</h3>
               <ul className="space-y-2 text-sm">
                 <li>
                   <Link to="/" className="text-charcoal-300 hover:text-white transition-colors">
@@ -382,23 +269,16 @@ export default function Layout({ children }: LayoutProps) {
                   </Link>
                 </li>
                 <li>
-                  <Link to="/leaderboard" className="text-charcoal-300 hover:text-white transition-colors">
-                    Leaderboard
+                  <Link to="/history" className="text-charcoal-300 hover:text-white transition-colors">
+                    History
                   </Link>
                 </li>
                 {user && (
-                  <>
-                    <li>
-                      <Link to="/picks" className="text-charcoal-300 hover:text-white transition-colors">
-                        Submit Picks
-                      </Link>
-                    </li>
-                    <li>
-                      <Link to="/profile" className="text-charcoal-300 hover:text-white transition-colors">
-                        Profile
-                      </Link>
-                    </li>
-                  </>
+                  <li>
+                    <Link to="/profile" className="text-charcoal-300 hover:text-white transition-colors">
+                      Profile
+                    </Link>
+                  </li>
                 )}
               </ul>
             </div>
@@ -406,7 +286,7 @@ export default function Layout({ children }: LayoutProps) {
 
           <div className="border-t border-charcoal-700 mt-8 pt-6 text-center">
             <p className="text-charcoal-400 text-sm">
-              © 2025 Pigskin Pick Six. All rights reserved.
+              © {new Date().getFullYear()} Pigskin Pick Six. All rights reserved.
             </p>
           </div>
         </div>

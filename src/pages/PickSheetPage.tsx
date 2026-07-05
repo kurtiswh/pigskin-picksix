@@ -916,11 +916,11 @@ export default function PickSheetPage() {
                 )}
               </div>
               
-              <div className="grid md:grid-cols-2 gap-6 auto-rows-fr">
+              <div className="columns-1 md:columns-2 gap-4">
                 {games
                   .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
                   .map(game => (
-                  <div key={game.id} className="min-h-[300px]">
+                  <div key={game.id} className="mb-4 break-inside-avoid">
                     <GameCard
                       game={game}
                       userPick={picks.find(p => p.game_id === game.id)}

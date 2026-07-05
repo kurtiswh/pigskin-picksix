@@ -111,7 +111,7 @@ export default function BlogPostPage() {
               )}
             </div>
 
-            <h1 className="text-3xl md:text-4xl font-bold text-charcoal-900 mb-4 leading-tight">
+            <h1 className="text-3xl md:text-4xl font-bold text-[#4B3621] mb-4 leading-tight">
               {post.title}
             </h1>
 
@@ -145,10 +145,10 @@ export default function BlogPostPage() {
 
           {/* Attachments Section */}
           {post.attachments && post.attachments.length > 0 && (
-            <Card className="mt-6 border-blue-200 bg-blue-50/30">
+            <Card className="mt-6 border-[#e7e2da] bg-[#faf8f4]">
               <CardContent className="p-6">
                 <div className="flex items-center space-x-2 mb-4">
-                  <Paperclip className="w-5 h-5 text-blue-600" />
+                  <Paperclip className="w-5 h-5 text-[#8a6a1f]" />
                   <h3 className="text-lg font-semibold text-gray-900">
                     Attachments ({post.attachments.length})
                   </h3>
@@ -160,12 +160,12 @@ export default function BlogPostPage() {
                       href={attachment.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-between p-3 bg-white border border-blue-200 rounded-lg hover:border-blue-400 hover:shadow-md transition-all group"
+                      className="flex items-center justify-between p-3 bg-white border border-blue-200 rounded-lg hover:border-[#C9A04E] hover:shadow-md transition-all group"
                     >
                       <div className="flex items-center space-x-3">
-                        <FileText className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                        <FileText className="w-5 h-5 text-[#8a6a1f] flex-shrink-0" />
                         <div>
-                          <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                          <div className="font-medium text-gray-900 group-hover:text-[#8a6a1f] transition-colors">
                             {attachment.name}
                           </div>
                           <div className="text-xs text-gray-500">
@@ -173,7 +173,7 @@ export default function BlogPostPage() {
                           </div>
                         </div>
                       </div>
-                      <Download className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                      <Download className="w-4 h-4 text-[#8a6a1f] flex-shrink-0" />
                     </a>
                   ))}
                 </div>

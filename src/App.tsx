@@ -24,7 +24,7 @@ function App() {
     <AuthProvider>
       <CurrentSeasonProvider>
       <Router>
-        <div className="min-h-screen bg-stone-50">
+        <div className="min-h-screen bg-[#F8F7F3]">
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />

@@ -180,7 +180,7 @@ export default function BlogPage() {
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="flex justify-between items-start mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-charcoal-900 mb-2">
+            <h1 className="text-3xl font-bold text-[#4B3621] mb-2">
               Pigskin Pick Six Blog
             </h1>
             <p className="text-charcoal-600">
@@ -311,17 +311,14 @@ export default function BlogPage() {
                 <Card key={post.id} className={`hover:shadow-lg transition-shadow ${!post.is_published ? 'border-orange-300 bg-orange-50' : ''}`}>
                   <CardContent className="p-6">
                     <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-2 text-sm text-charcoal-500">
-                        <span className="font-medium">{post.season}</span>
-                        <span>•</span>
+                      <div className="flex items-center gap-2 text-xs text-charcoal-400 uppercase tracking-wide">
+                        <span className="font-semibold text-charcoal-500">{post.season}</span>
+                        <span>·</span>
                         <span>{getWeekLabel(post.week)}</span>
-                        <span>•</span>
+                        <span>·</span>
                         <span>{formatDate(post.created_at)}</span>
                         {!post.is_published && (
-                          <>
-                            <span>•</span>
-                            <span className="text-orange-600 font-medium">DRAFT</span>
-                          </>
+                          <span className="ml-1 rounded-full bg-gold-100 text-[#7a5a12] px-2 py-0.5 font-semibold normal-case">Draft</span>
                         )}
                       </div>
                       {post.author && (
@@ -331,7 +328,7 @@ export default function BlogPage() {
                       )}
                     </div>
 
-                    <h2 className="text-xl font-bold text-charcoal-900 mb-3">
+                    <h2 className="text-xl font-bold text-[#4B3621] mb-3">
                       <Link
                         to={`/blog/${post.slug}`}
                         className="hover:text-pigskin-600 transition-colors"
@@ -349,7 +346,7 @@ export default function BlogPage() {
                     <div className="flex items-center justify-between">
                       <Link
                         to={`/blog/${post.slug}`}
-                        className="inline-flex items-center text-pigskin-600 hover:text-pigskin-700 font-medium transition-colors"
+                        className="inline-flex items-center text-[#C9A04E] hover:text-[#a6802e] font-semibold transition-colors"
                       >
                         Read more
                         <svg

@@ -10,6 +10,7 @@ interface ExpandableLeaderboardRowProps {
   canExpand?: boolean
   defaultExpanded?: boolean
   className?: string
+  id?: string
 }
 
 interface LeaderboardRowContentProps {
@@ -29,6 +30,7 @@ interface LeaderboardRowContentProps {
   rankChange?: number  // Positive = moved up, negative = moved down
   previousRank?: number  // Previous week's rank
   trend?: 'up' | 'down' | 'same'  // Trend indicator
+  isCurrentUser?: boolean  // Highlight the logged-in user's own row
 }
 
 export function ExpandableLeaderboardRow({ 
@@ -37,7 +39,8 @@ export function ExpandableLeaderboardRow({
   isLoading = false,
   canExpand = true,
   defaultExpanded = false,
-  className = ''
+  className = '',
+  id
 }: ExpandableLeaderboardRowProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -49,7 +52,7 @@ export function ExpandableLeaderboardRow({
   }
 
   return (
-    <div className={`border-b border-[#ece7de] last:border-b-0 transition-colors duration-200 ${isExpanded ? 'bg-[#faf8f4]' : ''} ${className}`}>
+    <div id={id} className={`border-b border-[#ece7de] last:border-b-0 transition-colors duration-200 scroll-mt-24 ${isExpanded ? 'bg-[#faf8f4]' : ''} ${className}`}>
       {/* Main row */}
       <div
         className={`px-4 py-2.5 ${canExpand && !isLoading ? 'cursor-pointer hover:bg-[#faf8f4] active:bg-[#f3efe7]' : ''} transition-colors duration-150`}
@@ -120,8 +123,12 @@ export function LeaderboardRowContent({
   isTied = false,
   rankChange,
   previousRank,
-  trend
+  trend,
+  isCurrentUser = false
 }: LeaderboardRowContentProps) {
+  const youBadge = isCurrentUser ? (
+    <span className="text-[10px] font-bold uppercase tracking-wide bg-[#C9A04E] text-[#4B3621] px-1.5 py-0.5 rounded-md shrink-0">You</span>
+  ) : null
   const getPaymentBadge = () => {
     // Only show payment indicators for unpaid users
     if (!paymentStatus || paymentStatus === 'Paid') return null
@@ -203,6 +210,7 @@ export function LeaderboardRowContent({
         {/* Name + badges */}
         <div className="flex items-center gap-2 min-w-0">
           <span className="font-semibold text-gray-900 truncate">{displayName}</span>
+          {youBadge}
           {getPaymentBadge()}
           {getSourceBadge()}
         </div>
@@ -231,6 +239,7 @@ export function LeaderboardRowContent({
             </span>
             {getRankChangeIndicator()}
             <span className="font-semibold text-gray-900 truncate">{displayName}</span>
+            {youBadge}
           </div>
           <span className="font-extrabold text-lg text-[#4B3621] tabular-nums shrink-0">{points}</span>
         </div>
