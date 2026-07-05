@@ -3,21 +3,32 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { UserPickSet, PickDetail } from '@/types'
 
-const CHIP: Record<string, string> = {
-  win: 'bg-[#E6F4EC] text-[#2E7D4F] border-[#2E7D4F]/25',
-  loss: 'bg-[#FBEAEA] text-[#B23A3A] border-[#B23A3A]/25',
-  push: 'bg-[#FBF3DC] text-[#8a6a1f] border-[#8a6a1f]/25',
-  pending: 'bg-gray-100 text-gray-500 border-gray-300',
+const RESULT_TEXT: Record<string, string> = {
+  win: 'text-[#2E7D4F]', loss: 'text-[#B23A3A]', push: 'text-[#8a6a1f]', pending: 'text-charcoal-400',
 }
+const fmtSpread = (s: number | null) => (s == null ? '' : s > 0 ? `+${s}` : `${s}`)
 
-function PickChip({ p }: { p: PickDetail }) {
-  const cls = CHIP[p.result || 'pending']
+/** One detailed row per pick: team (spread) vs opponent · final score · result · pts. */
+function PickRow({ p }: { p: PickDetail }) {
+  const rc = RESULT_TEXT[p.result || 'pending']
+  const letter = p.result === 'win' ? 'W' : p.result === 'loss' ? 'L' : p.result === 'push' ? 'P' : '—'
   return (
-    <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${cls}`}>
-      {p.is_lock && <span>🔒</span>}
-      {p.team}
-      {p.result && <span className="opacity-70">({p.points})</span>}
-    </span>
+    <div className="flex items-center justify-between gap-2 py-1 text-xs sm:text-sm">
+      <div className="flex items-center gap-1.5 min-w-0">
+        {p.is_lock && <span title="Lock">🔒</span>}
+        <span className="font-medium text-charcoal-800 truncate">
+          {p.team}{p.spread != null && <span className="text-charcoal-500"> {fmtSpread(p.spread)}</span>}
+        </span>
+        {p.opponent && <span className="text-charcoal-400 truncate">vs {p.opponent}</span>}
+      </div>
+      <div className="flex items-center gap-3 shrink-0 tabular-nums">
+        {p.teamScore != null && p.oppScore != null && (
+          <span className="text-charcoal-500">{p.teamScore}–{p.oppScore}</span>
+        )}
+        <span className={`font-semibold w-4 text-center ${rc}`}>{letter}</span>
+        <span className={`font-semibold w-10 text-right ${rc}`}>{p.points} pt{p.points === 1 ? '' : 's'}</span>
+      </div>
+    </div>
   )
 }
 
@@ -98,10 +109,11 @@ export default function PickSetsHistory({ pickSets }: { pickSets: UserPickSet[] 
                           </div>
                         </button>
                         {wkOpen && (
-                          <div className="px-4 pb-3 pl-11">
+                          <div className="px-4 pb-3 pl-11 bg-[#fcfbf9]">
                             {ps.picks && ps.picks.length > 0 ? (
-                              <div className="flex flex-wrap gap-1.5">
-                                {ps.picks.map((pk, j) => <PickChip key={j} p={pk} />)}
+                              <div className="divide-y divide-[#eee9e0]">
+                                {[...ps.picks].sort((a, b) => Number(b.is_lock) - Number(a.is_lock))
+                                  .map((pk, j) => <PickRow key={j} p={pk} />)}
                               </div>
                             ) : (
                               <span className="text-xs text-charcoal-400">No pick detail available.</span>

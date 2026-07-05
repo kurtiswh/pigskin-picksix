@@ -116,7 +116,7 @@ export default function UserProfile() {
   const loadAuthenticatedPicks = async (): Promise<Pick[]> => {
     const { data, error } = await supabase
       .from('picks')
-      .select('*, admin_note, submitted, submitted_at')
+      .select('*, admin_note, submitted, submitted_at, games(home_team, away_team, home_score, away_score, spread)')
       .eq('user_id', user!.id)
       .order('season', { ascending: false })
       .order('week', { ascending: false })
@@ -128,7 +128,7 @@ export default function UserProfile() {
   const loadAnonymousPicks = async (): Promise<AnonymousPick[]> => {
     const { data, error } = await supabase
       .from('anonymous_picks')
-      .select('*, admin_note, submitted, submitted_at')
+      .select('*, admin_note, submitted, submitted_at, games(home_team, away_team, home_score, away_score, spread)')
       .eq('assigned_user_id', user!.id)
       .order('season', { ascending: false })
       .order('week', { ascending: false })
@@ -183,6 +183,28 @@ export default function UserProfile() {
 
   const generatePickSetsData = (authenticatedPicks: Pick[], anonymousPicks: AnonymousPick[]): UserPickSet[] => {
     const pickSetsMap = new Map<string, UserPickSet>()
+
+    // Build a detailed pick (opponent/spread/score from the joined game).
+    const toDetail = (pick: any) => {
+      const g = Array.isArray(pick.games) ? pick.games[0] : pick.games
+      const home = g?.home_team ?? pick.home_team ?? null
+      const away = g?.away_team ?? pick.away_team ?? null
+      const sel = pick.selected_team
+      const isHome = home != null && sel === home
+      const opponent = home == null || away == null ? null : (isHome ? away : home)
+      const spread = g?.spread == null ? null : (isHome ? Number(g.spread) : -Number(g.spread))
+      return {
+        team: sel,
+        opponent,
+        isHome,
+        spread,
+        teamScore: g == null ? null : (isHome ? g.home_score : g.away_score),
+        oppScore: g == null ? null : (isHome ? g.away_score : g.home_score),
+        result: pick.result ?? null,
+        is_lock: !!pick.is_lock,
+        points: pick.points_earned || 0,
+      }
+    }
     
     // Process authenticated picks
     authenticatedPicks.forEach(pick => {
@@ -211,7 +233,7 @@ export default function UserProfile() {
       const pickSet = pickSetsMap.get(key)!
       pickSet.pickCount++
       pickSet.points += pick.points_earned || 0
-      pickSet.picks!.push({ team: pick.selected_team, result: pick.result ?? null, is_lock: !!pick.is_lock, points: pick.points_earned || 0 })
+      pickSet.picks!.push(toDetail(pick))
 
       if (pick.result === 'win') pickSet.wins++
       else if (pick.result === 'loss') pickSet.losses++
@@ -258,7 +280,7 @@ export default function UserProfile() {
       const pickSet = pickSetsMap.get(key)!
       pickSet.pickCount++
       pickSet.points += pick.points_earned || 0
-      pickSet.picks!.push({ team: pick.selected_team, result: pick.result ?? null, is_lock: !!pick.is_lock, points: pick.points_earned || 0 })
+      pickSet.picks!.push(toDetail(pick))
 
       if (pick.result === 'win') pickSet.wins++
       else if (pick.result === 'loss') pickSet.losses++

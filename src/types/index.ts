@@ -74,6 +74,11 @@ export interface UserPickSet {
 
 export interface PickDetail {
   team: string
+  opponent: string | null
+  isHome: boolean
+  spread: number | null       // from the picked team's perspective
+  teamScore: number | null
+  oppScore: number | null
   result: 'win' | 'loss' | 'push' | null
   is_lock: boolean
   points: number
