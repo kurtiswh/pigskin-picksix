@@ -240,7 +240,7 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-pigskin-600 to-pigskin-800 text-white py-20">
         <div className="container mx-auto px-4 text-center">
-          <h1 className="text-4xl md:text-6xl font-bold mb-4">
+          <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold mb-4">
             Where meaningless games become meaningful
           </h1>
           <p className="text-xl md:text-2xl text-pigskin-100 mb-8">

@@ -178,7 +178,7 @@ export default function BlogPage() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="flex justify-between items-start mb-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-[#4B3621] mb-2">
               Pigskin Pick Six Blog

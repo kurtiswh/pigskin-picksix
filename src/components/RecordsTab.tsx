@@ -45,7 +45,7 @@ function BoardCard({ board, rows, me }: { board: Board; rows: CareerStats[]; me?
   return (
     <Card>
       <CardHeader className="py-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <CardTitle className="text-base text-[#4B3621]">{board.title}</CardTitle>
           {myRank != null && (
             <span className="text-xs font-semibold bg-[#fbf4e3] text-[#4B3621] border border-[#C9A04E]/50 rounded-full px-2 py-0.5 tabular-nums whitespace-nowrap shrink-0">
@@ -99,26 +99,28 @@ function SimpleTable({ title, note, headers, rows }: {
         {note && <p className="text-xs text-charcoal-400">{note}</p>}
       </CardHeader>
       <CardContent className="pt-0">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-charcoal-400 border-b">
-              {headers.map((h, i) => (
-                <th key={h} className={`py-1 font-medium ${i === 0 ? '' : 'text-right'}`}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, ri) => (
-              <tr key={ri} className="border-b last:border-0">
-                {r.map((c, ci) => (
-                  <td key={ci} className={`py-1.5 ${ci === 0 ? 'text-charcoal-800' : 'text-right tabular-nums text-charcoal-600'}`}>
-                    {ci === 0 ? <span><span className="w-5 inline-block text-charcoal-400">{ri + 1}</span>{c}</span> : c}
-                  </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-charcoal-400 border-b">
+                {headers.map((h, i) => (
+                  <th key={h} className={`py-1 font-medium whitespace-nowrap ${i === 0 ? '' : 'text-right'}`}>{h}</th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((r, ri) => (
+                <tr key={ri} className="border-b last:border-0">
+                  {r.map((c, ci) => (
+                    <td key={ci} className={`py-1.5 whitespace-nowrap ${ci === 0 ? 'text-charcoal-800' : 'text-right tabular-nums text-charcoal-600 pl-3'}`}>
+                      {ci === 0 ? <span><span className="w-5 inline-block text-charcoal-400">{ri + 1}</span>{c}</span> : c}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </CardContent>
     </Card>
   )

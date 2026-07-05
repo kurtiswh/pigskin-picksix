@@ -222,7 +222,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* Footer */}
       <footer className="bg-charcoal-900 text-charcoal-100 py-8 mt-12">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
             <div>
               <div className="mb-4">
                 <span className="font-extrabold tracking-wide text-lg text-white">
