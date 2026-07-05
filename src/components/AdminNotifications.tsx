@@ -444,15 +444,6 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
             </Button>
             
             <Button
-              onClick={handleSendWeeklyResults}
-              disabled={loading}
-              className="w-full"
-              variant="outline"
-            >
-              Send Weekly Results
-            </Button>
-            
-            <Button
               onClick={handleTestPickConfirmation}
               disabled={loading}
               className="w-full"
@@ -656,70 +647,6 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
         </Card>
       )}
 
-      {/* Weekly Results Settings */}
-      {emailSettings && (
-        <Card>
-          <CardHeader>
-            <CardTitle>📊 Weekly Results</CardTitle>
-            <p className="text-sm text-charcoal-600">Configure manual weekly results emails. Use "Send Weekly Results" button above when ready.</p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <Label className="text-base font-medium">Enable Weekly Results Emails</Label>
-                <p className="text-sm text-charcoal-600">Send results summary to all users after week completion</p>
-              </div>
-              <Switch
-                checked={emailSettings.weekly_results.enabled}
-                onCheckedChange={(checked) => 
-                  setEmailSettings({
-                    ...emailSettings,
-                    weekly_results: { ...emailSettings.weekly_results, enabled: checked }
-                  })
-                }
-              />
-            </div>
-            
-            {emailSettings.weekly_results.enabled && (
-              <div className="space-y-4">
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <div className="text-blue-500 mt-1">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-blue-800">Manual Send Only</h4>
-                      <p className="text-sm text-blue-700 mt-1">
-                        Weekly results will only be sent when you click the "Send Weekly Results" button above. 
-                        No automatic sending is configured.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Save button always visible */}
-            <div className="pt-4 border-t">
-              <Button 
-                onClick={handleUpdateWeeklyResultsSettings}
-                disabled={loading}
-                size="sm"
-              >
-                {loading ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                ) : null}
-                Save Weekly Results Settings
-              </Button>
-              <p className="text-xs text-charcoal-500 mt-2">
-                💡 Changes are only saved to database when you click "Save"
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Email Testing */}
       <Card>
