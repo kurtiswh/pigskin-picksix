@@ -104,7 +104,7 @@ export default function PickSetsHistory({ pickSets }: { pickSets: UserPickSet[] 
                           </div>
                           <div className="flex items-center gap-4 shrink-0 tabular-nums">
                             <span className="text-charcoal-600">{ps.wins}-{ps.losses}-{ps.pushes}</span>
-                            <span className="text-charcoal-500 w-12 text-right">🔒 {(ps.lockWins || 0)}-{(ps.lockLosses || 0)}</span>
+                            <span className="hidden sm:inline text-charcoal-500 w-12 text-right">🔒 {(ps.lockWins || 0)}-{(ps.lockLosses || 0)}</span>
                             <span className="font-semibold text-[#4B3621] w-14 text-right">{ps.points} pts</span>
                           </div>
                         </button>

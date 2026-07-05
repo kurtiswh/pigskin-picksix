@@ -85,7 +85,7 @@ export default function CareerStatsCard({ userId, bestWeekScore, currentSeasonPo
                     <th className="py-1.5 pr-3 font-medium text-right">Record</th>
                     <th className="py-1.5 pr-3 font-medium text-right">Lock</th>
                     <th className="py-1.5 pr-3 font-medium text-right">Points</th>
-                    <th className="py-1.5 font-medium">Awards</th>
+                    <th className="py-1.5 font-medium hidden sm:table-cell">Awards</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -105,7 +105,7 @@ export default function CareerStatsCard({ userId, bestWeekScore, currentSeasonPo
                       <td className="py-1.5 pr-3 text-right tabular-nums font-semibold text-[#4B3621]">
                         {h.total_points}
                       </td>
-                      <td className="py-1.5">
+                      <td className="py-1.5 hidden sm:table-cell">
                         <div className="flex flex-wrap gap-1">
                           {h.awards.map(a => (
                             <span key={a} className="text-[11px] rounded-full bg-[#C9A04E]/15 text-[#8a6a1f] px-2 py-0.5">
