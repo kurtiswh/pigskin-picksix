@@ -26,7 +26,7 @@ function PickRow({ p }: { p: PickDetail }) {
           <span className="text-charcoal-500">{p.teamScore}–{p.oppScore}</span>
         )}
         <span className={`font-semibold w-4 text-center ${rc}`}>{letter}</span>
-        <span className={`font-semibold w-10 text-right ${rc}`}>{p.points} pt{p.points === 1 ? '' : 's'}</span>
+        <span className={`font-semibold w-14 text-right whitespace-nowrap ${rc}`}>{p.points} pts</span>
       </div>
     </div>
   )
