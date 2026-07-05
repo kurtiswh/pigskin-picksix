@@ -39,6 +39,38 @@ export class StatsService {
     return (data as CareerStats) || null
   }
 
+  /** Per-season finishes + awards for one player, newest season first. */
+  static async getSeasonHistory(userId: string): Promise<SeasonHistoryRow[]> {
+    const [finRes, winRes] = await Promise.all([
+      supabase.from('all_season_finishes').select('*').eq('user_id', userId),
+      supabase.from('season_winners').select(
+        'season, point_winner_user_id, point_second_user_id, point_third_user_id, ' +
+        'best_finish_user_id, lock_winner_user_id, lock_second_user_id, weekly_winners'),
+    ])
+    if (finRes.error) { console.error('getSeasonHistory failed:', finRes.error); return [] }
+    const winsBySeason = new Map<number, any>((winRes.data || []).map((w: any) => [w.season, w]))
+
+    return ((finRes.data || []) as any[]).map(f => {
+      const w = winsBySeason.get(f.season)
+      const awards: string[] = []
+      if (w) {
+        if (w.point_winner_user_id === userId) awards.push('🏆 Champion')
+        else if (w.point_second_user_id === userId) awards.push('2nd')
+        else if (w.point_third_user_id === userId) awards.push('3rd')
+        if (w.best_finish_user_id === userId) awards.push('Best Finish')
+        if (w.lock_winner_user_id === userId) awards.push('Lock Winner')
+        else if (w.lock_second_user_id === userId) awards.push('Lock 2nd')
+        const wk = (w.weekly_winners || []).filter((x: any) => x?.user_id === userId).length
+        if (wk > 0) awards.push(`${wk} weekly win${wk > 1 ? 's' : ''}`)
+      }
+      return {
+        season: f.season, rank: f.rank, total_points: f.total_points,
+        wins: f.wins, losses: f.losses, pushes: f.pushes,
+        lock_wins: f.lock_wins, lock_losses: f.lock_losses, awards,
+      } as SeasonHistoryRow
+    }).sort((a, b) => b.season - a.season)
+  }
+
   static async getBiggestWeeks(limit = 10): Promise<BiggestWeek[]> {
     const { data, error } = await supabase
       .from('stat_biggest_weeks').select('*').order('points', { ascending: false }).limit(limit)
@@ -51,6 +83,18 @@ export class StatsService {
     if (error) { console.error('getTeamAts failed:', error); return [] }
     return (data || []) as TeamAts[]
   }
+}
+
+export interface SeasonHistoryRow {
+  season: number
+  rank: number
+  total_points: number
+  wins: number
+  losses: number
+  pushes: number
+  lock_wins: number
+  lock_losses: number
+  awards: string[]
 }
 
 export interface BiggestWeek {
