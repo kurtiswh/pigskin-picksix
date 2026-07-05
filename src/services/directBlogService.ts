@@ -19,23 +19,13 @@ export class DirectBlogService {
       // Get authentication token for authenticated requests
       let authToken = this.SUPABASE_KEY
       if (requireAuth) {
-        try {
-          // Add timeout to prevent hanging on getSession()
-          const sessionPromise = supabase.auth.getSession()
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('getSession timeout')), 5000) // 5 second timeout
-          })
-          
-          const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise])
-          if (session?.access_token) {
-            authToken = session.access_token
-            console.log('DirectBlogService: Using user session token for authenticated request')
-          } else {
-            console.warn('DirectBlogService: No session found for authenticated request, using anon key')
-          }
-        } catch (sessionError) {
-          console.warn('DirectBlogService: Failed to get session (timeout or error), using anon key:', sessionError)
-          // Continue with anon key - RLS policies will handle the access control
+        // Admin writes MUST carry the user's JWT. Never silently fall back to the
+        // anon key — that surfaces as confusing 403 RLS errors. Fail clearly instead.
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token) {
+          authToken = session.access_token
+        } else {
+          throw new Error('Not signed in (no active session) — please refresh and sign in again to make this change.')
         }
       }
 

@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabase'
-import { DirectBlogService } from './directBlogService'
 import { EmailService } from './emailService'
 import type { BlogPost } from '@/types/blog'
 
@@ -88,14 +87,32 @@ export function buildDraftHtml(s: RecapSeed): string {
 }
 
 export async function createRecapDraft(seed: RecapSeed, authorId: string): Promise<BlogPost> {
-  return DirectBlogService.createPost({
-    title: `Week ${seed.week} Recap`,
-    content: buildDraftHtml(seed),
-    excerpt: '',
-    season: seed.season,
-    week: seed.week,
-    is_published: false,
-  }, authorId)
+  // Insert via the supabase client so the admin's session JWT is attached
+  // automatically (DirectBlogService's manual fetch falls back to the anon key
+  // and trips the admin RLS policy on blog_posts).
+  const base = `week-${seed.week}-recap-${seed.season}`
+  let slug = base
+  for (let i = 0; i < 6; i++) {
+    const { data: existing } = await supabase.from('blog_posts').select('id').eq('slug', slug).limit(1)
+    if (!existing || existing.length === 0) break
+    slug = `${base}-${i + 2}`
+  }
+  const { data, error } = await supabase
+    .from('blog_posts')
+    .insert({
+      title: `Week ${seed.week} Recap`,
+      content: buildDraftHtml(seed),
+      excerpt: '',
+      season: seed.season,
+      week: seed.week,
+      is_published: false,
+      slug,
+      author_id: authorId,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data as BlogPost
 }
 
 /** Personalized recap email HTML (inline styles for email clients). */
