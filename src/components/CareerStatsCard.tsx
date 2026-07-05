@@ -2,9 +2,16 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatsService, CareerStats, SeasonHistoryRow } from '@/services/statsService'
 
+interface Props {
+  userId: string
+  /** Optional current-season extras (from the live profile stats). */
+  bestWeekScore?: number
+  currentSeasonPoints?: number
+}
+
 /** All-time career summary + year-by-year performance for a player.
  *  Renders nothing if the player has no historic/career data. */
-export default function CareerStatsCard({ userId }: { userId: string }) {
+export default function CareerStatsCard({ userId, bestWeekScore, currentSeasonPoints }: Props) {
   const [stats, setStats] = useState<CareerStats | null>(null)
   const [history, setHistory] = useState<SeasonHistoryRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -16,20 +23,29 @@ export default function CareerStatsCard({ userId }: { userId: string }) {
     ]).finally(() => setLoading(false))
   }, [userId])
 
-  if (loading || !stats) return null
+  if (loading) return null
+  // Nothing to show at all (no historic career data and no current-season extras)
+  if (!stats && bestWeekScore == null && currentSeasonPoints == null) return null
 
   const pct = (v: number | null) => (v == null ? '—' : `${(v * 100).toFixed(1)}%`)
 
-  const highlights: [string, string | number][] = [
-    ['Seasons', stats.seasons_played],
-    ['Championships', stats.championships],
-    ['Best Finish', `#${stats.best_finish}`],
-    ['Top-10s', stats.top10_finishes],
-    ['Career Pts', stats.career_points?.toLocaleString?.() ?? stats.career_points],
-    ['Win %', pct(stats.win_pct)],
-    ['Lock Win %', pct(stats.lock_win_pct)],
-    ['Weekly Wins', stats.weekly_wins],
-  ]
+  const highlights: [string, string | number][] = []
+  if (stats) {
+    highlights.push(
+      ['Seasons', stats.seasons_played],
+      ['Championships', stats.championships],
+      ['Best Finish', `#${stats.best_finish}`],
+      ['Avg Finish', stats.avg_finish],
+      ['Career Points', stats.career_points?.toLocaleString?.() ?? stats.career_points],
+      ['Avg Pts / Season', stats.avg_season_points],
+      ['Win %', pct(stats.win_pct)],
+      ['Lock Win %', pct(stats.lock_win_pct)],
+      ['Top-10 Finishes', stats.top10_finishes],
+      ['Weekly Wins', stats.weekly_wins],
+    )
+  }
+  if (bestWeekScore != null) highlights.push(['Best Week', `${bestWeekScore} pts`])
+  if (currentSeasonPoints != null) highlights.push(['This Season', `${currentSeasonPoints} pts`])
 
   return (
     <Card>

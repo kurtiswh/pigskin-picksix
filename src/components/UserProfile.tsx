@@ -360,9 +360,6 @@ export default function UserProfile() {
         </CardHeader>
       </Card>
 
-      {/* All-time career stats (only renders if the player has historic data) */}
-      {user && <CareerStatsCard userId={user.id} />}
-
       {/* Navigation Tabs */}
       <div className="flex space-x-1 bg-white p-1 rounded-lg shadow-sm">
         <button
@@ -460,82 +457,19 @@ export default function UserProfile() {
       )}
 
 
-      {activeTab === 'stats' && userProfile?.stats && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Statistics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-3 gap-6">
-              {/* Overall Stats */}
-              <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Overall Performance</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-charcoal-600">Seasons Played:</span>
-                    <span className="font-semibold">{userProfile.stats.seasons_played}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-charcoal-600">Total Picks:</span>
-                    <span className="font-semibold">{userProfile.stats.total_picks}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-charcoal-600">Win Rate:</span>
-                    <span className="font-semibold">
-                      {userProfile.stats.total_picks > 0 
-                        ? `${Math.round((userProfile.stats.total_wins / userProfile.stats.total_picks) * 100)}%`
-                        : '0%'
-                      }
-                    </span>
-                  </div>
-                </div>
-              </div>
+      {activeTab === 'stats' && user && (
+        <div className="space-y-6">
+          {/* All-time career stats + season-by-season (historic, 2006-2024) */}
+          <CareerStatsCard
+            userId={user.id}
+            bestWeekScore={userProfile?.stats?.best_week_score}
+            currentSeasonPoints={userProfile?.stats?.current_season_points}
+          />
 
-              {/* Record */}
-              <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Record</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-green-600">Wins:</span>
-                    <span className="font-semibold text-green-600">{userProfile.stats.total_wins}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-red-600">Losses:</span>
-                    <span className="font-semibold text-red-600">{userProfile.stats.total_losses}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-yellow-600">Pushes:</span>
-                    <span className="font-semibold text-yellow-600">{userProfile.stats.total_pushes}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Best Performance */}
-              <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Best Performance</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-charcoal-600">Best Week Score:</span>
-                    <span className="font-semibold">{userProfile.stats.best_week_score} pts</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-charcoal-600">Lock Record:</span>
-                    <span className="font-semibold">
-                      {userProfile.stats.lock_wins}-{userProfile.stats.lock_losses}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-charcoal-600">Current Season Points:</span>
-                    <span className="font-semibold">{userProfile.stats.current_season_points}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Pick Sets Section */}
-            {pickSets.length > 0 && (
-              <>
-                <Separator className="my-6" />
+          {/* Current-season pick sets detail */}
+          {pickSets.length > 0 && (
+            <Card>
+              <CardContent className="pt-6">
                 <div className="space-y-4">
                   <h3 className="font-semibold text-lg">Pick Sets History</h3>
                   <div className="space-y-3">
@@ -668,10 +602,10 @@ export default function UserProfile() {
                     </ul>
                   </div>
                 </div>
-              </>
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
+          </div>
       )}
     </div>
   )
