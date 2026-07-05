@@ -54,7 +54,7 @@ Notes: recap seed = a read-only computed summary (likely a SECURITY DEFINER RPC 
 a Week Review "Recap" tab). Publish email reuses the email service + a
 "season players" recipient query.
 
-### 2. Preseason signup email sequence  💭🔴
+### 2. Preseason signup email sequence  🟢 SHIPPED
 A drip/scheduled email sequence before the season to get people to sign up /
 re-up. Ties into the existing email system (Resend + `email_jobs` + cron
 `process-reminders`).
