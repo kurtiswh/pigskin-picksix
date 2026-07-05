@@ -22,6 +22,28 @@ interface UserStats {
   unmatchedPayments: number
 }
 
+// PostgREST caps every response at 1000 rows. Several tables here (users ~1900,
+// leaguesafe_payments ~4500) exceed that, so a single request returns an
+// arbitrary partial slice — which silently broke payment matching and stats.
+// This pages through the full result set with a stable order.
+async function fetchAllRows<T = any>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>
+): Promise<T[]> {
+  const pageSize = 1000
+  let from = 0
+  const all: T[] = []
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data, error } = await build(from, from + pageSize - 1)
+    if (error) throw error
+    const rows = data || []
+    all.push(...rows)
+    if (rows.length < pageSize) break
+    from += pageSize
+  }
+  return all
+}
+
 export default function UserManagement() {
   console.log('🚨🚨🚨 UserManagement component loaded - NEW VERSION! 🚨🚨🚨')
   
@@ -74,63 +96,27 @@ export default function UserManagement() {
     try {
       setLoading(true)
       console.log(`🔄 UserManagement: Loading users for season ${currentSeason}...`)
-      
-      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
-      
-      // Load users with payment information for the selected season
-      const usersResponse = await fetch(`${supabaseUrl}/rest/v1/users?select=*`, {
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
-      })
 
-      console.log('🔍 UserManagement users response status:', usersResponse.status)
-
-      if (!usersResponse.ok) {
-        throw new Error(`Failed to load users: ${usersResponse.status}`)
-      }
-
-      const usersData = await usersResponse.json()
+      // Load ALL users (paginated — the table exceeds PostgREST's 1000-row cap,
+      // and an arbitrary 1000-row slice made payment matching + stats wrong).
+      const usersData = await fetchAllRows((from, to) =>
+        supabase.from('users').select('*').order('id', { ascending: true }).range(from, to))
       console.log(`✅ UserManagement: Loaded ${usersData.length} users from database`)
 
-      // Load payment information for the current season (for display)
-      const currentSeasonPaymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?season=eq.${currentSeason}&select=*`, {
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
-      })
+      // Payments for the selected season (paginated)
+      const currentSeasonPayments = await fetchAllRows((from, to) =>
+        supabase.from('leaguesafe_payments').select('*').eq('season', currentSeason)
+          .order('id', { ascending: true }).range(from, to))
+      console.log(`✅ UserManagement: Loaded ${currentSeasonPayments.length} payments for season ${currentSeason}`)
+      console.log('🔍 Payment statuses breakdown:', currentSeasonPayments.reduce((acc: any, p: any) => {
+        acc[p.status] = (acc[p.status] || 0) + 1
+        return acc
+      }, {}))
 
-      let currentSeasonPayments = []
-      if (currentSeasonPaymentsResponse.ok) {
-        currentSeasonPayments = await currentSeasonPaymentsResponse.json()
-        console.log(`✅ UserManagement: Loaded ${currentSeasonPayments.length} payments for season ${currentSeason}`)
-        console.log('🔍 Payment statuses breakdown:', currentSeasonPayments.reduce((acc: any, p: any) => {
-          acc[p.status] = (acc[p.status] || 0) + 1
-          return acc
-        }, {}))
-      } else {
-        console.log('⚠️ No payment data available for season', currentSeason)
-      }
-
-      // Load ALL payment history for user details modal
-      const allPaymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?select=*`, {
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      let allPaymentsData = []
-      if (allPaymentsResponse.ok) {
-        allPaymentsData = await allPaymentsResponse.json()
-        console.log(`✅ UserManagement: Loaded ${allPaymentsData.length} total payment records`)
-      }
+      // All payment history for the user-details modal (also exceeds 1000 rows)
+      const allPaymentsData = await fetchAllRows((from, to) =>
+        supabase.from('leaguesafe_payments').select('*').order('id', { ascending: true }).range(from, to))
+      console.log(`✅ UserManagement: Loaded ${allPaymentsData.length} total payment records`)
 
       // Combine users with their payment information for the selected season
       const usersWithPayments = usersData.map((user: any) => {
@@ -167,59 +153,41 @@ export default function UserManagement() {
   }
 
   const loadStats = async (usersData?: UserWithPayment[]) => {
+    // Use provided users data or fall back to state (for manual refresh)
+    const currentUsers = usersData || users
     try {
       console.log('📊 UserManagement: Loading real stats...')
       
-      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
-      
-      // Use provided users data or fall back to state (for manual refresh)
-      const currentUsers = usersData || users
-      
-      // Calculate stats from current loaded users (which are already filtered by season)
-      const totalUsers = currentUsers.length
-      const adminUsers = currentUsers.filter(u => u.is_admin).length
-      
-      // Use season-specific payment status from the users array (which is already season-filtered)
-      const paidUsers = currentUsers.filter(u => ['Paid', 'Manual Registration'].includes(u.payment_status)).length
-      const unpaidUsers = currentUsers.filter(u => ['NotPaid', 'No Payment'].includes(u.payment_status)).length
-      
+      // Distinct users with picks this season (paginated)
+      const picks = await fetchAllRows((from, to) =>
+        supabase.from('picks').select('user_id').eq('season', currentSeason)
+          .order('id', { ascending: true }).range(from, to))
+      const pickUserIds = new Set<string>(picks.map((p: any) => p.user_id).filter(Boolean))
+      const usersWithPicks = pickUserIds.size
+
+      // Season cohort = users who actually participated this season: they have a
+      // payment record for the season (season status !== 'No Payment') OR made
+      // picks. The tiles are a "Season {year} Overview", so we scope them to the
+      // cohort instead of counting all ~1,900 all-time accounts (which made
+      // Total/Unpaid wildly overstated once every historic account was loaded).
+      const cohort = currentUsers.filter(u => u.payment_status !== 'No Payment' || pickUserIds.has(u.id))
+
+      const totalUsers = cohort.length
+      const adminUsers = currentUsers.filter(u => u.is_admin).length // league-wide, not season-scoped
+      const paidUsers = cohort.filter(u => ['Paid', 'Manual Registration'].includes(u.payment_status)).length
+      const unpaidUsers = cohort.filter(u => ['NotPaid', 'No Payment'].includes(u.payment_status)).length
+
       console.log('🔍 Stats calculation details:', {
-        totalUsers,
-        paidCount: paidUsers,
-        unpaidCount: unpaidUsers,
-        samplePaymentStatuses: currentUsers.slice(0, 5).map(u => ({ name: u.display_name, status: u.payment_status }))
-      })
-      
-      // Get picks stats for current season
-      const picksResponse = await fetch(`${supabaseUrl}/rest/v1/picks?season=eq.${currentSeason}&select=user_id`, {
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
+        totalUsers, paidCount: paidUsers, unpaidCount: unpaidUsers, adminUsers, cohortSize: cohort.length,
       })
 
-      let picks = []
-      if (picksResponse.ok) {
-        picks = await picksResponse.json()
-      }
-      const usersWithPicks = new Set(picks.map((p: any) => p.user_id)).size
-
-      // Get unmatched payments for current season
-      const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?season=eq.${currentSeason}&select=*`, {
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      let payments = []
-      if (paymentsResponse.ok) {
-        payments = await paymentsResponse.json()
-      }
-      const unmatchedPayments = payments.filter((p: any) => !currentUsers.find(u => u.id === p.user_id)).length
+      // Unmatched season payments = a payment whose user_id isn't among our users
+      // (includes null user_ids). Paginated; matched against a Set for speed.
+      const seasonPayments = await fetchAllRows((from, to) =>
+        supabase.from('leaguesafe_payments').select('user_id').eq('season', currentSeason)
+          .order('id', { ascending: true }).range(from, to))
+      const userIdSet = new Set(currentUsers.map(u => u.id))
+      const unmatchedPayments = seasonPayments.filter((p: any) => !p.user_id || !userIdSet.has(p.user_id)).length
 
       const stats = {
         totalUsers,
