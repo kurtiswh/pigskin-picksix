@@ -1,127 +1,106 @@
-# Pigskin Pick Six — Feature Backlog
+# Pigskin Pick Six — Backlog & Status (single source of truth)
 
-Running list of desired features, pre-launch must-dos, and cleanup. Newest ideas
-are captured here so they don't get lost; we prioritize/schedule from this list.
+Running list of desired features, status, and where to pick up. Add new ideas here.
 
 Status key: 🔴 not started · 🟡 in progress · 🟢 done · 💭 needs design/decision
 
-_Last updated: 2026-07-04_
+_Last updated: 2026-07-05_
 
 ---
 
-## 🚦 Pre-launch checklist (do before the season goes live)
+## ▶ START HERE (next session)
 
-These can only be fully validated once a week is actually open with real picks
-(it's off-season now). Blocking for kickoff.
-
-- 🔴 **Exercise a live/open week end-to-end.** Open a throwaway test week and verify:
-  pick submission works, per-game lock enforcement actually blocks post-lock edits,
-  and the at-submission anonymous auto-tie trigger fires correctly.
-- 🔴 **Set per-game lock times for Week 1** in Week Setup. The lock RLS falls back to
-  the week deadline when `games.custom_lock_time` is null, so Thu/Fri auto-lock needs
-  these set.
-- 🔴 **Confirm email reminders actually send.** Their cron was on the same broken
-  legacy token (now fixed via Vault) — verify a reminder lands before relying on it.
-- 🔴 **Verify Live Scores "Fetch Latest Scores"** works under an admin login (it invokes
-  the edge function with the user JWT — may need service-role handling if it 401s).
+1. 🔴 **Preseason starter touches have a placeholder link.** 3 touches are scheduled
+   (Aug 4 / Aug 18 / Sep 1) with `YOUR_LEAGUESAFE_LINK` — as-is they email **~802
+   people a broken link**. Fix in Notifications → *Preseason Signup Sequence*: edit
+   each with the real LeagueSafe join/pay URL + real dates, or cancel them.
+2. 🟢→ **Pre-launch checklist** (can only be fully validated once a week is open):
+   - Exercise a test/open week end-to-end: pick submission, **per-game lock
+     enforcement**, and the **at-submission anonymous auto-tie** trigger.
+   - Set **Week 1 per-game lock times** in Week Setup (lock RLS falls back to the
+     week deadline when `custom_lock_time` is null).
+   - Confirm a real **pick reminder** actually lands (cron token was fixed via Vault).
+   - Verify **Fetch Latest Scores** works under an admin login (invokes the edge fn).
+3. Then: **LeagueSafe import** (design below) or finish the cleanup items.
 
 ---
 
-## ✨ Feature requests
+## 🟢 Shipped
 
-### 1. Weekly recap seeding + publish-to-list email  🟢 SHIPPED
-Built 2026-07: `wr_recap_seed` / `wr_recap_recipients` RPCs (migration 167, applied);
-Week Review "Weekly Recap" card (generate seed → create auto-draft); Blog Editor
-"Email to players" (test-to-self + send-to-all, personalized with each player's own
-results incl. per-game points, + excerpt + link; `emailed_at` guard). Original spec:
-After a week ends and is approved/published in Week Review, auto-generate a
-"recap seed" — the data outliers/highlights that make writing the weekly post
-easier. **We still write the post; this just hands us the raw material.**
+### Weekly-process / recap / email effort
+- **Part A** — single canonical scorer (`calculate_and_update_completed_game`), users-RLS
+  recursion fix, `scoring_discrepancies` verification view.
+- **Part B** — Week Review close-out hub; anonymous auto-tie (trigger + RPC); per-game
+  lock enforcement; 7-pick disqualification; roster/entry cleanup; 6-tab admin reorg;
+  Live Scores rebuilt as a game-day health dashboard.
+- **Fixed the broken edge-function cron** (was pg_net-missing / typo'd URL / legacy JWT
+  → now `http` ext + Vault service key), and **`invoke_edge()` with a 25s timeout** so
+  live-scoring/stats/reminders stop logging false timeouts.
+- **Weekly recap seeding** — `wr_recap_seed`/`wr_recap_recipients`, Week Review "Generate
+  Recap Draft", auto-draft blog post, personalized recap email (each player's results +
+  editable rich-text rundown + link).
+- **Preseason signup drip** — `preseason_emails` + cron enqueue/send to all emails.
+- **Unified email brand shell** — all emails share one look (`src/templates/emailShell.ts`
+  + SQL `wrap_email_shell()`); catalog at `docs/mockups/email-catalog.html`.
+- **Cleanup** — anon per-game locks, stats-cron cadence, dropped `VITE_SPORTRADAR_API_KEY`,
+  vendor chunk-split (main ~1.2MB→674KB), removed dead weekly-results code.
 
-Candidate outliers to surface (from picks/games/leaderboards for the week):
-- Top weekly scorer(s) and any perfect weeks (6/6)
-- Biggest upset pick that hit (lowest-% picked team that covered) and the most
-  popular pick that lost
-- Lock results (best/worst locks), biggest margin-bonus games
-- Biggest risers/fallers on the season leaderboard; new leader; Best-Finish movement
-- Worst week / roughest beat
+### Parallel workstream (other sessions — summarized from git history)
+- **Historic archive 2006–2024** — History page + all-time **Records** boards, tie-aware
+  "competition" ranks, percentiles, per-season user rank, "You: #N of M".
+- **Profile career/history stats** — year-by-year, Statistics tab redesign.
+- **Fun pick analytics** — perfect weeks, contrarian king, hardest/easiest slates.
+- **Canonical team names** (historical tie-out); **nickname-variation merge finder**;
+  **merge_users fix**.
+- **UI redesign** — auth/entry pages, game cards, homepage, nav; large mobile pass.
+- **leaguesafe_payments admin RLS fix** (migration 174); People/UserManagement stats
+  paginate + scope to season cohort.
+- **Partial** retirement of legacy client-side `liveUpdateService` wiring.
+- DB: migrations `167_historical_season_standings`, `168_career_stats_views`,
+  `169_pick_analytics_views`, `170_grant_stats_views`, `171_include_2025_and_entrants`,
+  `172_materialize_stats`, `173_career_ranks`, `174`–`179` (payments RLS, canonical team
+  names, fun analytics, merge_users view fix, analytics ranks/slates).
 
-Then: once the post is written and published (ties into the existing `blog_posts`
-table + a "publish" action), **email the post to everyone playing for the year**
-(the paid/entered list for the active season).
+---
 
-Notes: recap seed = a read-only computed summary (likely a SECURITY DEFINER RPC or
-a Week Review "Recap" tab). Publish email reuses the email service + a
-"season players" recipient query.
+## ✨ Open features
 
-### 2. Preseason signup email sequence  🟢 SHIPPED
-A drip/scheduled email sequence before the season to get people to sign up /
-re-up. Ties into the existing email system (Resend + `email_jobs` + cron
-`process-reminders`).
+### LeagueSafe import streamlining  💭🔴
+LeagueSafe has **no API/webhook/auto-export** (verified). Best path = **inbound-email
+ingestion** (forward the export CSV → auto-parse → import → auto-match), and/or a
+one-click in-app import. Today it's manual CSV via `LeagueSafeUpload`. Full detail was in
+this doc's history; recommend inbound-email.
 
-Open questions: recipient source (prior-season players? a separate signup/interest
-list?), how many touches + timing, and where admins edit the sequence content.
-
-### 3. LeagueSafe auto-pull of registrations  💭🔴
-**Goal:** auto-import LeagueSafe registrations/payments instead of manual CSV upload.
-
-**Feasibility (verified 2026-07 via LeagueSafe public docs):** LeagueSafe has
-**no API, no webhooks, no scheduled/emailed reports, and no auto-export.** Their
-only outbound email is "AutoNag" (nags *unpaid members* to pay — not a data export
-to the commissioner). So LeagueSafe cannot *push* registration/payment data to us.
-Confirm against our own commissioner dashboard, but nothing public suggests an
-auto-export exists. Today the app ingests via manual CSV export → `LeagueSafeUpload`
-→ `leaguesafe_payments` (+ `PaymentMatcher`).
-
-Realistic options (best to worst) — all reduce OUR effort, since LeagueSafe won't push:
-- **Inbound-email ingestion (recommended):** dedicated address (Resend inbound / a
-  Supabase edge fn) that auto-parses a forwarded LeagueSafe CSV, imports, and
-  auto-matches. Collapses "export → login → upload → match" to "export → forward one
-  email." If LeagueSafe ever does auto-email a report, it drops into this same pipe
-  and becomes fully automatic.
-- **One-click in-app import:** drag-drop CSV → auto-match → flag unmatched. Simplest.
-- **Scheduled fetch of an authenticated export URL** (only if such a stable link
-  exists): fragile, possible ToS issue — investigate first, low priority.
-- **Full API integration:** not possible (no API).
-
-**Recommendation:** build inbound-email ingestion (and/or one-click import). Fully
-hands-off is impossible until LeagueSafe adds a push mechanism.
+### Preseason sequence content  🔴
+Replace the placeholder LeagueSafe link + set real dates on the 3 starter touches (see START HERE).
 
 ---
 
 ## 🧹 Cleanup / tech debt
 
-- 🟢 **Per-game locks on `anonymous_picks`** — done (migration 172): consolidated 4
-  wide-open insert policies into one lock-gated policy (`game_is_open_for_picks`).
-- 🟢 **`update-game-statistics` cron cadence** — done (172): now every 30 min Thu–Sun.
-- 🟢 **Drop unused `VITE_SPORTRADAR_API_KEY`** — done (removed from vite-env.d.ts + .env.example).
-- 🟢 **Build chunk-size** — done: vendor split (react/supabase/quill chunks); main
-  bundle ~1.2MB → ~674KB. Route-based lazy loading later if it needs to go lower.
-- 🟡 **2024 bad-state data** — test anon pick removed (172). Remaining: 4 completed
-  2024 games have NULL away scores (missing data) + 1 in-progress game. 2024 has
-  **zero picks**, so these are harmless view-noise; fixing needs a CFBD re-fetch of
-  those scores. Low priority.
-- 🔴 **Reconcile `auth.uid()` vs `public.users.id` mismatch** — DEFERRED (risky). Some
-  merged accounts (kurtiswh@gmail.com, jstovall5) have `public.users.id` ≠ their
-  `auth.users.id`; any RLS keyed on `auth.uid() = user_id` (picks, payments) mis-sees
-  them. Admin recognition is patched via JWT email (migration 168). Real fix =
-  reconcile ids, which cascades across picks/payments/FKs — needs a careful, backed-up
-  migration + audit of how many players are affected. Don't rush.
-- 🔴 **Dedupe ~21 paid/unpaid duplicate account pairs** — DEFERRED (needs judgment).
-  Each pair needs an admin decision on the survivor; use the merge tool in People.
-  Not safe to auto-merge blindly.
-- 🔴 **Retire legacy live-update service code** — DEFERRED (not actually dead).
-  `liveUpdateService`/`cfbdLiveUpdater` are still imported by GameCompletionTest,
-  ScheduledFunctionsManager, PickProcessingMonitor, **TabbedLeaderboard** (public),
-  GamesPage, AdminDashboard. Retiring means auditing/refactoring each (esp. the
-  public leaderboard's browser polling) — a careful task, not a quick delete.
+- 🟢 Anon per-game locks, stats-cron cadence (every 30 min Thu–Sun), Sportradar key,
+  vendor chunk-split, cron http timeout — done.
+- 🟡 **Retire legacy live-update code** — partly done (parallel work removed the
+  TabbedLeaderboard/GamesPage wiring). Still imported by `GameCompletionTest`,
+  `ScheduledFunctionsManager`, `PickProcessingMonitor`, `AdminDashboard` — finish
+  removing those + delete the dead components/DB functions.
+- 🟡 **2024 bad-state data** — test anon pick removed; 4 completed 2024 games still have
+  NULL away scores (need a CFBD re-fetch). Harmless (2024 has zero picks). Low priority.
+- 🔴 **Reconcile `auth.uid()` ≠ `public.users.id`** for merged accounts — risky data
+  reconciliation (cascades to picks/payments/FKs). Admin recognition already patched via
+  JWT email (migration 168) and `merge_users` was fixed in the parallel work; re-audit
+  how many players are actually affected before touching ids.
+- 🔴 **Account dedupe (~21 pairs)** — parallel work added a nickname-variation merge
+  finder; use it + the People merge tool. Needs a per-pair human decision.
+- 🔴 Build main chunk still ~674KB — route-based lazy loading if it needs to go lower.
 
 ---
 
-## 🟢 Recently shipped (for reference)
-
-- Part A: single canonical scorer, RLS recursion fix, scoring verification view.
-- Part B: Week Review hub, anonymous auto-tie, per-game locks + disqualification,
-  roster cleanup, 6-tab admin reorg, Live Scores health dashboard.
-- Fixed the edge-function cron (pg_net/URL/legacy-JWT → Vault) — server-side live
-  scoring + email reminders now actually run.
+## 🗂 Migrations note (read before adding one)
+- Migrations are applied **manually via `psql -f`** (there's no runner / no `schema_migrations`
+  tracking table). File numbers are **documentation only**.
+- The repo has **many duplicate migration numbers historically** (016, 095–121, 131–133,
+  147–148, 161, and 167–173 from two concurrent workstreams). All are applied to prod.
+- **Next migration: start at 180.**
+- Cron uses `invoke_edge(fn)` (reads the service key from Supabase **Vault**, 25s http
+  timeout). `pg_net` is NOT installed — use the `http` extension. See memory `pp6-data-quirks`.
