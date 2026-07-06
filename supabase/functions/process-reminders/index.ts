@@ -46,13 +46,22 @@ serve(async (req) => {
     const now = new Date()
     console.log(`📅 Current time: ${now.toISOString()}`)
 
-    // Query for reminder emails that are due to be sent
+    // Staleness floor: never send a reminder that is already this far past its
+    // scheduled_for time. A reminder that late is meaningless (the deadline has
+    // long passed) and blindly draining an old backlog would spam users — as
+    // happened when a cron timeout fix released ~10k stale 2025 jobs.
+    const STALE_THRESHOLD_HOURS = 6
+    const staleFloor = new Date(now.getTime() - STALE_THRESHOLD_HOURS * 60 * 60 * 1000)
+    console.log(`⏳ Ignoring reminders scheduled before ${staleFloor.toISOString()} (>${STALE_THRESHOLD_HOURS}h late)`)
+
+    // Query for reminder emails that are due to be sent (and not stale)
     const { data: dueEmails, error: queryError } = await supabase
       .from('email_jobs')
       .select('*')
       .eq('status', 'pending')
       .in('template_type', ['pick_reminder', 'deadline_alert'])
       .lte('scheduled_for', now.toISOString())
+      .gte('scheduled_for', staleFloor.toISOString())
       .order('scheduled_for', { ascending: true })
       .limit(50) // Process max 50 emails per run
 
