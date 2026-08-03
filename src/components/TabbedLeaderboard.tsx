@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
@@ -407,6 +408,22 @@ export default function TabbedLeaderboard() {
         
         {/* Dynamic Notice Banner */}
         {(() => {
+          // Preseason (no weeks configured yet): a friendly heads-up instead of
+          // the generic "email us if something's wrong" notice.
+          if (!loading && maxWeek === 0) {
+            return (
+              <div className="mt-4 mb-5 px-4 py-2.5 border rounded-lg bg-[#C9A04E]/10 border-[#C9A04E]">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-sm font-bold text-[#4B3621]">🏈 PRESEASON</span>
+                  <span className="text-sm text-charcoal-700">
+                    The {season} season hasn't kicked off yet. Standings appear once Week 1 games are scored — until then, check out{' '}
+                    <Link to="/history" className="underline font-semibold text-[#4B3621]">past seasons in History</Link>.
+                  </span>
+                </div>
+              </div>
+            )
+          }
+
           const noticeData = WeekSettingsService.getNoticeMessage(
             weekSettings,
             false
@@ -732,7 +749,47 @@ export default function TabbedLeaderboard() {
       )
     }
 
-    if (data.length === 0) {
+    // Preseason: no weeks configured for this season yet. Placeholder rows from
+    // the emergency fallback ("Temporarily Unavailable") count as no data here.
+    const isPreseason = maxWeek === 0
+    const realData = isPreseason
+      ? data.filter((e) => !`${e.user_id}`.includes('emergency') && !`${e.user_id}`.includes('production-static'))
+      : data
+
+    if (realData.length === 0) {
+      if (isPreseason) {
+        return (
+          <div className="py-10 text-center max-w-xl mx-auto">
+            <div className="text-4xl mb-3">🏈</div>
+            <h3 className="text-lg font-bold text-pigskin-900 mb-2">
+              The {season} season hasn't kicked off yet
+            </h3>
+            <p className="text-sm text-charcoal-600 mb-4">
+              Standings will show up here as soon as Week 1 games go final.
+            </p>
+            <div className="text-left text-sm text-charcoal-700 bg-[#F8F7F3] border border-[#e7e2da] rounded-lg p-4 mb-5">
+              <div className="font-semibold text-pigskin-900 mb-1">How scoring works</div>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Pick <b>6 games</b> against the spread each week — one is your <b>🔒 Lock</b>.</li>
+                <li><b>20 points</b> per win, <b>10</b> per push, 0 per loss.</li>
+                <li>Cover bonus: <b>+1</b> (11–19.5), <b>+3</b> (20–28.5), <b>+5</b> (29+). Your Lock <b>doubles the bonus</b>.</li>
+              </ul>
+            </div>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Link to="/rules">
+                <Button variant="outline" className="border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
+                  Read the full rules →
+                </Button>
+              </Link>
+              <Link to="/history">
+                <Button variant="outline" className="border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
+                  Past seasons — champions & standings →
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )
+      }
       return (
         <p className="text-gray-500">No data found for {getCurrentTitle().toLowerCase()}</p>
       )

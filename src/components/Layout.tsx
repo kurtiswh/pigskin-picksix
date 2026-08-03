@@ -25,6 +25,7 @@ export default function Layout({ children }: LayoutProps) {
     { to: '/leaderboard', label: 'Leaderboard' },
     { to: '/blog', label: 'Blog' },
     { to: '/history', label: 'History' },
+    { to: '/rules', label: 'Rules' },
     ...(user?.is_admin ? [{ to: '/admin', label: 'Admin' }] : []),
   ]
 
@@ -271,6 +272,11 @@ export default function Layout({ children }: LayoutProps) {
                 <li>
                   <Link to="/history" className="text-charcoal-300 hover:text-white transition-colors">
                     History
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/rules" className="text-charcoal-300 hover:text-white transition-colors">
+                    Rules
                   </Link>
                 </li>
                 {user && (

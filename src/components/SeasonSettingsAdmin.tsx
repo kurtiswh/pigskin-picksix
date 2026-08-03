@@ -43,12 +43,17 @@ export default function SeasonSettingsAdmin() {
     setSaving(true)
     setMessage(null)
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('app_settings')
         .update({ active_season: season, grace_period_weeks: grace })
         .eq('id', true)
+        .select()
 
       if (error) throw error
+      // A zero-row update means RLS rejected the write (not reported as an error).
+      if (!data || data.length === 0) {
+        throw new Error('The database rejected the update (0 rows changed) — admin write policy did not recognize this account.')
+      }
 
       await refresh()
       setMessage({ type: 'success', text: `Saved. Active season is now ${season}, grace period ${grace} week(s).` })

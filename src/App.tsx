@@ -16,6 +16,7 @@ import BlogPage from './pages/BlogPage'
 import BlogPostPage from './pages/BlogPostPage'
 import BlogEditorPage from './pages/BlogEditorPage'
 import GamesPage from './pages/GamesPage'
+import RulesPage from './pages/RulesPage'
 
 function App() {
   console.log('🚀 [STARTUP] App component rendering')
@@ -35,6 +36,7 @@ function App() {
             <Route path="/anonymous-picks" element={<AnonymousPicksPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/history" element={<HistoryPage />} />
+            <Route path="/rules" element={<RulesPage />} />
             <Route path="/records" element={<HistoryPage initialTab="records" />} />
             <Route path="/games" element={<GamesPage />} />
             <Route path="/games/:season/:week" element={<GamesPage />} />
