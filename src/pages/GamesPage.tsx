@@ -11,6 +11,7 @@ import GamePickStatistics from '@/components/GamePickStatistics'
 import { supabase } from '@/lib/supabase'
 import { getActiveWeek } from '@/services/weekService'
 import { useAuth } from '@/hooks/useAuth'
+import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import type { Pick } from '@/types'
 
 interface Game {
@@ -56,10 +57,20 @@ export default function GamesPage() {
   const { season: urlSeason, week: urlWeek } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
-  
+  const { activeSeason, loading: seasonLoading } = useCurrentSeason()
+
   const [currentSeason, setCurrentSeason] = useState(
-    urlSeason ? parseInt(urlSeason) : 2025
+    urlSeason ? parseInt(urlSeason) : activeSeason
   )
+  // Without a season in the URL we must wait for app_settings before querying,
+  // or we'd fetch (and bake into the URL) the fallback season instead of the
+  // real active one.
+  const [seasonReady, setSeasonReady] = useState(!!urlSeason)
+  useEffect(() => {
+    if (seasonReady || seasonLoading) return
+    setCurrentSeason(activeSeason)
+    setSeasonReady(true)
+  }, [seasonReady, seasonLoading, activeSeason])
   const [currentWeek, setCurrentWeek] = useState<number | null>(
     urlWeek ? parseInt(urlWeek) : null
   )
@@ -89,16 +100,18 @@ export default function GamesPage() {
 
   useEffect(() => {
     // If no week in URL, get the active week first
+    if (!seasonReady) return
     if (!urlWeek && currentWeek === null) {
       getActiveWeek(currentSeason).then(activeWeek => {
         console.log(`🎯 Setting active week to: ${activeWeek}`)
         setCurrentWeek(activeWeek)
       })
     }
-  }, [currentSeason, urlWeek, currentWeek])
+  }, [seasonReady, currentSeason, urlWeek, currentWeek])
 
   useEffect(() => {
     // Only load data once we have a valid week
+    if (!seasonReady) return
     if (currentWeek === null) {
       console.log('⏳ Waiting for week to be determined...')
       return
@@ -123,7 +136,7 @@ export default function GamesPage() {
       clearInterval(gameRefreshInterval)
       clearInterval(dataRefreshInterval)
     }
-  }, [currentSeason, currentWeek])
+  }, [seasonReady, currentSeason, currentWeek])
 
   useEffect(() => {
     // Load the user's picks separately so they refresh once auth resolves.
@@ -134,11 +147,12 @@ export default function GamesPage() {
 
   useEffect(() => {
     // Update URL when season/week changes (only if week is determined)
+    if (!seasonReady) return
     if (currentWeek !== null) {
       const newPath = `/games/${currentSeason}/${currentWeek}`
       navigate(newPath, { replace: true })
     }
-  }, [currentSeason, currentWeek, navigate])
+  }, [seasonReady, currentSeason, currentWeek, navigate])
 
   const loadGames = async () => {
     try {

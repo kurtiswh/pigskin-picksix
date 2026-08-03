@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import Layout from '@/components/Layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PAYOUT_PERCENTAGES } from '@/types/winners'
 
@@ -42,6 +43,7 @@ export default function RulesPage() {
   ]
 
   return (
+    <Layout>
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       {/* Header */}
       <div className="text-center mb-10">
@@ -289,5 +291,6 @@ export default function RulesPage() {
         </Card>
       </div>
     </div>
+    </Layout>
   )
 }

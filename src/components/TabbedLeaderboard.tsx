@@ -33,6 +33,9 @@ export default function TabbedLeaderboard() {
   }, [seasonLoading, activeSeason])
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null)
   const [maxWeek, setMaxWeek] = useState<number>(0)
+  // True when the season has no configured weeks yet (preseason). Note maxWeek
+  // can't signal this: getLatestWeekWithResults falls back to 1 with no games.
+  const [isPreseason, setIsPreseason] = useState(false)
   const [selectedSeasonWeek, setSelectedSeasonWeek] = useState<'current' | number>('current')
   const [activeTab, setActiveTab] = useState('season')
   const [seasonData, setSeasonData] = useState<(LeaderboardEntry | EmergencyLeaderboardEntry)[]>([])
@@ -62,6 +65,8 @@ export default function TabbedLeaderboard() {
   // a newer season's result (e.g. fallback-2025 data arriving after 2026's).
   const loadSeq = useRef(0)
   const weeklySeq = useRef(0)
+  const initSeq = useRef(0)
+  const settingsSeq = useRef(0)
 
   // Initialize selectedWeek to the latest week with results, and compute the
   // season's max configured week to bound the week-picker dropdowns.
@@ -69,13 +74,16 @@ export default function TabbedLeaderboard() {
   // fallback value — querying it would race the real active season's load.
   useEffect(() => {
     if (seasonLoading) return
+    const seq = ++initSeq.current
     const initializeWeek = async () => {
       const [latestWeek, configuredMax] = await Promise.all([
         getLatestWeekWithResults(season),
         getMaxConfiguredWeek(season),
       ])
+      if (seq !== initSeq.current) return // superseded by a newer season
       setSelectedWeek(latestWeek)
       setMaxWeek(configuredMax || latestWeek || 0)
+      setIsPreseason((configuredMax || 0) === 0)
     }
     initializeWeek()
   }, [season, seasonLoading])
@@ -125,11 +133,14 @@ export default function TabbedLeaderboard() {
 
   const loadWeekSettings = async () => {
     if (selectedWeek === null) return
-    
+    const seq = ++settingsSeq.current
+
     try {
       const settings = await WeekSettingsService.getWeekSettings(season, selectedWeek)
+      if (seq !== settingsSeq.current) return
       setWeekSettings(settings)
     } catch (error) {
+      if (seq !== settingsSeq.current) return
       console.error('Error loading week settings:', error)
       setWeekSettings(null)
     }
@@ -430,7 +441,7 @@ export default function TabbedLeaderboard() {
         {(() => {
           // Preseason (no weeks configured yet): a friendly heads-up instead of
           // the generic "email us if something's wrong" notice.
-          if (!loading && maxWeek === 0) {
+          if (!loading && isPreseason) {
             return (
               <div className="mt-4 mb-5 px-4 py-2.5 border rounded-lg bg-[#C9A04E]/10 border-[#C9A04E]">
                 <div className="flex items-center gap-2.5">
@@ -771,7 +782,6 @@ export default function TabbedLeaderboard() {
 
     // Preseason: no weeks configured for this season yet. Placeholder rows from
     // the emergency fallback ("Temporarily Unavailable") count as no data here.
-    const isPreseason = maxWeek === 0
     const realData = isPreseason
       ? data.filter((e) => !`${e.user_id}`.includes('emergency') && !`${e.user_id}`.includes('production-static'))
       : data

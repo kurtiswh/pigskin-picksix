@@ -15,7 +15,7 @@ export default function HomePage() {
   const navigate = useNavigate()
   
   console.log('🏠 HomePage - User state:', user)
-  const { activeSeason: currentSeason } = useCurrentSeason()
+  const { activeSeason: currentSeason, loading: seasonLoading } = useCurrentSeason()
   const [currentWeek, setCurrentWeek] = useState(1)
   const [deadline, setDeadline] = useState<Date | null>(null)
   const [topPlayers, setTopPlayers] = useState<LeaderboardEntry[]>([])
@@ -25,7 +25,14 @@ export default function HomePage() {
   // Season phase: 'inseason' while a week is live/upcoming, 'offseason' between seasons.
   // Auto-detected so the homepage flips itself back to in-season content when Week 1 nears.
   const [phase, setPhase] = useState<'inseason' | 'offseason'>('inseason')
+  // Offseason flavor: true when the ACTIVE season hasn't started yet (no games
+  // loaded), i.e. we're in that season's preseason — signups target the active
+  // season, not the year after it.
+  const [seasonUpcoming, setSeasonUpcoming] = useState(false)
   const nextSeason = currentSeason + 1
+  // The season people should sign up for right now.
+  const signupSeason = seasonUpcoming ? currentSeason : nextSeason
+  const lastPlayedSeason = seasonUpcoming ? currentSeason - 1 : currentSeason
 
   // Check for password recovery tokens and redirect to reset password page
   useEffect(() => {
@@ -53,8 +60,10 @@ export default function HomePage() {
       return
     }
     
+    // Wait for the real active season — querying the fallback would race it.
+    if (seasonLoading) return
     fetchHomePageData()
-  }, [currentSeason])
+  }, [currentSeason, seasonLoading])
 
   useEffect(() => {
     if (user) {
@@ -128,12 +137,29 @@ export default function HomePage() {
 
       setPhase(inSeason ? 'inseason' : 'offseason')
       console.log(`🗓️ Season phase: ${inSeason ? 'in-season' : 'offseason'}`)
+
+      // Offseason comes in two flavors: after a completed season, or before an
+      // upcoming one. If the active season has no games loaded at all, it
+      // hasn't started — we're in ITS preseason, and signups target it.
+      let upcoming = false
+      if (!inSeason) {
+        const { data: anyGames } = await supabase
+          .from('games')
+          .select('id')
+          .eq('season', currentSeason)
+          .limit(1)
+        upcoming = !anyGames || anyGames.length === 0
+      }
+      setSeasonUpcoming(upcoming)
+      // In preseason the active season has no standings yet — preview the last
+      // completed season's final standings instead.
+      const previewSeason = upcoming ? currentSeason - 1 : currentSeason
       
       // Get real leaderboard data (top 5 season leaders) using LeaderboardService
       try {
         console.log('🏆 Fetching season leaderboard preview for homepage')
         setLeaderboardError(null) // Clear any previous errors
-        const leaderboardData = await LeaderboardService.getSeasonLeaderboard(currentSeason)
+        const leaderboardData = await LeaderboardService.getSeasonLeaderboard(previewSeason)
         
         if (leaderboardData && leaderboardData.length > 0) {
           // Get top 5 players with points (exclude players with 0 total points)
@@ -245,17 +271,27 @@ export default function HomePage() {
           </h1>
           <p className="text-xl md:text-2xl text-pigskin-100 mb-8">
             {phase === 'offseason'
-              ? `The ${currentSeason} season is in the books — lock in your spot for ${nextSeason}`
+              ? seasonUpcoming
+                ? `The ${currentSeason} season is coming — get your entry in before kickoff`
+                : `The ${currentSeason} season is in the books — lock in your spot for ${nextSeason}`
               : "Join the ultimate college football pick 'em experience"}
           </p>
           {phase === 'offseason' ? (
             user ? (
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to="/leaderboard">
-                  <Button size="lg" className="bg-gold-500 hover:bg-gold-600 text-pigskin-900">
-                    View Final Standings
-                  </Button>
-                </Link>
+                {seasonUpcoming ? (
+                  <Link to="/rules">
+                    <Button size="lg" className="bg-gold-500 hover:bg-gold-600 text-pigskin-900">
+                      Read the Official Rules
+                    </Button>
+                  </Link>
+                ) : (
+                  <Link to="/leaderboard">
+                    <Button size="lg" className="bg-gold-500 hover:bg-gold-600 text-pigskin-900">
+                      View Final Standings
+                    </Button>
+                  </Link>
+                )}
                 <Link to="/history">
                   <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-pigskin-500">
                     Hall of Champions
@@ -266,14 +302,22 @@ export default function HomePage() {
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link to="/register">
                   <Button size="lg" className="bg-gold-500 hover:bg-gold-600 text-pigskin-900">
-                    Sign Up for {nextSeason}
+                    Sign Up for {signupSeason}
                   </Button>
                 </Link>
-                <Link to="/leaderboard">
-                  <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-pigskin-500">
-                    See {currentSeason} Results
-                  </Button>
-                </Link>
+                {seasonUpcoming ? (
+                  <Link to="/rules">
+                    <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-pigskin-500">
+                      Read the Official Rules
+                    </Button>
+                  </Link>
+                ) : (
+                  <Link to="/leaderboard">
+                    <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-pigskin-500">
+                      See {currentSeason} Results
+                    </Button>
+                  </Link>
+                )}
               </div>
             )
           ) : user ? (
@@ -460,7 +504,7 @@ export default function HomePage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>{currentSeason} Final Standings</span>
+                <span>{lastPlayedSeason} Final Standings</span>
                 <div className="text-2xl">🏆</div>
               </CardTitle>
             </CardHeader>
@@ -505,7 +549,7 @@ export default function HomePage() {
                       </div>
                     </div>
                   ))}
-                  <Link to="/leaderboard" className="block">
+                  <Link to={seasonUpcoming ? '/history' : '/leaderboard'} className="block">
                     <Button variant="outline" className="w-full mt-4">View Full Standings</Button>
                   </Link>
                 </div>
@@ -513,8 +557,10 @@ export default function HomePage() {
                 <div className="text-center text-charcoal-500 py-4">
                   <div className="text-lg mb-2">🏈</div>
                   <p>Final standings will appear here.</p>
-                  <Link to="/leaderboard" className="block mt-4">
-                    <Button variant="outline" className="w-full">View Leaderboard</Button>
+                  <Link to={seasonUpcoming ? '/history' : '/leaderboard'} className="block mt-4">
+                    <Button variant="outline" className="w-full">
+                      {seasonUpcoming ? 'View Past Seasons' : 'View Leaderboard'}
+                    </Button>
                   </Link>
                 </div>
               )}
@@ -525,35 +571,50 @@ export default function HomePage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>See you in {nextSeason}</span>
+                <span>{seasonUpcoming ? `${currentSeason} kickoff is coming` : `See you in ${nextSeason}`}</span>
                 <div className="text-2xl">🏈</div>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <p className="text-charcoal-600">
-                  That's a wrap on {currentSeason} — we're in the offseason, so there are no games this week.{' '}
+                  {seasonUpcoming
+                    ? `The ${currentSeason} season is on the way — pay your LeagueSafe entry and you're in. `
+                    : `That's a wrap on ${lastPlayedSeason} — we're in the offseason, so there are no games this week. `}
                   {user
                     ? "You're all set. We'll let you know the moment Week 1 picks open."
-                    : `Create your account now so you're ready the second Week 1 of ${nextSeason} kicks off.`}
+                    : `Create your account now so you're ready the second Week 1 of ${signupSeason} kicks off.`}
                 </p>
                 {user ? (
                   <div className="space-y-2">
+                    {seasonUpcoming && (
+                      <Link to="/rules" className="block">
+                        <Button className="w-full">Read the Official Rules</Button>
+                      </Link>
+                    )}
                     <Link to="/history" className="block">
-                      <Button className="w-full">Explore the Hall of Champions</Button>
+                      <Button variant={seasonUpcoming ? 'outline' : 'primary'} className="w-full">Explore the Hall of Champions</Button>
                     </Link>
-                    <Link to="/leaderboard" className="block">
-                      <Button variant="outline" className="w-full">Review the {currentSeason} Season</Button>
-                    </Link>
+                    {!seasonUpcoming && (
+                      <Link to="/leaderboard" className="block">
+                        <Button variant="outline" className="w-full">Review the {currentSeason} Season</Button>
+                      </Link>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">
                     <Link to="/register" className="block">
-                      <Button className="w-full">Sign Up for {nextSeason}</Button>
+                      <Button className="w-full">Sign Up for {signupSeason}</Button>
                     </Link>
-                    <Link to="/leaderboard" className="block">
-                      <Button variant="outline" className="w-full">See {currentSeason} Results</Button>
-                    </Link>
+                    {seasonUpcoming ? (
+                      <Link to="/rules" className="block">
+                        <Button variant="outline" className="w-full">Read the Official Rules</Button>
+                      </Link>
+                    ) : (
+                      <Link to="/leaderboard" className="block">
+                        <Button variant="outline" className="w-full">See {currentSeason} Results</Button>
+                      </Link>
+                    )}
                   </div>
                 )}
               </div>
