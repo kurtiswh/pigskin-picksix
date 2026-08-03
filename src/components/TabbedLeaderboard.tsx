@@ -816,6 +816,13 @@ export default function TabbedLeaderboard() {
                   Past seasons — champions & standings →
                 </Button>
               </Link>
+              {user && (
+                <Link to="/profile?tab=stats">
+                  <Button variant="outline" className="border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
+                    Your career stats →
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
         )

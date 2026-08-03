@@ -595,6 +595,9 @@ export default function HomePage() {
                     <Link to="/history" className="block">
                       <Button variant={seasonUpcoming ? 'outline' : 'primary'} className="w-full">Explore the Hall of Champions</Button>
                     </Link>
+                    <Link to="/profile?tab=stats" className="block">
+                      <Button variant="outline" className="w-full">Your Career Stats</Button>
+                    </Link>
                     {!seasonUpcoming && (
                       <Link to="/leaderboard" className="block">
                         <Button variant="outline" className="w-full">Review the {currentSeason} Season</Button>

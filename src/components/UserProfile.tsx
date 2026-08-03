@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { supabase } from '@/lib/supabase'
@@ -16,7 +17,16 @@ import { Badge } from '@/components/ui/badge'
 export default function UserProfile() {
   const { user, refreshUser } = useAuth()
   const { activeSeason } = useCurrentSeason()
-  const [activeTab, setActiveTab] = useState<'profile' | 'stats' | 'picks'>('profile')
+  // Deep-linkable tab (e.g. /profile?tab=stats from "your career stats" links)
+  const [searchParams] = useSearchParams()
+  const urlTab = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState<'profile' | 'stats' | 'picks'>(
+    urlTab === 'stats' || urlTab === 'picks' ? urlTab : 'profile'
+  )
+  // First season this player appears in the records (2006+ archive included) —
+  // more meaningful than the account-creation year on a league this old.
+  const [firstSeason, setFirstSeason] = useState<number | null>(null)
+  const [seasonsPlayed, setSeasonsPlayed] = useState(0)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -34,6 +44,20 @@ export default function UserProfile() {
     // Depend on the stable id, not the user object (whose identity can change on
     // unrelated auth-context re-renders) — avoids repeated profile reloads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!user?.id) return
+    supabase
+      .from('all_season_finishes')
+      .select('season')
+      .eq('user_id', user.id)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setFirstSeason(Math.min(...data.map((r: any) => r.season)))
+          setSeasonsPlayed(data.length)
+        }
+      })
   }, [user?.id])
 
   const loadUserProfile = async () => {
@@ -385,7 +409,11 @@ export default function UserProfile() {
             </div>
             <div>
               <h1 className="text-2xl">{displayName}</h1>
-              <p className="text-charcoal-500 text-sm">Member since {new Date(user.created_at).getFullYear()}</p>
+              <p className="text-charcoal-500 text-sm">
+                {firstSeason
+                  ? `Playing since ${firstSeason} · ${seasonsPlayed} season${seasonsPlayed === 1 ? '' : 's'}`
+                  : `Member since ${new Date(user.created_at).getFullYear()}`}
+              </p>
             </div>
           </CardTitle>
         </CardHeader>
