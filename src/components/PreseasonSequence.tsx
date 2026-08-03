@@ -26,7 +26,11 @@ interface Touch {
   status: string
   recipients_count: number | null
   enqueued_at: string | null
+  audience: 'all' | 'seasons'
+  audience_seasons: number[] | null
 }
+
+interface SeasonOption { season: number; participants: number }
 
 interface Props { season: number }
 
@@ -47,6 +51,19 @@ const toLocalInput = (iso: string) => {
 }
 const fromLocalInput = (v: string) => new Date(v).toISOString()
 
+/** The N most recent seasons that actually have participants. */
+const lastNSeasons = (opts: SeasonOption[], n: number) =>
+  opts.slice(0, n).map(o => o.season)
+
+/** "2024–2025" for runs, "2019, 2022, 2024" otherwise — keeps rows scannable. */
+function summarizeSeasons(seasons: number[]): string {
+  const s = [...seasons].sort((a, b) => a - b)
+  if (s.length === 0) return 'nobody'
+  const isRun = s.every((v, i) => i === 0 || v === s[i - 1] + 1)
+  if (isRun && s.length > 2) return `${s[0]}–${s[s.length - 1]}`
+  return s.join(', ')
+}
+
 export default function PreseasonSequence({ season }: Props) {
   const { user } = useAuth()
   const [touches, setTouches] = useState<Touch[]>([])
@@ -64,6 +81,12 @@ export default function PreseasonSequence({ season }: Props) {
   const [testEmail, setTestEmail] = useState('')
   const [testSending, setTestSending] = useState(false)
   const [msg, setMsg] = useState('')
+  // Audience targeting (migration 186): 'all' = every mailable address,
+  // 'seasons' = only people who played in the chosen seasons.
+  const [audience, setAudience] = useState<'all' | 'seasons'>('all')
+  const [audienceSeasons, setAudienceSeasons] = useState<number[]>([])
+  const [seasonOptions, setSeasonOptions] = useState<SeasonOption[]>([])
+  const [audienceCount, setAudienceCount] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -75,26 +98,52 @@ export default function PreseasonSequence({ season }: Props) {
       const { count } = await supabase.from('users').select('id', { count: 'exact', head: true })
         .not('email', 'is', null)
       setRecipientCount(count ?? null)
+      const { data: seasons } = await supabase.rpc('preseason_audience_seasons')
+      setSeasonOptions((seasons as SeasonOption[]) || [])
     } catch (err: any) { setError(err?.message || 'Failed to load') } finally { setLoading(false) }
   }, [season])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { if (user?.email) setTestEmail(user.email) }, [user?.email])
 
+  // Live "this will reach N people", computed by the same query the send uses.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase.rpc('preseason_audience_count', {
+        p_audience: audience,
+        p_seasons: audience === 'seasons' ? audienceSeasons : null,
+      })
+      // count() is a bigint — PostgREST may hand it back as a number or a string.
+      const n = data == null ? null : Number(data)
+      if (!cancelled) setAudienceCount(n != null && Number.isFinite(n) ? n : null)
+    })()
+    return () => { cancelled = true }
+  }, [audience, audienceSeasons])
+
   const resetForm = () => {
     setEditingId(null); setLabel(''); setSubject(''); setBody(defaultBody(season)); setSendAt(''); setMsg('')
+    setAudience('all'); setAudienceSeasons([])
   }
 
   const editTouch = (t: Touch) => {
     setEditingId(t.id); setLabel(t.label || ''); setSubject(t.subject); setBody(t.body_html)
     setSendAt(toLocalInput(t.send_at)); setMsg('')
+    setAudience(t.audience || 'all'); setAudienceSeasons(t.audience_seasons || [])
   }
 
   const save = async () => {
     if (!subject.trim() || !body.trim() || !sendAt) { setMsg('Subject, body, and send time are required.'); return }
+    if (audience === 'seasons' && audienceSeasons.length === 0) {
+      setMsg('Pick at least one season, or switch the audience back to everyone.'); return
+    }
     setSaving(true); setMsg('')
     try {
-      const row = { season, label: label.trim() || null, subject: subject.trim(), body_html: body, send_at: fromLocalInput(sendAt), status: 'scheduled' }
+      const row = {
+        season, label: label.trim() || null, subject: subject.trim(), body_html: body,
+        send_at: fromLocalInput(sendAt), status: 'scheduled',
+        audience, audience_seasons: audience === 'seasons' ? audienceSeasons : null,
+      }
       const { error: e } = editingId
         ? await supabase.from('preseason_emails').update({ ...row, updated_at: new Date().toISOString() }).eq('id', editingId)
         : await supabase.from('preseason_emails').insert(row)
@@ -149,7 +198,8 @@ export default function PreseasonSequence({ season }: Props) {
       </CardHeader>
       <CardContent className="space-y-5">
         <p className="text-sm text-charcoal-600">
-          Scheduled emails to <b>every email in the system{recipientCount != null ? ` (~${recipientCount})` : ''}</b> to drive signups.
+          Scheduled emails to drive signups. Each touch picks its own audience — everyone in the system
+          {recipientCount != null ? ` (~${recipientCount})` : ''} or just people who played in chosen seasons.
           A touch sends automatically once its send time passes (checked every ~10 min). Use <code>{'{{name}}'}</code> for the recipient's name.
         </p>
         {error && <div className="text-sm text-red-700">⚠️ {error}</div>}
@@ -165,6 +215,12 @@ export default function PreseasonSequence({ season }: Props) {
                   <div className="text-xs text-charcoal-500">
                     {new Date(t.send_at).toLocaleString()} · {t.subject}
                     {t.status === 'enqueued' && t.recipients_count != null ? ` · sent to ${t.recipients_count}` : ''}
+                    {' · '}
+                    <span className="font-medium text-charcoal-600">
+                      {t.audience === 'seasons' && t.audience_seasons?.length
+                        ? `played ${summarizeSeasons(t.audience_seasons)}`
+                        : 'everyone'}
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -199,6 +255,63 @@ export default function PreseasonSequence({ season }: Props) {
               <Input type="datetime-local" value={sendAt} onChange={e => setSendAt(e.target.value)} />
             </div>
           </div>
+          {/* Audience */}
+          <div className="border border-charcoal-100 rounded-lg p-3 space-y-2">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <label className="text-xs font-medium text-charcoal-700">Send to</label>
+              <span className="text-xs font-bold px-2 py-1 rounded-full bg-[#FBF3DC] text-[#8a6d1f]">
+                {audienceCount == null ? 'counting…' : `${audienceCount} recipient${audienceCount === 1 ? '' : 's'}`}
+              </span>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button size="sm" variant="outline" onClick={() => setAudience('all')}
+                className={audience === 'all' ? 'bg-[#4B3621] text-white hover:bg-[#3a2a19]' : ''}>
+                Everyone in the system
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setAudience('seasons')}
+                className={audience === 'seasons' ? 'bg-[#4B3621] text-white hover:bg-[#3a2a19]' : ''}>
+                Played in specific seasons
+              </Button>
+            </div>
+
+            {audience === 'seasons' && (
+              <div className="space-y-2 pt-1">
+                <div className="flex gap-2 flex-wrap items-center">
+                  <span className="text-xs text-charcoal-500">Quick pick:</span>
+                  {[1, 2, 3, 5].map(n => (
+                    <button key={n} type="button" onClick={() => setAudienceSeasons(lastNSeasons(seasonOptions, n))}
+                      className="text-xs font-semibold underline decoration-[#C9A04E] underline-offset-2 text-[#4B3621] hover:text-pigskin-700">
+                      last {n} {n === 1 ? 'year' : 'years'}
+                    </button>
+                  ))}
+                  {audienceSeasons.length > 0 && (
+                    <button type="button" onClick={() => setAudienceSeasons([])}
+                      className="text-xs text-charcoal-500 underline">clear</button>
+                  )}
+                </div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {seasonOptions.map(o => {
+                    const on = audienceSeasons.includes(o.season)
+                    return (
+                      <button key={o.season} type="button"
+                        onClick={() => setAudienceSeasons(prev =>
+                          prev.includes(o.season) ? prev.filter(x => x !== o.season) : [...prev, o.season])}
+                        title={`${o.participants} played in ${o.season}`}
+                        className={`text-xs font-semibold px-2 py-1 rounded-full border transition-colors ${
+                          on ? 'bg-[#4B3621] text-white border-[#4B3621]'
+                             : 'bg-white text-charcoal-600 border-charcoal-200 hover:border-[#C9A04E]'}`}>
+                        {o.season}
+                      </button>
+                    )
+                  })}
+                </div>
+                {audienceSeasons.length === 0 && (
+                  <p className="text-xs text-amber-700">Pick at least one season — an empty selection reaches nobody.</p>
+                )}
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="text-xs font-medium text-charcoal-700">Subject</label>
             <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Pigskin Pick Six is back — sign up!" />
