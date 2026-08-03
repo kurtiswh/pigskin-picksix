@@ -57,9 +57,18 @@ export default function TabbedLeaderboard() {
   // Check if current user is admin
   const isAdmin = user?.is_admin === true
 
+  // Monotonic id per data load: a response only lands if it is still the
+  // latest request, so a slow query for a previous season can never overwrite
+  // a newer season's result (e.g. fallback-2025 data arriving after 2026's).
+  const loadSeq = useRef(0)
+  const weeklySeq = useRef(0)
+
   // Initialize selectedWeek to the latest week with results, and compute the
   // season's max configured week to bound the week-picker dropdowns.
+  // Gated on seasonLoading: until app_settings resolves, `season` is only the
+  // fallback value — querying it would race the real active season's load.
   useEffect(() => {
+    if (seasonLoading) return
     const initializeWeek = async () => {
       const [latestWeek, configuredMax] = await Promise.all([
         getLatestWeekWithResults(season),
@@ -69,24 +78,27 @@ export default function TabbedLeaderboard() {
       setMaxWeek(configuredMax || latestWeek || 0)
     }
     initializeWeek()
-  }, [season])
+  }, [season, seasonLoading])
 
   useEffect(() => {
+    if (seasonLoading) return
     loadSeasonData()
     loadWeekSettings()
-  }, [season, selectedSeasonWeek])
+  }, [season, seasonLoading, selectedSeasonWeek])
 
   useEffect(() => {
+    if (seasonLoading) return
     if (selectedWeek !== null) {
       loadWeekSettings()
     }
-  }, [selectedWeek, season])
+  }, [selectedWeek, season, seasonLoading])
 
   useEffect(() => {
+    if (seasonLoading) return
     if (activeTab === 'weekly' && selectedWeek !== null) {
       loadWeeklyData()
     }
-  }, [selectedWeek, season, activeTab])
+  }, [selectedWeek, season, seasonLoading, activeTab])
 
   // Scroll to top functionality
   useEffect(() => {
@@ -125,7 +137,8 @@ export default function TabbedLeaderboard() {
 
   const loadSeasonData = async () => {
     const startTime = Date.now()
-    
+    const seq = ++loadSeq.current
+
     try {
       setLoading(true)
       setError('')
@@ -177,35 +190,39 @@ export default function TabbedLeaderboard() {
         }
       }
       
+      if (seq !== loadSeq.current) return // a newer load superseded this one
+
       const loadTime = Date.now() - startTime
       console.log('✅ Loaded season data:', entries.length, 'entries in', loadTime, 'ms')
-      
+
       setSeasonData(entries)
-      
+
       // Set strategy indicator based on data
       if (entries.length === 1 && entries[0].user_id === 'emergency-1') {
         setStrategy('Emergency static data - check console for errors')
       } else if (entries.length > 0) {
         setStrategy('Season data loaded successfully')
       }
-      
+
     } catch (err: any) {
+      if (seq !== loadSeq.current) return
       const loadTime = Date.now() - startTime
       console.error('❌ Failed to load season leaderboard after', loadTime, 'ms:', err)
       setError(err.message || 'Failed to load season leaderboard')
       setSeasonData([])
       setStrategy('Season loading failed')
     } finally {
-      setLoading(false)
+      if (seq === loadSeq.current) setLoading(false)
     }
   }
 
   const loadWeeklyData = async () => {
     const startTime = Date.now()
-    
+    const seq = ++weeklySeq.current
+
     // Don't load if we don't have a week selected yet
     if (selectedWeek === null) return
-    
+
     try {
       setLoading(true)
       setError('')
@@ -219,9 +236,11 @@ export default function TabbedLeaderboard() {
       const dataPromise = EmergencyWeeklyLeaderboardService.getWeeklyLeaderboard(season, selectedWeek)
       const entries = await Promise.race([dataPromise, timeoutPromise])
       
+      if (seq !== weeklySeq.current) return // a newer load superseded this one
+
       const loadTime = Date.now() - startTime
       console.log('✅ Loaded weekly data:', entries.length, 'entries in', loadTime, 'ms')
-      
+
       setWeeklyData(entries)
       
       // Set strategy indicator based on data
@@ -234,13 +253,14 @@ export default function TabbedLeaderboard() {
       }
       
     } catch (err: any) {
+      if (seq !== weeklySeq.current) return
       const loadTime = Date.now() - startTime
       console.error('❌ Failed to load weekly leaderboard after', loadTime, 'ms:', err)
       setError(err.message || 'Failed to load weekly leaderboard')
       setWeeklyData([])
       setStrategy(`Week ${selectedWeek} loading failed`)
     } finally {
-      setLoading(false)
+      if (seq === weeklySeq.current) setLoading(false)
     }
   }
 
