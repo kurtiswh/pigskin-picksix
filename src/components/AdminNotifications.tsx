@@ -342,9 +342,22 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
       {/* ── What sends, to whom, when ─────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle>📧 Email Center</CardTitle>
-          <p className="text-sm text-charcoal-600">
-            Every email the platform sends, in one place. Status reflects the live settings.
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <CardTitle>📧 Email Center</CardTitle>
+              <p className="text-sm text-charcoal-600">
+                Every email the platform sends, in one place. Status reflects the live settings.
+              </p>
+            </div>
+            <a
+              href="#email-designs"
+              className="text-sm font-semibold text-[#4B3621] underline decoration-[#C9A04E] underline-offset-4 hover:text-pigskin-700 whitespace-nowrap"
+            >
+              🎨 See all email designs ↓
+            </a>
+          </div>
+          <p className="text-xs text-charcoal-500 mt-2">
+            All emails send from <b>Pigskin Pick Six &lt;admin@pigskinpicksix.com&gt;</b>.
           </p>
         </CardHeader>
         <CardContent>

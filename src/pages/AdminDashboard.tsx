@@ -18,6 +18,7 @@ import LiveDashboard from '@/components/LiveDashboard'
 import WeekReview from '@/components/WeekReview'
 import AdminNotifications from '@/components/AdminNotifications'
 import PreseasonSequence from '@/components/PreseasonSequence'
+import EmailDesigns from '@/components/EmailDesigns'
 import PickManagement from '@/components/PickManagement'
 import BestFinishConfig from '@/components/BestFinishConfig'
 import BracketWinnersAdmin from '@/components/BracketWinnersAdmin'
@@ -1013,6 +1014,9 @@ export default function AdminDashboard() {
               currentSeason={currentSeason}
             />
             <PreseasonSequence season={currentSeason} />
+            <div id="email-designs" className="scroll-mt-4">
+              <EmailDesigns season={currentSeason} />
+            </div>
           </div>
         )}
       </main>

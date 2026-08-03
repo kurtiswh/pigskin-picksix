@@ -35,9 +35,17 @@ export interface RecapPickCell {
   team: string; is_lock: boolean; result: string | null; points: number | null; game: string
 }
 export interface RecapBlock {
+  /** False when this paid entrant submitted no picks for the week (migration 183). */
+  played?: boolean
   wins: number; losses: number; pushes: number; points: number
   season_rank: number | null; season_rank_prev: number | null
   picks: RecapPickCell[]
+}
+/** Optional "picks are open" invitation appended to the recap (chosen at send time). */
+export interface RecapPicksCta {
+  week: number
+  deadlineStr: string | null
+  totalGames: number | null
 }
 export interface RecapRecipient { user_id: string; email: string; display_name: string; block: RecapBlock }
 
@@ -162,8 +170,15 @@ export function buildExcerpt(s: RecapSeed): string {
 }
 
 /** Personalized recap email HTML (inline styles for email clients). rundownHtml
- *  is the formatted, admin-edited rundown block. */
-export function buildRecapEmailHtml(r: RecapRecipient, post: BlogPost, siteUrl: string, rundownHtml?: string): { html: string; text: string } {
+ *  is the formatted, admin-edited rundown block. `cta`, when present, appends the
+ *  "next week's picks are open" invitation and becomes the primary button. */
+export function buildRecapEmailHtml(
+  r: RecapRecipient,
+  post: BlogPost,
+  siteUrl: string,
+  rundownHtml?: string,
+  cta?: RecapPicksCta | null
+): { html: string; text: string } {
   const b = r.block
   const delta = b.season_rank_prev != null && b.season_rank != null ? b.season_rank_prev - b.season_rank : null
   const move = delta == null || delta === 0 ? '' : delta > 0 ? ` ▲${delta}` : ` ▼${Math.abs(delta)}`
@@ -180,39 +195,113 @@ export function buildRecapEmailHtml(r: RecapRecipient, post: BlogPost, siteUrl: 
     ? rundownHtml
     : (post.excerpt?.trim() ? `<p style="font-size:15px;color:#2A2118">${escapeHtml(post.excerpt)}</p>` : '')
 
-  // Personalized "Your Week N" stat card (gold-tinted, distinct from the brown header).
-  const statCard = `<div style="background:#FBF3DC;border:1px solid #EAD9AE;border-radius:10px;padding:16px 18px;text-align:center">
+  // Paid entrants who submitted nothing this week get the nudge variant instead
+  // of an all-zeros scorecard (migration 183 added them to the recipient list).
+  const played = b.played !== false && (b.picks || []).length > 0
+
+  // Personalized "Your Week N" card (gold-tinted, distinct from the brown header).
+  const statCard = played
+    ? `<div style="background:#FBF3DC;border:1px solid #EAD9AE;border-radius:10px;padding:16px 18px;text-align:center">
     <div style="color:#8a6d1f;font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:800">Your Week ${post.week}</div>
     <div style="font-size:28px;font-weight:800;margin-top:4px;color:#4B3621">${b.wins}–${b.losses}${b.pushes ? `–${b.pushes}` : ''} · ${b.points} pts</div>
     ${rankLine ? `<div style="font-size:13px;color:#8a6d1f;margin-top:4px">${rankLine}</div>` : ''}
   </div>`
+    : `<div style="background:#F2EFE9;border:1px dashed #C9BCA6;border-radius:10px;padding:16px 18px;text-align:center">
+    <div style="color:#7A6E60;font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:800">Your Week ${post.week}</div>
+    <div style="font-size:28px;font-weight:800;margin-top:4px;color:#7A6E60">No picks in</div>
+    <div style="font-size:13px;color:#7A6E60;margin-top:4px">0 for 0 — technically undefeated${rankLine ? ` · still ${rankLine}` : ''}</div>
+  </div>`
+
+  const personalSection = played
+    ? `<p style="font-size:15px;color:#2A2118;margin:16px 0 8px">Hey ${r.display_name} — here's how your six landed:</p>` +
+      `<div style="margin:0 0 8px">${chips}</div>`
+    : `<p style="font-size:15px;color:#2A2118;margin:16px 0 8px">Hey ${r.display_name} — the board went on without you this week. No picks, no points, no bad beats to complain about.${cta ? ` Week ${cta.week} is open, so let's not make it a habit.` : ' Here\'s what you missed.'}</p>`
+
+  // Optional "next week is open" invitation — becomes the primary action.
+  const ctaPanel = cta
+    ? `<div style="background:#FBF3DC;border:1px solid #EAD9AE;border-radius:10px;padding:16px 18px;margin:20px 0 0;text-align:center">
+    <div style="color:#8a6d1f;font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:800">Week ${cta.week} is open</div>
+    ${cta.totalGames ? `<div style="font-size:18px;font-weight:800;margin-top:4px;color:#4B3621">${cta.totalGames} games on the board</div>` : ''}
+    ${cta.deadlineStr ? `<div style="font-size:13px;color:#8a6d1f;margin-top:4px">⏰ Picks due ${cta.deadlineStr}</div>` : ''}
+  </div>`
+    : ''
+
+  const actions = cta
+    ? ctaPanel +
+      emailButton(`Make your Week ${cta.week} picks →`, `${siteUrl}/picks`) +
+      `<div style="text-align:center;margin:-10px 0 0"><a href="${postUrl}" style="color:#7A6E60;font-size:14px">Read the full Week ${post.week} recap</a></div>`
+    : emailButton(`Read the full Week ${post.week} recap →`, postUrl)
 
   const bodyInner =
     statCard +
-    `<p style="font-size:15px;color:#2A2118;margin:16px 0 8px">Hey ${r.display_name} — here's how your six landed:</p>` +
-    `<div style="margin:0 0 8px">${chips}</div>` +
+    personalSection +
     `<div style="border-top:1px solid #E5DFD5;margin-top:18px;padding-top:14px">` +
     `<div style="font-weight:800;color:#4B3621;margin-bottom:6px">The rundown</div>` +
     `${rundown || '<p style="font-size:15px;color:#7A6E60">Read the full recap for the week that was.</p>'}</div>` +
-    emailButton(`Read the full Week ${post.week} recap →`, postUrl)
+    actions
+
+  const preheader = played
+    ? `Your Week ${post.week}: ${b.wins}-${b.losses}, ${b.points} pts`
+    : `You sat out Week ${post.week}${cta ? ` — Week ${cta.week} is open` : ''}`
 
   const html = emailShell({
     subtitle: `Week ${post.week} Recap`,
     bodyHtml: bodyInner,
-    preheader: `Your Week ${post.week}: ${b.wins}-${b.losses}, ${b.points} pts`,
+    preheader,
   })
-  const text = `Your Week ${post.week}: ${b.wins}-${b.losses}, ${b.points} pts${rankLine ? `, ${rankLine}` : ''}. Read the full recap: ${postUrl}`
+  const text = played
+    ? `Your Week ${post.week}: ${b.wins}-${b.losses}, ${b.points} pts${rankLine ? `, ${rankLine}` : ''}. Read the full recap: ${postUrl}${cta ? `\nWeek ${cta.week} is open — make your picks: ${siteUrl}/picks` : ''}`
+    : `No picks in for Week ${post.week}. Here's what you missed: ${postUrl}${cta ? `\nWeek ${cta.week} is open — get back in: ${siteUrl}/picks` : ''}`
   return { html, text }
 }
 
+/**
+ * The "picks are open" invitation for the week after this recap, if that week is
+ * actually open. Returns null when it isn't, so the send UI can only offer the
+ * combined email when there's really something to point people at.
+ */
+export async function loadPicksOpenCta(recapWeek: number, season: number): Promise<RecapPicksCta | null> {
+  const week = recapWeek + 1
+  const { data: ws } = await supabase
+    .from('week_settings')
+    .select('week, deadline, picks_open, games_selected')
+    .eq('season', season)
+    .eq('week', week)
+    .maybeSingle()
+  if (!ws || !ws.picks_open) return null
+
+  const { count } = await supabase
+    .from('games')
+    .select('id', { count: 'exact', head: true })
+    .eq('season', season)
+    .eq('week', week)
+
+  const deadlineStr = ws.deadline
+    ? new Date(ws.deadline).toLocaleString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric',
+        hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+      })
+    : null
+  return { week, deadlineStr, totalGames: count ?? null }
+}
+
 /** Send a single test email to `toEmail`, personalized with that user's block if found (else the first recipient's). */
-export async function sendRecapTest(toEmail: string, post: BlogPost, rundownHtml: string): Promise<boolean> {
+export async function sendRecapTest(
+  toEmail: string,
+  post: BlogPost,
+  rundownHtml: string,
+  cta?: RecapPicksCta | null,
+  forceNoPicks = false
+): Promise<boolean> {
   const recipients = await loadRecipients(post.week!, post.season)
   const mine = recipients.find(r => r.email?.toLowerCase() === toEmail.toLowerCase()) || recipients[0]
   if (!mine) throw new Error('No recipients found for this week (no paid entrants).')
-  const sample: RecapRecipient = { ...mine, email: toEmail }
-  const { html, text } = buildRecapEmailHtml(sample, post, window.location.origin, rundownHtml || post.email_rundown || '')
-  return EmailService.sendEmailDirect(toEmail, `[TEST] Week ${post.week} Recap — your results`, html, text)
+  const sample: RecapRecipient = forceNoPicks
+    ? { ...mine, email: toEmail, block: { ...mine.block, played: false, picks: [], wins: 0, losses: 0, pushes: 0, points: 0 } }
+    : { ...mine, email: toEmail }
+  const { html, text } = buildRecapEmailHtml(sample, post, window.location.origin, rundownHtml || post.email_rundown || '', cta)
+  const tag = forceNoPicks ? '[TEST · no-picks variant]' : '[TEST]'
+  return EmailService.sendEmailDirect(toEmail, `${tag} Week ${post.week} Recap — your results`, html, text)
 }
 
 export interface RecapSendProgress { sent: number; failed: number; total: number }
@@ -221,18 +310,21 @@ export interface RecapSendProgress { sent: number; failed: number; total: number
 export async function sendRecapToAll(
   post: BlogPost,
   rundownHtml: string,
-  onProgress?: (p: RecapSendProgress) => void
+  onProgress?: (p: RecapSendProgress) => void,
+  cta?: RecapPicksCta | null
 ): Promise<RecapSendProgress> {
   const recipients = await loadRecipients(post.week!, post.season)
   const siteUrl = window.location.origin
   const rundown = rundownHtml || post.email_rundown || ''
-  const subject = `Week ${post.week} Recap — your results & the rundown 🏈`
+  const subject = cta
+    ? `Week ${post.week} Recap — your results, and Week ${cta.week} is open 🏈`
+    : `Week ${post.week} Recap — your results & the rundown 🏈`
   const progress: RecapSendProgress = { sent: 0, failed: 0, total: recipients.length }
 
   for (const r of recipients) {
     if (!r.email) { progress.failed++; continue }
     try {
-      const { html, text } = buildRecapEmailHtml(r, post, siteUrl, rundown)
+      const { html, text } = buildRecapEmailHtml(r, post, siteUrl, rundown, cta)
       const ok = await EmailService.sendEmailDirect(r.email, subject, html, text)
       ok ? progress.sent++ : progress.failed++
     } catch {

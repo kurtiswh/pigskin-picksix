@@ -65,8 +65,11 @@ export class AdminEmailSettingsService {
             { name: "Final Reminder", hours_before_deadline: 2, enabled: true }
           ]
         },
+        // Off by default: the week-opening blast is opt-in, since the weekly
+        // recap can carry the "picks are open" invitation instead (one email
+        // rather than two).
         open_picks_notifications: settings.open_picks_notifications || {
-          enabled: true,
+          enabled: false,
         },
         weekly_results: settings.weekly_results || {
           enabled: true,

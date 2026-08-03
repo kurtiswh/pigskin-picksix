@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import Layout from '@/components/Layout'
-import { sendRecapTest, sendRecapToAll, buildRundownHtml, loadRecapSeed, type RecapSendProgress } from '@/services/recapService'
+import { sendRecapTest, sendRecapToAll, buildRundownHtml, loadRecapSeed, loadPicksOpenCta, type RecapSendProgress, type RecapPicksCta } from '@/services/recapService'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
 import '@/styles/quill-content.css'
@@ -42,8 +42,19 @@ export default function BlogEditorPage() {
   const [sendProgress, setSendProgress] = useState<RecapSendProgress | null>(null)
   const [emailRundown, setEmailRundown] = useState('')
   const [regenLoading, setRegenLoading] = useState(false)
+  // "Picks are open for next week" invitation, offered only when that week is
+  // actually open. Opt-in per send so the admin chooses one email vs. two.
+  const [picksCta, setPicksCta] = useState<RecapPicksCta | null>(null)
+  const [includeCta, setIncludeCta] = useState(false)
 
   useEffect(() => { if (user?.email) setTestEmail(user.email) }, [user?.email])
+
+  useEffect(() => {
+    if (week == null) { setPicksCta(null); return }
+    loadPicksOpenCta(week, season)
+      .then(cta => { setPicksCta(cta); setIncludeCta(!!cta) })
+      .catch(() => setPicksCta(null))
+  }, [week, season])
 
   const emailPost = (): BlogPost | null => (post ? { ...post, title, excerpt, week, season, email_rundown: emailRundown } : null)
 
@@ -56,21 +67,33 @@ export default function BlogEditorPage() {
     } catch (e: any) { setEmailMsg(`❌ ${e?.message || 'Could not regenerate'}`) } finally { setRegenLoading(false) }
   }
 
+  const activeCta = includeCta ? picksCta : null
+
   const handleTestEmail = async () => {
     const p = emailPost(); if (!p) return
     setTestSending(true); setEmailMsg('')
     try {
-      const ok = await sendRecapTest(testEmail.trim(), p, emailRundown)
+      const ok = await sendRecapTest(testEmail.trim(), p, emailRundown, activeCta)
       setEmailMsg(ok ? `✅ Test sent to ${testEmail}` : '❌ Test failed to send')
+    } catch (e: any) { setEmailMsg(`❌ ${e?.message || 'Test failed'}`) } finally { setTestSending(false) }
+  }
+
+  const handleTestNoPicks = async () => {
+    const p = emailPost(); if (!p) return
+    setTestSending(true); setEmailMsg('')
+    try {
+      const ok = await sendRecapTest(testEmail.trim(), p, emailRundown, activeCta, true)
+      setEmailMsg(ok ? `✅ "Missed the week" test sent to ${testEmail}` : '❌ Test failed to send')
     } catch (e: any) { setEmailMsg(`❌ ${e?.message || 'Test failed'}`) } finally { setTestSending(false) }
   }
 
   const handleSendAll = async () => {
     const p = emailPost(); if (!p) return
-    if (!confirm(`Send the Week ${p.week} recap to all paid players? This emails everyone playing for ${p.season}.`)) return
+    const ctaNote = activeCta ? `\n\nIt will ALSO invite them to make Week ${activeCta.week} picks.` : ''
+    if (!confirm(`Send the Week ${p.week} recap to all paid players? This emails everyone playing for ${p.season}.${ctaNote}`)) return
     setSendingAll(true); setEmailMsg(''); setSendProgress(null)
     try {
-      const res = await sendRecapToAll(p, emailRundown, prog => setSendProgress(prog))
+      const res = await sendRecapToAll(p, emailRundown, prog => setSendProgress(prog), activeCta)
       setEmailMsg(`✅ Sent ${res.sent} of ${res.total}${res.failed ? ` (${res.failed} failed)` : ''}`)
       if (post) setPost({ ...post, emailed_at: new Date().toISOString() })
     } catch (e: any) { setEmailMsg(`❌ ${e?.message || 'Send failed'}`) } finally { setSendingAll(false) }
@@ -456,8 +479,35 @@ export default function BlogEditorPage() {
                   )}
                   <p className="text-sm text-charcoal-600">
                     Sends a <b>personalized</b> recap (each player's own results) + the <b>Recap Email Rundown</b> (edit it in the
-                    main column) + a link to this post. Only paid/entered players for {season}.
+                    main column) + a link to this post. Goes to <b>all paid entrants</b> for {season} — players who missed the
+                    week get a nudge version instead of a scorecard.
                   </p>
+
+                  {/* Combine with the "picks are open" invitation for the next week */}
+                  {picksCta ? (
+                    <label className="flex items-start gap-2 text-sm bg-[#FBF3DC] border border-[#EAD9AE] rounded p-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={includeCta}
+                        onChange={e => setIncludeCta(e.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <span className="text-[#8a6d1f]">
+                        Also invite them to make <b>Week {picksCta.week}</b> picks
+                        {picksCta.totalGames ? ` (${picksCta.totalGames} games` : ''}
+                        {picksCta.deadlineStr ? `${picksCta.totalGames ? ', ' : ' ('}due ${picksCta.deadlineStr})` : picksCta.totalGames ? ')' : ''}
+                        <span className="block text-xs mt-0.5">
+                          Adds an open-week panel and makes "Make your picks" the main button — one email instead of two.
+                        </span>
+                      </span>
+                    </label>
+                  ) : (
+                    <div className="text-xs text-charcoal-500 bg-gray-50 border rounded p-2">
+                      Week {(week ?? 0) + 1} picks aren't open yet, so this recap can't include a picks invitation. Open next
+                      week first if you want to combine them.
+                    </div>
+                  )}
+
                   <div>
                     <label className="text-xs font-medium text-charcoal-700">Send a test to (works on drafts too — safe to preview)</label>
                     <div className="flex gap-2 mt-1">
@@ -466,6 +516,9 @@ export default function BlogEditorPage() {
                         {testSending ? 'Sending…' : 'Send test'}
                       </Button>
                     </div>
+                    <Button variant="outline" size="sm" className="mt-2" onClick={handleTestNoPicks} disabled={testSending || !testEmail.trim()}>
+                      Send test — "missed the week" version
+                    </Button>
                   </div>
                   <Button onClick={handleSendAll} disabled={sendingAll || !isPublished}
                     className="w-full bg-pigskin-600 hover:bg-pigskin-700 text-white">
