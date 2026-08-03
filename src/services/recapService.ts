@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { EmailService } from './emailService'
-import { emailShell, emailButton } from '@/templates/emailShell'
+import { emailShell, emailButton, unsubscribeUrl } from '@/templates/emailShell'
 import type { BlogPost } from '@/types/blog'
 
 /**
@@ -47,7 +47,11 @@ export interface RecapPicksCta {
   deadlineStr: string | null
   totalGames: number | null
 }
-export interface RecapRecipient { user_id: string; email: string; display_name: string; block: RecapBlock }
+export interface RecapRecipient {
+  user_id: string; email: string; display_name: string; block: RecapBlock
+  /** Per-user opt-out token (migration 184) — renders the footer unsubscribe link. */
+  unsubscribe_token?: string
+}
 
 export async function loadRecapSeed(week: number, season: number): Promise<RecapSeed> {
   const { data, error } = await supabase.rpc('wr_recap_seed', { p_week: week, p_season: season })
@@ -248,6 +252,7 @@ export function buildRecapEmailHtml(
     subtitle: `Week ${post.week} Recap`,
     bodyHtml: bodyInner,
     preheader,
+    unsubscribeUrl: r.unsubscribe_token ? unsubscribeUrl(r.unsubscribe_token, siteUrl) : undefined,
   })
   const text = played
     ? `Your Week ${post.week}: ${b.wins}-${b.losses}, ${b.points} pts${rankLine ? `, ${rankLine}` : ''}. Read the full recap: ${postUrl}${cta ? `\nWeek ${cta.week} is open — make your picks: ${siteUrl}/picks` : ''}`

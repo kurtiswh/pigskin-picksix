@@ -26,6 +26,7 @@ interface QueueStats {
   pending: number
   sent7d: number
   failed7d: number
+  optedOut: number
 }
 
 const PILL_STYLES: Record<string, string> = {
@@ -79,12 +80,18 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
   const loadQueueStats = useCallback(async () => {
     try {
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      const [pending, sent, failed] = await Promise.all([
+      const [pending, sent, failed, optedOut] = await Promise.all([
         supabase.from('email_jobs').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('email_jobs').select('id', { count: 'exact', head: true }).eq('status', 'sent').gte('updated_at', sevenDaysAgo),
         supabase.from('email_jobs').select('id', { count: 'exact', head: true }).eq('status', 'failed').gte('updated_at', sevenDaysAgo),
+        supabase.from('users').select('id', { count: 'exact', head: true }).eq('preferences->>email_notifications', 'false'),
       ])
-      setQueueStats({ pending: pending.count ?? 0, sent7d: sent.count ?? 0, failed7d: failed.count ?? 0 })
+      setQueueStats({
+        pending: pending.count ?? 0,
+        sent7d: sent.count ?? 0,
+        failed7d: failed.count ?? 0,
+        optedOut: optedOut.count ?? 0,
+      })
     } catch (error) {
       console.error('Error loading queue stats:', error)
     }
@@ -410,6 +417,10 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
               <div className="px-4 py-3 rounded-lg border border-[#ece7de] bg-[#faf8f4] text-center min-w-[110px]">
                 <div className={`text-2xl font-extrabold ${queueStats && queueStats.failed7d > 0 ? 'text-red-600' : 'text-charcoal-900'}`}>{queueStats?.failed7d ?? '—'}</div>
                 <div className="text-xs font-semibold text-charcoal-500 uppercase">Failed, 7 days</div>
+              </div>
+              <div className="px-4 py-3 rounded-lg border border-[#ece7de] bg-[#faf8f4] text-center min-w-[110px]" title="People who used the unsubscribe link. They are automatically excluded from every send.">
+                <div className="text-2xl font-extrabold text-charcoal-900">{queueStats?.optedOut ?? '—'}</div>
+                <div className="text-xs font-semibold text-charcoal-500 uppercase">Unsubscribed</div>
               </div>
             </div>
             <div className="flex gap-2 ml-auto">

@@ -664,6 +664,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       console.log('✅ [SIGNUP] Step 3: SignUp successful, user created!')
+      // Note: signing up also re-enables contest emails for a previously
+      // unsubscribed address. That happens server-side in handle_new_user
+      // (migration 184) so it can't be triggered by anyone but a real signup.
       
       // Link LeagueSafe payments if the user was created successfully (non-blocking)
       if (data?.user?.id) {

@@ -33,8 +33,19 @@ export function emailPanel(html: string, tone: PanelTone = 'gold'): string {
   return `<div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:16px 18px;margin:18px 0;color:${text};font-size:15px;line-height:1.5">${html}</div>`
 }
 
+/** Public unsubscribe link for a recipient's token (no login required). */
+export const unsubscribeUrl = (token: string, siteUrl = 'https://pigskinpicksix.com') =>
+  `${siteUrl}/unsubscribe?t=${token}`
+
 /** Wrap unique body content in the brand shell. */
-export function emailShell(o: { subtitle?: string; heading?: string; bodyHtml: string; preheader?: string }): string {
+export function emailShell(o: {
+  subtitle?: string
+  heading?: string
+  bodyHtml: string
+  preheader?: string
+  /** Recipient's unsubscribe URL — renders a real opt-out link in the footer. */
+  unsubscribeUrl?: string
+}): string {
   return `<div style="margin:0;padding:0;background:${EMAIL.bg}">
   ${o.preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${o.preheader}</div>` : ''}
   <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px 16px;color:${EMAIL.ink}">
@@ -48,7 +59,7 @@ export function emailShell(o: { subtitle?: string; heading?: string; bodyHtml: s
       ${o.bodyHtml}
       <div style="border-top:1px solid ${EMAIL.line};margin-top:28px;padding-top:16px;text-align:center;color:${EMAIL.muted};font-size:12px;line-height:1.6">
         <div style="font-weight:700;color:${EMAIL.brown}">The Pigskin Pick Six Team</div>
-        <div style="margin-top:4px"><a href="https://pigskinpicksix.com" style="color:${EMAIL.muted}">pigskinpicksix.com</a> · <a href="https://pigskinpicksix.com/profile" style="color:${EMAIL.muted}">email preferences</a></div>
+        <div style="margin-top:4px"><a href="https://pigskinpicksix.com" style="color:${EMAIL.muted}">pigskinpicksix.com</a> · <a href="https://pigskinpicksix.com/profile" style="color:${EMAIL.muted}">email preferences</a>${o.unsubscribeUrl ? ` · <a href="${o.unsubscribeUrl}" style="color:${EMAIL.muted};text-decoration:underline">unsubscribe</a>` : ''}</div>
       </div>
     </div>
   </div>

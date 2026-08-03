@@ -205,6 +205,12 @@ export default function RegisterPage() {
                 </div>
               )}
 
+              <p className="text-xs text-charcoal-500 leading-relaxed">
+                By creating an account you'll get contest emails: when picks open, reminders before the
+                deadline, and your weekly results. You can turn them off any time from your profile or the
+                unsubscribe link at the bottom of any email.
+              </p>
+
               <Button
                 type="submit"
                 className="w-full bg-[#4B3621] text-white hover:bg-[#3a2a19]"

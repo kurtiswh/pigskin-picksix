@@ -54,8 +54,9 @@ function buildDesigns(season: number): Design[] {
     <li><strong>Fade of the week:</strong> Kansas — only 16% took them, and they covered.</li>
     <li><strong>Standings:</strong> Garrett C leads the season with 112 pts.</li>
   </ul>`
+  const SAMPLE_TOKEN = '00000000-0000-4000-8000-000000000000'
   const played: RecapRecipient = {
-    user_id: 'sample', email: 'you@example.com', display_name: 'Kurtis',
+    user_id: 'sample', email: 'you@example.com', display_name: 'Kurtis', unsubscribe_token: SAMPLE_TOKEN,
     block: {
       played: true, wins: 4, losses: 1, pushes: 1, points: 87, season_rank: 12, season_rank_prev: 25,
       picks: [
@@ -69,7 +70,7 @@ function buildDesigns(season: number): Design[] {
     },
   }
   const missed: RecapRecipient = {
-    user_id: 'sample2', email: 'you@example.com', display_name: 'Kurtis',
+    user_id: 'sample2', email: 'you@example.com', display_name: 'Kurtis', unsubscribe_token: SAMPLE_TOKEN,
     block: { played: false, wins: 0, losses: 0, pushes: 0, points: 0, season_rank: null, season_rank_prev: null, picks: [] },
   }
   const cta: RecapPicksCta = { week: 2, deadlineStr, totalGames: 15 }
@@ -95,7 +96,11 @@ function buildDesigns(season: number): Design[] {
       title: 'Preseason signup touch',
       when: 'Offseason drip — sends at each scheduled touch to every email in the system. Body is written per touch in the Preseason Signup Sequence card.',
       subject: 'Pigskin Pick Six is back — sign up!',
-      html: emailShell({ subtitle: 'Preseason', bodyHtml: preseasonBody, preheader: `The ${season} season is coming` }),
+      html: emailShell({
+        subtitle: 'Preseason', bodyHtml: preseasonBody,
+        preheader: `The ${season} season is coming`,
+        unsubscribeUrl: `${SITE}/unsubscribe?t=sample-token`,
+      }),
     },
     {
       key: 'week_opened',
@@ -226,6 +231,8 @@ export default function EmailDesigns({ season }: { season: number }) {
         })}
         <p className="text-xs text-charcoal-500 pt-2">
           All emails send from <b>Pigskin Pick Six &lt;admin@pigskinpicksix.com&gt;</b>. Replies go to that inbox.
+          The bulk sends (preseason signup, weekly recap) carry a one-click <b>unsubscribe</b> link that needs no login;
+          opting out stops every contest email, and registering turns them back on.
         </p>
       </CardContent>
     </Card>
