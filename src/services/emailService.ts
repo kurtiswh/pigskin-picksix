@@ -1096,7 +1096,9 @@ export class EmailService {
     to: string,
     subject: string,
     html: string,
-    text: string
+    text: string,
+    /** Bulk sends only — adds the List-Unsubscribe header via the Edge Function. */
+    unsubscribeUrl?: string
   ): Promise<boolean> {
     try {
       console.log(`📧 SENDING EMAIL DIRECTLY:`)
@@ -1122,6 +1124,7 @@ export class EmailService {
           subject,
           html,
           text,
+          ...(unsubscribeUrl ? { unsubscribeUrl } : {}),
           from: 'Pigskin Pick Six <admin@pigskinpicksix.com>'
         })
       })

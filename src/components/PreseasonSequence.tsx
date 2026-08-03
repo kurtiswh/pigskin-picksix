@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { EmailService } from '@/services/emailService'
+import { emailShell, unsubscribeUrl } from '@/templates/emailShell'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
 
@@ -117,8 +118,19 @@ export default function PreseasonSequence({ season }: Props) {
     if (!subject.trim() || !body.trim()) { setMsg('Add a subject and body first.'); return }
     setTestSending(true); setMsg('')
     try {
-      const html = body.replace(/\{\{name\}\}/g, user?.display_name || 'there')
-      const ok = await EmailService.sendEmailDirect(testEmail.trim(), `[TEST] ${subject}`, html, html.replace(/<[^>]*>/g, ''))
+      // Mirror the real send: the cron wraps the body in the brand shell and
+      // appends the recipient's unsubscribe link. Without this the test looked
+      // nothing like what the ~1,900 recipients actually receive.
+      const filled = body.replace(/\{\{name\}\}/g, user?.display_name || 'there')
+      let unsubUrl: string | undefined
+      if (user?.id) {
+        const { data } = await supabase.from('users').select('unsubscribe_token').eq('id', user.id).maybeSingle()
+        if (data?.unsubscribe_token) unsubUrl = unsubscribeUrl(data.unsubscribe_token, window.location.origin)
+      }
+      const html = emailShell({ subtitle: 'Sign Up', bodyHtml: filled, unsubscribeUrl: unsubUrl })
+      const ok = await EmailService.sendEmailDirect(
+        testEmail.trim(), `[TEST] ${subject}`, html, filled.replace(/<[^>]*>/g, ''), unsubUrl
+      )
       setMsg(ok ? `✅ Test sent to ${testEmail}` : '❌ Test failed to send')
     } catch (err: any) { setMsg(`❌ ${err?.message || 'Test failed'}`) } finally { setTestSending(false) }
   }
