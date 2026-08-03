@@ -169,10 +169,17 @@ export default function PreseasonSequence({ season }: Props) {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {statusPill(t)}
-                  {t.status === 'scheduled' && <>
-                    <Button size="sm" variant="outline" onClick={() => editTouch(t)}>Edit</Button>
+                  {/* Canceled touches stay editable — saving re-arms them as
+                      'scheduled', so a canceled draft can be fixed and reused
+                      instead of deleted and rewritten. Sent ones are frozen. */}
+                  {t.status !== 'enqueued' && (
+                    <Button size="sm" variant="outline" onClick={() => editTouch(t)}>
+                      {t.status === 'canceled' ? 'Edit & re-arm' : 'Edit'}
+                    </Button>
+                  )}
+                  {t.status === 'scheduled' && (
                     <Button size="sm" variant="outline" className="text-amber-700" onClick={() => cancelTouch(t)}>Cancel</Button>
-                  </>}
+                  )}
                   <Button size="sm" variant="outline" className="text-red-600" onClick={() => deleteTouch(t)}>Delete</Button>
                 </div>
               </div>
