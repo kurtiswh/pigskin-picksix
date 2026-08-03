@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { EmailService } from './emailService'
-import { emailShell, emailButton, unsubscribeUrl } from '@/templates/emailShell'
+import { emailShell, emailButton } from '@/templates/emailShell'
 import type { BlogPost } from '@/types/blog'
 
 /**
@@ -252,7 +252,12 @@ export function buildRecapEmailHtml(
     subtitle: `Week ${post.week} Recap`,
     bodyHtml: bodyInner,
     preheader,
-    unsubscribeUrl: r.unsubscribe_token ? unsubscribeUrl(r.unsubscribe_token, siteUrl) : undefined,
+    // No unsubscribe link: the recap goes only to entrants who paid into this
+    // season, and ~84% of them have site accounts, so the footer's "email
+    // preferences" link (→ /profile) is the right control. The public
+    // token-based opt-out is for the preseason blast, which reaches cold
+    // addresses that never registered. Opt-outs are still honored — anyone who
+    // unsubscribed is filtered out of wr_recap_recipients().
   })
   const text = played
     ? `Your Week ${post.week}: ${b.wins}-${b.losses}, ${b.points} pts${rankLine ? `, ${rankLine}` : ''}. Read the full recap: ${postUrl}${cta ? `\nWeek ${cta.week} is open — make your picks: ${siteUrl}/picks` : ''}`
