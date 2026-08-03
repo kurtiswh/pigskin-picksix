@@ -1007,7 +1007,7 @@ export default function AdminDashboard() {
 
         {activeTab === 'notifications' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-pigskin-900">Email Notifications</h2>
+            <h2 className="text-2xl font-bold text-pigskin-900">Email Center</h2>
             <AdminNotifications
               currentWeek={currentWeek}
               currentSeason={currentSeason}

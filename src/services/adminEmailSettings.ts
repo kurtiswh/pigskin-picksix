@@ -17,9 +17,10 @@ export interface ReminderScheduleSettings {
 }
 
 export interface OpenPicksSettings {
+  /** Master switch — the only field any send path actually consults.
+   *  (send_immediately / include_total_games were stored but never read;
+   *  removed 2026-08 when the Email Center UI dropped their dead toggles.) */
   enabled: boolean
-  send_immediately: boolean
-  include_total_games: boolean
 }
 
 export interface WeeklyResultsSettings {
@@ -66,8 +67,6 @@ export class AdminEmailSettingsService {
         },
         open_picks_notifications: settings.open_picks_notifications || {
           enabled: true,
-          send_immediately: true,
-          include_total_games: true
         },
         weekly_results: settings.weekly_results || {
           enabled: true,
