@@ -93,7 +93,9 @@ export class AdminEmailSettingsService {
           season,
           setting_key: 'reminder_schedule',
           setting_value: settings,
-          created_by: (await supabase.auth.getUser()).data.user?.id
+          // NOTE: no created_by — it FK-references public.users(id), but merged
+          // admin accounts have auth.uid() != public.users.id (see migration 168),
+          // so stamping the auth uid violates the FK. Column is nullable.
         }, {
           onConflict: 'season,setting_key'
         })
@@ -126,7 +128,9 @@ export class AdminEmailSettingsService {
           season,
           setting_key: 'open_picks_notifications',
           setting_value: settings,
-          created_by: (await supabase.auth.getUser()).data.user?.id
+          // NOTE: no created_by — it FK-references public.users(id), but merged
+          // admin accounts have auth.uid() != public.users.id (see migration 168),
+          // so stamping the auth uid violates the FK. Column is nullable.
         }, {
           onConflict: 'season,setting_key'
         })
@@ -150,7 +154,9 @@ export class AdminEmailSettingsService {
           season,
           setting_key: 'weekly_results',
           setting_value: settings,
-          created_by: (await supabase.auth.getUser()).data.user?.id
+          // NOTE: no created_by — it FK-references public.users(id), but merged
+          // admin accounts have auth.uid() != public.users.id (see migration 168),
+          // so stamping the auth uid violates the FK. Column is nullable.
         }, {
           onConflict: 'season,setting_key'
         })
