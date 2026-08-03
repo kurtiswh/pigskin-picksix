@@ -10,10 +10,12 @@ const corsHeaders = {
 
 interface EmailRequest {
   to: string
-  subject: string  
+  subject: string
   html: string
   text?: string
   from?: string
+  /** Recipient's opt-out URL — adds a List-Unsubscribe header (bulk sends only). */
+  unsubscribeUrl?: string
 }
 
 serve(async (req) => {
@@ -82,7 +84,7 @@ serve(async (req) => {
 
     // Parse request body
     const body: EmailRequest = await req.json()
-    const { to, subject, html, text, from } = body
+    const { to, subject, html, text, from, unsubscribeUrl } = body
 
     // Validate request
     if (!to || !subject || !html) {
@@ -93,12 +95,23 @@ serve(async (req) => {
     }
 
     // Send email via Resend
-    const emailData = {
+    const emailData: Record<string, unknown> = {
       from: from || 'Pigskin Pick Six <admin@pigskinpicksix.com>',
       to: [to],
       subject,
       html,
       text: text || html.replace(/<[^>]*>/g, ''), // Strip HTML for text fallback
+    }
+
+    // Bulk sends pass the recipient's opt-out URL. The List-Unsubscribe header
+    // turns on the mail client's own native "Unsubscribe" control, which
+    // diverts people away from the spam button and protects domain reputation.
+    // No List-Unsubscribe-Post: one-click requires a POST endpoint, and the
+    // unsubscribe page is a static SPA route that only answers GET.
+    if (unsubscribeUrl) {
+      emailData.headers = {
+        'List-Unsubscribe': `<${unsubscribeUrl}>, <mailto:admin@pigskinpicksix.com?subject=unsubscribe>`,
+      }
     }
 
     console.log(`📧 Sending email to ${to}: ${subject}`)
