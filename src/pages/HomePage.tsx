@@ -9,6 +9,13 @@ import { getActiveWeekSettings } from '@/services/weekService'
 import { LeaderboardEntry, Pick } from '@/types'
 import { LeaderboardService } from '@/services/leaderboardService'
 import Layout from '@/components/Layout'
+import {
+  ENTRY_DEADLINE_LABEL,
+  ENTRY_FEE,
+  ENTRY_FEE_WITH_FEES,
+  LEAGUESAFE_JOIN_URL,
+  LEAGUESAFE_PAY_URL,
+} from '@/lib/league'
 
 export default function HomePage() {
   const { user } = useAuth()
@@ -626,6 +633,59 @@ export default function HomePage() {
         </div>
         )}
 
+        {/* Entry / LeagueSafe — only while a season is still taking entries */}
+        {phase === 'offseason' && seasonUpcoming && (
+          <section className="mt-12">
+            <Card className="border-[#f0dcb0] bg-[#fff8ea]">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Pay your {currentSeason} entry</span>
+                  <div className="text-2xl">💵</div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-3 text-charcoal-700">
+                    <p>
+                      Entry is <b>${ENTRY_FEE}</b> (${ENTRY_FEE_WITH_FEES.toFixed(2)} with
+                      LeagueSafe's 4% processing fee) and is due by <b>{ENTRY_DEADLINE_LABEL}</b>.
+                      The whole pot sits in LeagueSafe escrow until payouts.
+                    </p>
+                    <div className="rounded-lg border border-[#e7d3a8] bg-white p-3 text-sm">
+                      <div className="font-bold text-pigskin-900 mb-1">
+                        ⚠️ Use the same email in both places
+                      </div>
+                      <p>
+                        We match payments to accounts <b>by email</b>. Use the same address on
+                        LeagueSafe and here — if they differ, add your LeagueSafe email on your{' '}
+                        <Link to="/profile" className="underline font-semibold text-pigskin-700">
+                          profile
+                        </Link>{' '}
+                        so your payment lines up with your picks.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-2 self-start">
+                    <a href={LEAGUESAFE_JOIN_URL} target="_blank" rel="noopener noreferrer" className="block">
+                      <Button className="w-full bg-gold-500 hover:bg-gold-600 text-pigskin-900">
+                        Join &amp; pay on LeagueSafe
+                      </Button>
+                    </a>
+                    <a href={LEAGUESAFE_PAY_URL} target="_blank" rel="noopener noreferrer" className="block">
+                      <Button variant="outline" className="w-full">
+                        Already in the league? Pay here
+                      </Button>
+                    </a>
+                    <Link to="/rules" className="block">
+                      <Button variant="outline" className="w-full">Read the Official Rules</Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
         {/* Features Section */}
         <section className="mt-16">
           <h3 className="text-3xl font-bold text-center mb-12 text-pigskin-900">
@@ -670,8 +730,8 @@ export default function HomePage() {
               </CardHeader>
               <CardContent className="text-center">
                 <p className="text-charcoal-600">
-                  Best Finish Championship (weeks 11-14) means
-                  gives everyone has a shot at glory and the season is never over.
+                  The Best Finish Championship over the final four weeks means everyone has a
+                  shot at glory and the season is never over.
                 </p>
               </CardContent>
             </Card>

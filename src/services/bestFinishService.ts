@@ -1,6 +1,10 @@
 /**
  * Best Finish Leaderboard Service
- * Handles data fetching for the 4th quarter championship (weeks 11-14)
+ *
+ * The 4th quarter championship covers the final four weeks of the season.
+ * Which weeks those are is data, not a constant — week_settings.best_finish_eligible
+ * is set per season in the admin (weeks 10-13 for the 13-week 2026 season,
+ * weeks 11-14 for a 14-week season).
  */
 
 import { supabase } from '@/lib/supabase'
@@ -168,8 +172,9 @@ export class BestFinishService {
       return (data || []).map(w => w.week)
     } catch (error: any) {
       console.error('❌ Error fetching Best Finish weeks:', error.message)
-      // Default to weeks 11-14 if query fails
-      return [11, 12, 13, 14]
+      // No safe default — season lengths differ (2026 = 13 weeks). Report none
+      // rather than inventing a week range the season may not even have.
+      return []
     }
   }
 

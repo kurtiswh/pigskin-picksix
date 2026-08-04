@@ -1,5 +1,27 @@
 import { supabase } from '@/lib/supabase'
-import { SeasonWinners, PAYOUT_PERCENTAGES } from '@/types/winners'
+import { SeasonWinners, POINT_PLACES, getPayoutStructure } from '@/types/winners'
+
+/**
+ * Point places that actually pay in a given season (10 before 2026, 15 from
+ * 2026 on) — drives both how deep we read the leaderboard and which
+ * season_winners columns we write.
+ */
+function paidPointPlaces(season: number) {
+  const structure = getPayoutStructure(season)
+  return POINT_PLACES.filter(p => structure[p.key] != null)
+}
+
+/** Map leaderboard rows (in rank order) onto the season_winners point columns. */
+function pointWinnerColumns(
+  season: number,
+  ranked: { user_id: string }[] | null | undefined
+): Record<string, string | null> {
+  const update: Record<string, string | null> = {}
+  paidPointPlaces(season).forEach((place, index) => {
+    update[place.column] = ranked?.[index]?.user_id || null
+  })
+  return update
+}
 
 export class WinnersService {
   /**
@@ -56,13 +78,14 @@ export class WinnersService {
    * This should be run after the season is complete
    */
   static async calculateAndUpdateWinners(season: number): Promise<void> {
-    // Get season leaderboard (top 10)
+    // Get season leaderboard, as deep as this season's structure pays
+    const placesPaid = paidPointPlaces(season).length
     const { data: seasonData, error: seasonError } = await supabase
       .from('season_leaderboard')
       .select('user_id, display_name, total_points')
       .eq('season', season)
       .order('season_rank', { ascending: true })
-      .limit(10)
+      .limit(placesPaid)
 
     if (seasonError) throw seasonError
 
@@ -123,16 +146,7 @@ export class WinnersService {
     const { error } = await supabase
       .from('season_winners')
       .update({
-        point_winner_user_id: seasonData?.[0]?.user_id || null,
-        point_second_user_id: seasonData?.[1]?.user_id || null,
-        point_third_user_id: seasonData?.[2]?.user_id || null,
-        point_fourth_user_id: seasonData?.[3]?.user_id || null,
-        point_fifth_user_id: seasonData?.[4]?.user_id || null,
-        point_sixth_user_id: seasonData?.[5]?.user_id || null,
-        point_seventh_user_id: seasonData?.[6]?.user_id || null,
-        point_eighth_user_id: seasonData?.[7]?.user_id || null,
-        point_ninth_user_id: seasonData?.[8]?.user_id || null,
-        point_tenth_user_id: seasonData?.[9]?.user_id || null,
+        ...pointWinnerColumns(season, seasonData),
         lock_winner_user_id: lockWinner?.user_id || null,
         lock_second_user_id: lockSecond?.user_id || null,
         best_finish_user_id: bestFinishData?.user_id || null
@@ -242,13 +256,14 @@ export class WinnersService {
    * Get live winners calculated from leaderboards (no database writes needed)
    */
   static async getLiveWinnersFromLeaderboards(season: number) {
-    // Get point winners from season_leaderboard (top 10)
+    const structure = getPayoutStructure(season)
+    // Get point winners from season_leaderboard, as deep as this season pays
     const { data: pointWinners } = await supabase
       .from('season_leaderboard')
       .select('user_id, display_name, total_points, season_rank')
       .eq('season', season)
       .order('season_rank', { ascending: true })
-      .limit(10)
+      .limit(paidPointPlaces(season).length)
 
     // Get lock winners from season_leaderboard (aggregated data)
     // Calculate lock points: win = 1 point, push = 0.5 points
@@ -297,10 +312,10 @@ export class WinnersService {
       .limit(1)
       .single()
 
-    // Get weekly winners by fetching top players for each week (1-14)
+    // Get weekly winners by fetching top players for each week of the season
     // This handles ties properly by finding max points and including all players with that score
     const weeklyWinnersPromises = []
-    for (let week = 1; week <= 14; week++) {
+    for (let week = 1; week <= structure.weeks; week++) {
       weeklyWinnersPromises.push(
         supabase
           .from('weekly_leaderboard')
@@ -397,16 +412,7 @@ export class WinnersService {
     const liveWinners = {
       id: seasonWinners?.id || 'live',
       season,
-      point_winner_user_id: pointWinners?.[0]?.user_id || null,
-      point_second_user_id: pointWinners?.[1]?.user_id || null,
-      point_third_user_id: pointWinners?.[2]?.user_id || null,
-      point_fourth_user_id: pointWinners?.[3]?.user_id || null,
-      point_fifth_user_id: pointWinners?.[4]?.user_id || null,
-      point_sixth_user_id: pointWinners?.[5]?.user_id || null,
-      point_seventh_user_id: pointWinners?.[6]?.user_id || null,
-      point_eighth_user_id: pointWinners?.[7]?.user_id || null,
-      point_ninth_user_id: pointWinners?.[8]?.user_id || null,
-      point_tenth_user_id: pointWinners?.[9]?.user_id || null,
+      ...pointWinnerColumns(season, pointWinners),
       lock_winner_user_id: lockWinners[0]?.[0] || null,
       lock_second_user_id: lockWinners[1]?.[0] || null,
       lock_is_tied: lockIsTied,
@@ -420,7 +426,7 @@ export class WinnersService {
         total_points: w.total_points
       })) || [],
       total_pot: seasonWinners?.total_pot || null,
-      weekly_payout: seasonWinners?.weekly_payout || 80,
+      weekly_payout: seasonWinners?.weekly_payout || structure.weekly_winner,
       is_finalized: seasonWinners?.is_finalized || false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -429,7 +435,7 @@ export class WinnersService {
     return {
       winners: liveWinners,
       userMap: allUserMap,
-      payoutStructure: PAYOUT_PERCENTAGES
+      payoutStructure: structure
     }
   }
 
@@ -452,10 +458,8 @@ export class WinnersService {
     }
 
     const idFields = [
-      'point_winner_user_id', 'point_second_user_id', 'point_third_user_id',
-      'point_fourth_user_id', 'point_fifth_user_id', 'point_sixth_user_id',
-      'point_seventh_user_id', 'point_eighth_user_id', 'point_ninth_user_id',
-      'point_tenth_user_id', 'lock_winner_user_id', 'lock_second_user_id',
+      ...POINT_PLACES.map(p => p.column as string),
+      'lock_winner_user_id', 'lock_second_user_id',
       'bracket_winner_user_id', 'bracket_second_user_id', 'best_finish_user_id',
     ]
     const ids = new Set<string>()
@@ -467,6 +471,6 @@ export class WinnersService {
       : { data: [] as any[] }
     const userMap = new Map((users || []).map((u: any) => [u.id, u.display_name]))
 
-    return { winners: stored, userMap, payoutStructure: PAYOUT_PERCENTAGES }
+    return { winners: stored, userMap, payoutStructure: getPayoutStructure(season) }
   }
 }

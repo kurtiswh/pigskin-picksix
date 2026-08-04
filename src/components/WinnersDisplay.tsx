@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Trophy, DollarSign, Calendar, Award } from 'lucide-react'
 import { WinnersService } from '@/services/winnersService'
-import { SeasonWinners, PAYOUT_PERCENTAGES } from '@/types/winners'
+import { SeasonWinners, POINT_PLACES, getPayoutStructure } from '@/types/winners'
 
 interface WinnersDisplayProps {
   season: number
@@ -24,6 +24,9 @@ interface WinnerRow {
 }
 
 export default function WinnersDisplay({ season, hidePayouts = false }: WinnersDisplayProps) {
+  // Payouts changed shape in 2026 (15 point places, 13 weeks) — finished
+  // seasons must keep the structure they were actually paid under.
+  const payouts = getPayoutStructure(season)
   const [winners, setWinners] = useState<SeasonWinners | null>(null)
   const [userMap, setUserMap] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -64,26 +67,17 @@ export default function WinnersDisplay({ season, hidePayouts = false }: WinnersD
 
   const calculateAmount = (percentage: number): number => {
     if (!winners?.total_pot) return 0
-    const weeklyTotal = (winners.weekly_payout || 80) * 14 // 14 weeks
+    const weeklyTotal = (winners.weekly_payout || payouts.weekly_winner) * payouts.weeks
     return WinnersService.calculatePayout(percentage, winners.total_pot, weeklyTotal)
   }
 
   const getWinnerRows = (): WinnerRow[] => {
     const rows: WinnerRow[] = []
 
-    // Point winners (1-10)
-    const pointWinners = [
-      { key: 'point_winner_user_id', place: '1st', percentage: PAYOUT_PERCENTAGES.point_winner },
-      { key: 'point_second_user_id', place: '2nd', percentage: PAYOUT_PERCENTAGES.point_second },
-      { key: 'point_third_user_id', place: '3rd', percentage: PAYOUT_PERCENTAGES.point_third },
-      { key: 'point_fourth_user_id', place: '4th', percentage: PAYOUT_PERCENTAGES.point_fourth },
-      { key: 'point_fifth_user_id', place: '5th', percentage: PAYOUT_PERCENTAGES.point_fifth },
-      { key: 'point_sixth_user_id', place: '6th', percentage: PAYOUT_PERCENTAGES.point_sixth },
-      { key: 'point_seventh_user_id', place: '7th', percentage: PAYOUT_PERCENTAGES.point_seventh },
-      { key: 'point_eighth_user_id', place: '8th', percentage: PAYOUT_PERCENTAGES.point_eighth },
-      { key: 'point_ninth_user_id', place: '9th', percentage: PAYOUT_PERCENTAGES.point_ninth },
-      { key: 'point_tenth_user_id', place: '10th', percentage: PAYOUT_PERCENTAGES.point_tenth }
-    ]
+    // Point winners — 10 places before 2026, 15 from 2026 on
+    const pointWinners = POINT_PLACES
+      .filter(p => payouts[p.key] != null)
+      .map(p => ({ key: p.column, place: p.place, percentage: payouts[p.key] as number }))
 
     pointWinners.forEach(({ key, place, percentage }) => {
       const userId = winners?.[key as keyof SeasonWinners] as string | null | undefined
@@ -101,8 +95,8 @@ export default function WinnersDisplay({ season, hidePayouts = false }: WinnersD
 
     // Lock winners - handle ties
     if (winners?.lock_is_tied && winners?.lock_winner_user_id && winners?.lock_second_user_id) {
-      // Tied lock winners - both split combined payout (4.5% + 1.5% = 6%)
-      const combinedPercentage = PAYOUT_PERCENTAGES.lock_winner + PAYOUT_PERCENTAGES.lock_second
+      // Tied lock winners - both split the combined 1st + 2nd lock payout
+      const combinedPercentage = payouts.lock_winner + payouts.lock_second
       const splitPercentage = combinedPercentage / 2
 
       rows.push({
@@ -133,8 +127,8 @@ export default function WinnersDisplay({ season, hidePayouts = false }: WinnersD
         displayName: winners?.lock_winner_user_id
           ? userMap.get(winners.lock_winner_user_id) || 'Unknown'
           : 'TBD',
-        percentage: `${PAYOUT_PERCENTAGES.lock_winner}%`,
-        amount: winners?.total_pot ? formatCurrency(calculateAmount(PAYOUT_PERCENTAGES.lock_winner)) : undefined,
+        percentage: `${payouts.lock_winner}%`,
+        amount: winners?.total_pot ? formatCurrency(calculateAmount(payouts.lock_winner)) : undefined,
         isTBD: !winners?.lock_winner_user_id
       })
 
@@ -145,8 +139,8 @@ export default function WinnersDisplay({ season, hidePayouts = false }: WinnersD
         displayName: winners?.lock_second_user_id
           ? userMap.get(winners.lock_second_user_id) || 'Unknown'
           : 'TBD',
-        percentage: `${PAYOUT_PERCENTAGES.lock_second}%`,
-        amount: winners?.total_pot ? formatCurrency(calculateAmount(PAYOUT_PERCENTAGES.lock_second)) : undefined,
+        percentage: `${payouts.lock_second}%`,
+        amount: winners?.total_pot ? formatCurrency(calculateAmount(payouts.lock_second)) : undefined,
         isTBD: !winners?.lock_second_user_id
       })
     }
@@ -159,8 +153,8 @@ export default function WinnersDisplay({ season, hidePayouts = false }: WinnersD
       displayName: winners?.bracket_winner_user_id
         ? userMap.get(winners.bracket_winner_user_id) || 'Unknown'
         : 'TBD',
-      percentage: `${PAYOUT_PERCENTAGES.bracket_winner}%`,
-      amount: winners?.total_pot ? formatCurrency(calculateAmount(PAYOUT_PERCENTAGES.bracket_winner)) : undefined,
+      percentage: `${payouts.bracket_winner}%`,
+      amount: winners?.total_pot ? formatCurrency(calculateAmount(payouts.bracket_winner)) : undefined,
       isBracket: true,
       isTBD: !winners?.bracket_winner_user_id
     })
@@ -172,8 +166,8 @@ export default function WinnersDisplay({ season, hidePayouts = false }: WinnersD
       displayName: winners?.bracket_second_user_id
         ? userMap.get(winners.bracket_second_user_id) || 'Unknown'
         : 'TBD',
-      percentage: `${PAYOUT_PERCENTAGES.bracket_second}%`,
-      amount: winners?.total_pot ? formatCurrency(calculateAmount(PAYOUT_PERCENTAGES.bracket_second)) : undefined,
+      percentage: `${payouts.bracket_second}%`,
+      amount: winners?.total_pot ? formatCurrency(calculateAmount(payouts.bracket_second)) : undefined,
       isBracket: true,
       isTBD: !winners?.bracket_second_user_id
     })
@@ -185,8 +179,8 @@ export default function WinnersDisplay({ season, hidePayouts = false }: WinnersD
       displayName: winners?.best_finish_user_id
         ? userMap.get(winners.best_finish_user_id) || 'Unknown'
         : 'TBD',
-      percentage: `${PAYOUT_PERCENTAGES.best_finish}%`,
-      amount: winners?.total_pot ? formatCurrency(calculateAmount(PAYOUT_PERCENTAGES.best_finish)) : undefined,
+      percentage: `${payouts.best_finish}%`,
+      amount: winners?.total_pot ? formatCurrency(calculateAmount(payouts.best_finish)) : undefined,
       isTBD: !winners?.best_finish_user_id
     })
 

@@ -17,6 +17,9 @@ interface BestFinishConfigProps {
   season: number
 }
 
+/** Earliest week offered as a Best Finish candidate (back half of any season). */
+const BEST_FINISH_FIRST_SELECTABLE_WEEK = 8
+
 export default function BestFinishConfig({ season }: BestFinishConfigProps) {
   const [weeks, setWeeks] = useState<WeekConfig[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,7 +37,9 @@ export default function BestFinishConfig({ season }: BestFinishConfigProps) {
         .from('week_settings')
         .select('week, season, best_finish_eligible, picks_open, games_locked')
         .eq('season', season)
-        .gte('week', 11) // Only show weeks 11+
+        // Season length varies (2026 is 13 weeks, so the final four are 10-13),
+        // so show the whole back half rather than assuming weeks 11-14.
+        .gte('week', BEST_FINISH_FIRST_SELECTABLE_WEEK)
         .order('week', { ascending: true })
 
       if (error) throw error
@@ -85,7 +90,7 @@ export default function BestFinishConfig({ season }: BestFinishConfigProps) {
         .from('week_settings')
         .update({ best_finish_eligible: value })
         .eq('season', season)
-        .gte('week', 11)
+        .gte('week', BEST_FINISH_FIRST_SELECTABLE_WEEK)
 
       if (error) throw error
 
@@ -237,7 +242,8 @@ export default function BestFinishConfig({ season }: BestFinishConfigProps) {
 
         {/* Info */}
         <div className="bg-[#faf8f4] border border-[#e7e2da] rounded-lg p-3 text-xs text-charcoal-700">
-          <strong>ℹ️ Note:</strong> Best Finish Championship typically includes weeks 11-14 (4th quarter).
+          <strong>ℹ️ Note:</strong> Best Finish covers the <strong>final four weeks</strong> of the
+          season — weeks 10-13 in a 13-week season (2026), weeks 11-14 in a 14-week season.
           Changes take effect immediately on the leaderboard.
         </div>
       </CardContent>
