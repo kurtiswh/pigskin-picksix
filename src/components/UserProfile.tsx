@@ -12,7 +12,8 @@ import CareerStatsCard from '@/components/CareerStatsCard'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Badge } from '@/components/ui/badge'
+import LeagueSafeEmailCard from '@/components/LeagueSafeEmailCard'
+import { ADMIN_EMAIL } from '@/lib/league'
 
 export default function UserProfile() {
   const { user, refreshUser } = useAuth()
@@ -107,7 +108,7 @@ export default function UserProfile() {
         email: user.email,
         display_name: user.display_name || 'User',
         is_admin: user.is_admin || false,
-        leaguesafe_email: user.email,
+        leaguesafe_email: user.leaguesafe_email || user.email,
         created_at: user.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
         preferences: {
@@ -337,6 +338,9 @@ export default function UserProfile() {
       )
 
       try {
+        // leaguesafe_email is deliberately NOT settable here — it's derived from
+        // a confirmed email claim (see LeagueSafeEmailCard), so a player can't
+        // type in an address they don't control.
         const updates = {
           display_name: displayName.trim(),
           updated_at: new Date().toISOString()
@@ -346,9 +350,16 @@ export default function UserProfile() {
           .from('users')
           .update(updates)
           .eq('id', user.id)
+          .select('id')
 
         const result = await Promise.race([updateQuery, timeoutPromise])
         if (result.error) throw result.error
+        // RLS rejections come back as a silent zero-row update, not an error.
+        if (!result.data || result.data.length === 0) {
+          throw new Error(
+            `The database rejected the update. Email ${ADMIN_EMAIL} and we'll set it for you.`
+          )
+        }
 
         // Refresh the user context (with timeout)
         const refreshQuery = refreshUser()
@@ -361,7 +372,10 @@ export default function UserProfile() {
         const loadQuery = loadUserProfile()
         await Promise.race([loadQuery, timeoutPromise])
         
-      } catch (timeoutError) {
+      } catch (saveError: any) {
+        // Only a genuine timeout is "probably fine" — a rejected write (bad
+        // LeagueSafe email, RLS) has to surface, or the player thinks it saved.
+        if (saveError?.message !== 'Save operation timed out') throw saveError
         console.log('⏰ Save operation timed out')
         setSuccess('Changes saved locally! May sync with server shortly.')
         setTimeout(() => setSuccess(''), 3000)
@@ -487,6 +501,15 @@ export default function UserProfile() {
                 </p>
               </div>
             </div>
+
+            <Separator />
+
+            <LeagueSafeEmailCard
+              userId={user.id}
+              accountEmail={user.email}
+              activeSeason={activeSeason}
+              onLinked={() => { refreshUser(); loadUserProfile() }}
+            />
 
             <Separator />
 

@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { NotificationScheduler } from '@/services/notificationScheduler'
 import { EmailService } from '@/services/emailService'
+import { EmailClaimService, PlayerLookup } from '@/services/emailClaimService'
 import Layout from '@/components/Layout'
 
 interface AnonymousPick {
@@ -32,6 +33,9 @@ export default function AnonymousPicksPage() {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [isValidated, setIsValidated] = useState<boolean | null>(null)
+  // What the email resolved to (account + this season's payment), so the visitor
+  // can see that we recognized them before they submit.
+  const [lookup, setLookup] = useState<PlayerLookup | null>(null)
   const [games, setGames] = useState<Game[]>([])
   const [picks, setPicks] = useState<AnonymousPick[]>([])
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
@@ -136,53 +140,22 @@ export default function AnonymousPicksPage() {
     setPendingNavigation(null)
   }
 
+  /**
+   * Resolve the email against the whole profile — sign-in address, LeagueSafe
+   * address, or any address the player added themselves — plus that season's
+   * payment. One RPC replaces the two table peeks this used to do, so someone
+   * submitting under their second address is recognized instead of told they're
+   * a stranger.
+   */
   const validateEmail = async (emailToCheck: string) => {
     try {
-      console.log('📧 Validating email via direct API:', emailToCheck)
-      
-      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
-
-      // Check users table
-      const usersResponse = await fetch(`${supabaseUrl}/rest/v1/users?or=(email.eq.${emailToCheck},leaguesafe_email.eq.${emailToCheck})&limit=1`, {
-        method: 'GET',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (usersResponse.ok) {
-        const users = await usersResponse.json()
-        if (users && users.length > 0) {
-          console.log('✅ Email found in users table')
-          return true
-        }
-      }
-
-      // Check leaguesafe_payments table
-      const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?leaguesafe_email=eq.${emailToCheck}&limit=1`, {
-        method: 'GET',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (paymentsResponse.ok) {
-        const payments = await paymentsResponse.json()
-        if (payments && payments.length > 0) {
-          console.log('✅ Email found in leaguesafe payments')
-          return true
-        }
-      }
-
-      console.log('❌ Email not found in any table')
-      return false
+      console.log('📧 Validating email:', emailToCheck)
+      const result = await EmailClaimService.lookupByEmail(emailToCheck, currentSeason)
+      setLookup(result)
+      return result.found
     } catch (error) {
       console.error('❌ Error validating email:', error)
+      setLookup(null)
       return false
     }
   }
@@ -570,10 +543,16 @@ export default function AnonymousPicksPage() {
                   required
                 />
                 {isValidated === true && (
-                  <p className="text-[#1f7a44] text-sm mt-1">✅ Email validated - you're in our system!</p>
+                  <p className="text-[#1f7a44] text-sm mt-1">
+                    {lookup?.paid
+                      ? `✅ Found you${lookup.display_name ? `, ${lookup.display_name}` : ''} — your ${currentSeason} entry is paid. You're good to submit.`
+                      : lookup?.payment_status
+                        ? `✅ Found you${lookup.display_name ? `, ${lookup.display_name}` : ''} — your ${currentSeason} entry shows as ${lookup.payment_status}.`
+                        : `✅ Email validated — you're in our system. We don't see a ${currentSeason} payment yet, so your picks will be confirmed once it lands.`}
+                  </p>
                 )}
                 {isValidated === false && email.trim() && (
-                  <p className="text-[#b06a1a] text-sm mt-1">⚠️ Email not found - picks will require manual verification by admins and won't show in the leaderboard until reviewed and confirmed.</p>
+                  <p className="text-[#b06a1a] text-sm mt-1">⚠️ Email not found - picks will require manual verification by admins and won't show in the leaderboard until reviewed and confirmed. If you paid on LeagueSafe under a different address, use that one here.</p>
                 )}
               </div>
             </div>

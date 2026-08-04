@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Layout from '@/components/Layout'
 import { NotificationScheduler } from '@/services/notificationScheduler'
+import EntryStatusBanner from '@/components/EntryStatusBanner'
 
 export default function PickSheetPage() {
   const { user, signOut } = useAuth()
@@ -858,6 +859,10 @@ export default function PickSheetPage() {
           <div className="grid lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
             {/* Games Grid */}
             <div className="lg:col-span-3 space-y-6 min-w-0">
+              {/* Is this player's entry recognized? Checks every email on their
+                  profile, not just the one they signed in with. */}
+              <EntryStatusBanner season={currentSeason} />
+
               <div>
                 <h2 className="text-2xl font-bold text-pigskin-900 mb-2">
                   Available Games ({games.length})

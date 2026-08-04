@@ -8,6 +8,21 @@ import { UserWithPayment, UserEmail, UserMergeHistory } from '@/types'
 import { UserMergeService } from '@/services/userMergeService'
 import { supabase } from '@/lib/supabase'
 
+/** One row of the self-service email-claim audit trail (migration 190). */
+interface EmailClaimRow {
+  id: string
+  email: string
+  status: string
+  created_at: string
+  verified_at: string | null
+  resolution: {
+    payments_linked?: number
+    seasons?: number[]
+    season_conflicts?: number[]
+    merged_account?: string | null
+  } | null
+}
+
 interface UserDetailsModalProps {
   user: UserWithPayment | null
   onClose: () => void
@@ -34,6 +49,8 @@ export default function UserDetailsModal({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [userEmails, setUserEmails] = useState<UserEmail[]>([])
   const [mergeHistory, setMergeHistory] = useState<UserMergeHistory[]>([])
+  const [emailClaims, setEmailClaims] = useState<EmailClaimRow[]>([])
+  const [linkingEmail, setLinkingEmail] = useState<string | null>(null)
   const [emailsLoading, setEmailsLoading] = useState(true)
   const [leaguesafeEmail, setLeaguesafeEmail] = useState<string>('')
   const [hasLeaguesafeEmailChanged, setHasLeaguesafeEmailChanged] = useState(false)
@@ -65,20 +82,72 @@ export default function UserDetailsModal({
 
   const loadUserData = async () => {
     if (!currentUser) return
-    
+
     setEmailsLoading(true)
     try {
-      const [emails, history] = await Promise.all([
+      const [emails, history, claims] = await Promise.all([
         UserMergeService.getUserEmails(currentUser.id),
-        UserMergeService.getUserMergeHistory(currentUser.id)
+        UserMergeService.getUserMergeHistory(currentUser.id),
+        // Self-service email claims (migration 190). Table may not exist yet on
+        // an un-migrated database, so failures are non-fatal.
+        supabase
+          .from('email_claims')
+          .select('id, email, status, created_at, verified_at, resolution')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false })
+          .limit(10)
+          .then(({ data }) => data || [], () => [])
       ])
-      
+
       setUserEmails(emails)
       setMergeHistory(history)
+      setEmailClaims(claims as EmailClaimRow[])
     } catch (error) {
       console.error('Error loading user data:', error)
     } finally {
       setEmailsLoading(false)
+    }
+  }
+
+  /**
+   * Approve an address the player added to their own profile: links payments
+   * made under it and folds in the import-created account that was holding it.
+   * Same server-side path a confirmed email claim runs (migration 191).
+   */
+  const handleLinkProfileEmail = async (email: string) => {
+    if (!currentUser) return
+    if (!confirm(
+      `Link ${email} to ${currentUser.display_name}?\n\n` +
+      `This attaches payments made under that address and merges any old ` +
+      `import-created account that holds it.`
+    )) return
+
+    setLinkingEmail(email)
+    try {
+      const { data, error } = await supabase.rpc('admin_link_profile_email', {
+        p_user_id: currentUser.id,
+        p_email: email
+      })
+      if (error) throw error
+
+      if (data?.status === 'blocked') {
+        alert('That address belongs to an account someone actually signs into — not linked.')
+      } else {
+        const seasons = (data?.seasons || []).join(', ')
+        alert(
+          `✅ Linked ${email}\n\n` +
+          `${data?.payments_linked || 0} payment(s)${seasons ? ` (${seasons})` : ''}` +
+          `${data?.merged_account ? '\nMerged an older account into this one.' : ''}` +
+          `${data?.season_conflicts?.length ? `\nLeft ${data.season_conflicts.join(', ')} alone — already had a payment.` : ''}`
+        )
+      }
+      await loadUserData()
+      await onRefresh?.()
+    } catch (err: any) {
+      console.error('Failed to link profile email:', err)
+      alert(`Could not link that address: ${err.message}`)
+    } finally {
+      setLinkingEmail(null)
     }
   }
 
@@ -359,6 +428,19 @@ export default function UserDetailsModal({
                     {emailRecord.source && (
                       <p className="text-xs text-gray-600">Source: {emailRecord.source}</p>
                     )}
+                    {/* A player added this themselves; approving it links their
+                        payments and folds in any import-created account. */}
+                    {emailRecord.source === 'self-added profile email' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-2 text-xs"
+                        disabled={linkingEmail === emailRecord.email}
+                        onClick={() => handleLinkProfileEmail(emailRecord.email)}
+                      >
+                        {linkingEmail === emailRecord.email ? 'Linking…' : 'Link payments & merge'}
+                      </Button>
+                    )}
                     {emailRecord.notes && (
                       <p className="text-xs text-gray-600 mt-1">Notes: {emailRecord.notes}</p>
                     )}
@@ -376,6 +458,46 @@ export default function UserDetailsModal({
               </div>
             )}
           </div>
+
+          {/* Self-service email claims */}
+          {emailClaims.length > 0 && (
+            <div>
+              <h4 className="font-semibold mb-3">Self-Service Email Claims</h4>
+              <div className="space-y-2">
+                {emailClaims.map((claim) => (
+                  <div key={claim.id} className="border rounded p-3 text-sm">
+                    <div className="flex items-center justify-between mb-1 gap-2">
+                      <span className="font-medium truncate">{claim.email}</span>
+                      <Badge
+                        variant="outline"
+                        className={
+                          claim.status === 'verified' ? 'text-green-700 border-green-300' :
+                          claim.status === 'pending' ? 'text-yellow-700 border-yellow-300' :
+                          'text-gray-600 border-gray-300'
+                        }
+                      >
+                        {claim.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-gray-600">
+                      Requested {new Date(claim.created_at).toLocaleString()}
+                      {claim.verified_at && ` · confirmed ${new Date(claim.verified_at).toLocaleString()}`}
+                    </p>
+                    {claim.resolution && (
+                      <p className="text-xs text-gray-600 mt-1">
+                        {claim.resolution.payments_linked ?? 0} payment(s) linked
+                        {claim.resolution.seasons?.length ? ` (${claim.resolution.seasons.join(', ')})` : ''}
+                        {claim.resolution.merged_account ? ' · merged an older account' : ''}
+                        {claim.resolution.season_conflicts?.length
+                          ? ` · left ${claim.resolution.season_conflicts.join(', ')} alone (already had a payment)`
+                          : ''}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Merge History */}
           {mergeHistory.length > 0 && (

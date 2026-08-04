@@ -4,7 +4,9 @@ import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ENV } from '@/lib/env'
+import { ENTRY_FEE, LEAGUESAFE_JOIN_URL, LEAGUESAFE_PAY_URL } from '@/lib/league'
+import { EmailClaimService, PlayerLookup } from '@/services/emailClaimService'
+import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
@@ -14,6 +16,8 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [isValidated, setIsValidated] = useState<boolean | null>(null)
+  const [lookup, setLookup] = useState<PlayerLookup | null>(null)
+  const { activeSeason: currentSeason } = useCurrentSeason()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -24,53 +28,21 @@ export default function RegisterPage() {
     }
   }, [user, navigate])
 
+  /**
+   * Resolve against every address we know for a player — sign-in email,
+   * LeagueSafe email, or one they added to their profile — plus this season's
+   * payment, so someone registering under their newer address still gets
+   * recognized. (lookup_player_by_email, migration 191.)
+   */
   const validateEmail = async (emailToCheck: string) => {
     try {
-      console.log('📧 Validating email via direct API:', emailToCheck)
-      
-      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
-
-      // Check users table
-      const usersResponse = await fetch(`${supabaseUrl}/rest/v1/users?or=(email.eq.${emailToCheck},leaguesafe_email.eq.${emailToCheck})&limit=1`, {
-        method: 'GET',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (usersResponse.ok) {
-        const users = await usersResponse.json()
-        if (users && users.length > 0) {
-          console.log('✅ Email found in users table')
-          return true
-        }
-      }
-
-      // Check leaguesafe_payments table
-      const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?leaguesafe_email=eq.${emailToCheck}&limit=1`, {
-        method: 'GET',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (paymentsResponse.ok) {
-        const payments = await paymentsResponse.json()
-        if (payments && payments.length > 0) {
-          console.log('✅ Email found in leaguesafe payments')
-          return true
-        }
-      }
-
-      console.log('❌ Email not found in any table')
-      return false
+      console.log('📧 Validating email:', emailToCheck)
+      const result = await EmailClaimService.lookupByEmail(emailToCheck, currentSeason)
+      setLookup(result)
+      return result.found
     } catch (error) {
       console.error('❌ Error validating email:', error)
+      setLookup(null)
       return false
     }
   }
@@ -128,11 +100,41 @@ export default function RegisterPage() {
             {/* Information Panel */}
             <div className="mb-6 p-4 rounded-lg bg-[#faf8f4] border border-[#e7e2da]">
               <div className="text-charcoal-700 text-sm">
-                <div className="font-semibold mb-1 text-[#4B3621]">📧 Email Validation</div>
+                <div className="font-semibold mb-1 text-[#4B3621]">📧 Use your LeagueSafe email</div>
                 <p>
-                  Enter your email address and we'll check if you're already in our system from LeagueSafe payments. 
-                  This helps link your account properly, but you can register either way.
+                  We match payments to accounts <strong>by email address</strong>, so register with
+                  the same email you use on LeagueSafe. We'll check it as you type. If you have to
+                  use a different one, you can add your LeagueSafe email to your profile after you
+                  sign up.
                 </p>
+              </div>
+            </div>
+
+            {/* Entry payment */}
+            <div className="mb-6 p-4 rounded-lg bg-[#fff8ea] border border-[#f0dcb0]">
+              <div className="text-charcoal-700 text-sm">
+                <div className="font-semibold mb-1 text-[#4B3621]">💵 Haven't paid your entry?</div>
+                <p className="mb-3">
+                  An account here is free — the ${ENTRY_FEE} entry is paid through LeagueSafe.
+                </p>
+                <div className="flex flex-col gap-2">
+                  <a
+                    href={LEAGUESAFE_JOIN_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-center px-3 py-2 rounded-lg bg-[#C9A04E] text-pigskin-900 font-bold hover:bg-[#b78e3f] transition-colors"
+                  >
+                    Join &amp; pay on LeagueSafe
+                  </a>
+                  <a
+                    href={LEAGUESAFE_PAY_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-center px-3 py-2 rounded-lg border border-[#C9A04E] text-pigskin-900 font-semibold hover:bg-white transition-colors"
+                  >
+                    Already in the league? Pay here
+                  </a>
+                </div>
               </div>
             </div>
 
@@ -165,7 +167,11 @@ export default function RegisterPage() {
                   required
                 />
                 {isValidated === true && (
-                  <p className="text-[#1f7a44] text-sm mt-1">✅ Your email matches a LeagueSafe payment! Please continue creating an account.</p>
+                  <p className="text-[#1f7a44] text-sm mt-1">
+                    {lookup?.paid
+                      ? `✅ Found you — your ${currentSeason} entry is paid. Finish creating your account.`
+                      : '✅ We recognize that email. Please continue creating an account.'}
+                  </p>
                 )}
                 {isValidated === false && email.trim() && (
                   <p className="text-[#b06a1a] text-sm mt-1">
