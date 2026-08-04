@@ -17,6 +17,7 @@ import { SeasonExpandedDetails } from '@/components/SeasonExpandedDetails'
 import { WeeklyExpandedDetails } from '@/components/WeeklyExpandedDetails'
 import { BestFinishLeaderboard } from '@/components/BestFinishLeaderboard'
 import WinnersDisplay from '@/components/WinnersDisplay'
+import { ENTRY_FEE, LEAGUESAFE_JOIN_URL } from '@/lib/league'
 
 export default function TabbedLeaderboard() {
   const { user } = useAuth()
@@ -439,9 +440,15 @@ export default function TabbedLeaderboard() {
         
         {/* Dynamic Notice Banner */}
         {(() => {
+          // Nothing to say until we know which season state we're in. Without
+          // this, switching to Weekly Results flips `loading` true, the
+          // preseason branch below stops matching, and the generic "important
+          // notice" flashes for a beat before the preseason banner returns.
+          if (loading && !isPreseason) return null
+
           // Preseason (no weeks configured yet): a friendly heads-up instead of
           // the generic "email us if something's wrong" notice.
-          if (!loading && isPreseason) {
+          if (isPreseason) {
             return (
               <div className="mt-4 mb-5 px-4 py-2.5 border rounded-lg bg-[#C9A04E]/10 border-[#C9A04E]">
                 <div className="flex items-center gap-2.5">
@@ -805,24 +812,49 @@ export default function TabbedLeaderboard() {
                 <li>Cover bonus: <b>+1</b> (11–19.5), <b>+3</b> (20–28.5), <b>+5</b> (29+). Your Lock <b>doubles the bonus</b>.</li>
               </ul>
             </div>
-            <div className="flex flex-wrap justify-center gap-3">
-              <Link to="/rules">
-                <Button variant="outline" className="border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
-                  Read the full rules →
-                </Button>
-              </Link>
-              <Link to="/history">
-                <Button variant="outline" className="border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
-                  Past seasons — champions & standings →
-                </Button>
-              </Link>
-              {user && (
-                <Link to="/profile?tab=stats">
-                  <Button variant="outline" className="border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
-                    Your career stats →
-                  </Button>
-                </Link>
-              )}
+            {/* Two things a visitor wants in the offseason: get set for the
+                coming year, or go look at the past. Grouped so the payment
+                link doesn't read as just another nav button. */}
+            <div className="grid sm:grid-cols-2 gap-4 text-left">
+              <div className="rounded-lg border border-[#f0dcb0] bg-[#fff8ea] p-4">
+                <div className="font-bold text-[#4B3621] mb-1">Ready for {season}?</div>
+                <p className="text-xs text-charcoal-600 mb-3">
+                  Get your entry in and know the rules before kickoff.
+                </p>
+                <div className="space-y-2">
+                  <a href={LEAGUESAFE_JOIN_URL} target="_blank" rel="noopener noreferrer" className="block">
+                    <Button className="w-full bg-[#C9A04E] hover:bg-[#b78e3f] text-[#4B3621]">
+                      Pay your ${ENTRY_FEE} entry →
+                    </Button>
+                  </a>
+                  <Link to="/rules" className="block">
+                    <Button variant="outline" className="w-full border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
+                      Read the rules →
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-[#e7e2da] bg-[#F8F7F3] p-4">
+                <div className="font-bold text-[#4B3621] mb-1">Curious about the past?</div>
+                <p className="text-xs text-charcoal-600 mb-3">
+                  Twenty years of champions, standings, and your own record.
+                </p>
+                <div className="space-y-2">
+                  <Link to="/history" className="block">
+                    <Button variant="outline" className="w-full border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
+                      Past champions &amp; standings →
+                    </Button>
+                  </Link>
+                  {user && (
+                    <Link to="/profile?tab=stats" className="block">
+                      <Button variant="outline" className="w-full border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
+                        Your career stats →
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )

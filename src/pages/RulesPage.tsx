@@ -62,14 +62,24 @@ export default function RulesPage() {
         <p className="text-charcoal-500 mt-2">
           Pigskin Pick Six {RULES_SEASON} — how the contest works, start to finish.
         </p>
-        <a
-          href={RULES_PDF_PATH}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 mt-5 px-4 py-2 rounded-lg border border-[#C9A04E] bg-[#fff8ea] text-pigskin-900 font-semibold hover:bg-[#C9A04E] hover:text-white transition-colors"
-        >
-          📄 Download the {RULES_SEASON} rules (PDF)
-        </a>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center mt-5">
+          <a
+            href={RULES_PDF_PATH}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-[#C9A04E] bg-[#fff8ea] text-pigskin-900 font-semibold hover:bg-[#C9A04E] hover:text-white transition-colors"
+          >
+            📄 Download the {RULES_SEASON} rules (PDF)
+          </a>
+          {/* People arrive here to pay as often as to read. Say where it is
+              rather than making them scroll the whole page to find out. */}
+          <a
+            href="#entry-fee"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#C9A04E] text-pigskin-900 font-bold hover:bg-[#b78e3f] transition-colors"
+          >
+            💵 Payment link — jump to the bottom ↓
+          </a>
+        </div>
       </div>
 
       <div className="space-y-8">
@@ -345,7 +355,7 @@ export default function RulesPage() {
         </Card>
 
         {/* Entry */}
-        <Card>
+        <Card id="entry-fee" className="scroll-mt-6">
           <CardContent className="pt-6">
             <SectionTitle>Entry Fee</SectionTitle>
             <ul className="space-y-3">

@@ -200,7 +200,7 @@ export default function LeagueSafeEmailCard({ accountEmail, activeSeason, onLink
   const extraEmails = emails.filter(e => e.email.toLowerCase() !== accountEmail.toLowerCase())
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h3 className="font-semibold text-[#4B3621]">LeagueSafe &amp; Payment</h3>
@@ -219,84 +219,112 @@ export default function LeagueSafeEmailCard({ accountEmail, activeSeason, onLink
             </Badge>}
       </div>
 
-      {status?.found && status.paid && !status.linked && (
-        <div className="rounded-lg border border-[#f0dcb0] bg-[#fff8ea] p-3 text-sm text-charcoal-700">
-          We can see your {activeSeason} payment under <b>{status.matched_email}</b>, but it isn't
-          attached to this account yet — the commissioner will finish the match, and you're clear to
-          submit picks in the meantime.
-        </div>
-      )}
-
-      <div className="rounded-lg border border-[#e7e2da] bg-[#faf8f4] p-4 text-sm text-charcoal-700">
-        <p className="font-semibold text-[#4B3621] mb-1">Paid under a different email?</p>
-        <p>
-          We match payments by email address. Add the address you used on LeagueSafe and your picks,
-          payment, and history will all line up with this account — no matter which one you use.
-        </p>
-        <p className="mt-2">
-          Not sure which one that is? Check{' '}
-          <a
-            href={LEAGUESAFE_ACCOUNT_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline font-semibold text-pigskin-700"
-          >
-            your LeagueSafe account settings
-          </a>{' '}
-          — LeagueSafe accounts live in the FanBall wallet.
-        </p>
+      {/* Payment: one statement, with the action right beside it */}
+      <div className="rounded-lg border border-[#e7e2da] p-4">
+        {status?.found ? (
+          status.paid ? (
+            <p className="text-sm text-charcoal-700">
+              <b className="text-[#1f7a44]">Your {activeSeason} entry is paid.</b>{' '}
+              {status.matched_email && <>Matched to <b>{status.matched_email}</b>. </>}
+              {!status.linked && (
+                <>It's still being attached to this account — you're clear to submit picks in the
+                meantime.</>
+              )}
+            </p>
+          ) : (
+            <p className="text-sm text-charcoal-700">
+              Your {activeSeason} entry shows as <b>{status.payment_status}</b>. It'll clear once
+              LeagueSafe settles up.
+            </p>
+          )
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-charcoal-700">
+              We don't see a {activeSeason} payment for you yet. If you already paid, it may just be
+              under a different email — add it below.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <a href={LEAGUESAFE_JOIN_URL} target="_blank" rel="noopener noreferrer" className="flex-1">
+                <Button type="button" className="w-full">Pay your ${ENTRY_FEE} entry</Button>
+              </a>
+              <a href={LEAGUESAFE_PAY_URL} target="_blank" rel="noopener noreferrer" className="flex-1">
+                <Button type="button" variant="outline" className="w-full">
+                  Already in the league? Pay here
+                </Button>
+              </a>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Addresses on this account */}
+      {error && (
+        <div className="rounded-lg bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b] px-4 py-3 text-sm">{error}</div>
+      )}
+      {notice && !error && (
+        <div className="rounded-lg bg-[#eef4fb] border border-[#cfe0f2] text-[#2c5a86] px-4 py-3 text-sm">{notice}</div>
+      )}
+      {success && (
+        <div className="rounded-lg bg-[#e6f4ea] border border-[#bfe3cc] text-[#1f7a44] px-4 py-3 text-sm">✅ {success}</div>
+      )}
+
+      {/* Every address that counts as you — with the add box attached to the
+          list it feeds, rather than stranded in a column of its own. */}
       <div className="space-y-2">
-        <Label>Email addresses on your profile</Label>
-        <div className="rounded-lg border border-[#e7e2da] divide-y divide-[#e7e2da]">
+        <Label>Your email addresses</Label>
+        <p className="text-xs text-charcoal-500">
+          We match LeagueSafe payments by email, so every address listed here counts as you — for
+          your picks, your payment, and your history.
+        </p>
+
+        <div className="rounded-lg border border-[#e7e2da] divide-y divide-[#e7e2da] overflow-hidden">
           <div className="flex items-center justify-between gap-2 p-3">
             <span className="text-sm font-medium text-charcoal-800 truncate">{accountEmail}</span>
             <Badge className="bg-[#eef2f7] text-[#41506b] border border-[#dbe3ee] shrink-0">Sign-in</Badge>
           </div>
+
           {extraEmails.map(e => (
-            <div key={e.id} className="flex items-center justify-between gap-2 p-3 flex-wrap">
-              <div className="min-w-0">
-                <div className="text-sm text-charcoal-800 truncate">{e.email}</div>
-                {e.is_matched && e.seasons?.length > 0 && (
-                  <div className="text-xs text-charcoal-500">
-                    Counts your {e.seasons.join(', ')} entr{e.seasons.length === 1 ? 'y' : 'ies'}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {/* Matching that's already been done — by a past merge, the
-                    import, or an admin — is settled. Don't ask them to confirm
-                    an address that already works. */}
-                {e.is_matched
-                  ? <Badge className="bg-[#e6f4ea] text-[#1f7a44] border border-[#bfe3cc]">Matched</Badge>
-                  : e.verified_at
-                    ? <Badge className="bg-[#e6f4ea] text-[#1f7a44] border border-[#bfe3cc]">Confirmed</Badge>
-                    : <Badge className="bg-[#fff5e2] text-[#b06a1a] border border-[#f0dcb0]">Pending</Badge>}
-                {!e.is_matched && !e.verified_at && (
-                  <button
-                    type="button"
-                    onClick={() => handleSendCode(e.email)}
-                    disabled={busy}
-                    className="text-xs text-pigskin-700 underline hover:text-pigskin-900"
-                  >
-                    Confirm it's mine
-                  </button>
-                )}
-                {e.can_remove && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(e)}
-                    className="text-xs text-charcoal-500 underline hover:text-[#d1495b]"
-                  >
-                    Remove
-                  </button>
-                )}
+            <div key={e.id} className="p-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="min-w-0">
+                  <div className="text-sm text-charcoal-800 truncate">{e.email}</div>
+                  {e.is_matched && e.seasons?.length > 0 && (
+                    <div className="text-xs text-charcoal-500">
+                      Counts your {e.seasons.join(', ')} entr{e.seasons.length === 1 ? 'y' : 'ies'}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Matching already done — a past merge, the import, an admin —
+                      is settled. Don't ask them to confirm what already works. */}
+                  {e.is_matched
+                    ? <Badge className="bg-[#e6f4ea] text-[#1f7a44] border border-[#bfe3cc]">Matched</Badge>
+                    : e.verified_at
+                      ? <Badge className="bg-[#e6f4ea] text-[#1f7a44] border border-[#bfe3cc]">Confirmed</Badge>
+                      : <Badge className="bg-[#fff5e2] text-[#b06a1a] border border-[#f0dcb0]">Pending</Badge>}
+                  {!e.is_matched && !e.verified_at && (
+                    <button
+                      type="button"
+                      onClick={() => handleSendCode(e.email)}
+                      disabled={busy}
+                      className="text-xs text-pigskin-700 underline hover:text-pigskin-900"
+                    >
+                      Confirm it's mine
+                    </button>
+                  )}
+                  {e.can_remove && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(e)}
+                      className="text-xs text-charcoal-500 underline hover:text-[#d1495b]"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
               </div>
 
               {codeFor === e.email && (
-                <div className="w-full flex gap-2 pt-2">
+                <div className="flex gap-2 pt-3">
                   <Input
                     inputMode="numeric"
                     maxLength={6}
@@ -313,54 +341,39 @@ export default function LeagueSafeEmailCard({ accountEmail, activeSeason, onLink
               )}
             </div>
           ))}
-        </div>
-      </div>
 
-      {error && (
-        <div className="rounded-lg bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b] px-4 py-3 text-sm">{error}</div>
-      )}
-      {notice && !error && (
-        <div className="rounded-lg bg-[#eef4fb] border border-[#cfe0f2] text-[#2c5a86] px-4 py-3 text-sm">{notice}</div>
-      )}
-      {success && (
-        <div className="rounded-lg bg-[#e6f4ea] border border-[#bfe3cc] text-[#1f7a44] px-4 py-3 text-sm">✅ {success}</div>
-      )}
-
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="space-y-2">
-          <Label htmlFor="new-leaguesafe-email">Add your LeagueSafe email</Label>
-          <div className="flex gap-2">
-            <Input
-              id="new-leaguesafe-email"
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="the-address-you-paid-with@example.com"
-              disabled={busy}
-            />
-            <Button type="button" onClick={handleAdd} disabled={busy || newEmail.trim() === ''}>
-              {busy ? 'Adding…' : 'Add'}
-            </Button>
-          </div>
-          <p className="text-xs text-charcoal-500">
-            Something look wrong? Email{' '}
-            <a href={`mailto:${ADMIN_EMAIL}`} className="underline">{ADMIN_EMAIL}</a>.
-          </p>
-        </div>
-
-        {!status?.found && (
-          <div className="space-y-2">
-            <Label>Haven't paid your ${ENTRY_FEE} entry?</Label>
-            <a href={LEAGUESAFE_JOIN_URL} target="_blank" rel="noopener noreferrer" className="block">
-              <Button type="button" className="w-full">Join &amp; pay on LeagueSafe</Button>
-            </a>
-            <a href={LEAGUESAFE_PAY_URL} target="_blank" rel="noopener noreferrer" className="block">
-              <Button type="button" variant="outline" className="w-full">
-                Already in the league? Pay here
+          <div className="p-3 bg-[#faf8f4]">
+            <Label htmlFor="new-leaguesafe-email" className="text-xs text-charcoal-600">
+              Paid under a different address? Add it here
+            </Label>
+            <div className="flex gap-2 mt-1.5">
+              <Input
+                id="new-leaguesafe-email"
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="the-address-you-paid-with@example.com"
+                disabled={busy}
+              />
+              <Button type="button" onClick={handleAdd} disabled={busy || newEmail.trim() === ''}>
+                {busy ? 'Adding…' : 'Add'}
               </Button>
-            </a>
+            </div>
+            <p className="text-xs text-charcoal-500 mt-2">
+              Not sure which one you used? Check{' '}
+              <a
+                href={LEAGUESAFE_ACCOUNT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-semibold text-pigskin-700"
+              >
+                your LeagueSafe account settings
+              </a>{' '}
+              — LeagueSafe accounts live in the FanBall wallet. Something look wrong? Email{' '}
+              <a href={`mailto:${ADMIN_EMAIL}`} className="underline">{ADMIN_EMAIL}</a>.
+            </p>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )
