@@ -27,6 +27,13 @@ export const LEAGUESAFE_PAY_URL =
   'https://www.leaguesafe.com/Deposit/MakeAPaymentAfterJoin/4449724'
 export const LEAGUESAFE_ABOUT_URL = 'https://leaguesafe.com/about'
 
+/**
+ * Where a player looks up which email their LeagueSafe account actually uses —
+ * the question behind every mismatched payment. LeagueSafe accounts live under
+ * FanBall's wallet, so account settings are there rather than on leaguesafe.com.
+ */
+export const LEAGUESAFE_ACCOUNT_URL = 'https://wallet.fanball.com/account-settings'
+
 /** Entry fee before / after LeagueSafe's 4% processing fee. */
 export const ENTRY_FEE = 40
 export const ENTRY_FEE_WITH_FEES = 41.6

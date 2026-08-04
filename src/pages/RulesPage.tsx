@@ -8,6 +8,7 @@ import {
   ENTRY_FEE,
   ENTRY_FEE_WITH_FEES,
   LEAGUESAFE_ABOUT_URL,
+  LEAGUESAFE_ACCOUNT_URL,
   LEAGUESAFE_JOIN_URL,
   LEAGUESAFE_PAY_URL,
   REGULAR_SEASON_WEEKS,
@@ -402,7 +403,17 @@ export default function RulesPage() {
                 <Link to="/profile" className="underline font-semibold text-pigskin-700">
                   profile page
                 </Link>{' '}
-                so your payment lines up with your picks. Questions? Email{' '}
+                so your payment lines up with your picks. Not sure which address LeagueSafe has?
+                Check{' '}
+                <a
+                  href={LEAGUESAFE_ACCOUNT_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-semibold text-pigskin-700"
+                >
+                  your account settings
+                </a>{' '}
+                in the FanBall wallet. Questions? Email{' '}
                 <a
                   href={`mailto:${ADMIN_EMAIL}`}
                   className="underline font-semibold text-pigskin-700"

@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { EmailService } from '@/services/emailService'
 import { emailShell, unsubscribeUrl } from '@/templates/emailShell'
-import { LEAGUESAFE_JOIN_URL, LEAGUESAFE_PAY_URL } from '@/lib/league'
+import { LEAGUESAFE_ACCOUNT_URL, LEAGUESAFE_JOIN_URL, LEAGUESAFE_PAY_URL } from '@/lib/league'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
 
@@ -40,7 +40,7 @@ const defaultBody = (season: number) => `<p>Hey {{name}},</p>
 <ul>
   <li><strong>Pay your entry on LeagueSafe:</strong> <a href="${LEAGUESAFE_JOIN_URL}">join &amp; pay here</a> (already in the league? <a href="${LEAGUESAFE_PAY_URL}">pay here</a>)</li>
   <li><strong>Register / log in:</strong> <a href="https://pigskinpicksix.com">pigskinpicksix.com</a></li>
-  <li><strong>Use the same email in both places</strong> — we match payments to accounts by email address. If your LeagueSafe email is different, add it on your <a href="https://pigskinpicksix.com/profile">profile page</a>.</li>
+  <li><strong>Use the same email in both places</strong> — we match payments to accounts by email address. If your LeagueSafe email is different, add it on your <a href="https://pigskinpicksix.com/profile">profile page</a> (not sure which one you used? check <a href="${LEAGUESAFE_ACCOUNT_URL}">your LeagueSafe account settings</a>).</li>
   <li><strong>Read the rules:</strong> <a href="https://pigskinpicksix.com/rules">pigskinpicksix.com/rules</a></li>
 </ul>
 <p>See you on the gridiron. 🏈</p>`

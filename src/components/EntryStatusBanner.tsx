@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { EmailClaimService, MyPaymentStatus } from '@/services/emailClaimService'
+import { LEAGUESAFE_ACCOUNT_URL } from '@/lib/league'
 
 interface Props {
   season: number
@@ -57,7 +58,15 @@ export default function EntryStatusBanner({ season }: Props) {
       Go ahead and make your picks — but if you paid on LeagueSafe under a different email address,
       add it on your{' '}
       <Link to="/profile" className="underline font-semibold text-pigskin-700">profile page</Link>{' '}
-      so your entry lines up with your picks.
+      so your entry lines up with your picks. You can look up the address LeagueSafe has for you in{' '}
+      <a
+        href={LEAGUESAFE_ACCOUNT_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline font-semibold text-pigskin-700"
+      >
+        your account settings
+      </a>.
     </div>
   )
 }

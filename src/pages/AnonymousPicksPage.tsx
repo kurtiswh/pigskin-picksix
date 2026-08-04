@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { NotificationScheduler } from '@/services/notificationScheduler'
 import { EmailService } from '@/services/emailService'
 import { EmailClaimService, PlayerLookup } from '@/services/emailClaimService'
+import { LEAGUESAFE_ACCOUNT_URL } from '@/lib/league'
 import Layout from '@/components/Layout'
 
 interface AnonymousPick {
@@ -552,7 +553,19 @@ export default function AnonymousPicksPage() {
                   </p>
                 )}
                 {isValidated === false && email.trim() && (
-                  <p className="text-[#b06a1a] text-sm mt-1">⚠️ Email not found - picks will require manual verification by admins and won't show in the leaderboard until reviewed and confirmed. If you paid on LeagueSafe under a different address, use that one here.</p>
+                  <p className="text-[#b06a1a] text-sm mt-1">
+                    ⚠️ Email not found - picks will require manual verification by admins and won't
+                    show in the leaderboard until reviewed and confirmed. If you paid on LeagueSafe
+                    under a different address, use that one here — you can look it up in{' '}
+                    <a
+                      href={LEAGUESAFE_ACCOUNT_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline font-semibold text-pigskin-700"
+                    >
+                      your LeagueSafe account settings
+                    </a>.
+                  </p>
                 )}
               </div>
             </div>

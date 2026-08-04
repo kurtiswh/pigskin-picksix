@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { EmailClaimService, LinkedEmail, MyPaymentStatus } from '@/services/emailClaimService'
-import { ADMIN_EMAIL, ENTRY_FEE, LEAGUESAFE_JOIN_URL, LEAGUESAFE_PAY_URL } from '@/lib/league'
+import { ADMIN_EMAIL, ENTRY_FEE, LEAGUESAFE_ACCOUNT_URL, LEAGUESAFE_JOIN_URL, LEAGUESAFE_PAY_URL } from '@/lib/league'
 
 interface Props {
   accountEmail: string
@@ -232,6 +232,18 @@ export default function LeagueSafeEmailCard({ accountEmail, activeSeason, onLink
         <p>
           We match payments by email address. Add the address you used on LeagueSafe and your picks,
           payment, and history will all line up with this account — no matter which one you use.
+        </p>
+        <p className="mt-2">
+          Not sure which one that is? Check{' '}
+          <a
+            href={LEAGUESAFE_ACCOUNT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline font-semibold text-pigskin-700"
+          >
+            your LeagueSafe account settings
+          </a>{' '}
+          — LeagueSafe accounts live in the FanBall wallet.
         </p>
       </div>
 

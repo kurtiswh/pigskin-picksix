@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ENTRY_FEE, LEAGUESAFE_JOIN_URL, LEAGUESAFE_PAY_URL } from '@/lib/league'
+import { ENTRY_FEE, LEAGUESAFE_ACCOUNT_URL, LEAGUESAFE_JOIN_URL, LEAGUESAFE_PAY_URL } from '@/lib/league'
 import { EmailClaimService, PlayerLookup } from '@/services/emailClaimService'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 
@@ -105,7 +105,15 @@ export default function RegisterPage() {
                   We match payments to accounts <strong>by email address</strong>, so register with
                   the same email you use on LeagueSafe. We'll check it as you type. If you have to
                   use a different one, you can add your LeagueSafe email to your profile after you
-                  sign up.
+                  sign up. Not sure which address you used?{' '}
+                  <a
+                    href={LEAGUESAFE_ACCOUNT_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline font-semibold text-pigskin-700"
+                  >
+                    Check your LeagueSafe account settings
+                  </a>.
                 </p>
               </div>
             </div>
