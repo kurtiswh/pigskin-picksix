@@ -559,6 +559,16 @@ export default function HomePage() {
                   <Link to={seasonUpcoming ? '/history' : '/leaderboard'} className="block">
                     <Button variant="outline" className="w-full mt-4">View Full Standings</Button>
                   </Link>
+                  {/* Everything backward-looking sits together; the 2026 card
+                      beside it is purely forward-looking. */}
+                  <Link to="/history" className="block">
+                    <Button variant="outline" className="w-full">Explore the Hall of Champions</Button>
+                  </Link>
+                  {user && (
+                    <Link to="/profile?tab=stats" className="block">
+                      <Button variant="outline" className="w-full">Your Career Stats</Button>
+                    </Link>
+                  )}
                 </div>
               ) : (
                 <div className="text-center text-charcoal-500 py-4">
@@ -574,116 +584,101 @@ export default function HomePage() {
             </CardContent>
           </Card>
 
-          {/* Offseason CTA / signup prompt */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>{seasonUpcoming ? `${currentSeason} kickoff is coming` : `See you in ${nextSeason}`}</span>
-                <div className="text-2xl">🏈</div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <p className="text-charcoal-600">
-                  {seasonUpcoming
-                    ? `The ${currentSeason} season is on the way — pay your LeagueSafe entry and you're in. `
-                    : `That's a wrap on ${lastPlayedSeason} — we're in the offseason, so there are no games this week. `}
-                  {user
-                    ? "You're all set. We'll let you know the moment Week 1 picks open."
-                    : `Create your account now so you're ready the second Week 1 of ${signupSeason} kicks off.`}
-                </p>
-                {user ? (
-                  <div className="space-y-2">
-                    {seasonUpcoming && (
-                      <Link to="/rules" className="block">
-                        <Button className="w-full">Read the Official Rules</Button>
-                      </Link>
-                    )}
-                    <Link to="/history" className="block">
-                      <Button variant={seasonUpcoming ? 'outline' : 'primary'} className="w-full">Explore the Hall of Champions</Button>
-                    </Link>
-                    <Link to="/profile?tab=stats" className="block">
-                      <Button variant="outline" className="w-full">Your Career Stats</Button>
-                    </Link>
-                    {!seasonUpcoming && (
-                      <Link to="/leaderboard" className="block">
-                        <Button variant="outline" className="w-full">Review the {currentSeason} Season</Button>
-                      </Link>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Link to="/register" className="block">
-                      <Button className="w-full">Sign Up for {signupSeason}</Button>
-                    </Link>
-                    {seasonUpcoming ? (
-                      <Link to="/rules" className="block">
-                        <Button variant="outline" className="w-full">Read the Official Rules</Button>
-                      </Link>
-                    ) : (
-                      <Link to="/leaderboard" className="block">
-                        <Button variant="outline" className="w-full">See {currentSeason} Results</Button>
-                      </Link>
-                    )}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        )}
-
-        {/* Entry / LeagueSafe — only while a season is still taking entries */}
-        {phase === 'offseason' && seasonUpcoming && (
-          <section className="mt-12">
+          {/* Forward-looking card. When a season is still taking entries this
+              carries the payment itself — one 2026 card, not a CTA card plus a
+              separate entry banner saying half the same things. */}
+          {seasonUpcoming ? (
             <Card className="border-[#f0dcb0] bg-[#fff8ea]">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>Pay your {currentSeason} entry</span>
-                  <div className="text-2xl">💵</div>
+                  <span>{currentSeason} kickoff is coming</span>
+                  <div className="text-2xl">🏈</div>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-3 text-charcoal-700">
-                    <p>
-                      Entry is <b>${ENTRY_FEE}</b> (${ENTRY_FEE_WITH_FEES.toFixed(2)} with
-                      LeagueSafe's 4% processing fee) and is due by <b>{ENTRY_DEADLINE_LABEL}</b>.
-                      The whole pot sits in LeagueSafe escrow until payouts.
-                    </p>
-                    <div className="rounded-lg border border-[#e7d3a8] bg-white p-3 text-sm">
-                      <div className="font-bold text-pigskin-900 mb-1">
-                        ⚠️ Use the same email in both places
-                      </div>
-                      <p>
-                        We match payments to accounts <b>by email</b>. Use the same address on
-                        LeagueSafe and here — if they differ, add your LeagueSafe email on your{' '}
-                        <Link to="/profile" className="underline font-semibold text-pigskin-700">
-                          profile
-                        </Link>{' '}
-                        so your payment lines up with your picks.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-2 self-start">
+                <div className="space-y-4">
+                  <p className="text-charcoal-700">
+                    Entry is <b>${ENTRY_FEE}</b> (${ENTRY_FEE_WITH_FEES.toFixed(2)} with LeagueSafe's
+                    4% processing fee), due by <b>{ENTRY_DEADLINE_LABEL}</b>. The whole pot sits in
+                    LeagueSafe escrow until payouts.
+                    {user
+                      ? " We'll let you know the moment Week 1 picks open."
+                      : ` Create your account too, so you're ready the second Week 1 kicks off.`}
+                  </p>
+
+                  <div className="space-y-2">
                     <a href={LEAGUESAFE_JOIN_URL} target="_blank" rel="noopener noreferrer" className="block">
                       <Button className="w-full bg-gold-500 hover:bg-gold-600 text-pigskin-900">
-                        Join &amp; pay on LeagueSafe
+                        Pay your ${ENTRY_FEE} entry on LeagueSafe
                       </Button>
                     </a>
-                    <a href={LEAGUESAFE_PAY_URL} target="_blank" rel="noopener noreferrer" className="block">
-                      <Button variant="outline" className="w-full">
-                        Already in the league? Pay here
-                      </Button>
-                    </a>
+                    {!user && (
+                      <Link to="/register" className="block">
+                        <Button variant="outline" className="w-full">Sign Up for {signupSeason}</Button>
+                      </Link>
+                    )}
                     <Link to="/rules" className="block">
                       <Button variant="outline" className="w-full">Read the Official Rules</Button>
+                    </Link>
+                    {/* Secondary path, deliberately a text link rather than a
+                        third button competing with the one everybody needs. */}
+                    <p className="text-xs text-charcoal-600 text-center pt-1">
+                      Already joined the league on LeagueSafe?{' '}
+                      <a
+                        href={LEAGUESAFE_PAY_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline font-semibold text-pigskin-700"
+                      >
+                        Make your payment here
+                      </a>
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-[#e7d3a8] bg-white p-3 text-sm">
+                    <div className="font-bold text-pigskin-900 mb-1">⚠️ Use the same email in both places</div>
+                    <p className="text-charcoal-700">
+                      We match payments to accounts <b>by email</b>. If your LeagueSafe address is
+                      different, add it on your{' '}
+                      <Link to="/profile" className="underline font-semibold text-pigskin-700">profile</Link>{' '}
+                      so your payment lines up with your picks.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>See you in {nextSeason}</span>
+                  <div className="text-2xl">🏈</div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-charcoal-600">
+                    That's a wrap on {lastPlayedSeason} — we're in the offseason, so there are no
+                    games this week.{' '}
+                    {user
+                      ? "We'll let you know the moment Week 1 picks open."
+                      : `Create your account now so you're ready the second Week 1 of ${signupSeason} kicks off.`}
+                  </p>
+                  <div className="space-y-2">
+                    {!user && (
+                      <Link to="/register" className="block">
+                        <Button className="w-full">Sign Up for {signupSeason}</Button>
+                      </Link>
+                    )}
+                    <Link to="/leaderboard" className="block">
+                      <Button variant="outline" className="w-full">Review the {currentSeason} Season</Button>
                     </Link>
                   </div>
                 </div>
               </CardContent>
             </Card>
-          </section>
+          )}
+        </div>
         )}
 
         {/* Features Section */}

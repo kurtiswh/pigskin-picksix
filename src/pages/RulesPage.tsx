@@ -383,23 +383,28 @@ export default function RulesPage() {
               <Bullet>Feel free to pass this on to your family and friends. 🏈</Bullet>
             </ul>
 
-            <div className="mt-5 flex flex-col sm:flex-row gap-3">
+            <div className="mt-5">
               <a
                 href={LEAGUESAFE_JOIN_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 text-center px-4 py-3 rounded-lg bg-[#C9A04E] text-pigskin-900 font-bold hover:bg-[#b78e3f] transition-colors"
+                className="block text-center px-4 py-3 rounded-lg bg-[#C9A04E] text-pigskin-900 font-bold hover:bg-[#b78e3f] transition-colors"
               >
-                Join &amp; pay on LeagueSafe
+                Pay your ${ENTRY_FEE} entry on LeagueSafe
               </a>
-              <a
-                href={LEAGUESAFE_PAY_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 text-center px-4 py-3 rounded-lg border border-[#C9A04E] text-pigskin-900 font-semibold hover:bg-[#fff8ea] transition-colors"
-              >
-                Already in the league? Pay here
-              </a>
+              {/* The already-joined path is real but rare — a text link keeps it
+                  available without making everyone choose between two buttons. */}
+              <p className="text-sm text-charcoal-600 text-center mt-2">
+                Already joined the league on LeagueSafe?{' '}
+                <a
+                  href={LEAGUESAFE_PAY_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-semibold text-pigskin-700"
+                >
+                  Make your payment here
+                </a>
+              </p>
             </div>
 
             <div className="mt-5 rounded-lg border border-[#f0dcb0] bg-[#fff8ea] p-4 text-sm text-charcoal-700">

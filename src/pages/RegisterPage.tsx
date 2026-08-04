@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ENTRY_FEE, LEAGUESAFE_ACCOUNT_URL, LEAGUESAFE_JOIN_URL, LEAGUESAFE_PAY_URL } from '@/lib/league'
+import { ENTRY_FEE, LEAGUESAFE_ACCOUNT_URL, LEAGUESAFE_JOIN_URL } from '@/lib/league'
 import { EmailClaimService, PlayerLookup } from '@/services/emailClaimService'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 
@@ -125,24 +125,14 @@ export default function RegisterPage() {
                 <p className="mb-3">
                   An account here is free — the ${ENTRY_FEE} entry is paid through LeagueSafe.
                 </p>
-                <div className="flex flex-col gap-2">
-                  <a
-                    href={LEAGUESAFE_JOIN_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-center px-3 py-2 rounded-lg bg-[#C9A04E] text-pigskin-900 font-bold hover:bg-[#b78e3f] transition-colors"
-                  >
-                    Join &amp; pay on LeagueSafe
-                  </a>
-                  <a
-                    href={LEAGUESAFE_PAY_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-center px-3 py-2 rounded-lg border border-[#C9A04E] text-pigskin-900 font-semibold hover:bg-white transition-colors"
-                  >
-                    Already in the league? Pay here
-                  </a>
-                </div>
+                <a
+                  href={LEAGUESAFE_JOIN_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-center px-3 py-2 rounded-lg bg-[#C9A04E] text-pigskin-900 font-bold hover:bg-[#b78e3f] transition-colors"
+                >
+                  Pay your ${ENTRY_FEE} entry on LeagueSafe
+                </a>
               </div>
             </div>
 

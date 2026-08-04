@@ -243,15 +243,21 @@ export default function LeagueSafeEmailCard({ accountEmail, activeSeason, onLink
               We don't see a {activeSeason} payment for you yet. If you already paid, it may just be
               under a different email — add it below.
             </p>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <a href={LEAGUESAFE_JOIN_URL} target="_blank" rel="noopener noreferrer" className="flex-1">
-                <Button type="button" className="w-full">Pay your ${ENTRY_FEE} entry</Button>
+            <div>
+              <a href={LEAGUESAFE_JOIN_URL} target="_blank" rel="noopener noreferrer" className="block">
+                <Button type="button" className="w-full">Pay your ${ENTRY_FEE} entry on LeagueSafe</Button>
               </a>
-              <a href={LEAGUESAFE_PAY_URL} target="_blank" rel="noopener noreferrer" className="flex-1">
-                <Button type="button" variant="outline" className="w-full">
-                  Already in the league? Pay here
-                </Button>
-              </a>
+              <p className="text-xs text-charcoal-600 mt-2">
+                Already joined the league on LeagueSafe?{' '}
+                <a
+                  href={LEAGUESAFE_PAY_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-semibold text-pigskin-700"
+                >
+                  Make your payment here
+                </a>
+              </p>
             </div>
           </div>
         )}
