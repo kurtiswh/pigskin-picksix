@@ -7,7 +7,6 @@ import { EmailClaimService, LinkedEmail, MyPaymentStatus } from '@/services/emai
 import { ADMIN_EMAIL, ENTRY_FEE, LEAGUESAFE_JOIN_URL, LEAGUESAFE_PAY_URL } from '@/lib/league'
 
 interface Props {
-  userId: string
   accountEmail: string
   activeSeason: number
   /** Called after something changes so the parent can refresh the auth context. */
@@ -23,10 +22,12 @@ interface Props {
  *
  * Adding an address does NOT move money: payments are attached to the account
  * only after the address is confirmed by an emailed code or linked by an admin.
- * Confirmation emails are held behind an allowlist until the commissioner turns
- * sending on, so the button degrades to "saved, we'll match it" for now.
+ *
+ * Matching already done in the past — an account merge, the LeagueSafe import,
+ * an admin edit — shows up here on its own and reads as settled. The claim flow
+ * is only for addresses we don't already know about.
  */
-export default function LeagueSafeEmailCard({ userId, accountEmail, activeSeason, onLinked }: Props) {
+export default function LeagueSafeEmailCard({ accountEmail, activeSeason, onLinked }: Props) {
   const [emails, setEmails] = useState<LinkedEmail[]>([])
   const [status, setStatus] = useState<MyPaymentStatus | null>(null)
 
@@ -39,13 +40,13 @@ export default function LeagueSafeEmailCard({ userId, accountEmail, activeSeason
   const [success, setSuccess] = useState('')
 
   const refresh = useCallback(async () => {
-    setEmails(await EmailClaimService.getLinkedEmails(userId))
+    setEmails(await EmailClaimService.getLinkedEmails())
     try {
       setStatus(await EmailClaimService.myPaymentStatus(activeSeason))
     } catch (err: any) {
       console.warn('Could not load payment status:', err?.message)
     }
-  }, [userId, activeSeason])
+  }, [activeSeason])
 
   useEffect(() => { refresh() }, [refresh])
 
@@ -244,14 +245,24 @@ export default function LeagueSafeEmailCard({ userId, accountEmail, activeSeason
           </div>
           {extraEmails.map(e => (
             <div key={e.id} className="flex items-center justify-between gap-2 p-3 flex-wrap">
-              <span className="text-sm text-charcoal-800 truncate">{e.email}</span>
+              <div className="min-w-0">
+                <div className="text-sm text-charcoal-800 truncate">{e.email}</div>
+                {e.is_matched && e.seasons?.length > 0 && (
+                  <div className="text-xs text-charcoal-500">
+                    Counts your {e.seasons.join(', ')} entr{e.seasons.length === 1 ? 'y' : 'ies'}
+                  </div>
+                )}
+              </div>
               <div className="flex items-center gap-2 shrink-0">
-                {/* verified_at, not is_verified: legacy import rows carry
-                    is_verified = true without anyone ever confirming them. */}
-                {e.verified_at
-                  ? <Badge className="bg-[#e6f4ea] text-[#1f7a44] border border-[#bfe3cc]">Confirmed</Badge>
-                  : <Badge className="bg-[#f4f2ee] text-charcoal-600 border border-[#e2ddd4]">On file</Badge>}
-                {!e.verified_at && (
+                {/* Matching that's already been done — by a past merge, the
+                    import, or an admin — is settled. Don't ask them to confirm
+                    an address that already works. */}
+                {e.is_matched
+                  ? <Badge className="bg-[#e6f4ea] text-[#1f7a44] border border-[#bfe3cc]">Matched</Badge>
+                  : e.verified_at
+                    ? <Badge className="bg-[#e6f4ea] text-[#1f7a44] border border-[#bfe3cc]">Confirmed</Badge>
+                    : <Badge className="bg-[#fff5e2] text-[#b06a1a] border border-[#f0dcb0]">Pending</Badge>}
+                {!e.is_matched && !e.verified_at && (
                   <button
                     type="button"
                     onClick={() => handleSendCode(e.email)}
@@ -261,13 +272,15 @@ export default function LeagueSafeEmailCard({ userId, accountEmail, activeSeason
                     Confirm it's mine
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => handleRemove(e)}
-                  className="text-xs text-charcoal-500 underline hover:text-[#d1495b]"
-                >
-                  Remove
-                </button>
+                {e.can_remove && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(e)}
+                    className="text-xs text-charcoal-500 underline hover:text-[#d1495b]"
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
 
               {codeFor === e.email && (

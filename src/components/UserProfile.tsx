@@ -505,7 +505,6 @@ export default function UserProfile() {
             <Separator />
 
             <LeagueSafeEmailCard
-              userId={user.id}
               accountEmail={user.email}
               activeSeason={activeSeason}
               onLinked={() => { refreshUser(); loadUserProfile() }}

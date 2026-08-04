@@ -82,10 +82,14 @@ export interface ClaimVerifyResult {
 export interface LinkedEmail {
   id: string
   email: string
-  email_type: string
-  is_verified: boolean
-  verified_at: string | null
   source: string | null
+  verified_at: string | null
+  /** A payment made under this address already belongs to this account. */
+  is_matched: boolean
+  /** Seasons it earns them. */
+  seasons: number[]
+  /** Only their own not-yet-matched additions can be deleted. */
+  can_remove: boolean
 }
 
 export class EmailClaimService {
@@ -138,20 +142,20 @@ export class EmailClaimService {
     return data as ClaimVerifyResult
   }
 
-  /** Every address linked to this account, newest first. */
-  static async getLinkedEmails(userId: string): Promise<LinkedEmail[]> {
-    const { data, error } = await supabase
-      .from('user_emails')
-      .select('id, email, email_type, is_verified, verified_at, source')
-      .eq('user_id', userId)
-      .order('verified_at', { ascending: false, nullsFirst: false })
+  /**
+   * Every address on this account, matched ones first, each carrying whether it
+   * already earns them a payment. Matches made in the past (merges, imports,
+   * admin edits) come back as is_matched — they're done, and the profile shows
+   * them rather than asking the player to re-confirm anything.
+   */
+  static async getLinkedEmails(): Promise<LinkedEmail[]> {
+    const { data, error } = await supabase.rpc('my_profile_emails')
     if (error) {
-      // Table missing or read blocked — the claim flow still works, we just
-      // can't show the list.
-      console.warn('Could not load linked emails:', error.message)
+      // Un-migrated database — the rest of the profile still works.
+      console.warn('Could not load profile emails:', error.message)
       return []
     }
-    return data || []
+    return (data || []) as LinkedEmail[]
   }
 
   /** Drop an alternate address the player no longer wants attached. */
