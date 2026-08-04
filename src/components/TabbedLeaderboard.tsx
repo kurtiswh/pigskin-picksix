@@ -823,12 +823,12 @@ export default function TabbedLeaderboard() {
                 </p>
                 <div className="space-y-2">
                   <a href={LEAGUESAFE_JOIN_URL} target="_blank" rel="noopener noreferrer" className="block">
-                    <Button className="w-full bg-[#C9A04E] hover:bg-[#b78e3f] text-[#4B3621]">
+                    <Button className="w-full h-auto py-2.5 leading-snug whitespace-normal bg-[#C9A04E] hover:bg-[#b78e3f] text-[#4B3621]">
                       Pay your ${ENTRY_FEE} entry →
                     </Button>
                   </a>
                   <Link to="/rules" className="block">
-                    <Button variant="outline" className="w-full border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
+                    <Button variant="outline" className="w-full h-auto py-2.5 leading-snug whitespace-normal border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
                       Read the rules →
                     </Button>
                   </Link>
@@ -842,13 +842,13 @@ export default function TabbedLeaderboard() {
                 </p>
                 <div className="space-y-2">
                   <Link to="/history" className="block">
-                    <Button variant="outline" className="w-full border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
+                    <Button variant="outline" className="w-full h-auto py-2.5 leading-snug whitespace-normal border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
                       Past champions &amp; standings →
                     </Button>
                   </Link>
                   {user && (
                     <Link to="/profile?tab=stats" className="block">
-                      <Button variant="outline" className="w-full border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
+                      <Button variant="outline" className="w-full h-auto py-2.5 leading-snug whitespace-normal border-[#C9A04E] text-[#4B3621] hover:bg-[#C9A04E]/10">
                         Your career stats →
                       </Button>
                     </Link>
