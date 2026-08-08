@@ -35,6 +35,13 @@ export interface PlayerLookup {
   user_id?: string
   display_name?: string
   matched_via?: 'account' | 'profile' | 'payment' | 'payment_history'
+  /**
+   * Somebody can actually sign into this account. False for the placeholder
+   * accounts the LeagueSafe import creates, which carry an address but have no
+   * auth.users row — the distinction the register page needs before it tells
+   * anyone they already have a login. (migration 195)
+   */
+  has_login?: boolean
   payment_status?: string | null
   paid?: boolean
 }
@@ -121,6 +128,16 @@ export class EmailClaimService {
     const { data, error } = await supabase.rpc('my_payment_status', { p_season: season })
     if (error) throw error
     return data as MyPaymentStatus
+  }
+
+  /**
+   * "I paid under this same address." Records the claim so the prompt stops
+   * asking, and so an unmatched payment on this account reads as a matching gap
+   * rather than a wrong email. Moves no money. (migration 196)
+   */
+  static async confirmLeagueSafeEmailIsSignIn(): Promise<void> {
+    const { error } = await supabase.rpc('confirm_my_leaguesafe_email')
+    if (error) throw error
   }
 
   /** Email a confirmation code to the address being claimed. */

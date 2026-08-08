@@ -30,6 +30,11 @@ export interface User {
   display_name: string
   is_admin: boolean
   leaguesafe_email?: string
+  /**
+   * They told us they paid LeagueSafe under this same sign-in address, so the
+   * post-sign-in prompt stops asking. (migration 196)
+   */
+  leaguesafe_email_confirmed_at?: string | null
   created_at: string
   updated_at: string
   preferences?: UserPreferences
@@ -228,7 +233,6 @@ export interface AuthContextType {
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, displayName: string) => Promise<SignUpOutcome>
-  setupExistingUser: (email: string, password: string) => Promise<any>
   signOut: () => Promise<void>
   signInWithGoogle: () => Promise<void>
   signInWithMagicLink: (email: string) => Promise<any>

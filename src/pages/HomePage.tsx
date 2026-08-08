@@ -9,6 +9,7 @@ import { getActiveWeekSettings } from '@/services/weekService'
 import { LeaderboardEntry, Pick } from '@/types'
 import { LeaderboardService } from '@/services/leaderboardService'
 import Layout from '@/components/Layout'
+import LeagueSafeEmailPrompt from '@/components/LeagueSafeEmailPrompt'
 import {
   ENTRY_DEADLINE_LABEL,
   ENTRY_FEE,
@@ -269,6 +270,10 @@ export default function HomePage() {
 
   return (
     <Layout>
+
+      {/* Asked here because this is where signing up ends: the confirmation
+          link lands on /login?confirmed=true, which redirects straight here. */}
+      <LeagueSafeEmailPrompt />
 
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-pigskin-600 to-pigskin-800 text-white py-20">

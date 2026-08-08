@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT } from '@/lib/password'
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate()
@@ -31,38 +32,43 @@ export default function ResetPasswordPage() {
           })
 
           if (error) {
-            setError('Invalid or expired reset link. Please request a new password reset.')
+            setError("Reset links last one hour. Request a fresh one and we'll email it right over.")
             setTokenValid(false)
           } else {
             setTokenValid(true)
           }
         } else {
-          setError('No reset token provided. Please use the link from your email.')
+          setError('This page needs the link from your reset email. Request one and we\'ll send it over.')
           setTokenValid(false)
         }
       } catch (err: any) {
-        setError('Failed to verify reset token. Please try again.')
+        setError("We couldn't check that link. Request a new one and try again.")
         setTokenValid(false)
       }
     }
+
+    // Once the password is changed we sign them out on purpose (see below).
+    // Without this guard that sign-out would re-run the callback, find the
+    // recovery tokens still sitting in the hash, and sign them straight back in.
+    if (success) return
 
     if (user) {
       setTokenValid(true)
     } else {
       handleAuthCallback()
     }
-  }, [user])
+  }, [user, success])
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long')
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(PASSWORD_TOO_SHORT)
       return
     }
-    
+
     if (password !== confirmPassword) {
-      setError('Passwords do not match')
+      setError("Those passwords don't match.")
       return
     }
 
@@ -79,15 +85,25 @@ export default function ResetPasswordPage() {
       }
 
       setSuccess(true)
-      
+
+      // The recovery link already signed them in (setSession above), so without
+      // this they'd arrive at /login with a live session and get bounced to /
+      // before reading anything. Signing out also makes "sign in with your new
+      // password" true, and proves the new password works.
+      //
+      // supabase.auth.signOut() directly, not the one from useAuth — that one
+      // does a hard window.location redirect and would drop ?reset=done.
+      await supabase.auth.signOut()
+
+      // ?reset=done, not router state: LoginPage reads search params only, and a
+      // query param also survives a reload. The state version never rendered.
       setTimeout(() => {
-        navigate('/login', { 
-          state: { message: 'Password reset successful! Please log in with your new password.' }
-        })
+        navigate('/login?reset=done')
       }, 3000)
 
     } catch (err: any) {
-      setError(err.message || 'Failed to reset password')
+      console.error('Password update failed:', err)
+      setError("We couldn't update your password. Try again in a moment.")
     } finally {
       setLoading(false)
     }
@@ -106,17 +122,17 @@ export default function ResetPasswordPage() {
           <CardContent>
             <div className="text-center">
               <p className="text-charcoal-600 mb-4">
-                Your password has been successfully updated.
+                Sign in with your new password and you're back in.
               </p>
               <p className="text-sm text-charcoal-500">
-                Redirecting you to the login page in a few seconds...
+                Taking you to sign in in a few seconds...
               </p>
               <div className="mt-6">
                 <Button
-                  onClick={() => navigate('/login')}
+                  onClick={() => navigate('/login?reset=done')}
                   className="w-full bg-[#4B3621] text-white hover:bg-[#3a2a19]"
                 >
-                  Go to Login
+                  Go to sign in
                 </Button>
               </div>
             </div>
@@ -139,23 +155,26 @@ export default function ResetPasswordPage() {
           {tokenValid === false ? (
             <div className="text-center">
               <div className="text-6xl mb-4">⚠️</div>
-              <h2 className="text-xl font-semibold text-[#d1495b] mb-4">Invalid Reset Link</h2>
+              <h2 className="text-xl font-semibold text-[#d1495b] mb-4">This link has expired</h2>
               <div className="p-3 bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b] rounded-lg text-sm mb-4">
                 {error}
               </div>
               <div className="space-y-3">
+                {/* ?reset=request opens the inline reset panel on the login card,
+                    rather than dropping them on a page where they have to find
+                    "Forgot your password?" all over again. */}
                 <Button
-                  onClick={() => navigate('/login')}
+                  onClick={() => navigate('/login?reset=request')}
                   className="w-full bg-[#4B3621] text-white hover:bg-[#3a2a19]"
                 >
-                  Request New Password Reset
+                  Email me a new link
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => navigate('/login')}
-                  className="w-full border-[#e7e2da]"
+                  className="w-full text-sm text-pigskin-600 hover:text-pigskin-700"
                 >
-                  Back to Login
+                  Back to sign in
                 </Button>
               </div>
             </div>
@@ -182,12 +201,10 @@ export default function ResetPasswordPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your new password"
                   required
-                  minLength={6}
+                  minLength={MIN_PASSWORD_LENGTH}
                   disabled={loading}
                 />
-                <p className="text-xs text-charcoal-500 mt-1">
-                  Must be at least 6 characters long
-                </p>
+                <p className="text-xs text-charcoal-500 mt-1">{PASSWORD_HINT}</p>
               </div>
 
               <div>
@@ -200,7 +217,7 @@ export default function ResetPasswordPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm your new password"
                   required
-                  minLength={6}
+                  minLength={MIN_PASSWORD_LENGTH}
                   disabled={loading}
                 />
               </div>
@@ -227,20 +244,11 @@ export default function ResetPasswordPage() {
                   onClick={() => navigate('/login')}
                   className="text-sm text-pigskin-600 hover:text-pigskin-700"
                 >
-                  Back to Login
+                  Back to sign in
                 </Button>
               </div>
             </form>
           )}
-
-          <div className="mt-6 p-3 bg-[#faf8f4] border border-[#e7e2da] rounded-lg">
-            <h4 className="text-sm font-medium text-[#4B3621] mb-2">Password Requirements:</h4>
-            <ul className="text-xs text-charcoal-700 space-y-1">
-              <li>• At least 6 characters long</li>
-              <li>• Should be unique and not easily guessable</li>
-              <li>• Consider using a mix of letters, numbers, and symbols</li>
-            </ul>
-          </div>
         </CardContent>
       </Card>
     </div>
