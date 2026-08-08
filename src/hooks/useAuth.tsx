@@ -662,7 +662,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('❌ [SIGNUP] Full error object:', JSON.stringify(error, null, 2))
         throw new Error(`Failed to create account: ${error.message}`)
       }
-      
+
+      // Supabase never tells us an address is taken — it returns a success
+      // response with an empty `identities` array and sends no email, so nobody
+      // can use this form to discover who has an account. Left alone that looks
+      // identical to a real signup, which is how a returning player ends up
+      // waiting on a confirmation email that was never sent.
+      //
+      // So send them something they can actually use: a password reset, which
+      // goes to the address itself and is the right move whether they forgot
+      // they registered or forgot their password. resetPasswordForEmail is
+      // equally tight-lipped, and the caller shows one message either way.
+      const existingAccount = !!data?.user && data.user.identities?.length === 0
+      if (existingAccount) {
+        console.log('🔐 [SIGNUP] Address already registered — sending a reset link instead')
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        })
+        if (resetError) {
+          // Non-fatal: the shared message tells them to use "Forgot password"
+          // on the login page, which gets them to the same place by hand.
+          console.error('⚠️ [SIGNUP] Reset link failed to send:', resetError)
+        }
+        return { existingAccount: true }
+      }
+
       console.log('✅ [SIGNUP] Step 3: SignUp successful, user created!')
       // Note: signing up also re-enables contest emails for a previously
       // unsubscribed address. That happens server-side in handle_new_user
@@ -687,7 +711,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       console.log('🔐 [SIGNUP] Step 5: Returning signup data')
-      return data
+      return { existingAccount: false }
     } catch (err) {
       console.error('💥 [SIGNUP] SignUp exception:', err)
       throw err

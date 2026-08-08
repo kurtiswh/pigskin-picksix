@@ -66,7 +66,14 @@ export default function RegisterPage() {
       }
       
       await signUp(email, password, displayName)
-      setSuccess('✅ Account created! Please check your email for a confirmation link to complete setup.')
+      // Deliberately the same message whether or not the address was already
+      // registered — signUp sends a confirmation link to new addresses and a
+      // reset link to existing ones, so this is accurate either way and the
+      // form never reveals which emails have accounts.
+      setSuccess(
+        `✅ Check ${email.trim()} for a link to finish getting in. Already had an account under that address? ` +
+        `We sent a sign-in link instead of creating a second one — or use "Forgot password" on the login page.`
+      )
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -175,7 +182,7 @@ export default function RegisterPage() {
                   <p className="text-[#b06a1a] text-sm mt-1">
                     ⚠️ Email not found in our system. We're still processing payments, so this could be normal. Please make sure you're: 1) registered and paid in LeagueSafe, 2) using the same email used in LeagueSafe.
                     <br /><br />
-                    To learn more about registering & paying, <a href="https://www.pigskinpicksix.com/blog/welcome-the-20th-edition-of-the-pp6" target="_blank" rel="noopener noreferrer" className="text-pigskin-600 hover:text-pigskin-700 underline font-medium">read more here</a>.
+                    To learn more about registering & paying, <a href="/blog/welcome-the-20th-edition-of-the-pp6" target="_blank" rel="noopener noreferrer" className="text-pigskin-600 hover:text-pigskin-700 underline font-medium">read more here</a>.
                   </p>
                 )}
               </div>

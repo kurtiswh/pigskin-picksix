@@ -212,11 +212,22 @@ export interface UserWithPayment extends User {
   season_payment_history?: LeagueSafePayment[]
 }
 
+/**
+ * Result of a signup attempt. `existingAccount` is true when Supabase returned
+ * its anti-enumeration response for an address that already has an account —
+ * see signUp() in useAuth. Callers must NOT surface this distinction in the UI:
+ * both outcomes get the same message, or the register page becomes an oracle
+ * for which emails are registered.
+ */
+export interface SignUpOutcome {
+  existingAccount: boolean
+}
+
 export interface AuthContextType {
   user: User | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, displayName: string) => Promise<void>
+  signUp: (email: string, password: string, displayName: string) => Promise<SignUpOutcome>
   setupExistingUser: (email: string, password: string) => Promise<any>
   signOut: () => Promise<void>
   signInWithGoogle: () => Promise<void>
