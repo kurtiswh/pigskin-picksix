@@ -141,7 +141,13 @@ export default function LoginPage() {
       setResetOpen(false)
     } catch (err: any) {
       console.error('Password reset failed:', err)
-      setResetError("Couldn't send the reset link. Try again in a moment.")
+      // Supabase's throttle message names the wait, which is the one thing that
+      // helps here — a flat "try again in a moment" makes people hammer it.
+      setResetError(
+        /rate limit|for security purposes|too many requests/i.test(err?.message ?? '')
+          ? 'You just asked for one. Give it a minute and try again.'
+          : "Couldn't send the reset link. Try again in a moment."
+      )
     } finally {
       setResetSending(false)
     }

@@ -82,6 +82,7 @@ export type Database = {
           display_name: string
           is_admin: boolean
           leaguesafe_email: string | null
+          leaguesafe_email_confirmed_at: string | null
           created_at: string
           updated_at: string
         }
@@ -91,6 +92,7 @@ export type Database = {
           display_name: string
           is_admin?: boolean
           leaguesafe_email?: string | null
+          leaguesafe_email_confirmed_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -100,6 +102,7 @@ export type Database = {
           display_name?: string
           is_admin?: boolean
           leaguesafe_email?: string | null
+          leaguesafe_email_confirmed_at?: string | null
           updated_at?: string
         }
       }

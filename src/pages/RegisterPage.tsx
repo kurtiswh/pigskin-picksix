@@ -42,11 +42,18 @@ export default function RegisterPage() {
    * has_login separates a real account from the placeholder rows the LeagueSafe
    * import creates, which carry an address but have never authenticated.
    * (lookup_player_by_email, migration 195.)
+   *
+   * matched_via matters just as much. has_login describes the ACCOUNT, not the
+   * address typed — an account is also found via leaguesafe_email or any
+   * archived address in user_emails, and those are not sign-in addresses.
+   * Telling someone to sign in with one sends them to two dead ends: the
+   * password fails, and a reset to it is never delivered. Only 'account' means
+   * "this exact address signs in".
    */
   const checkForExistingLogin = async (emailToCheck: string) => {
     try {
       const result = await EmailClaimService.lookupByEmail(emailToCheck, currentSeason)
-      setHasAccount(Boolean(result.found && result.has_login))
+      setHasAccount(Boolean(result.found && result.has_login && result.matched_via === 'account'))
     } catch (err) {
       // A failed lookup should never block registration — it's an aid, not a gate.
       console.error('Could not check for an existing account:', err)
@@ -165,7 +172,13 @@ export default function RegisterPage() {
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    // The banner was computed for the old address — it must not
+                    // outlive it, or it claims an account for whatever they
+                    // type next.
+                    setHasAccount(false)
+                  }}
                   onBlur={handleEmailBlur}
                   placeholder="Your email address"
                   required

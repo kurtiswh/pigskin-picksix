@@ -32,7 +32,7 @@ const dismissKey = (userId: string) => `pp6.leaguesafe-prompt-dismissed.${userId
 
 export default function LeagueSafeEmailPrompt() {
   const { user, refreshUser } = useAuth()
-  const { activeSeason } = useCurrentSeason()
+  const { activeSeason, loading: seasonLoading } = useCurrentSeason()
 
   const [needed, setNeeded] = useState(false)
   const [weight, setWeight] = useState<'full' | 'quiet'>('full')
@@ -45,26 +45,45 @@ export default function LeagueSafeEmailPrompt() {
 
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Deliberately narrow deps: the whole `user` object is replaced on every
+  // TOKEN_REFRESHED / tab-focus revalidation, and depending on it re-issued the
+  // payment-status RPC indefinitely on a long-lived tab.
+  const userId = user?.id
+  const confirmedAt = user?.leaguesafe_email_confirmed_at
+
   const check = useCallback(async () => {
-    if (!user) return
+    if (!userId) return
 
     // They've already told us they paid under this address — never ask again.
-    if (user.leaguesafe_email_confirmed_at) {
+    if (confirmedAt) {
       setNeeded(false)
       return
     }
 
+    // activeSeason falls back to FALLBACK_ACTIVE_SEASON (a past season) until
+    // app_settings loads. Asking then races the real season and can both
+    // suppress the prompt and print the wrong year in the copy.
+    if (seasonLoading) return
+
     try {
       const status = await EmailClaimService.myPaymentStatus(activeSeason)
-      // A linked payment means matching already worked. Anything else — no
-      // payment found, or one found but not attached — is worth asking about.
-      setNeeded(!status.linked)
+      // Ask only when we found nothing at all under any address they own —
+      // that is the gap an email can close.
+      //
+      // The other two answers are deliberately excluded. { found: true,
+      // linked: false } means we can already SEE their payment under a profile
+      // address; it needs attaching by code or by an admin, not another email,
+      // and re-typing it just returns already_added. { found: false } with no
+      // `linked` key at all means the RPC could not resolve the caller, so
+      // every action in this prompt would fail — blocking the page with three
+      // buttons that cannot work is the worst thing it could do.
+      setNeeded(status.linked === false && status.found === false)
     } catch (err) {
       // Never let this block the page it sits on.
       console.warn('Could not check payment status for the LeagueSafe prompt:', err)
       setNeeded(false)
     }
-  }, [user, activeSeason])
+  }, [userId, confirmedAt, activeSeason, seasonLoading])
 
   useEffect(() => {
     check()
@@ -80,7 +99,11 @@ export default function LeagueSafeEmailPrompt() {
     }
   }, [user])
 
-  const open = Boolean(user && needed && !hidden)
+  // `done` keeps it open. Every answer calls refreshUser(), which replaces the
+  // user object, re-runs check(), and flips `needed` false — so without this the
+  // confirmation the Done button exists to hold would be destroyed by the early
+  // return a frame after it rendered.
+  const open = Boolean(user && (needed || done) && !hidden)
   const asModal = open && weight === 'full'
 
   // Hold the page still behind the modal, and put them in the field they're
@@ -206,8 +229,8 @@ export default function LeagueSafeEmailPrompt() {
     }
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-        <div className="w-full max-w-lg bg-white rounded-xl shadow-xl p-6 space-y-4">
+      <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/50 overflow-y-auto">
+        <div className="w-full max-w-lg bg-white rounded-xl shadow-xl p-6 space-y-4 my-auto max-h-[90vh] overflow-y-auto">
           {confirmation}
           <Button
             type="button"
@@ -307,12 +330,12 @@ export default function LeagueSafeEmailPrompt() {
   // the same as skipping) has to be the way out.
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/50 overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-labelledby="leaguesafe-prompt-title"
     >
-      <div className="w-full max-w-lg bg-white rounded-xl shadow-xl p-6 border-t-4 border-[#C9A04E]">
+      <div className="w-full max-w-lg bg-white rounded-xl shadow-xl p-6 border-t-4 border-[#C9A04E] my-auto max-h-[90vh] overflow-y-auto">
         {body}
       </div>
     </div>

@@ -7,6 +7,27 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT } from '@/lib/password'
 
+/**
+ * Supabase's update errors are written for developers, but two of them tell the
+ * player the one thing they have to change — swallowing those into a generic
+ * apology leaves them retrying the same password forever.
+ */
+function readableUpdateError(raw: string) {
+  if (/should be different from the old password/i.test(raw)) {
+    return 'That\'s the password you already had. Pick a different one.'
+  }
+  if (/at least|too short|minimum/i.test(raw)) {
+    return PASSWORD_TOO_SHORT
+  }
+  if (/session|expired|token/i.test(raw)) {
+    return 'That reset link has expired. Request a new one and try again.'
+  }
+  if (/rate limit|too many requests/i.test(raw)) {
+    return 'Too many attempts. Give it a minute and try again.'
+  }
+  return "We couldn't update your password. Try again in a moment."
+}
+
 export default function ResetPasswordPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -85,28 +106,39 @@ export default function ResetPasswordPage() {
       }
 
       setSuccess(true)
-
-      // The recovery link already signed them in (setSession above), so without
-      // this they'd arrive at /login with a live session and get bounced to /
-      // before reading anything. Signing out also makes "sign in with your new
-      // password" true, and proves the new password works.
-      //
-      // supabase.auth.signOut() directly, not the one from useAuth — that one
-      // does a hard window.location redirect and would drop ?reset=done.
-      await supabase.auth.signOut()
-
-      // ?reset=done, not router state: LoginPage reads search params only, and a
-      // query param also survives a reload. The state version never rendered.
-      setTimeout(() => {
-        navigate('/login?reset=done')
-      }, 3000)
-
     } catch (err: any) {
       console.error('Password update failed:', err)
-      setError("We couldn't update your password. Try again in a moment.")
-    } finally {
+      setError(readableUpdateError(err?.message ?? ''))
       setLoading(false)
+      return
     }
+
+    // Past this point the password IS changed, so nothing here may report a
+    // failure or skip the redirect — which is why it sits outside the try.
+    //
+    // The recovery link already signed them in (setSession above), so without
+    // the sign-out they'd arrive at /login with a live session and get bounced
+    // to / before reading anything. It also makes "sign in with your new
+    // password" true, and proves the new password works.
+    //
+    // supabase.auth.signOut() directly, not the one from useAuth — that one
+    // does a hard window.location redirect and would drop ?reset=done.
+    try {
+      await supabase.auth.signOut()
+    } catch (signOutErr) {
+      // They still have a live recovery session; the redirect below sends them
+      // to /login, and LoginPage bounces a signed-in user home. Not worth
+      // telling them their password failed when it didn't.
+      console.warn('Sign-out after password reset failed:', signOutErr)
+    }
+
+    setLoading(false)
+
+    // ?reset=done, not router state: LoginPage reads search params only, and a
+    // query param also survives a reload. The state version never rendered.
+    setTimeout(() => {
+      navigate('/login?reset=done')
+    }, 3000)
   }
 
   if (success) {
