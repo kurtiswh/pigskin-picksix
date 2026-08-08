@@ -1,0 +1,70 @@
+<!--
+  Supabase Auth → "Change email address" template, in the Pigskin Pick Six
+  brand shell (matches src/templates/emailShell.ts and wrap_email_shell()).
+
+  Dashboard: Authentication → Emails → Change email address → paste this HTML.
+  Do NOT run `supabase config push` — see the note in confirm-signup.html.
+
+  Nothing in the app sends this: there is no updateUser({ email }) call in
+  src/. It fires if an admin changes an address in the Supabase Dashboard, or
+  if a change-email screen is ever added.
+
+  IMPORTANT — this same template goes to BOTH addresses when
+  double_confirm_changes is on (config.toml sets it true, but that file holds
+  local-dev values; production is whatever the Dashboard says). So the copy has
+  to read correctly at the old address and the new one, which is why it names
+  both rather than saying "your new address".
+
+  Careful with the LeagueSafe angle: changing the sign-in email does NOT move a
+  LeagueSafe payment, which is matched on its own address via user_emails.
+  Hence the note — otherwise this is exactly the change that quietly detaches
+  someone from their entry.
+
+  Supabase template variables: {{ .ConfirmationURL }} {{ .Email }} {{ .NewEmail }} {{ .SiteURL }}
+-->
+<div style="margin:0;padding:0;background:#F0EEE8">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0">Confirm the new email address on your Pigskin Pick Six account</div>
+  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px 16px;color:#2A2118">
+    <div style="background:#4B3621;border-radius:12px 12px 0 0;padding:22px 24px;text-align:center">
+      <div style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:.02em">🏈 PIGSKIN PICK SIX</div>
+      <div style="height:3px;width:54px;background:#C9A04E;margin:10px auto 0;border-radius:2px"></div>
+      <div style="color:#E9DFcd;font-size:12px;margin-top:10px;text-transform:uppercase;letter-spacing:.12em;font-weight:700">Email Change</div>
+    </div>
+    <div style="background:#ffffff;border:1px solid #E5DFD5;border-top:none;border-radius:0 0 12px 12px;padding:28px 26px">
+      <h2 style="color:#4B3621;margin:0 0 14px;font-size:20px">Confirm your new email address</h2>
+
+      <p style="color:#2A2118;font-size:15px;line-height:1.55;margin:0 0 14px">
+        Somebody asked to change the sign-in email on a Pigskin Pick Six account from
+        <strong>{{ .Email }}</strong> to <strong>{{ .NewEmail }}</strong>. Confirm below and the change
+        goes through.
+      </p>
+
+      <div style="text-align:center;margin:28px 0">
+        <a href="{{ .ConfirmationURL }}" style="background:#C9A04E;color:#4B3621;font-weight:800;text-decoration:none;padding:13px 28px;border-radius:8px;display:inline-block;font-size:15px">Confirm the change</a>
+      </div>
+
+      <div style="background:#FBF3DC;border:1px solid #EAD9AE;border-radius:8px;padding:16px 18px;margin:18px 0;color:#8a6d1f;font-size:15px;line-height:1.5">
+        <strong>Your LeagueSafe entry isn't affected.</strong> We match payments against the address you
+        used on LeagueSafe, which is kept separately on your profile — changing the email you sign in with
+        leaves it exactly where it is.
+      </div>
+
+      <p style="color:#7A6E60;font-size:13px;line-height:1.55;margin:0 0 6px">
+        Button not working? Paste this into your browser:
+      </p>
+      <p style="color:#7A6E60;font-size:12px;line-height:1.5;margin:0 0 14px;word-break:break-all">
+        <a href="{{ .ConfirmationURL }}" style="color:#7A6E60">{{ .ConfirmationURL }}</a>
+      </p>
+
+      <p style="color:#7A6E60;font-size:13px;line-height:1.55;margin:0">
+        Didn't ask for this? Don't click the button — the address stays as it is until someone confirms.
+        Reply to this email and we'll look into it.
+      </p>
+
+      <div style="border-top:1px solid #E5DFD5;margin-top:28px;padding-top:16px;text-align:center;color:#7A6E60;font-size:12px;line-height:1.6">
+        <div style="font-weight:700;color:#4B3621">The Pigskin Pick Six Team</div>
+        <div style="margin-top:4px"><a href="https://pigskinpicksix.com" style="color:#7A6E60">pigskinpicksix.com</a> &middot; <a href="https://pigskinpicksix.com/rules" style="color:#7A6E60">official rules</a></div>
+      </div>
+    </div>
+  </div>
+</div>

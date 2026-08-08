@@ -1,0 +1,71 @@
+<!--
+  Supabase Auth → "Invite user" template, in the Pigskin Pick Six brand shell
+  (matches src/templates/emailShell.ts and the SQL wrap_email_shell()).
+
+  Dashboard: Authentication → Emails → Invite user → paste this HTML.
+  Do NOT run `supabase config push` — see the note in confirm-signup.html.
+
+  Nothing in the app sends this: there is no inviteUserByEmail() call anywhere
+  in src/. It fires when an admin uses the "Invite" button in the Supabase
+  Dashboard (Authentication → Users), which is the one way a player ends up
+  with an account they didn't create themselves. Branded so that if it ever
+  goes out it doesn't look like a stray system email.
+
+  Note the ask is inverted from the usual flow: they set a password from the
+  link first, and pay LeagueSafe after — so this does not repeat the "you need
+  two things" framing in the order the register page uses.
+
+  Supabase template variables: {{ .ConfirmationURL }} {{ .Email }} {{ .SiteURL }}
+-->
+<div style="margin:0;padding:0;background:#F0EEE8">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0">You've been invited to play Pigskin Pick Six</div>
+  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px 16px;color:#2A2118">
+    <div style="background:#4B3621;border-radius:12px 12px 0 0;padding:22px 24px;text-align:center">
+      <div style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:.02em">🏈 PIGSKIN PICK SIX</div>
+      <div style="height:3px;width:54px;background:#C9A04E;margin:10px auto 0;border-radius:2px"></div>
+      <div style="color:#E9DFcd;font-size:12px;margin-top:10px;text-transform:uppercase;letter-spacing:.12em;font-weight:700">You're Invited</div>
+    </div>
+    <div style="background:#ffffff;border:1px solid #E5DFD5;border-top:none;border-radius:0 0 12px 12px;padding:28px 26px">
+      <h2 style="color:#4B3621;margin:0 0 14px;font-size:20px">Come play Pigskin Pick Six</h2>
+
+      <p style="color:#2A2118;font-size:15px;line-height:1.55;margin:0 0 14px">
+        An account has been set up for <strong>{{ .Email }}</strong>. Accept the invitation, choose a
+        password, and you're on the board.
+      </p>
+
+      <div style="text-align:center;margin:28px 0">
+        <a href="{{ .ConfirmationURL }}" style="background:#C9A04E;color:#4B3621;font-weight:800;text-decoration:none;padding:13px 28px;border-radius:8px;display:inline-block;font-size:15px">Accept the invitation</a>
+      </div>
+
+      <div style="background:#FBF3DC;border:1px solid #EAD9AE;border-radius:8px;padding:16px 18px;margin:18px 0;color:#8a6d1f;font-size:15px;line-height:1.5">
+        <strong>How it works:</strong>
+        <ul style="margin:8px 0 0;padding-left:20px">
+          <li>Pick 6 games against the spread each week, one as your 🔒 Lock</li>
+          <li>20 points a win, 10 a push, plus margin bonuses (doubled on your Lock)</li>
+          <li>Season-long standings plus the Best Finish race over the last four weeks</li>
+        </ul>
+      </div>
+
+      <p style="color:#2A2118;font-size:15px;line-height:1.55;margin:0 0 14px">
+        Your account here is free. The entry itself is paid on LeagueSafe — we'll point you at that once
+        you're in.
+      </p>
+
+      <p style="color:#7A6E60;font-size:13px;line-height:1.55;margin:0 0 6px">
+        Button not working? Paste this into your browser:
+      </p>
+      <p style="color:#7A6E60;font-size:12px;line-height:1.5;margin:0 0 14px;word-break:break-all">
+        <a href="{{ .ConfirmationURL }}" style="color:#7A6E60">{{ .ConfirmationURL }}</a>
+      </p>
+
+      <p style="color:#7A6E60;font-size:13px;line-height:1.55;margin:0">
+        Not expecting this? You can ignore it — nothing happens until you accept.
+      </p>
+
+      <div style="border-top:1px solid #E5DFD5;margin-top:28px;padding-top:16px;text-align:center;color:#7A6E60;font-size:12px;line-height:1.6">
+        <div style="font-weight:700;color:#4B3621">The Pigskin Pick Six Team</div>
+        <div style="margin-top:4px"><a href="https://pigskinpicksix.com" style="color:#7A6E60">pigskinpicksix.com</a> &middot; <a href="https://pigskinpicksix.com/rules" style="color:#7A6E60">official rules</a></div>
+      </div>
+    </div>
+  </div>
+</div>

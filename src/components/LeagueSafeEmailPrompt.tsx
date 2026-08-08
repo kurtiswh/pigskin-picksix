@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/hooks/useAuth'
@@ -12,16 +12,18 @@ import { ADMIN_EMAIL, ENTRY_FEE, LEAGUESAFE_ACCOUNT_URL } from '@/lib/league'
  *
  * The register page used to carry this. It couldn't work there: the player has
  * no account yet, add_my_leaguesafe_email is granted to authenticated only, and
- * we'd have had to take the address and go silent about whether it helped. Here
- * we can record it and tell them straight away whether it found their entry.
+ * we'd have taken the address and gone silent about whether it helped. Here we
+ * can record it and tell them straight away whether it found their entry.
  *
  * For a new registrant this IS part of registration — signUp's emailRedirectTo
  * sends them from the confirmation link to /login?confirmed=true, which
  * redirects to / with a session. This is the next screen they see.
  *
- * Two weights, same component:
- *   full  — never dismissed. A proper last step of signing up.
- *   quiet — dismissed before. A banner they can wave off again.
+ * Two weights:
+ *   full  — never answered. A modal that blocks the page until they pick one of
+ *           the three answers. Skipping is an answer.
+ *   quiet — skipped before. An inline banner, because blocking someone who has
+ *           already said "not now" every time they sign in is just nagging.
  *
  * Nobody with a matched payment sees either.
  */
@@ -40,6 +42,8 @@ export default function LeagueSafeEmailPrompt() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState('')
+
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const check = useCallback(async () => {
     if (!user) return
@@ -76,9 +80,35 @@ export default function LeagueSafeEmailPrompt() {
     }
   }, [user])
 
-  if (!user || !needed || hidden) return null
+  const open = Boolean(user && needed && !hidden)
+  const asModal = open && weight === 'full'
 
-  const dismiss = () => {
+  // Hold the page still behind the modal, and put them in the field they're
+  // being asked to fill.
+  useEffect(() => {
+    if (!asModal) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    inputRef.current?.focus()
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [asModal])
+
+  // Escape closes it the same way "Skip for now" does. A modal with no keyboard
+  // exit traps anyone not using a mouse, and skipping is a real answer anyway.
+  useEffect(() => {
+    if (!asModal || busy || done) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') dismissPrompt()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asModal, busy, done])
+
+  function dismissPrompt() {
+    if (!user) return
     try {
       localStorage.setItem(dismissKey(user.id), String(Date.now()))
     } catch {
@@ -86,6 +116,8 @@ export default function LeagueSafeEmailPrompt() {
     }
     setHidden(true)
   }
+
+  if (!user || !open) return null
 
   /** Their sign-in address is the LeagueSafe one. Recorded, not just dismissed. */
   const confirmSameEmail = async () => {
@@ -157,97 +189,131 @@ export default function LeagueSafeEmailPrompt() {
     }
   }
 
+  const isFull = weight === 'full'
+
+  // ── Answered ────────────────────────────────────────────────────────────
+  // Worth reading — it's the only place we say whether their entry was found —
+  // so in the modal it stays put behind an explicit Done rather than vanishing.
   if (done) {
+    const confirmation = (
+      <div className="px-4 py-3 rounded-lg text-sm bg-[#e6f4ea] border border-[#bfe3cc] text-[#1f7a44]">
+        ✅ {done}
+      </div>
+    )
+
+    if (!isFull) {
+      return <div className="container mx-auto px-4 pt-4">{confirmation}</div>
+    }
+
     return (
-      <div className="container mx-auto px-4 pt-4">
-        <div className="px-4 py-3 rounded-lg text-sm bg-[#e6f4ea] border border-[#bfe3cc] text-[#1f7a44]">
-          ✅ {done}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+        <div className="w-full max-w-lg bg-white rounded-xl shadow-xl p-6 space-y-4">
+          {confirmation}
+          <Button
+            type="button"
+            onClick={() => setHidden(true)}
+            className="w-full bg-[#4B3621] text-white hover:bg-[#3a2a19]"
+          >
+            Done
+          </Button>
         </div>
       </div>
     )
   }
 
-  const isFull = weight === 'full'
-
-  return (
-    <div className="container mx-auto px-4 pt-4">
-      <div
-        className={
-          isFull
-            ? 'p-5 rounded-lg bg-[#fff8ea] border border-[#f0dcb0]'
-            : 'p-4 rounded-lg bg-[#faf8f4] border border-[#e7e2da]'
-        }
-      >
-        <div className="text-charcoal-700 text-sm space-y-3">
-          {isFull ? (
-            <>
-              <div className="font-semibold text-[#4B3621] text-base">
-                One last thing — which email did you use on LeagueSafe?
-              </div>
-              <p>
-                We connect your ${ENTRY_FEE} entry to your account by email address. If you paid under a
-                different address than <strong>{user.email}</strong>, tell us which one.
-              </p>
-            </>
-          ) : (
-            <p>
-              <strong className="text-[#4B3621]">We don't have your LeagueSafe email.</strong> We connect
-              entries to accounts by email address, and we haven't found a {activeSeason} payment under
-              yours.
-            </p>
-          )}
-
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@example.com"
-            disabled={busy}
-          />
-
-          {error && <p className="text-[#d1495b]">{error}</p>}
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              onClick={addEmail}
-              disabled={busy}
-              className="bg-[#C9A04E] text-pigskin-900 font-bold hover:bg-[#b78e3f]"
-            >
-              {busy ? 'Saving...' : isFull ? 'Add this email' : 'Add it'}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="border-[#e7e2da]"
-              onClick={confirmSameEmail}
-              disabled={busy}
-            >
-              I used this same email
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="border-[#e7e2da]"
-              onClick={dismiss}
-              disabled={busy}
-            >
-              {isFull ? 'Skip for now' : 'Not now'}
-            </Button>
-          </div>
-
-          <p className="text-xs text-charcoal-500">
-            Don't know which one you used?{' '}
-            <a
-              href={LEAGUESAFE_ACCOUNT_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline font-semibold text-pigskin-700"
-            >
-              See it on your LeagueSafe account.
-            </a>
+  // ── The ask ─────────────────────────────────────────────────────────────
+  const body = (
+    <div className="text-charcoal-700 text-sm space-y-3">
+      {isFull ? (
+        <>
+          <h2 id="leaguesafe-prompt-title" className="font-semibold text-[#4B3621] text-lg">
+            One last thing — which email did you use on LeagueSafe?
+          </h2>
+          <p>
+            We connect your ${ENTRY_FEE} entry to your account by email address. If you paid under a
+            different address than <strong>{user.email}</strong>, tell us which one.
           </p>
-        </div>
+        </>
+      ) : (
+        <p>
+          <strong className="text-[#4B3621]">We don't have your LeagueSafe email.</strong> We connect
+          entries to accounts by email address, and we haven't found a {activeSeason} payment under yours.
+        </p>
+      )}
+
+      <Input
+        ref={inputRef}
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="name@example.com"
+        disabled={busy}
+      />
+
+      {error && <p className="text-[#d1495b]">{error}</p>}
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          onClick={addEmail}
+          disabled={busy}
+          className="bg-[#C9A04E] text-pigskin-900 font-bold hover:bg-[#b78e3f]"
+        >
+          {busy ? 'Saving...' : isFull ? 'Add this email' : 'Add it'}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="border-[#e7e2da]"
+          onClick={confirmSameEmail}
+          disabled={busy}
+        >
+          I used this same email
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="border-[#e7e2da]"
+          onClick={dismissPrompt}
+          disabled={busy}
+        >
+          {isFull ? 'Skip for now' : 'Not now'}
+        </Button>
+      </div>
+
+      <p className="text-xs text-charcoal-500">
+        Don't know which one you used?{' '}
+        <a
+          href={LEAGUESAFE_ACCOUNT_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline font-semibold text-pigskin-700"
+        >
+          See it on your LeagueSafe account.
+        </a>
+      </p>
+    </div>
+  )
+
+  if (!isFull) {
+    return (
+      <div className="container mx-auto px-4 pt-4">
+        <div className="p-4 rounded-lg bg-[#faf8f4] border border-[#e7e2da]">{body}</div>
+      </div>
+    )
+  }
+
+  // No click-outside dismissal: one of the three buttons (or Escape, which is
+  // the same as skipping) has to be the way out.
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="leaguesafe-prompt-title"
+    >
+      <div className="w-full max-w-lg bg-white rounded-xl shadow-xl p-6 border-t-4 border-[#C9A04E]">
+        {body}
       </div>
     </div>
   )

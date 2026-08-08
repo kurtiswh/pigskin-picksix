@@ -1,0 +1,55 @@
+<!--
+  Supabase Auth → "Reauthentication" template, in the Pigskin Pick Six brand
+  shell (matches src/templates/emailShell.ts and wrap_email_shell()).
+
+  Dashboard: Authentication → Emails → Reauthentication → paste this HTML.
+  Do NOT run `supabase config push` — see the note in confirm-signup.html.
+
+  Purely defensive. Nothing calls supabase.auth.reauthenticate(), and this only
+  fires when secure_password_change is on (config.toml sets it false, but that
+  file holds local-dev values — production is whatever the Dashboard says).
+  Branded so an unbranded system email can never surprise a player.
+
+  This is the one auth email with NO link: reauthentication is a 6-digit code
+  the player types back into the app. PP6 has no screen to type it into today,
+  so if this ever starts sending, a code-entry step has to ship with it.
+
+  Supabase template variables: {{ .Token }} {{ .Email }} {{ .SiteURL }}
+-->
+<div style="margin:0;padding:0;background:#F0EEE8">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0">Your Pigskin Pick Six confirmation code</div>
+  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px 16px;color:#2A2118">
+    <div style="background:#4B3621;border-radius:12px 12px 0 0;padding:22px 24px;text-align:center">
+      <div style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:.02em">🏈 PIGSKIN PICK SIX</div>
+      <div style="height:3px;width:54px;background:#C9A04E;margin:10px auto 0;border-radius:2px"></div>
+      <div style="color:#E9DFcd;font-size:12px;margin-top:10px;text-transform:uppercase;letter-spacing:.12em;font-weight:700">Confirm It's You</div>
+    </div>
+    <div style="background:#ffffff;border:1px solid #E5DFD5;border-top:none;border-radius:0 0 12px 12px;padding:28px 26px">
+      <h2 style="color:#4B3621;margin:0 0 14px;font-size:20px">Here's your confirmation code</h2>
+
+      <p style="color:#2A2118;font-size:15px;line-height:1.55;margin:0 0 14px">
+        Before we make that change to the Pigskin Pick Six account on <strong>{{ .Email }}</strong>, type
+        this code back into the site:
+      </p>
+
+      <div style="text-align:center;margin:28px 0">
+        <div style="display:inline-block;background:#FBF3DC;border:1px solid #EAD9AE;border-radius:8px;padding:16px 32px;color:#4B3621;font-size:32px;font-weight:800;letter-spacing:.22em;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">{{ .Token }}</div>
+      </div>
+
+      <div style="background:#FBF3DC;border:1px solid #EAD9AE;border-radius:8px;padding:16px 18px;margin:18px 0;color:#8a6d1f;font-size:15px;line-height:1.5">
+        <strong>This code expires in an hour, and we'll never ask you for it.</strong> Nobody from Pigskin
+        Pick Six will email, call or message you asking you to read it out — if someone does, they aren't us.
+      </div>
+
+      <p style="color:#7A6E60;font-size:13px;line-height:1.55;margin:0">
+        Didn't ask for this? Ignore this email — nothing changes without the code, and your account is
+        untouched.
+      </p>
+
+      <div style="border-top:1px solid #E5DFD5;margin-top:28px;padding-top:16px;text-align:center;color:#7A6E60;font-size:12px;line-height:1.6">
+        <div style="font-weight:700;color:#4B3621">The Pigskin Pick Six Team</div>
+        <div style="margin-top:4px"><a href="https://pigskinpicksix.com" style="color:#7A6E60">pigskinpicksix.com</a> &middot; <a href="https://pigskinpicksix.com/rules" style="color:#7A6E60">official rules</a></div>
+      </div>
+    </div>
+  </div>
+</div>
