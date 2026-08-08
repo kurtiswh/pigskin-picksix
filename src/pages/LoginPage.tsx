@@ -4,275 +4,146 @@ import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { supabase } from '@/lib/supabase'
+import { ENTRY_FEE, LEAGUESAFE_JOIN_URL } from '@/lib/league'
+
+/**
+ * Supabase's auth errors are written for developers. Map the ones players
+ * actually hit; anything else falls through to a plain apology with the raw
+ * text still going to the console.
+ */
+const SIGN_IN_ERRORS: Array<{ match: RegExp; message: string; offerReset?: boolean }> = [
+  {
+    match: /invalid login credentials/i,
+    message: "That email and password don't match. Try again, or reset your password.",
+    offerReset: true,
+  },
+  {
+    match: /email not confirmed/i,
+    message: "You haven't confirmed your email yet — check your inbox for the confirmation link.",
+  },
+  {
+    match: /rate limit|too many requests/i,
+    message: 'Too many attempts. Give it a minute and try again.',
+  },
+]
+
+function readableSignInError(raw: string) {
+  const known = SIGN_IN_ERRORS.find((candidate) => candidate.match.test(raw))
+  if (known) return { message: known.message, offerReset: Boolean(known.offerReset) }
+  return { message: 'Something went wrong signing you in. Try again in a moment.', offerReset: false }
+}
 
 export default function LoginPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { user, signIn, signUp, setupExistingUser, signInWithGoogle, signInWithMagicLink } = useAuth()
-  
-  const [isSignUp, setIsSignUp] = useState(searchParams.get('signup') === 'true')
-  const [isFirstTime, setIsFirstTime] = useState(false)
+  const { user, signIn } = useAuth()
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [isPositiveMessage, setIsPositiveMessage] = useState(false)
+  const [offerReset, setOfferReset] = useState(false)
+  const [notice, setNotice] = useState('')
+
+  // Forgot-password lives inline in this card. It used to be a browser
+  // prompt()/alert() pair, which is unbranded and silently suppressed in some
+  // in-app browsers — so "Forgot your password?" did nothing at all for anyone
+  // who opened the site from an email client.
+  const [resetOpen, setResetOpen] = useState(searchParams.get('reset') === 'request')
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetSending, setResetSending] = useState(false)
+  const [resetNotice, setResetNotice] = useState('')
+  const [resetError, setResetError] = useState('')
 
   useEffect(() => {
-    if (user) {
-      navigate('/')
-    }
-  }, [user, navigate])
+    if (!user) return
 
-  // Check for email confirmation success
+    // Email confirmation signs them in, which used to bounce them off this page
+    // before the "confirmed" banner could be read — the same way the password
+    // reset message was being lost. Hold briefly when there's something to read.
+    const timer = setTimeout(() => navigate('/'), notice ? 2500 : 0)
+    return () => clearTimeout(timer)
+  }, [user, notice, navigate])
+
+  // Arrival banners. Each event has exactly one string; the password-reset one
+  // arrives as ?reset=done because router state does not survive a reload (and
+  // was never being read here at all).
   useEffect(() => {
-    // Check URL query parameters
     const urlParams = new URLSearchParams(window.location.search)
-    const code = urlParams.get('code')
-    const confirmed = urlParams.get('confirmed')
-    
-    // Check URL hash parameters (for magic links with #access_token=)
     const hashParams = new URLSearchParams(window.location.hash.substring(1))
-    const type = hashParams.get('type')
-    const accessToken = hashParams.get('access_token')
-    
-    console.log('🔍 [CONFIRMATION] Checking for auth callback:', { 
-      hasCode: !!code, 
-      confirmed,
-      hashType: type, 
-      hasAccessToken: !!accessToken 
-    })
-    
-    // Check if user was redirected here after email confirmation
-    if (confirmed === 'true') {
-      console.log('✅ Email confirmation redirect detected')
-      setIsPositiveMessage(true)
-      setError('✅ Email confirmed successfully! You are now signed in.')
-      // Clear the URL parameters after a short delay
-      setTimeout(() => {
-        window.history.replaceState({}, document.title, window.location.pathname)
-      }, 3000)
+    const confirmed =
+      urlParams.get('confirmed') === 'true' ||
+      Boolean(urlParams.get('code')) ||
+      (hashParams.get('type') === 'signup' && Boolean(hashParams.get('access_token')))
+
+    if (urlParams.get('reset') === 'done') {
+      setNotice('✅ Password updated. Sign in with your new password.')
+    } else if (confirmed) {
+      setNotice("✅ Email confirmed — you're signed in.")
+    } else {
+      return
     }
-    // Check if this is an email confirmation callback (query parameter with code)
-    else if (code) {
-      console.log('✅ Email confirmation code detected in URL')
-      setIsPositiveMessage(true)
-      setError('✅ Email confirmed successfully! You are now signed in.')
-      // Clear the URL parameters after a short delay
-      setTimeout(() => {
-        window.history.replaceState({}, document.title, window.location.pathname)
-      }, 3000)
-    }
-    // Check if this is a hash-based auth callback (magic links)
-    else if (type === 'signup' && accessToken) {
-      console.log('✅ Email confirmation detected in hash')
-      setIsPositiveMessage(true)
-      setError('✅ Email confirmed successfully! You are now signed in.')
-      // Clear the URL hash after a short delay
-      setTimeout(() => {
-        window.history.replaceState({}, document.title, window.location.pathname)
-      }, 3000)
-    } else if (type === 'magiclink' && accessToken) {
-      console.log('✅ Magic link login detected')
-      setIsPositiveMessage(true)
-      setError('✅ Magic link authentication successful! You are now signed in.')
-      // Clear the URL hash after a short delay
-      setTimeout(() => {
-        window.history.replaceState({}, document.title, window.location.pathname)
-      }, 3000)
-    }
+
+    // Clear the parameters once the message is up, so a reload doesn't repeat it.
+    const timer = setTimeout(() => {
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }, 3000)
+    return () => clearTimeout(timer)
   }, [])
 
-  const checkForExistingUser = async (email: string) => {
-    try {
-      const { supabase } = await import('@/lib/supabase')
-      
-      // Check if user exists in the users table or leaguesafe_payments table
-      const { data: existingUsers } = await supabase
-        .from('users')
-        .select('email, leaguesafe_email')
-        .or(`email.eq.${email},leaguesafe_email.eq.${email}`)
-        .limit(1)
-
-      const { data: leaguesafeUsers } = await supabase
-        .from('leaguesafe_payments')
-        .select('leaguesafe_email')
-        .eq('leaguesafe_email', email)
-        .eq('is_matched', false)
-        .limit(1)
-
-      return (existingUsers && existingUsers.length > 0) || (leaguesafeUsers && leaguesafeUsers.length > 0)
-    } catch (error) {
-      console.error('Error checking for existing user:', error)
-      return false
-    }
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
-    console.log('📝 [FORM] Form submitted - mode:', { isFirstTime, isSignUp, email })
     e.preventDefault()
     setLoading(true)
     setError('')
-    setIsPositiveMessage(false)
+    setOfferReset(false)
 
     try {
-      if (isFirstTime) {
-        console.log('📝 [FORM] Calling setupExistingUser...')
-        const result = await setupExistingUser(email, password)
-        if (result.success) {
-          alert(result.message || 'Setup email sent! Please check your email to complete account setup.')
-        }
-      } else if (isSignUp) {
-        console.log('📝 [FORM] Processing signup...')
-        if (!displayName.trim()) {
-          throw new Error('Display name is required')
-        }
-        
-        console.log('📝 [FORM] TEMPORARILY SKIPPING user existence check due to RLS issues')
-        // TEMPORARILY SKIP the user existence check that's hanging
-        /*
-        // Check if user already exists before attempting signup
-        const userExists = await checkForExistingUser(email)
-        if (userExists) {
-          // Instead of throwing an error, smoothly transition to existing user setup
-          setIsSignUp(false)
-          setIsFirstTime(true)
-          setDisplayName('') // Clear display name since it's not needed for first-time setup
-          
-          // Show a helpful message instead of an alert
-          setIsPositiveMessage(true)
-          setError('Good news! We found your email in our system. The form has been switched to "First Time Setup" mode. Please create a password to access your existing account.')
-          return
-        }
-        */
-        
-        console.log('📝 [FORM] Calling signUp function...')
-        await signUp(email, password, displayName)
-        setIsPositiveMessage(true)
-        setError('✅ Account created! Please check your email for a confirmation link to complete setup.')
-      } else {
-        console.log('📝 [FORM] Calling signIn...')
-        await signIn(email, password)
-        navigate('/')
-      }
+      await signIn(email, password)
+      navigate('/')
     } catch (err: any) {
-      console.error('📝 [FORM] Form submission error:', err)
-      setError(err.message)
+      console.error('Sign in failed:', err)
+      const readable = readableSignInError(err?.message ?? '')
+      setError(readable.message)
+      setOfferReset(readable.offerReset)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleGoogleSignIn = async () => {
-    try {
-      await signInWithGoogle()
-    } catch (err: any) {
-      setError(err.message)
-    }
+  const openReset = () => {
+    setResetEmail(email)
+    setResetNotice('')
+    setResetError('')
+    setResetOpen(true)
   }
 
-  const handleMagicLink = async () => {
-    const userEmail = prompt('Enter your email address to receive a magic sign-in link:')
-    
-    if (!userEmail) return
-    
-    if (!userEmail.includes('@')) {
-      alert('Please enter a valid email address')
+  const handleSendReset = async () => {
+    const target = resetEmail.trim()
+    if (!target) {
+      setResetError('Enter the email address on your account.')
       return
     }
 
-    try {
-      const { MagicLinkService } = await import('@/services/magicLinkService')
-      const result = await MagicLinkService.sendMagicLink(userEmail)
-      
-      if (result.success) {
-        alert(`✅ Magic link sent to ${userEmail}! Please check your inbox and click the link to sign in.`)
-      } else {
-        throw new Error(result.error || 'Failed to send magic link')
-      }
-    } catch (err: any) {
-      console.error('Magic link error:', err)
-      alert(`❌ Failed to send magic link: ${err.message}`)
-    }
-  }
-
-  const handleForgotPassword = async () => {
-    const userEmail = prompt('Enter your email address to receive a password reset link:')
-    
-    if (!userEmail) return
-    
-    if (!userEmail.includes('@')) {
-      alert('Please enter a valid email address')
-      return
-    }
+    setResetSending(true)
+    setResetError('')
+    setResetNotice('')
 
     try {
-      const { supabase } = await import('@/lib/supabase')
-      const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
-        redirectTo: `${window.location.origin}/reset-password`
+      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(target, {
+        redirectTo: `${window.location.origin}/reset-password`,
       })
-      
-      if (error) {
-        throw new Error(error.message)
-      }
-      
-      alert(`Password reset email sent to ${userEmail}! Please check your inbox.`)
+      if (resetErr) throw resetErr
+
+      setResetNotice(
+        `✅ Reset link sent to ${target}. Check your inbox — and your spam folder if it's not there in a minute.`
+      )
+      setResetOpen(false)
     } catch (err: any) {
-      console.error('Password reset error:', err)
-      alert(`Failed to send password reset email: ${err.message}`)
-    }
-  }
-
-  const handleTestResend = async () => {
-    try {
-      // First test the ultra-simple endpoint
-      console.log('Testing basic API endpoint...')
-      const helloResponse = await fetch('/api/hello')
-      console.log('Hello response status:', helloResponse.status)
-      
-      if (helloResponse.ok) {
-        const helloResult = await helloResponse.json()
-        console.log('Hello result:', helloResult)
-        alert(`✅ Basic API works: ${helloResult.message}`)
-      } else {
-        console.error('Hello endpoint failed:', helloResponse.status)
-        alert(`❌ Basic API failed with status: ${helloResponse.status}`)
-        return
-      }
-
-      // Test with a simple GET request first
-      console.log('Testing Resend endpoint with GET...')
-      const response = await fetch('/api/test-resend')
-
-      console.log('Resend response status:', response.status)
-      console.log('Resend response headers:', Object.fromEntries(response.headers.entries()))
-
-      if (response.status === 0) {
-        alert('❌ Network error - function may not exist')
-        return
-      }
-
-      const responseText = await response.text()
-      console.log('Resend response text:', responseText)
-      
-      try {
-        const result = JSON.parse(responseText)
-        console.log('Resend result:', result)
-        
-        if (response.ok) {
-          alert(`✅ Resend test passed: ${JSON.stringify(result)}`)
-        } else {
-          alert(`❌ Resend test failed: ${JSON.stringify(result)}`)
-        }
-      } catch (jsonError) {
-        console.error('JSON parse error:', jsonError)
-        console.error('Response text:', responseText)
-        alert(`❌ Invalid JSON response. Status: ${response.status}, Text: ${responseText}`)
-      }
-    } catch (err: any) {
-      console.error('Test exception:', err)
-      alert(`❌ Test exception: ${err.message}`)
+      console.error('Password reset failed:', err)
+      setResetError("Couldn't send the reset link. Try again in a moment.")
+    } finally {
+      setResetSending(false)
     }
   }
 
@@ -292,46 +163,23 @@ export default function LoginPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-center text-2xl text-[#4B3621]">
-              {isFirstTime ? 'First Time Setup' : isSignUp ? 'Join the Competition' : 'Welcome Back'}
+              Welcome Back
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Mode Selection */}
-            {!isFirstTime && !isSignUp && (
-              <div className="mb-4 p-4 bg-[#faf8f4] border border-[#e7e2da] rounded-lg">
-                <p className="text-sm text-charcoal-700 mb-2">
-                  <strong>Existing league member?</strong> If you were added to the league via LeagueSafe but haven't set up your login yet,
-                </p>
-                <Link to="/register">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="border-[#e7e2da]"
-                  >
-                    Set up first-time login
-                  </Button>
-                </Link>
+            {notice && (
+              <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-[#e6f4ea] border border-[#bfe3cc] text-[#1f7a44]">
+                {notice}
+              </div>
+            )}
+
+            {resetNotice && (
+              <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-[#e6f4ea] border border-[#bfe3cc] text-[#1f7a44]">
+                {resetNotice}
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {isSignUp && !isFirstTime && (
-                <div>
-                  <label htmlFor="displayName" className="block text-sm font-medium text-charcoal-700 mb-1">
-                    Display Name
-                  </label>
-                  <Input
-                    id="displayName"
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Enter your display name"
-                    required={isSignUp}
-                  />
-                </div>
-              )}
-              
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-charcoal-700 mb-1">
                   Email
@@ -361,12 +209,17 @@ export default function LoginPage() {
               </div>
 
               {error && (
-                <div className={`px-4 py-3 rounded-lg text-sm ${
-                  isPositiveMessage
-                    ? 'bg-[#e6f4ea] border border-[#bfe3cc] text-[#1f7a44]'
-                    : 'bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b]'
-                }`}>
-                  {error}
+                <div className="px-4 py-3 rounded-lg text-sm bg-[#fbe9ec] border border-[#f2c9d1] text-[#d1495b]">
+                  <p>{error}</p>
+                  {offerReset && (
+                    <button
+                      type="button"
+                      onClick={openReset}
+                      className="mt-2 font-semibold underline"
+                    >
+                      Reset your password
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -375,114 +228,48 @@ export default function LoginPage() {
                 className="w-full bg-[#4B3621] text-white hover:bg-[#3a2a19]"
                 disabled={loading}
               >
-                {loading ? 'Please wait...' : (
-                  isFirstTime ? 'Set Up Account' : 
-                  isSignUp ? 'Create Account' : 
-                  'Sign In'
-                )}
+                {loading ? 'Please wait...' : 'Sign in'}
               </Button>
             </form>
 
-            {/* HIDDEN: Alternative sign-in options temporarily disabled */}
-            {false && (
-              <div className="mt-6">
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-[#e7e2da]" />
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-white text-charcoal-500">Or continue with</span>
-                  </div>
+            {resetOpen ? (
+              <div className="mt-4 p-4 bg-[#faf8f4] border border-[#e7e2da] rounded-lg space-y-3">
+                <p className="text-sm font-semibold text-[#4B3621]">Reset your password</p>
+                <p className="text-sm text-charcoal-700">We'll email a reset link to:</p>
+                <Input
+                  type="email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="Enter your email"
+                />
+                {resetError && (
+                  <p className="text-sm text-[#d1495b]">{resetError}</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleSendReset}
+                    disabled={resetSending}
+                    className="bg-[#4B3621] text-white hover:bg-[#3a2a19]"
+                  >
+                    {resetSending ? 'Sending...' : 'Send reset link'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-[#e7e2da]"
+                    onClick={() => setResetOpen(false)}
+                    disabled={resetSending}
+                  >
+                    Cancel
+                  </Button>
                 </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full mt-4"
-                  onClick={handleGoogleSignIn}
-                >
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                    <path
-                      fill="currentColor"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                    />
-                  </svg>
-                  Continue with Google
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full mt-2"
-                  onClick={handleMagicLink}
-                >
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                    <polyline points="22,6 12,13 2,6"/>
-                  </svg>
-                  Send Magic Link
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full mt-2 bg-[#fff5e2] border-[#f0dcb0] text-[#b06a1a] hover:bg-[#fdeccb]"
-                  onClick={handleTestResend}
-                >
-                  🧪 Test Resend API
-                </Button>
               </div>
-            )}
-
-            <div className="mt-6 text-center text-sm">
-              {isFirstTime ? (
-                <p className="text-charcoal-600">
-                  Already have login credentials?{' '}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsFirstTime(false)
-                      setIsSignUp(false)
-                    }}
-                    className="text-pigskin-600 hover:text-pigskin-700 font-medium"
-                  >
-                    Regular sign in
-                  </button>
-                </p>
-              ) : isSignUp ? (
-                <p className="text-charcoal-600">
-                  Already have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => setIsSignUp(false)}
-                    className="text-pigskin-600 hover:text-pigskin-700 font-medium"
-                  >
-                    Sign in
-                  </button>
-                </p>
-              ) : (
-                // HIDDEN: Create account option temporarily disabled
-                null
-              )}
-            </div>
-
-            {!isFirstTime && !isSignUp && (
+            ) : (
               <div className="mt-4 text-center">
                 <button
                   type="button"
-                  onClick={handleForgotPassword}
+                  onClick={openReset}
                   className="text-sm text-pigskin-600 hover:text-pigskin-700 font-medium underline"
                 >
                   Forgot your password?
@@ -490,23 +277,48 @@ export default function LoginPage() {
               </div>
             )}
 
-            {isFirstTime && (
-              <div className="mt-4 p-4 bg-[#e6f4ea] border border-[#bfe3cc] rounded-lg">
-                <p className="text-sm text-[#1f7a44]">
-                  <strong>First-time setup:</strong> Use the email address associated with your LeagueSafe payment.
-                  We'll create your login credentials and link your account automatically.
-                </p>
-              </div>
-            )}
+            <div className="my-5 border-t border-[#e7e2da]" />
 
-            {isSignUp && !isFirstTime && (
-              <div className="mt-4 p-4 bg-[#faf8f4] border border-[#e7e2da] rounded-lg">
-                <p className="text-sm text-charcoal-700">
-                  <strong>Important:</strong> Use the same email address that you used for LeagueSafe registration
-                  to ensure your account is properly linked to your payment.
+            {/* The fork. Paying LeagueSafe does not create an account here, and
+                this page is where people discover that — so it has to say both
+                what they need and where to go next. */}
+            <div className="p-4 rounded-lg bg-[#fff8ea] border border-[#f0dcb0]">
+              <div className="text-charcoal-700 text-sm space-y-2">
+                <div className="text-lg font-extrabold text-[#4B3621]">New here?</div>
+                <p className="font-semibold text-[#4B3621]">You need two things to play.</p>
+                <div className="flex gap-2">
+                  <span className="font-bold text-[#b06a1a]">1</span>
+                  <span><strong>Your ${ENTRY_FEE} entry.</strong> LeagueSafe is where you pay.</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="font-bold text-[#b06a1a]">2</span>
+                  <span>
+                    <strong>An account here.</strong> This is where you make your picks. It's free and
+                    takes a minute to set up.
+                  </span>
+                </div>
+                <p>
+                  If you haven't paid,{' '}
+                  <a
+                    href={LEAGUESAFE_JOIN_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline font-semibold text-pigskin-700"
+                  >
+                    don't forget to make that payment
+                  </a>
+                  .
                 </p>
+                <Link to="/register" className="block pt-1">
+                  <Button
+                    type="button"
+                    className="bg-[#C9A04E] text-pigskin-900 font-bold hover:bg-[#b78e3f]"
+                  >
+                    Create your account
+                  </Button>
+                </Link>
               </div>
-            )}
+            </div>
           </CardContent>
         </Card>
 

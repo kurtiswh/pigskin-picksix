@@ -4,19 +4,20 @@ import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ENTRY_FEE, LEAGUESAFE_ACCOUNT_URL, LEAGUESAFE_JOIN_URL } from '@/lib/league'
-import { EmailClaimService, PlayerLookup } from '@/services/emailClaimService'
+import { ENTRY_FEE, LEAGUESAFE_JOIN_URL } from '@/lib/league'
+import { EmailClaimService } from '@/services/emailClaimService'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
+import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT } from '@/lib/password'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
   const { user, signUp } = useAuth()
-  
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
-  const [isValidated, setIsValidated] = useState<boolean | null>(null)
-  const [lookup, setLookup] = useState<PlayerLookup | null>(null)
+  /** They already have a login — the one thing this page can say for certain. */
+  const [hasAccount, setHasAccount] = useState(false)
   const { activeSeason: currentSeason } = useCurrentSeason()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -29,28 +30,35 @@ export default function RegisterPage() {
   }, [user, navigate])
 
   /**
-   * Resolve against every address we know for a player — sign-in email,
-   * LeagueSafe email, or one they added to their profile — plus this season's
-   * payment, so someone registering under their newer address still gets
-   * recognized. (lookup_player_by_email, migration 191.)
+   * The email check answers one question: can this person already sign in?
+   *
+   * It deliberately says nothing about payment. Payments are matched by hand,
+   * so "we don't see your entry" means "we haven't got to it" at least as often
+   * as it means "you haven't paid" — and there is no honest way to word that
+   * for someone who doesn't have an account yet. The LeagueSafe email is asked
+   * for after sign-in instead, where we can tell them whether it worked
+   * (see LeagueSafeEmailPrompt).
+   *
+   * has_login separates a real account from the placeholder rows the LeagueSafe
+   * import creates, which carry an address but have never authenticated.
+   * (lookup_player_by_email, migration 195.)
    */
-  const validateEmail = async (emailToCheck: string) => {
+  const checkForExistingLogin = async (emailToCheck: string) => {
     try {
-      console.log('📧 Validating email:', emailToCheck)
       const result = await EmailClaimService.lookupByEmail(emailToCheck, currentSeason)
-      setLookup(result)
-      return result.found
-    } catch (error) {
-      console.error('❌ Error validating email:', error)
-      setLookup(null)
-      return false
+      setHasAccount(Boolean(result.found && result.has_login))
+    } catch (err) {
+      // A failed lookup should never block registration — it's an aid, not a gate.
+      console.error('Could not check for an existing account:', err)
+      setHasAccount(false)
     }
   }
 
-  const handleEmailBlur = async () => {
+  const handleEmailBlur = () => {
     if (email.trim()) {
-      const validated = await validateEmail(email.trim())
-      setIsValidated(validated)
+      checkForExistingLogin(email.trim())
+    } else {
+      setHasAccount(false)
     }
   }
 
@@ -62,17 +70,21 @@ export default function RegisterPage() {
 
     try {
       if (!displayName.trim()) {
-        throw new Error('Display name is required')
+        throw new Error('Enter a display name.')
       }
-      
+
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        throw new Error(PASSWORD_TOO_SHORT)
+      }
+
       await signUp(email, password, displayName)
       // Deliberately the same message whether or not the address was already
       // registered — signUp sends a confirmation link to new addresses and a
-      // reset link to existing ones, so this is accurate either way and the
+      // sign-in link to existing ones, so this is accurate either way and the
       // form never reveals which emails have accounts.
       setSuccess(
-        `✅ Check ${email.trim()} for a link to finish getting in. Already had an account under that address? ` +
-        `We sent a sign-in link instead of creating a second one — or use "Forgot password" on the login page.`
+        `✅ Check ${email.trim()} for a link to finish setting up your account. ` +
+        `Already had an account? We sent you a sign-in link instead — no second account was created.`
       )
     } catch (err: any) {
       setError(err.message)
@@ -104,34 +116,21 @@ export default function RegisterPage() {
             </p>
           </CardHeader>
           <CardContent>
-            {/* Information Panel */}
-            <div className="mb-6 p-4 rounded-lg bg-[#faf8f4] border border-[#e7e2da]">
-              <div className="text-charcoal-700 text-sm">
-                <div className="font-semibold mb-1 text-[#4B3621]">📧 Use your LeagueSafe email</div>
-                <p>
-                  We match payments to accounts <strong>by email address</strong>, so register with
-                  the same email you use on LeagueSafe. We'll check it as you type. If you have to
-                  use a different one, you can add your LeagueSafe email to your profile after you
-                  sign up. Not sure which address you used?{' '}
-                  <a
-                    href={LEAGUESAFE_ACCOUNT_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline font-semibold text-pigskin-700"
-                  >
-                    Check your LeagueSafe account settings
-                  </a>.
-                </p>
-              </div>
-            </div>
-
-            {/* Entry payment */}
+            {/* What you need, and where to pay. Nothing else — anything about
+                matching LeagueSafe emails is asked after sign-in, where we can
+                actually record the answer and confirm it worked. */}
             <div className="mb-6 p-4 rounded-lg bg-[#fff8ea] border border-[#f0dcb0]">
-              <div className="text-charcoal-700 text-sm">
-                <div className="font-semibold mb-1 text-[#4B3621]">💵 Haven't paid your entry?</div>
-                <p className="mb-3">
-                  An account here is free — the ${ENTRY_FEE} entry is paid through LeagueSafe.
-                </p>
+              <div className="text-charcoal-700 text-sm space-y-2">
+                <div className="font-semibold text-[#4B3621]">🏈 You need two things to play</div>
+                <div className="flex gap-2">
+                  <span className="font-bold text-[#b06a1a]">1</span>
+                  <span><strong>Your ${ENTRY_FEE} entry.</strong> LeagueSafe is where you pay.</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="font-bold text-[#b06a1a]">2</span>
+                  <span><strong>An account here.</strong> Free — it's where you make your picks.</span>
+                </div>
+                <p className="pt-1">Haven't paid yet?</p>
                 <a
                   href={LEAGUESAFE_JOIN_URL}
                   target="_blank"
@@ -157,7 +156,7 @@ export default function RegisterPage() {
                   required
                 />
               </div>
-              
+
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-charcoal-700 mb-1">
                   Email Address
@@ -171,18 +170,15 @@ export default function RegisterPage() {
                   placeholder="Your email address"
                   required
                 />
-                {isValidated === true && (
+                {hasAccount && (
                   <p className="text-[#1f7a44] text-sm mt-1">
-                    {lookup?.paid
-                      ? `✅ Found you — your ${currentSeason} entry is paid. Finish creating your account.`
-                      : '✅ We recognize that email. Please continue creating an account.'}
-                  </p>
-                )}
-                {isValidated === false && email.trim() && (
-                  <p className="text-[#b06a1a] text-sm mt-1">
-                    ⚠️ Email not found in our system. We're still processing payments, so this could be normal. Please make sure you're: 1) registered and paid in LeagueSafe, 2) using the same email used in LeagueSafe.
-                    <br /><br />
-                    To learn more about registering & paying, <a href="/blog/welcome-the-20th-edition-of-the-pp6" target="_blank" rel="noopener noreferrer" className="text-pigskin-600 hover:text-pigskin-700 underline font-medium">read more here</a>.
+                    ✅ You already have an account with this email.{' '}
+                    <Link to="/login" className="font-semibold underline">Sign in</Link>
+                    {' '}— or{' '}
+                    <Link to="/login?reset=request" className="font-semibold underline">
+                      reset your password
+                    </Link>
+                    {' '}if you've forgotten it.
                   </p>
                 )}
               </div>
@@ -196,12 +192,11 @@ export default function RegisterPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Create a secure password"
+                  placeholder="Create a password"
+                  minLength={MIN_PASSWORD_LENGTH}
                   required
                 />
-                <p className="text-xs text-charcoal-500 mt-1">
-                  Minimum 8 characters recommended
-                </p>
+                <p className="text-xs text-charcoal-500 mt-1">{PASSWORD_HINT}</p>
               </div>
 
               {error && (
