@@ -1,5 +1,9 @@
-import type { PicksSubmittedData } from './types'
-import { emailShell, emailButton, emailPanel, p, esc, EMAIL } from './emailShell'
+// GENERATED FILE — DO NOT EDIT.
+// Source: src/templates/picksSubmitted.ts
+// Regenerate: node scripts/sync-shared-templates.mjs
+
+import type { PicksSubmittedData } from './types.ts'
+import { emailShell, emailButton, emailPanel, p, esc, EMAIL } from './emailShell.ts'
 
 export function getPicksSubmittedSubject(data: PicksSubmittedData): string {
   return `✅ Week ${data.week} Picks Confirmed - ${data.picks.length} Games Selected`

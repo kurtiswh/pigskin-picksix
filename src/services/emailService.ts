@@ -50,6 +50,9 @@ export interface EmailTemplate {
   text: string
 }
 
+/** Only used when VITE_SUPABASE_URL is missing; the project URL is public. */
+const FALLBACK_SUPABASE_URL = 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
+
 export interface EmailJob {
   id: string
   user_id: string
@@ -273,6 +276,63 @@ export class EmailTemplates {
  * Email service for managing notifications
  */
 export class EmailService {
+  /**
+   * Bearer token for the send-email Edge Function.
+   *
+   * Prefers the caller's session. The function only accepts an email body from
+   * the service role or a signed-in admin — the anon key can do nothing but
+   * send a job that was queued for it by an RPC, which is the point — so
+   * passing the anon key where a session exists would silently downgrade an
+   * admin to no permissions at all.
+   */
+  private static async edgeFunctionToken(): Promise<string> {
+    try {
+      const { data } = await supabase.auth.getSession()
+      if (data.session?.access_token) return data.session.access_token
+    } catch (error) {
+      console.warn('Could not read session for Edge Function call:', error)
+    }
+    return ENV.SUPABASE_ANON_KEY || ''
+  }
+
+  /**
+   * Queue a pick confirmation server-side and send it.
+   *
+   * The RPC derives the recipient, the name and every pick from the database;
+   * nothing here describes the email. `email` is only needed for anonymous
+   * submitters, where it selects whose picks to confirm — and is therefore also
+   * the only address the mail can reach.
+   */
+  static async sendPickConfirmationServerRendered(
+    week: number,
+    season: number,
+    anonymousEmail?: string
+  ): Promise<boolean> {
+    try {
+      const { data, error } = anonymousEmail
+        ? await supabase.rpc('queue_anonymous_pick_confirmation', {
+            p_email: anonymousEmail,
+            p_week: week,
+            p_season: season,
+          })
+        : await supabase.rpc('queue_pick_confirmation', {
+            p_week: week,
+            p_season: season,
+          })
+
+      if (error) throw error
+
+      const job = data as { job_id?: string; send_token?: string } | null
+      if (!job?.job_id) throw new Error('Confirmation RPC returned no job id')
+
+      console.log(`📧 Pick confirmation queued (job: ${job.job_id})`)
+      return await this.sendQueuedJob(job.job_id, job.send_token)
+    } catch (error) {
+      console.error('❌ Could not queue/send pick confirmation:', error)
+      return false
+    }
+  }
+
   /**
    * Schedule a pick reminder email
    */
@@ -980,113 +1040,56 @@ export class EmailService {
   }
 
   /**
-   * Send email using multiple methods with proper error handling
-   * 1. Try Edge Function with anon key (for anonymous picks)
-   * 2. Try Edge Function with user session (for authenticated picks)  
-   * 3. Return actual failures instead of silent success
+   * Send an already-queued job by id.
+   *
+   * The Edge Function reads the recipient and body from email_jobs itself and
+   * marks the row sent, so nothing here supplies content. Jobs queued by the
+   * queue_* RPCs carry a one-time `sendToken`, which is what lets an anonymous
+   * visitor send their own confirmation without being able to send anyone
+   * else's.
    */
-  private static async sendEmail(job: EmailJob): Promise<boolean> {
+  static async sendQueuedJob(jobId: string, sendToken?: string): Promise<boolean> {
     try {
-      console.log(`📧 SENDING EMAIL:`)
-      console.log(`   To: ${job.email}`)
-      console.log(`   Subject: ${job.subject}`)
-      console.log(`   Type: ${job.template_type}`)
+      const supabaseUrl = ENV.SUPABASE_URL || FALLBACK_SUPABASE_URL
+      const token = await this.edgeFunctionToken()
 
-      // Get environment variables with proper fallbacks for browser context
-      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const anonKey = ENV.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4NDU2MjgsImV4cCI6MjA2OTQyMTYyOH0.DCpIOdBbzQ0pPyk5WpfrKrcRxi49oyMccHCzP-T14w8'
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(sendToken ? { jobId, sendToken } : { jobId })
+      })
 
-      console.log('🔧 Environment check (browser context):')
-      console.log(`   Supabase URL: ${supabaseUrl ? 'Available' : 'Missing'}`)
-      console.log(`   Anon Key: ${anonKey ? 'Available' : 'Missing'}`)
-
-      // Use direct Edge Function call (the approach that works in our tests)
-      try {
-        console.log('🔄 Calling Edge Function directly...')
-        
-        const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${anonKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            to: job.email,
-            subject: job.subject,
-            html: job.html_content,
-            text: job.text_content,
-            from: 'Pigskin Pick Six <admin@pigskinpicksix.com>'
-          })
-        })
-        
-        console.log(`📡 Response status: ${response.status}`)
-        
-        if (response.ok) {
-          const result = await response.json()
-          console.log('✅ Email sent successfully via Edge Function:', result?.messageId)
-          return true
-        } else {
-          const errorText = await response.text()
-          console.error('❌ Edge Function failed:', response.status, errorText)
-          console.error('💡 Full error response:', errorText)
-        }
-      } catch (fetchError: any) {
-        console.error('❌ Edge Function call failed:', fetchError.message)
-        console.error('💡 Network or parsing error:', fetchError)
+      if (response.ok) {
+        const result = await response.json()
+        console.log(`✅ Queued email ${jobId} sent:`, result?.messageId ?? '(already sent)')
+        return true
       }
 
-      // If we get here, the email sending failed
-      console.error('❌ EMAIL SENDING FAILED')
-      console.error('💡 Check Edge Function deployment and Resend API key configuration')
+      const errorText = await response.text()
+      console.error(`❌ Sending queued email ${jobId} failed:`, response.status, errorText)
       return false
-
     } catch (error) {
-      console.error('❌ Email sending exception:', error)
+      console.error(`❌ Exception sending queued email ${jobId}:`, error)
       return false
     }
   }
 
   /**
-   * Send pick confirmation email directly without going through job queue processing
-   * This combines template generation with immediate sending
+   * Send a pending job through the queue processor.
+   * Goes out by job id so the server, not this browser, decides the content.
    */
-  static async sendPickConfirmationDirect(
-    userId: string,
-    email: string,
-    displayName: string,
-    week: number,
-    season: number,
-    picks: Array<{
-      game: string
-      pick: string
-      spread: number
-      isLock: boolean
-      lockTime: string
-    }>,
-    submittedAt: Date
-  ): Promise<boolean> {
-    try {
-      console.log(`📧 SENDING PICK CONFIRMATION DIRECTLY:`)
-      console.log(`   To: ${email}`)
-      console.log(`   User: ${displayName} (${userId})`)
-      console.log(`   Week ${week}, ${season}`)
-
-      // Generate the template (reuse existing logic)
-      const template = EmailTemplates.picksSubmitted(displayName, week, season, picks, submittedAt)
-
-      // Send directly using our working approach
-      return await this.sendEmailDirect(
-        email,
-        template.subject,
-        template.html,
-        template.text
-      )
-
-    } catch (error) {
-      console.error('❌ Direct pick confirmation sending exception:', error)
-      return false
-    }
+  private static async sendEmail(job: EmailJob): Promise<boolean> {
+    console.log(`📧 SENDING EMAIL: ${job.template_type} -> ${job.email}`)
+    return await this.sendQueuedJob(job.id)
   }
+
+  // sendPickConfirmationDirect used to render a confirmation in the browser and
+  // post the HTML to send-email. That path is gone: use
+  // sendPickConfirmationServerRendered, which queues the job through an RPC and
+  // lets the server render it from the picks already in the database.
 
   /**
    * Send email directly without going through the job queue processing
@@ -1105,18 +1108,16 @@ export class EmailService {
       console.log(`   To: ${to}`)
       console.log(`   Subject: ${subject}`)
 
-      // Get environment variables (this should work in browser now)
-      const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const anonKey = ENV.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnZGFxYm5wZ3JhYmJubGptaXF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM4NDU2MjgsImV4cCI6MjA2OTQyMTYyOH0.DCpIOdBbzQ0pPyk5WpfrKrcRxi49oyMccHCzP-T14w8'
-
-      console.log('🔧 Direct send environment check:')
-      console.log(`   Supabase URL: ${supabaseUrl ? 'Available' : 'Missing'}`)
-      console.log(`   Anon Key: ${anonKey ? 'Available' : 'Missing'}`)
+      const supabaseUrl = ENV.SUPABASE_URL || FALLBACK_SUPABASE_URL
+      // Must be the caller's own session: send-email accepts a body only from
+      // an admin or the service role. Recap blasts and preseason test sends are
+      // admin actions, so the admin's token is what authorizes them.
+      const token = await this.edgeFunctionToken()
 
       const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${anonKey}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({

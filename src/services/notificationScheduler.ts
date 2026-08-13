@@ -127,72 +127,23 @@ export class NotificationScheduler {
         week
       )
 
-      // Send pick confirmation email
+      // Send pick confirmation email.
+      //
+      // Queued and rendered server-side: the RPC reads the submitted picks back
+      // out of the database and addresses the mail to the account's own email,
+      // so the browser supplies no recipient and no body. `userEmail`,
+      // `displayName` and `picks` stay in the signature for the caller's
+      // logging and for cancelScheduledEmails above.
       try {
-        console.log(`🔧 DEBUG: Starting email confirmation process for user ${userId}`)
-        console.log(`🔧 DEBUG: Email: ${userEmail}, Display Name: ${displayName}`)
-        console.log(`🔧 DEBUG: Week ${week}, Season ${season}`)
-        console.log(`🔧 DEBUG: Picks count: ${picks.length}`)
-        
-        const jobId = await EmailService.sendPickConfirmation(
-          userId,
-          userEmail,
-          displayName,
-          week,
-          season,
-          picks,
-          new Date()
-        )
-        console.log(`📧 Queued pick confirmation email for user ${userId}, job ID: ${jobId}`)
-        
-        // Send email immediately using direct approach (bypass processPendingEmailById)
-        try {
-          console.log(`🔧 DEBUG: About to call sendPickConfirmationDirect...`)
-          console.log(`🔧 DEBUG: EmailService object:`, typeof EmailService)
-          console.log(`🔧 DEBUG: sendPickConfirmationDirect method:`, typeof EmailService.sendPickConfirmationDirect)
-          
-          console.log(`📤 Sending pick confirmation email immediately for user ${userId}`)
-          
-          // Call the EmailService sendPickConfirmationDirect method (simpler approach)
-          const success = await EmailService.sendPickConfirmationDirect(
-            userId,
-            userEmail,
-            displayName,
-            week,
-            season,
-            picks,
-            new Date()
-          )
-          
-          console.log(`🔧 DEBUG: sendPickConfirmationDirect returned: ${success}`)
-          
-          if (success) {
-            console.log(`✅ Pick confirmation email sent immediately for user ${userId}`)
-            
-            // Update the job status to sent
-            const { error: updateError } = await supabase
-              .from('email_jobs')
-              .update({
-                status: 'sent',
-                sent_at: new Date().toISOString(),
-                attempts: 1
-              })
-              .eq('id', jobId)
-              
-            if (updateError) {
-              console.warn('Could not update email job status:', updateError)
-            } else {
-              console.log(`📋 Job status updated to sent for ${jobId}`)
-            }
-          } else {
-            console.warn(`⚠️ Direct email sending failed for user ${userId}`)
-            console.log(`💡 Email remains queued - can be sent via manual processing`)
-          }
-        } catch (processError) {
-          console.error(`❌ CRITICAL ERROR in immediate send for user ${userId}:`, processError)
-          console.error(`❌ Error details:`, processError.message)
-          console.error(`❌ Error stack:`, processError.stack)
-          console.log(`💡 Email queued - can be sent via manual queue processing`)
+        console.log(`📤 Sending pick confirmation for ${displayName} <${userEmail}> (${userId}, ${picks.length} picks)`)
+
+        const success = await EmailService.sendPickConfirmationServerRendered(week, season)
+
+        if (success) {
+          console.log(`✅ Pick confirmation email sent for user ${userId}`)
+        } else {
+          console.warn(`⚠️ Pick confirmation did not send for user ${userId}`)
+          console.log(`💡 Email remains queued - can be sent via manual processing`)
         }
       } catch (error) {
         console.error(`Error sending pick confirmation for user ${userId}:`, error)

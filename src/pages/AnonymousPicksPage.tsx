@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
-import { supabase } from '@/lib/supabase'
 import { getActiveWeek } from '@/services/weekService'
 import { getWeekDataDirect } from '@/lib/supabase-direct'
 import { ENV } from '@/lib/env'
@@ -317,71 +316,23 @@ export default function AnonymousPicksPage() {
 
       console.log('✅ Anonymous picks submitted successfully via direct API')
       
-      // Send pick confirmation email for anonymous picks
+      // Send pick confirmation email for anonymous picks.
+      //
+      // The picks, the name and the recipient all come back out of the rows we
+      // just wrote — this page describes none of the email. It gets a job id
+      // and a one-time token, which is all send-email needs and all it accepts
+      // from an unauthenticated caller.
       try {
-        // Format picks for email
-        const formattedPicks = picks.map(pick => {
-          const game = games.find(g => g.id === pick.gameId)
-          return {
-            game: `${game?.away_team} @ ${game?.home_team}`,
-            pick: pick.selectedTeam,
-            spread: game?.spread || 0,
-            isLock: pick.isLock,
-            lockTime: game?.kickoff_time || ''
-          }
-        })
-
-        // Create email job for tracking
-        const jobId = await EmailService.sendPickConfirmation(
-          'anonymous', // Placeholder for anonymous picks
-          email.trim(),
-          name.trim(),
+        console.log('📤 Queueing anonymous pick confirmation...')
+        const sent = await EmailService.sendPickConfirmationServerRendered(
           currentWeek,
           currentSeason,
-          formattedPicks,
-          new Date()
+          email.trim()
         )
-        console.log(`📧 Anonymous pick confirmation email queued (job: ${jobId})`)
-        
-        // Send email immediately using direct approach
-        try {
-          console.log('📤 Sending anonymous pick confirmation immediately...')
-          
-          const success = await EmailService.sendPickConfirmationDirect(
-            'anonymous',
-            email.trim(),
-            name.trim(),
-            currentWeek,
-            currentSeason,
-            formattedPicks,
-            new Date()
-          )
-          
-          if (success) {
-            console.log('✅ Anonymous pick confirmation sent immediately!')
-            
-            // Update job status to sent
-            const { error: updateError } = await supabase
-              .from('email_jobs')
-              .update({
-                status: 'sent',
-                sent_at: new Date().toISOString(),
-                attempts: 1
-              })
-              .eq('id', jobId)
-              
-            if (updateError) {
-              console.warn('Could not update email job status:', updateError)
-            } else {
-              console.log('📋 Email job status updated to sent')
-            }
-          } else {
-            console.warn('⚠️ Anonymous pick confirmation failed to send immediately')
-            console.log('💡 Email remains queued for manual processing')
-          }
-        } catch (directSendError) {
-          console.error('❌ Error sending anonymous pick confirmation immediately:', directSendError)
-          console.log('💡 Email remains queued for manual processing')
+        if (sent) {
+          console.log('✅ Anonymous pick confirmation sent!')
+        } else {
+          console.warn('⚠️ Anonymous pick confirmation did not send; it stays queued')
         }
       } catch (emailError) {
         console.error('❌ Error sending anonymous pick confirmation:', emailError)

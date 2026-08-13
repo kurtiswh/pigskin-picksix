@@ -1,3 +1,7 @@
+// GENERATED FILE — DO NOT EDIT.
+// Source: src/templates/emailShell.ts
+// Regenerate: node scripts/sync-shared-templates.mjs
+
 /**
  * Shared email shell — one brand look for every email (header, palette, font,
  * button, panels, footer). Brand: Pigskin Brown #4B3621 + Goal-Post Gold #C9A04E.
