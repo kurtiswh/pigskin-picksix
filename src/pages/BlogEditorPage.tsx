@@ -116,14 +116,6 @@ export default function BlogEditorPage() {
     }
   }, [isEditing, postId])
 
-  // Below the hooks, not above them. `user` is null while auth resolves, so the
-  // old placement ran fewer hooks on the first render than on the next one, and
-  // React throws "rendered more hooks than during the previous render" — the
-  // editor would blow up rather than redirect.
-  if (!user || !user.is_admin) {
-    return <Navigate to="/blog" replace />
-  }
-
   const loadPost = async () => {
     if (!postId) return
 
@@ -207,6 +199,15 @@ export default function BlogEditorPage() {
       const excerpt = plainText.substring(0, 150) + (plainText.length > 150 ? '...' : '')
       setExcerpt(excerpt)
     }
+  }
+
+  // After the hooks AND after loadPost is defined. Placing it any earlier is a
+  // trap in both directions: above the hooks it changes the hook count between
+  // renders once `user` resolves, and above loadPost it leaves the effect above
+  // calling a const that this render never reached — a TDZ ReferenceError
+  // rather than the redirect you wanted.
+  if (!user || !user.is_admin) {
+    return <Navigate to="/blog" replace />
   }
 
   if (loading) {
