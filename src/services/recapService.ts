@@ -232,17 +232,21 @@ export async function sendRecapTest(
 
 export interface RecapSendProgress { sent: number; failed: number; total: number }
 
+/** Emails per drain call. Small enough to stay inside authenticated's 8s statement timeout. */
+const DRAIN_BATCH = 5
+
 /**
- * Queue the personalized recap for every paid entrant, then watch it drain.
+ * Queue the personalized recap for every paid entrant, then drive it to done.
  *
  * Nothing is rendered or sent here. queue_recap_emails writes one job per
- * recipient — each carrying that person's own results — and the `recap-send`
- * cron drains them with the service role, the same way the preseason sequence
- * works. That is deliberate at 600+ recipients: the send no longer dies if the
- * admin closes the tab, and the browser never handles an email body.
+ * recipient — each carrying that person's own results — and send_pending_recap
+ * asks send-email to send them by id. What crosses the wire from this browser
+ * is "send five more", never an email body.
  *
- * `onProgress` is driven by polling the queue rather than by a per-email
- * callback, so the numbers keep moving even across a page reload.
+ * Driving the drain from here rather than waiting on the cron is what keeps the
+ * progress bar live: small batches land every couple of seconds instead of 40
+ * arriving once a minute. If the tab closes the `recap-send` cron finishes the
+ * job, so this is the pace-setter, not the engine.
  */
 export async function sendRecapToAll(
   post: BlogPost,
@@ -263,18 +267,36 @@ export async function sendRecapToAll(
   onProgress?.({ ...progress })
   if (total === 0) return progress
 
-  // Poll until the queue for this post is empty. The cron sends in batches, so
-  // this is a read loop, not a send loop — closing the tab stops the reporting,
-  // not the send.
   for (;;) {
-    await new Promise(res => setTimeout(res, 3000))
-    const counts = await getRecapSendProgress(post.id)
-    progress.sent = counts.sent
-    progress.failed = counts.failed
+    const { data, error } = await supabase.rpc('send_pending_recap', {
+      p_batch: DRAIN_BATCH,
+      p_post_id: post.id,
+    })
+
+    if (error) {
+      // A failed batch is not a failed send — the cron picks up whatever is
+      // still pending. Fall back to watching rather than giving up.
+      console.warn('Drain batch failed, falling back to polling:', error)
+      const counts = await getRecapSendProgress(post.id)
+      onProgress?.({ ...counts })
+      if (counts.sent + counts.failed >= counts.total) return counts
+      await new Promise(res => setTimeout(res, 3000))
+      continue
+    }
+
+    const batch = data as { sent?: number; failed?: number; remaining?: number } | null
+    progress.sent += batch?.sent ?? 0
+    progress.failed += batch?.failed ?? 0
     onProgress?.({ ...progress })
-    if (counts.sent + counts.failed >= total) break
+
+    if ((batch?.remaining ?? 0) <= 0) break
   }
-  return progress
+
+  // The cron may have sent some of these too, so finish on the real counts
+  // rather than on what this loop happened to account for.
+  const final = await getRecapSendProgress(post.id)
+  onProgress?.({ ...final })
+  return final
 }
 
 /** Current queue state for a recap post — drives the progress display. */
