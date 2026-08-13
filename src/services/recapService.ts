@@ -1,7 +1,20 @@
 import { supabase } from '@/lib/supabase'
 import { EmailService } from './emailService'
-import { emailShell, emailButton } from '@/templates/emailShell'
 import type { BlogPost } from '@/types/blog'
+
+// The email itself lives in @/templates/recapEmail so the send-email Edge
+// Function can render it from a queued job. Re-exported here because callers
+// (BlogEditorPage, admin components) already import these names from this file.
+export {
+  buildRecapEmailHtml,
+  getRecapSubject,
+  type RecapPickCell,
+  type RecapBlock,
+  type RecapPicksCta,
+  type RecapRecipient,
+  type RecapPostRef,
+} from '@/templates/recapEmail'
+import type { RecapPicksCta } from '@/templates/recapEmail'
 
 /**
  * Weekly recap seeding (Part B feature).
@@ -31,41 +44,17 @@ export interface RecapSeed {
   games: { game: string; away_pct: number; home_pct: number; locks: number; winner: string | null; win_pts: number; lock_win_pts: number }[]
 }
 
-export interface RecapPickCell {
-  team: string; is_lock: boolean; result: string | null; points: number | null; game: string
-}
-export interface RecapBlock {
-  /** False when this paid entrant submitted no picks for the week (migration 183). */
-  played?: boolean
-  wins: number; losses: number; pushes: number; points: number
-  season_rank: number | null; season_rank_prev: number | null
-  picks: RecapPickCell[]
-}
-/** Optional "picks are open" invitation appended to the recap (chosen at send time). */
-export interface RecapPicksCta {
-  week: number
-  deadlineStr: string | null
-  totalGames: number | null
-}
-export interface RecapRecipient {
-  user_id: string; email: string; display_name: string; block: RecapBlock
-  /** Per-user opt-out token (migration 184) — renders the footer unsubscribe link. */
-  unsubscribe_token?: string
-}
-
 export async function loadRecapSeed(week: number, season: number): Promise<RecapSeed> {
   const { data, error } = await supabase.rpc('wr_recap_seed', { p_week: week, p_season: season })
   if (error) throw error
   return data as RecapSeed
 }
 
-async function loadRecipients(week: number, season: number): Promise<RecapRecipient[]> {
-  const { data, error } = await supabase.rpc('wr_recap_recipients', { p_week: week, p_season: season })
-  if (error) throw error
-  return (data as RecapRecipient[]) || []
-}
+// loadRecipients() is gone: wr_recap_recipients() is now called by
+// queue_recap_emails inside the database, so the recipient list and everyone's
+// results never travel to the browser just to be mailed back out.
 
-const n = (v: number | null | undefined, d = '—') => (v == null ? d : String(v))
+const n =(v: number | null | undefined, d = '—') => (v == null ? d : String(v))
 
 /** Pre-filled HTML draft (matches the HTML blog editor). Admin rewrites the prose. */
 export function buildDraftHtml(s: RecapSeed): string {
@@ -132,10 +121,6 @@ export async function createRecapDraft(seed: RecapSeed, authorId: string): Promi
 const nameList = (names: string[], max = 4) =>
   !names?.length ? '' : names.length <= max ? ` (${names.join(', ')})` : ` (${names.slice(0, max).join(', ')} +${names.length - max} more)`
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
 /** Auto-generated rich-text (HTML) rundown — edited WYSIWYG in the Blog Editor
  *  and used verbatim in the email, so the box matches the email exactly. */
 export function buildRundownHtml(s: RecapSeed): string {
@@ -176,95 +161,6 @@ export function buildExcerpt(s: RecapSeed): string {
 /** Personalized recap email HTML (inline styles for email clients). rundownHtml
  *  is the formatted, admin-edited rundown block. `cta`, when present, appends the
  *  "next week's picks are open" invitation and becomes the primary button. */
-export function buildRecapEmailHtml(
-  r: RecapRecipient,
-  post: BlogPost,
-  siteUrl: string,
-  rundownHtml?: string,
-  cta?: RecapPicksCta | null
-): { html: string; text: string } {
-  const b = r.block
-  const delta = b.season_rank_prev != null && b.season_rank != null ? b.season_rank_prev - b.season_rank : null
-  const move = delta == null || delta === 0 ? '' : delta > 0 ? ` ▲${delta}` : ` ▼${Math.abs(delta)}`
-  const rankLine = b.season_rank != null ? `#${b.season_rank} overall${move}` : ''
-  const chips = (b.picks || []).map(p => {
-    const color = p.result === 'win' ? '#2E7D4F' : p.result === 'loss' ? '#B23A3A' : '#B8860B'
-    const bg = p.result === 'win' ? '#E6F4EC' : p.result === 'loss' ? '#FBEAEA' : '#FBF3DC'
-    const lock = p.is_lock ? '🔒 ' : ''
-    const pts = p.points != null ? ` (${p.points})` : ''
-    return `<span style="display:inline-block;margin:2px;padding:3px 9px;border-radius:6px;background:${bg};color:${color};font-size:13px;border:1px solid ${color}33">${lock}${p.team}${pts}</span>`
-  }).join(' ')
-  const postUrl = `${siteUrl}/blog/${post.slug}`
-  const rundown = rundownHtml && rundownHtml.trim()
-    ? rundownHtml
-    : (post.excerpt?.trim() ? `<p style="font-size:15px;color:#2A2118">${escapeHtml(post.excerpt)}</p>` : '')
-
-  // Paid entrants who submitted nothing this week get the nudge variant instead
-  // of an all-zeros scorecard (migration 183 added them to the recipient list).
-  const played = b.played !== false && (b.picks || []).length > 0
-
-  // Personalized "Your Week N" card (gold-tinted, distinct from the brown header).
-  const statCard = played
-    ? `<div style="background:#FBF3DC;border:1px solid #EAD9AE;border-radius:10px;padding:16px 18px;text-align:center">
-    <div style="color:#8a6d1f;font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:800">Your Week ${post.week}</div>
-    <div style="font-size:28px;font-weight:800;margin-top:4px;color:#4B3621">${b.wins}–${b.losses}${b.pushes ? `–${b.pushes}` : ''} · ${b.points} pts</div>
-    ${rankLine ? `<div style="font-size:13px;color:#8a6d1f;margin-top:4px">${rankLine}</div>` : ''}
-  </div>`
-    : `<div style="background:#F2EFE9;border:1px dashed #C9BCA6;border-radius:10px;padding:16px 18px;text-align:center">
-    <div style="color:#7A6E60;font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:800">Your Week ${post.week}</div>
-    <div style="font-size:28px;font-weight:800;margin-top:4px;color:#7A6E60">No picks in</div>
-    <div style="font-size:13px;color:#7A6E60;margin-top:4px">0 for 0 — technically undefeated${rankLine ? ` · still ${rankLine}` : ''}</div>
-  </div>`
-
-  const personalSection = played
-    ? `<p style="font-size:15px;color:#2A2118;margin:16px 0 8px">Hey ${r.display_name} — here's how your six landed:</p>` +
-      `<div style="margin:0 0 8px">${chips}</div>`
-    : `<p style="font-size:15px;color:#2A2118;margin:16px 0 8px">Hey ${r.display_name} — the board went on without you this week. No picks, no points, no bad beats to complain about.${cta ? ` Week ${cta.week} is open, so let's not make it a habit.` : ' Here\'s what you missed.'}</p>`
-
-  // Optional "next week is open" invitation — becomes the primary action.
-  const ctaPanel = cta
-    ? `<div style="background:#FBF3DC;border:1px solid #EAD9AE;border-radius:10px;padding:16px 18px;margin:20px 0 0;text-align:center">
-    <div style="color:#8a6d1f;font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:800">Week ${cta.week} is open</div>
-    ${cta.totalGames ? `<div style="font-size:18px;font-weight:800;margin-top:4px;color:#4B3621">${cta.totalGames} games on the board</div>` : ''}
-    ${cta.deadlineStr ? `<div style="font-size:13px;color:#8a6d1f;margin-top:4px">⏰ Picks due ${cta.deadlineStr}</div>` : ''}
-  </div>`
-    : ''
-
-  const actions = cta
-    ? ctaPanel +
-      emailButton(`Make your Week ${cta.week} picks →`, `${siteUrl}/picks`) +
-      `<div style="text-align:center;margin:-10px 0 0"><a href="${postUrl}" style="color:#7A6E60;font-size:14px">Read the full Week ${post.week} recap</a></div>`
-    : emailButton(`Read the full Week ${post.week} recap →`, postUrl)
-
-  const bodyInner =
-    statCard +
-    personalSection +
-    `<div style="border-top:1px solid #E5DFD5;margin-top:18px;padding-top:14px">` +
-    `<div style="font-weight:800;color:#4B3621;margin-bottom:6px">The rundown</div>` +
-    `${rundown || '<p style="font-size:15px;color:#7A6E60">Read the full recap for the week that was.</p>'}</div>` +
-    actions
-
-  const preheader = played
-    ? `Your Week ${post.week}: ${b.wins}-${b.losses}, ${b.points} pts`
-    : `You sat out Week ${post.week}${cta ? ` — Week ${cta.week} is open` : ''}`
-
-  const html = emailShell({
-    subtitle: `Week ${post.week} Recap`,
-    bodyHtml: bodyInner,
-    preheader,
-    // No unsubscribe link: the recap goes only to entrants who paid into this
-    // season, and ~84% of them have site accounts, so the footer's "email
-    // preferences" link (→ /profile) is the right control. The public
-    // token-based opt-out is for the preseason blast, which reaches cold
-    // addresses that never registered. Opt-outs are still honored — anyone who
-    // unsubscribed is filtered out of wr_recap_recipients().
-  })
-  const text = played
-    ? `Your Week ${post.week}: ${b.wins}-${b.losses}, ${b.points} pts${rankLine ? `, ${rankLine}` : ''}. Read the full recap: ${postUrl}${cta ? `\nWeek ${cta.week} is open — make your picks: ${siteUrl}/picks` : ''}`
-    : `No picks in for Week ${post.week}. Here's what you missed: ${postUrl}${cta ? `\nWeek ${cta.week} is open — get back in: ${siteUrl}/picks` : ''}`
-  return { html, text }
-}
-
 /**
  * The "picks are open" invitation for the week after this recap, if that week is
  * actually open. Returns null when it isn't, so the send UI can only offer the
@@ -295,6 +191,22 @@ export async function loadPicksOpenCta(recapWeek: number, season: number): Promi
   return { week, deadlineStr, totalGames: count ?? null }
 }
 
+/**
+ * Persist the rundown before sending.
+ *
+ * The server renders the email from blog_posts.email_rundown, so whatever is
+ * sitting unsaved in the editor has to be written down first. This also means
+ * what went out is always recoverable from the post itself.
+ */
+async function saveRundown(postId: string, rundownHtml: string): Promise<void> {
+  if (!rundownHtml?.trim()) return
+  const { error } = await supabase
+    .from('blog_posts')
+    .update({ email_rundown: rundownHtml })
+    .eq('id', postId)
+  if (error) throw error
+}
+
 /** Send a single test email to `toEmail`, personalized with that user's block if found (else the first recipient's). */
 export async function sendRecapTest(
   toEmail: string,
@@ -303,48 +215,72 @@ export async function sendRecapTest(
   cta?: RecapPicksCta | null,
   forceNoPicks = false
 ): Promise<boolean> {
-  const recipients = await loadRecipients(post.week!, post.season)
-  const mine = recipients.find(r => r.email?.toLowerCase() === toEmail.toLowerCase()) || recipients[0]
-  if (!mine) throw new Error('No recipients found for this week (no paid entrants).')
-  const sample: RecapRecipient = forceNoPicks
-    ? { ...mine, email: toEmail, block: { ...mine.block, played: false, picks: [], wins: 0, losses: 0, pushes: 0, points: 0 } }
-    : { ...mine, email: toEmail }
-  const { html, text } = buildRecapEmailHtml(sample, post, window.location.origin, rundownHtml || post.email_rundown || '', cta)
-  const tag = forceNoPicks ? '[TEST · no-picks variant]' : '[TEST]'
-  return EmailService.sendEmailDirect(toEmail, `${tag} Week ${post.week} Recap — your results`, html, text)
+  await saveRundown(post.id, rundownHtml)
+
+  const { data, error } = await supabase.rpc('queue_recap_test', {
+    p_post_id: post.id,
+    p_to_email: toEmail.trim(),
+    p_include_cta: !!cta,
+    p_force_no_picks: forceNoPicks,
+  })
+  if (error) throw error
+
+  const job = data as { job_id?: string; send_token?: string } | null
+  if (!job?.job_id) throw new Error('No recipients found for this week (no paid entrants).')
+  return EmailService.sendQueuedJob(job.job_id, job.send_token)
 }
 
 export interface RecapSendProgress { sent: number; failed: number; total: number }
 
-/** Send the personalized recap to every paid entrant. Throttled; reports progress. */
+/**
+ * Queue the personalized recap for every paid entrant, then watch it drain.
+ *
+ * Nothing is rendered or sent here. queue_recap_emails writes one job per
+ * recipient — each carrying that person's own results — and the `recap-send`
+ * cron drains them with the service role, the same way the preseason sequence
+ * works. That is deliberate at 600+ recipients: the send no longer dies if the
+ * admin closes the tab, and the browser never handles an email body.
+ *
+ * `onProgress` is driven by polling the queue rather than by a per-email
+ * callback, so the numbers keep moving even across a page reload.
+ */
 export async function sendRecapToAll(
   post: BlogPost,
   rundownHtml: string,
   onProgress?: (p: RecapSendProgress) => void,
   cta?: RecapPicksCta | null
 ): Promise<RecapSendProgress> {
-  const recipients = await loadRecipients(post.week!, post.season)
-  const siteUrl = window.location.origin
-  const rundown = rundownHtml || post.email_rundown || ''
-  const subject = cta
-    ? `Week ${post.week} Recap — your results, and Week ${cta.week} is open 🏈`
-    : `Week ${post.week} Recap — your results & the rundown 🏈`
-  const progress: RecapSendProgress = { sent: 0, failed: 0, total: recipients.length }
+  await saveRundown(post.id, rundownHtml)
 
-  for (const r of recipients) {
-    if (!r.email) { progress.failed++; continue }
-    try {
-      const { html, text } = buildRecapEmailHtml(r, post, siteUrl, rundown, cta)
-      const ok = await EmailService.sendEmailDirect(r.email, subject, html, text)
-      ok ? progress.sent++ : progress.failed++
-    } catch {
-      progress.failed++
-    }
+  const { data: queued, error: queueError } = await supabase.rpc('queue_recap_emails', {
+    p_post_id: post.id,
+    p_include_cta: !!cta,
+  })
+  if (queueError) throw queueError
+
+  const total = (queued as { queued?: number } | null)?.queued ?? 0
+  const progress: RecapSendProgress = { sent: 0, failed: 0, total }
+  onProgress?.({ ...progress })
+  if (total === 0) return progress
+
+  // Poll until the queue for this post is empty. The cron sends in batches, so
+  // this is a read loop, not a send loop — closing the tab stops the reporting,
+  // not the send.
+  for (;;) {
+    await new Promise(res => setTimeout(res, 3000))
+    const counts = await getRecapSendProgress(post.id)
+    progress.sent = counts.sent
+    progress.failed = counts.failed
     onProgress?.({ ...progress })
-    await new Promise(res => setTimeout(res, 120)) // throttle for provider rate limits
+    if (counts.sent + counts.failed >= total) break
   }
-
-  // Stamp emailed_at so it can't be sent twice by accident.
-  await supabase.from('blog_posts').update({ emailed_at: new Date().toISOString() }).eq('id', post.id)
   return progress
+}
+
+/** Current queue state for a recap post — drives the progress display. */
+export async function getRecapSendProgress(postId: string): Promise<RecapSendProgress> {
+  const { data, error } = await supabase.rpc('recap_send_progress', { p_post_id: postId })
+  if (error) throw error
+  const r = data as { sent?: number; failed?: number; total?: number } | null
+  return { sent: r?.sent ?? 0, failed: r?.failed ?? 0, total: r?.total ?? 0 }
 }

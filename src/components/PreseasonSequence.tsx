@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { EmailService } from '@/services/emailService'
-import { emailShell, unsubscribeUrl } from '@/templates/emailShell'
 import { LEAGUESAFE_ACCOUNT_URL, LEAGUESAFE_JOIN_URL, LEAGUESAFE_PAY_URL } from '@/lib/league'
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
@@ -167,21 +166,32 @@ export default function PreseasonSequence({ season }: Props) {
 
   const sendTest = async () => {
     if (!subject.trim() || !body.trim()) { setMsg('Add a subject and body first.'); return }
+    if (!editingId) {
+      setMsg('Save this touch first — the test is rendered from the saved row so it matches the real send exactly.')
+      return
+    }
     setTestSending(true); setMsg('')
     try {
-      // Mirror the real send: the cron wraps the body in the brand shell and
-      // appends the recipient's unsubscribe link. Without this the test looked
-      // nothing like what the ~1,900 recipients actually receive.
-      const filled = body.replace(/\{\{name\}\}/g, user?.display_name || 'there')
-      let unsubUrl: string | undefined
-      if (user?.id) {
-        const { data } = await supabase.from('users').select('unsubscribe_token').eq('id', user.id).maybeSingle()
-        if (data?.unsubscribe_token) unsubUrl = unsubscribeUrl(data.unsubscribe_token, window.location.origin)
-      }
-      const html = emailShell({ subtitle: 'Sign Up', bodyHtml: filled, unsubscribeUrl: unsubUrl })
-      const ok = await EmailService.sendEmailDirect(
-        testEmail.trim(), `[TEST] ${subject}`, html, filled.replace(/<[^>]*>/g, ''), unsubUrl
-      )
+      // The test used to rebuild the brand shell here in TypeScript while the
+      // real send wrapped it in SQL, so the two could drift apart silently.
+      // queue_preseason_test now renders it through the same
+      // wrap_email_shell() the cron uses — name substitution, unsubscribe link
+      // and all. Persist what's on screen first, since the server reads the row.
+      const { error: saveErr } = await supabase
+        .from('preseason_emails')
+        .update({ subject: subject.trim(), body_html: body, updated_at: new Date().toISOString() })
+        .eq('id', editingId)
+      if (saveErr) throw saveErr
+
+      const { data, error } = await supabase.rpc('queue_preseason_test', {
+        p_preseason_id: editingId,
+        p_to_email: testEmail.trim(),
+      })
+      if (error) throw error
+
+      const job = data as { job_id?: string; send_token?: string } | null
+      if (!job?.job_id) throw new Error('Could not queue the test email')
+      const ok = await EmailService.sendQueuedJob(job.job_id, job.send_token)
       setMsg(ok ? `✅ Test sent to ${testEmail}` : '❌ Test failed to send')
     } catch (err: any) { setMsg(`❌ ${err?.message || 'Test failed'}`) } finally { setTestSending(false) }
   }

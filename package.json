@@ -12,7 +12,7 @@
     "cf:dev": "npm run build && wrangler dev",
     "sync:templates": "node scripts/sync-shared-templates.mjs",
     "check:templates": "node scripts/sync-shared-templates.mjs --check",
-    "deploy:functions": "npm run sync:templates && supabase functions deploy send-email"
+    "deploy:functions": "npm run sync:templates && npx supabase functions deploy send-email --project-ref zgdaqbnpgrabbnljmiqy"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

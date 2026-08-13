@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@2.0.0'
-import { renderJobPayload } from '../_shared/renderJob.ts'
+import { renderJobPayload, payloadNeedsPost, type RenderContext } from '../_shared/renderJob.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -51,6 +51,38 @@ const json = (body: unknown, status = 200) =>
 
 const DEFAULT_FROM = 'Pigskin Pick Six <admin@pigskinpicksix.com>'
 
+/**
+ * The `role` claim from a project key, or null if the token isn't a JWT.
+ *
+ * Comparing tokens by value is not enough on this project: it still issues the
+ * legacy anon and service keys (which is what .env, the app, and the vault's
+ * service_role_key all hold), while SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY
+ * in the function environment hold the current ones. An exact match therefore
+ * fails for exactly the callers that matter — it is what made the cron senders
+ * start getting 403s.
+ *
+ * Reading the claim without verifying the signature is safe *because the
+ * platform gateway verifies it first* — verify_jwt is on for this function, and
+ * a forged token is rejected before it reaches this code (it comes back as
+ * UNAUTHORIZED_LEGACY_JWT). Anyone who can mint a token claiming
+ * role=service_role already holds the service key.
+ *
+ * If verify_jwt is ever disabled for send-email, this becomes forgeable and the
+ * service-role branch below must be replaced with a real capability check.
+ */
+function decodeTokenRole(token: string): string | null {
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) return null
+    const padded = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const json = atob(padded + '='.repeat((4 - padded.length % 4) % 4))
+    const role = JSON.parse(json)?.role
+    return typeof role === 'string' ? role : null
+  } catch {
+    return null
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -60,7 +92,6 @@ serve(async (req) => {
     const resendApiKey = Deno.env.get('RESEND_API_KEY')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
 
     if (!resendApiKey) {
       throw new Error('RESEND_API_KEY environment variable not set')
@@ -83,8 +114,11 @@ serve(async (req) => {
     let caller: Caller
     let userId: string | null = null
 
-    if (supabaseServiceKey && token === supabaseServiceKey) {
+    const tokenRole = decodeTokenRole(token)
+
+    if ((supabaseServiceKey && token === supabaseServiceKey) || tokenRole === 'service_role') {
       caller = 'service'
+      console.log('📧 Caller: service role')
     } else {
       const { data: { user: authUser } } = await supabase.auth.getUser(token)
       if (authUser) {
@@ -97,24 +131,28 @@ serve(async (req) => {
         caller = profile?.is_admin ? 'admin' : 'user'
         console.log(`📧 Caller: ${caller} — ${authUser.email} (${authUser.id})`)
       } else {
-        // A project key rather than a session. The platform gateway validates
-        // the JWT's signature before anything reaches this function, so a token
-        // that gets here is genuinely ours — but it is NOT matched against the
-        // anon key by value: this project still uses a legacy anon key while
-        // SUPABASE_ANON_KEY holds the current one, so comparing them rejects
-        // the very callers the anonymous flow depends on.
-        //
-        // Treating an unrecognized token as the least-privileged caller is the
-        // safe direction. `anon` cannot supply content at all; the most it can
-        // do is send one already-queued, server-rendered job whose one-time
-        // send_token it already holds. Even with gateway verification off, that
-        // is a pair of unguessable UUIDs, not a way to send arbitrary mail.
+        // A project key rather than a session, or something we don't recognize.
+        // Either way it gets the least privilege: `anon` cannot supply content
+        // at all, and the most it can do is send one already-queued,
+        // server-rendered job whose one-time send_token it already holds — a
+        // pair of unguessable UUIDs, not a way to send arbitrary mail.
         caller = 'anon'
-        console.log(`📧 Caller: anon (project key${supabaseAnonKey && token === supabaseAnonKey ? '' : ', non-matching'})`)
+        console.log(`📧 Caller: anon (role claim: ${tokenRole ?? 'none'})`)
       }
     }
 
-    const mayProvideContent = caller === 'service' || caller === 'admin'
+    // Content mode is the service role's alone. Admins used to have it too,
+    // because the recap blast and the preseason test built HTML in the browser;
+    // migration 203 moved both behind queue_* RPCs, so no email body needs to
+    // travel from a browser to this function any more.
+    //
+    // Admins keep job mode, which still lets them send a row they queued with
+    // their own html_content (the week-opened, reminder and results batches all
+    // work that way). That is a deliberately smaller surface than content mode:
+    // it needs an admin session, it passes through RLS, and what was sent stays
+    // in the queue to be read back afterwards.
+    const mayProvideContent = caller === 'service'
+    const mayUseStoredHtml = caller === 'service' || caller === 'admin'
 
     // ── Work out what to send ──────────────────────────────────────────────
     const body = await req.json() as Partial<ContentRequest & JobRequest>
@@ -163,7 +201,7 @@ serve(async (req) => {
         }
       }
 
-      if (mayProvideContent && !job.payload) {
+      if (mayUseStoredHtml && !job.payload) {
         // Cron and admin tooling still queue pre-rendered jobs.
         if (!job.html_content) {
           return json({ error: 'Job has neither payload nor html_content' }, 422)
@@ -181,7 +219,25 @@ serve(async (req) => {
             details: 'Only jobs queued with a payload can be sent by this caller',
           }, 403)
         }
-        const rendered = renderJobPayload(job.template_type, job.payload)
+
+        // Some payloads deliberately reference a row rather than copying it —
+        // the recap's prose would otherwise be duplicated across 609 jobs and
+        // frozen at queue time.
+        const context: RenderContext = {}
+        if (payloadNeedsPost(job.template_type)) {
+          const postId = (job.payload as { postId?: string }).postId
+          const { data: post, error: postError } = await supabase
+            .from('blog_posts')
+            .select('week, slug, excerpt, email_rundown')
+            .eq('id', postId)
+            .maybeSingle()
+          if (postError || !post) {
+            return json({ error: 'Recap post not found', details: postError?.message }, 422)
+          }
+          context.post = post
+        }
+
+        const rendered = renderJobPayload(job.template_type, job.payload, context)
         subject = rendered.subject
         html = rendered.html
         text = rendered.text

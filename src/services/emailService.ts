@@ -1091,62 +1091,13 @@ export class EmailService {
   // sendPickConfirmationServerRendered, which queues the job through an RPC and
   // lets the server render it from the picks already in the database.
 
-  /**
-   * Send email directly without going through the job queue processing
-   * This is used for immediate email sending during pick submission
-   */
-  static async sendEmailDirect(
-    to: string,
-    subject: string,
-    html: string,
-    text: string,
-    /** Bulk sends only — adds the List-Unsubscribe header via the Edge Function. */
-    unsubscribeUrl?: string
-  ): Promise<boolean> {
-    try {
-      console.log(`📧 SENDING EMAIL DIRECTLY:`)
-      console.log(`   To: ${to}`)
-      console.log(`   Subject: ${subject}`)
-
-      const supabaseUrl = ENV.SUPABASE_URL || FALLBACK_SUPABASE_URL
-      // Must be the caller's own session: send-email accepts a body only from
-      // an admin or the service role. Recap blasts and preseason test sends are
-      // admin actions, so the admin's token is what authorizes them.
-      const token = await this.edgeFunctionToken()
-
-      const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          to,
-          subject,
-          html,
-          text,
-          ...(unsubscribeUrl ? { unsubscribeUrl } : {}),
-          from: 'Pigskin Pick Six <admin@pigskinpicksix.com>'
-        })
-      })
-
-      console.log(`📡 Direct send response status: ${response.status}`)
-
-      if (response.ok) {
-        const result = await response.json()
-        console.log('✅ Email sent directly via Edge Function:', result?.messageId)
-        return true
-      } else {
-        const errorText = await response.text()
-        console.error('❌ Direct email sending failed:', response.status, errorText)
-        return false
-      }
-
-    } catch (error) {
-      console.error('❌ Direct email sending exception:', error)
-      return false
-    }
-  }
+  // Removed: sendEmailDirect.
+  //
+  // It POSTed a finished subject and HTML body to send-email, which is the one
+  // thing no browser should be able to do. Its last two callers were the recap
+  // blast and the preseason test; migration 203 moved both behind queue_* RPCs,
+  // so send-email now accepts a body from the service role alone. Everything
+  // client-side goes through sendQueuedJob() instead.
 
   // Removed: sendMagicLink, sendPasswordResetViaResend and sendPasswordReset.
   //

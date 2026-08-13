@@ -26,7 +26,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SRC = join(ROOT, 'src', 'templates')
 const DEST = join(ROOT, 'supabase', 'functions', '_shared', 'templates')
 
-const FILES = ['types.ts', 'emailShell.ts', 'picksSubmitted.ts']
+const FILES = ['types.ts', 'emailShell.ts', 'picksSubmitted.ts', 'recapEmail.ts']
 
 const HEADER = `// GENERATED FILE — DO NOT EDIT.
 // Source: src/templates/%s
