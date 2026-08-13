@@ -9,11 +9,13 @@
  * source of truth and this script regenerates the shared copies. Deno needs
  * explicit file extensions, so relative imports get `.ts` appended on the way.
  *
- * Run after editing any file listed in FILES, and before `supabase functions
- * deploy send-email`:
+ * You should not need to run this by hand: `npm run deploy:functions` syncs
+ * before it deploys, so what ships is always current. The rest are for when you
+ * want the copies updated or verified on their own:
  *
- *   node scripts/sync-shared-templates.mjs
- *   node scripts/sync-shared-templates.mjs --check   # CI-style, no writes
+ *   npm run deploy:functions   # sync, then deploy send-email
+ *   npm run sync:templates     # regenerate the copies
+ *   npm run check:templates    # verify only, non-zero exit if stale
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'

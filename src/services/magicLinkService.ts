@@ -1,198 +1,25 @@
 /**
  * Magic Link Authentication Service
- * Handles secure token generation, storage, and verification for magic link authentication
+ * Verifies magic link tokens and signs the user in.
  */
 
 import { supabase } from '@/lib/supabase'
-import { EmailService } from './emailService'
 import { findUserByAnyEmail } from '@/utils/userMatching'
 
-interface MagicLinkToken {
-  id: string
-  email: string
-  token: string
-  expires_at: string
-  used: boolean
-  created_at: string
-}
-
 export class MagicLinkService {
-  /**
-   * Generate a secure random token
-   */
-  private static generateSecureToken(): string {
-    const array = new Uint8Array(32)
-    crypto.getRandomValues(array)
-    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
-  }
-
-  /**
-   * Store magic link token in database
-   */
-  private static async storeMagicToken(
-    email: string,
-    token: string,
-    expiresAt: Date
-  ): Promise<void> {
-    try {
-      // First, clean up any expired tokens for this email
-      await supabase
-        .from('magic_link_tokens')
-        .delete()
-        .eq('email', email)
-        .or('expires_at.lt.now(),used.eq.true')
-
-      // Store the new token
-      const { error } = await supabase
-        .from('magic_link_tokens')
-        .insert({
-          email,
-          token,
-          expires_at: expiresAt.toISOString(),
-          used: false
-        })
-
-      if (error) {
-        console.error('Error storing magic token:', error)
-        if (error.message?.includes('relation "magic_link_tokens" does not exist')) {
-          throw new Error('Magic link system not fully configured. Please run database migration.')
-        }
-        throw new Error('Failed to generate magic link')
-      }
-    } catch (error: any) {
-      console.error('Exception storing magic token:', error)
-      if (error.message?.includes('Magic link system not fully configured')) {
-        throw error
-      }
-      throw new Error('Database error while generating magic link')
-    }
-  }
-
-  /**
-   * Send magic link email
-   */
-  static async sendMagicLink(email: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      console.log(`🔮 Generating magic link for ${email}`)
-
-      // Check if user exists by email
-      console.log(`🔍 Looking up user in database...`)
-      
-      // TEMPORARY: Skip database lookup for testing if it's your email
-      if (email.toLowerCase() === 'kurtiswh@gmail.com') {
-        console.log(`🧪 DEBUG MODE: Skipping database lookup for testing purposes`)
-        console.log(`🧪 Creating mock user for ${email}`)
-        const mockUser = {
-          id: 'mock-id-for-testing',
-          email: email,
-          display_name: 'Kurtis (Test User)',
-          is_admin: false,
-          leaguesafe_email: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-        
-        // Generate secure token
-        const token = this.generateSecureToken()
-        const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
-
-        console.log(`🔐 Generated token, expires at: ${expiresAt.toISOString()}`)
-
-        // Skip database storage for now and just try to send email directly via Supabase Auth
-        console.log(`📧 TESTING: Trying alternative approach - using Supabase Auth for magic link...`)
-        
-        try {
-          // Try using Supabase Auth's built-in magic link as a test
-          const { data: authResult, error: authError } = await supabase.auth.signInWithOtp({
-            email: email,
-            options: {
-              emailRedirectTo: `${typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'}/`,
-            }
-          })
-          
-          if (authError) {
-            console.error('❌ Supabase Auth magic link failed:', authError.message)
-            // Fall back to the email jobs approach
-            console.log(`📧 Falling back to email jobs system...`)
-            const emailResult = await EmailService.sendMagicLink(
-              email,
-              mockUser.display_name,
-              token
-            )
-            
-            if (!emailResult.success) {
-              console.error(`❌ Email fallback also failed:`, emailResult.error)
-              throw new Error(emailResult.error || 'Both magic link methods failed')
-            }
-          } else {
-            console.log(`✅ Supabase Auth magic link sent successfully!`)
-            return { success: true }
-          }
-        } catch (testError) {
-          console.warn('⚠️ Supabase Auth test failed, trying email jobs...', testError)
-          const emailResult = await EmailService.sendMagicLink(
-            email,
-            mockUser.display_name,
-            token
-          )
-          
-          if (!emailResult.success) {
-            console.error(`❌ Email send failed:`, emailResult.error)
-            throw new Error(emailResult.error || 'Failed to send magic link email')
-          }
-        }
-
-        console.log(`✅ TEST Magic link sent successfully to ${email}`)
-        return { success: true }
-      }
-      
-      const existingUser = await findUserByAnyEmail(email)
-      
-      console.log(`📊 User lookup result:`, existingUser ? `Found: ${existingUser.display_name}` : 'Not found')
-      
-      if (!existingUser) {
-        // Don't reveal whether email exists or not for security, but log it
-        console.log(`🔮 Email ${email} not found in database, returning success for security`)
-        console.log(`ℹ️ If this is your email and you should have access, check your user record in Supabase`)
-        return { success: true }
-      }
-
-      console.log(`👤 Found user: ${existingUser.display_name} (${existingUser.id})`)
-
-      // Generate secure token
-      const token = this.generateSecureToken()
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
-
-      console.log(`🔐 Generated token, expires at: ${expiresAt.toISOString()}`)
-
-      // Store token in database
-      console.log(`💾 Storing magic link token in database...`)
-      await this.storeMagicToken(email, token, expiresAt)
-      console.log(`✅ Token stored successfully`)
-
-      // Send email via Resend
-      console.log(`📧 Sending magic link email...`)
-      const emailResult = await EmailService.sendMagicLink(
-        email,
-        existingUser.display_name,
-        token
-      )
-
-      if (!emailResult.success) {
-        console.error(`❌ Email send failed:`, emailResult.error)
-        throw new Error(emailResult.error || 'Failed to send magic link email')
-      }
-
-      console.log(`✅ Magic link sent successfully to ${email}`)
-      return { success: true }
-
-    } catch (error: any) {
-      console.error('❌ Error sending magic link:', error)
-      console.error('❌ Error details:', error.message)
-      console.error('❌ Stack trace:', error.stack)
-      return { success: false, error: error.message }
-    }
-  }
+  // Removed: sendMagicLink, and the storeMagicToken / generateSecureToken
+  // helpers that only it used.
+  //
+  // Nothing called it — MagicLoginPage, the only consumer of this service, uses
+  // verifyMagicLink alone — so no magic link has been generated in a long time
+  // and magic_link_tokens is empty in production. It sent by queueing a
+  // client-rendered body into email_jobs, which migrations 201/202 no longer
+  // permit.
+  //
+  // NOTE: with generation gone, verifyMagicLink below and the routed
+  // /magic-login page can only ever report an invalid token. Either finish the
+  // feature (a server-side queue_magic_link RPC, matching the pick-confirmation
+  // shape) or drop the route and this service with it.
 
   /**
    * Verify magic link token and sign in user
