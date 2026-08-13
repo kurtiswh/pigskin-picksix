@@ -239,54 +239,15 @@ export interface AuthContextType {
   refreshUser: () => Promise<void>
 }
 
-// Blog types
-export interface BlogPost {
-  id: string
-  title: string
-  content: string
-  excerpt?: string
-  author_id: string
-  season: number
-  week?: number | null // null for pre-season posts
-  is_published: boolean
-  featured_image_url?: string
-  slug: string
-  created_at: string
-  updated_at: string
-  author?: {
-    id: string
-    display_name: string
-    email: string
-  }
-}
-
-export interface BlogPostCreate {
-  title: string
-  content: string
-  excerpt?: string
-  season: number
-  week?: number | null
-  is_published?: boolean
-  featured_image_url?: string
-}
-
-export interface BlogPostUpdate {
-  title?: string
-  content?: string
-  excerpt?: string
-  season?: number
-  week?: number | null
-  is_published?: boolean
-  featured_image_url?: string
-}
-
-export interface WeekOption {
-  value: number | null
-  label: string
-  season: number
-}
-
-export interface SeasonWeekFilter {
-  season: number
-  week?: number | null
-}
+// Blog types live in ./blog and are re-exported here, because most callers
+// import from '@/types'. They used to be declared in both places and the copies
+// had drifted: this one was missing attachments, email_rundown and emailed_at,
+// so the recap editor could not typecheck against the very columns it writes.
+export type {
+  BlogAttachment,
+  BlogPost,
+  BlogPostCreate,
+  BlogPostUpdate,
+  WeekOption,
+  SeasonWeekFilter,
+} from './blog'

@@ -385,7 +385,7 @@ export class BlogService {
 
   // Update blog post
   static async updatePost(id: string, updates: BlogPostUpdate): Promise<BlogPost> {
-    let updateData = { ...updates }
+    const updateData = { ...updates }
 
     // If title is being updated, regenerate slug
     if (updates.title) {

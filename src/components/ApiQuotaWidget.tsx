@@ -19,11 +19,6 @@ export default function ApiQuotaWidget() {
 
   const isAdmin = user?.is_admin === true
 
-  // Don't show for non-admin users
-  if (!isAdmin) {
-    return null
-  }
-
   const refreshStatus = () => {
     setQuotaStatus(ApiQuotaService.getQuotaStatus())
     setLastUpdated(new Date())
@@ -55,6 +50,14 @@ export default function ApiQuotaWidget() {
     const interval = setInterval(refreshStatus, 30000)
     return () => clearInterval(interval)
   }, [])
+
+  // Below the hooks, not above them. `user` starts null while auth resolves, so
+  // returning early here ran fewer hooks on the first render than on the one
+  // after it — React throws "rendered more hooks than during the previous
+  // render" and takes the surrounding page down with it.
+  if (!isAdmin) {
+    return null
+  }
 
   return (
     <Card className="w-full">

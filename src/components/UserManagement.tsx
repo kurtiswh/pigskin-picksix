@@ -32,7 +32,6 @@ async function fetchAllRows<T = any>(
   const pageSize = 1000
   let from = 0
   const all: T[] = []
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const { data, error } = await build(from, from + pageSize - 1)
     if (error) throw error

@@ -971,7 +971,7 @@ export class LiveUpdateService {
       // Process picks for each game that needs processing
       for (const gameId of gamesToProcess) {
         const gameStartTime = Date.now()
-        let gameDetails = {
+        const gameDetails = {
           gameId,
           teams: '',
           status: '',

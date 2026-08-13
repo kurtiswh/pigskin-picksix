@@ -278,7 +278,7 @@ export default function HistoricalPicksImport() {
         // So we don't need to validate user existence here anymore
 
         // Validate or prepare game data
-        let game = games?.find(g => 
+        const game = games?.find(g => 
           g.week === pick.week && 
           g.season === pick.season &&
           g.home_team === pick.home_team &&
@@ -456,7 +456,7 @@ export default function HistoricalPicksImport() {
             .single()
 
           // Prepare timestamp data
-          let createdAt = new Date().toISOString()
+          const createdAt = new Date().toISOString()
           let submittedAt = null
 
           if (pick.pick_datetime) {

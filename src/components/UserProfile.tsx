@@ -78,7 +78,7 @@ export default function UserProfile() {
       
       let allPicks: Pick[] = []
       let allAnonPicks: AnonymousPick[] = []
-      let loadErrors: string[] = []
+      const loadErrors: string[] = []
       
       // Handle authenticated picks result
       if (authenticatedPicks.status === 'fulfilled') {

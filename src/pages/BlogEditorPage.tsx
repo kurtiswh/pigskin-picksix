@@ -99,11 +99,6 @@ export default function BlogEditorPage() {
     } catch (e: any) { setEmailMsg(`❌ ${e?.message || 'Send failed'}`) } finally { setSendingAll(false) }
   }
 
-  // Redirect non-admin users
-  if (!user || !user.is_admin) {
-    return <Navigate to="/blog" replace />
-  }
-
   useEffect(() => {
     if (isEditing && postId) {
       loadPost()
@@ -121,6 +116,14 @@ export default function BlogEditorPage() {
     }
   }, [isEditing, postId])
 
+  // Below the hooks, not above them. `user` is null while auth resolves, so the
+  // old placement ran fewer hooks on the first render than on the next one, and
+  // React throws "rendered more hooks than during the previous render" — the
+  // editor would blow up rather than redirect.
+  if (!user || !user.is_admin) {
+    return <Navigate to="/blog" replace />
+  }
+
   const loadPost = async () => {
     if (!postId) return
 
@@ -136,7 +139,7 @@ export default function BlogEditorPage() {
         setExcerpt(blogPost.excerpt || '')
         setEmailRundown(blogPost.email_rundown || '')
         setSeason(blogPost.season)
-        setWeek(blogPost.week)
+        setWeek(blogPost.week ?? null)
         setIsPublished(blogPost.is_published)
         setFeaturedImageUrl(blogPost.featured_image_url || '')
       } else {

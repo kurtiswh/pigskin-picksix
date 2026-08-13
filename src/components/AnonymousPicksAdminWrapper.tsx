@@ -52,7 +52,7 @@ export default function AnonymousPicksAdminWrapper({ currentWeek, currentSeason 
       ])
 
       let passedTests = 0
-      let failureReasons: string[] = []
+      const failureReasons: string[] = []
 
       // Check each test result with detailed logging
       console.log('Test 1 (resolve_primary_user_id):', tests[0])

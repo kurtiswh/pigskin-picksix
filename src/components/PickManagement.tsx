@@ -526,7 +526,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
       }
       
       // Check for submitted anonymous picks to add notation
-      let submittedAnonPicksByUser: { [userId: string]: boolean } = {}
+      const submittedAnonPicksByUser: { [userId: string]: boolean } = {}
       try {
         const { data: submittedAnonPicks } = await supabase
           .from('anonymous_picks')

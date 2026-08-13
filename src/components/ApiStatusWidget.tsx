@@ -17,7 +17,6 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
   // Do NOT auto-test the CFBD API on mount — that hit the API on every admin
   // page load (and burned the client quota) even off-season. Testing is now
   // manual via the Retry/Test button.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {}, [])
 
   const testApi = async () => {
