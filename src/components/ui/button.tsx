@@ -8,9 +8,14 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "primary", size = "md", ...props }, ref) => {
+  ({ className, variant = "primary", size = "md", type = "button", ...props }, ref) => {
     return (
       <button
+        // A <button> with no type defaults to "submit". Inside a <form> — the
+        // login, register and reset-password pages all have one — that submits
+        // the form and reloads the page instead of running onClick. Anything
+        // that genuinely submits can still pass type="submit" explicitly.
+        type={type}
         className={cn(
           "inline-flex items-center justify-center rounded-lg font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none",
           {
