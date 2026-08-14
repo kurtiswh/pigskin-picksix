@@ -5,6 +5,7 @@ import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NotificationScheduler } from '@/services/notificationScheduler'
+import { EmailService } from '@/services/emailService'
 import { AdminEmailSettingsService, AdminEmailSettings, ReminderSetting } from '@/services/adminEmailSettings'
 import { supabase } from '@/lib/supabase'
 import '@/utils/emailTesting' // Load testing utilities for console access
@@ -142,27 +143,19 @@ export default function AdminNotifications({ currentWeek, currentSeason }: Admin
     try {
       setLoading(true)
       setStatus('Sending test pick confirmation email...')
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError || !user) throw new Error('Must be authenticated to send test emails')
-
-      const mockPicks = [
-        { game: 'Georgia @ Alabama', pick: 'Alabama', spread: -3, isLock: true, lockTime: '2026-09-05T19:00:00.000Z' },
-        { game: 'Michigan @ Ohio State', pick: 'Ohio State', spread: -7, isLock: false, lockTime: '2026-09-05T15:30:00.000Z' },
-        { game: 'Texas @ Oklahoma', pick: 'Texas', spread: -2.5, isLock: false, lockTime: '2026-09-05T20:00:00.000Z' },
-        { game: 'USC @ Oregon', pick: 'Oregon', spread: -6, isLock: false, lockTime: '2026-09-05T17:00:00.000Z' },
-        { game: 'Notre Dame @ Navy', pick: 'Notre Dame', spread: -10, isLock: false, lockTime: '2026-09-05T16:00:00.000Z' },
-        { game: 'Clemson @ Florida State', pick: 'Clemson', spread: 1, isLock: false, lockTime: '2026-09-05T18:00:00.000Z' },
-      ]
-
-      await NotificationScheduler.onPicksSubmitted(
-        user.id,
-        testEmail,
-        'Test Admin',
+      // Not onPicksSubmitted: that is the real submission flow. It ignores this
+      // address and these picks (the server derives both from the signed-in
+      // account), finds no submitted picks for an unopened week, and cancels the
+      // admin's own pending reminders on the way past. The sample now comes from
+      // the week's real games, server-side.
+      const sent = await EmailService.sendPickConfirmationTest(
+        testEmail.trim(),
         currentWeek,
-        currentSeason,
-        mockPicks
+        currentSeason
       )
-      setStatus(`✅ Test pick confirmation sent to ${testEmail}`)
+      setStatus(sent
+        ? `✅ Test pick confirmation sent to ${testEmail}`
+        : `❌ Could not send the test to ${testEmail} — check the console`)
     } catch (error) {
       console.error('Error sending test email:', error)
       setStatus('❌ Error sending test email: ' + (error as Error).message)

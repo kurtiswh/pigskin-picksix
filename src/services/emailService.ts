@@ -333,6 +333,32 @@ export class EmailService {
     }
   }
 
+  /**
+   * Admin preview of the pick-confirmation email.
+   *
+   * Deliberately separate from sendPickConfirmationServerRendered: that one
+   * takes no address and no pick list because it confirms a real submission for
+   * the signed-in player. A test has to go somewhere else and render a sample,
+   * and routing it through the real path meant it read the admin's own (empty)
+   * picks and quietly sent nothing.
+   */
+  static async sendPickConfirmationTest(
+    toEmail: string,
+    week: number,
+    season: number
+  ): Promise<boolean> {
+    const { data, error } = await supabase.rpc('queue_pick_confirmation_test', {
+      p_to_email: toEmail,
+      p_week: week,
+      p_season: season,
+    })
+    if (error) throw error
+
+    const job = data as { job_id?: string; send_token?: string } | null
+    if (!job?.job_id) throw new Error('Could not queue the test email')
+    return await this.sendQueuedJob(job.job_id, job.send_token)
+  }
+
   // Removed: schedulePickReminder, scheduleDeadlineAlerts, sendWeeklyResults,
   // sendWeekOpenedAnnouncement, getUsersForNotification and its fallback.
   //

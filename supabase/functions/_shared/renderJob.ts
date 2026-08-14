@@ -76,6 +76,9 @@ interface PicksSubmittedPayload {
     isLock: boolean
     lockTime: string
   }>
+  isTest?: boolean
+  /** Preview built from sample picks rather than a real submission. */
+  isSample?: boolean
 }
 
 const SITE_URL = 'https://pigskinpicksix.com'
@@ -223,8 +226,9 @@ export function renderJobPayload(
         submittedAt: new Date(raw.submittedAt),
         submittedStr: formatSubmitted(raw.submittedAt),
       }
+      const prefix = raw.isTest ? `[TEST]${raw.isSample ? ' [SAMPLE DATA]' : ''} ` : ''
       return {
-        subject: getPicksSubmittedSubject(data),
+        subject: prefix + getPicksSubmittedSubject(data),
         html: getPicksSubmittedHtml(data),
         text: getPicksSubmittedText(data),
       }
