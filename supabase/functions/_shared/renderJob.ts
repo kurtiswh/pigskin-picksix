@@ -23,6 +23,18 @@ import {
   type RecapBlock,
   type RecapPicksCta,
 } from './templates/recapEmail.ts'
+import {
+  getPickReminderSubject, getPickReminderHtml, getPickReminderText,
+} from './templates/pickReminder.ts'
+import {
+  getDeadlineAlertSubject, getDeadlineAlertHtml, getDeadlineAlertText,
+} from './templates/deadlineAlert.ts'
+import {
+  getWeekOpenedSubject, getWeekOpenedHtml, getWeekOpenedText,
+} from './templates/weekOpened.ts'
+import {
+  getWeeklyResultsSubject, getWeeklyResultsHtml, getWeeklyResultsText,
+} from './templates/weeklyResults.ts'
 
 export interface RenderedEmail {
   subject: string
@@ -96,6 +108,39 @@ interface WeeklyRecapPayload {
   block: RecapBlock
   cta: { week: number; deadline: string | null; totalGames: number | null } | null
   isTest?: boolean
+  /** Preview built from invented picks because the season has no paid entrants yet. */
+  isSample?: boolean
+}
+
+/** Payload written by queue_week_opened_announcement / queue_pick_reminders. */
+interface WeekEmailPayload {
+  userDisplayName?: string
+  week: number
+  season: number
+  deadline: string
+  hoursLeft?: number
+  totalGames?: number
+}
+
+/** Payload written by queue_weekly_results. */
+interface WeeklyResultsPayload {
+  userDisplayName: string
+  week: number
+  season: number
+  userStats: {
+    weeklyPoints: number
+    weeklyRank: number
+    totalPlayers: number
+    seasonPoints: number
+    seasonRank: number
+    picks: Array<{
+      game: string
+      pick: string
+      result: 'win' | 'loss' | 'push'
+      points: number
+      isLock: boolean
+    }>
+  }
 }
 
 /** The CTA carries a raw timestamp so date formatting stays in one language. */
@@ -151,7 +196,9 @@ export function renderJobPayload(
       let subject = getRecapSubject(post.week, cta)
       if (raw.isTest) {
         const variant = raw.block?.played === false ? '[TEST · no-picks variant]' : '[TEST]'
-        subject = `${variant} ${subject}`
+        // Say so when the scorecard is invented — a preseason preview has real
+        // matchups but made-up results, and it should not read as a real week.
+        subject = `${variant}${raw.isSample ? ' [SAMPLE DATA]' : ''} ${subject}`
       }
       return { subject, html, text }
     }
@@ -180,6 +227,69 @@ export function renderJobPayload(
         subject: getPicksSubmittedSubject(data),
         html: getPicksSubmittedHtml(data),
         text: getPicksSubmittedText(data),
+      }
+    }
+
+    // The week batches an admin triggers when a week opens or closes. All four
+    // carry a raw `deadline` timestamp rather than a formatted string, so the
+    // date is rendered in one place instead of by whichever browser queued it.
+    case 'pick_reminder': {
+      const raw = payload as WeekEmailPayload
+      const data = {
+        userDisplayName: String(raw.userDisplayName || 'there'),
+        week: Number(raw.week), season: Number(raw.season), baseUrl: SITE_URL,
+        deadline: new Date(raw.deadline),
+        deadlineStr: formatDeadline(raw.deadline) ?? '',
+      }
+      return {
+        subject: getPickReminderSubject(data),
+        html: getPickReminderHtml(data),
+        text: getPickReminderText(data),
+      }
+    }
+
+    case 'deadline_alert': {
+      const raw = payload as WeekEmailPayload
+      const data = {
+        userDisplayName: String(raw.userDisplayName || 'there'),
+        week: Number(raw.week), season: Number(raw.season), baseUrl: SITE_URL,
+        deadline: new Date(raw.deadline),
+        deadlineStr: formatDeadline(raw.deadline) ?? '',
+        hoursLeft: Number(raw.hoursLeft ?? 0),
+      }
+      return {
+        subject: getDeadlineAlertSubject(data),
+        html: getDeadlineAlertHtml(data),
+        text: getDeadlineAlertText(data),
+      }
+    }
+
+    case 'week_opened': {
+      const raw = payload as WeekEmailPayload
+      const data = {
+        week: Number(raw.week), season: Number(raw.season), baseUrl: SITE_URL,
+        deadline: new Date(raw.deadline),
+        deadlineStr: formatDeadline(raw.deadline) ?? '',
+        totalGames: Number(raw.totalGames ?? 0),
+      }
+      return {
+        subject: getWeekOpenedSubject(data),
+        html: getWeekOpenedHtml(data),
+        text: getWeekOpenedText(data),
+      }
+    }
+
+    case 'weekly_results': {
+      const raw = payload as WeeklyResultsPayload
+      const data = {
+        userDisplayName: String(raw.userDisplayName || 'there'),
+        week: Number(raw.week), season: Number(raw.season), baseUrl: SITE_URL,
+        userStats: raw.userStats,
+      }
+      return {
+        subject: getWeeklyResultsSubject(data),
+        html: getWeeklyResultsHtml(data),
+        text: getWeeklyResultsText(data),
       }
     }
 

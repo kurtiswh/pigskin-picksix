@@ -6,7 +6,6 @@
 import { supabase } from '@/lib/supabase'
 import { EmailService } from './emailService'
 import { AdminEmailSettingsService } from './adminEmailSettings'
-import { getActiveSeason } from '@/lib/season'
 
 export interface NotificationEvent {
   type: 'week_opened' | 'picks_submitted' | 'week_completed' | 'deadline_approaching'
@@ -24,7 +23,10 @@ export class NotificationScheduler {
   /**
    * Schedule all notifications when a new week is opened for picks
    */
-  static async onWeekOpened(week: number, season: number, deadline: Date, totalGames: number = 15): Promise<void> {
+  static async onWeekOpened(week: number, season: number, _deadline?: Date, _totalGames?: number): Promise<void> {
+    // _deadline and _totalGames are ignored: queue_week_opened_announcement reads
+    // both from week_settings and games so the email cannot disagree with the
+    // site. Kept in the signature because callers still pass them positionally.
     try {
       console.log(`📅 Scheduling notifications for Week ${week}, ${season}`)
       
@@ -34,8 +36,14 @@ export class NotificationScheduler {
       if (openPicksEnabled) {
         // Send immediate "week opened" announcement to all active users
         try {
-          await EmailService.sendWeekOpenedAnnouncement(week, season, deadline, totalGames)
-          console.log('📧 Week opened announcement sent')
+          // Queued server-side; `deadline` and `totalGames` are re-derived from
+          // week_settings and games so the email cannot disagree with the site.
+          const { data, error: annError } = await supabase.rpc('queue_week_opened_announcement', {
+            p_week: week,
+            p_season: season,
+          })
+          if (annError) throw annError
+          console.log(`📧 Week opened announcement queued for ${(data as { queued?: number })?.queued ?? 0} players`)
         } catch (error) {
           console.error('Error sending week opened announcement:', error)
           // Don't fail the whole process if this fails
@@ -52,46 +60,20 @@ export class NotificationScheduler {
         return
       }
 
-      // Get all users with notification preferences enabled for ongoing reminders
-      const users = await EmailService.getUsersForNotification('pick_reminders', season, week)
-      
-      if (!users || users.length === 0) {
-        console.log('📧 No users to notify for pick reminders')
-        return
-      }
+      // One statement instead of a nested loop over users x reminder hours.
+      // queue_pick_reminders picks the audience, skips anyone who has already
+      // submitted, drops send times that have passed, and stores a payload
+      // rather than HTML — so nothing here renders or even sees an email.
+      const { data, error } = await supabase.rpc('queue_pick_reminders', {
+        p_week: week,
+        p_season: season,
+        p_reminder_hours: reminderTimes,
+        p_alert_hours: [],
+      })
+      if (error) throw error
 
-      let totalRemindersScheduled = 0
-
-      for (const user of users) {
-        try {
-          if (user.preferences.pick_reminders) {
-            // Schedule reminders based on admin configuration
-            for (const hoursBeforeDeadline of reminderTimes) {
-              const reminderTime = new Date(deadline.getTime() - (hoursBeforeDeadline * 60 * 60 * 1000))
-              
-              // Only schedule if reminder time is in the future
-              if (reminderTime > new Date()) {
-                await EmailService.schedulePickReminder(
-                  user.id,
-                  user.email,
-                  user.display_name,
-                  week,
-                  season,
-                  deadline,
-                  reminderTime
-                )
-                totalRemindersScheduled++
-                console.log(`📧 Scheduled ${hoursBeforeDeadline}h reminder for ${user.display_name} at ${reminderTime.toLocaleString()}`)
-              }
-            }
-          }
-
-        } catch (error) {
-          console.error(`Error scheduling notifications for user ${user.id}:`, error)
-        }
-      }
-
-      console.log(`📧 Scheduled ${totalRemindersScheduled} total reminders for ${users.length} users using admin settings`)
+      const queued = (data as { queued?: number } | null)?.queued ?? 0
+      console.log(`📧 Scheduled ${queued} reminders for Week ${week} using admin settings`)
 
     } catch (error) {
       console.error('Error scheduling week notifications:', error)
@@ -172,39 +154,19 @@ export class NotificationScheduler {
       
       console.log('📧 Sending weekly results manually (no auto-send with new manual-only approach)')
       
-      // Get all users with weekly results notifications enabled
-      const users = await EmailService.getUsersForNotification('weekly_results', season, week)
-      
-      if (!users || users.length === 0) {
-        console.log('📧 No users to notify for weekly results')
-        return
-      }
+      // Each player's stats are read out of weekly_leaderboard and
+      // season_leaderboard by the RPC. The browser used to fetch every player's
+      // picks and rankings one at a time just to mail them back — and it sent
+      // the weekly points as the season figure, because getUserWeekStats never
+      // had the season numbers to give.
+      const { data, error } = await supabase.rpc('queue_weekly_results', {
+        p_week: week,
+        p_season: season,
+      })
+      if (error) throw error
 
-      let resultsSent = 0
-
-      for (const user of users) {
-        try {
-          // Get user's stats for this week
-          const userStats = await this.getUserWeekStats(user.id, week, season)
-          
-          if (userStats) {
-            await EmailService.sendWeeklyResults(
-              user.id,
-              user.email,
-              user.display_name,
-              week,
-              season,
-              userStats
-            )
-            resultsSent++
-          }
-
-        } catch (error) {
-          console.error(`Error sending weekly results for user ${user.id}:`, error)
-        }
-      }
-
-      console.log(`📧 Scheduled ${resultsSent} weekly results emails`)
+      const queued = (data as { queued?: number } | null)?.queued ?? 0
+      console.log(`📧 Queued ${queued} weekly results emails`)
 
     } catch (error) {
       console.error('Error sending weekly results:', error)
@@ -212,85 +174,7 @@ export class NotificationScheduler {
     }
   }
 
-  /**
-   * Calculate reminder time based on admin settings
-   * @deprecated - Now uses admin-configurable schedules in onWeekOpened
-   */
-  private static calculateReminderTime(deadline: Date): Date {
-    const now = new Date()
-    const reminderTime = new Date(deadline.getTime() - (2 * 60 * 60 * 1000)) // 2 hours before (default)
-    
-    // If reminder time is in the past, schedule for 1 hour from now
-    if (reminderTime <= now) {
-      return new Date(now.getTime() + (60 * 60 * 1000)) // 1 hour from now
-    }
-    
-    return reminderTime
-  }
 
-  /**
-   * Get user's statistics for a completed week
-   */
-  private static async getUserWeekStats(userId: string, week: number, season: number): Promise<any> {
-    try {
-      // Get user's picks for this week
-      const { data: picks, error: picksError } = await supabase
-        .from('picks')
-        .select(`
-          *,
-          game:games(*)
-        `)
-        .eq('user_id', userId)
-        .eq('week', week)
-        .eq('season', season)
-        .eq('submitted', true)
-
-      if (picksError) throw picksError
-      if (!picks || picks.length === 0) return null
-
-      // Calculate user's total points for the week
-      const totalPoints = picks.reduce((sum, pick) => sum + (pick.points_earned || 0), 0)
-      
-      // Calculate record
-      const wins = picks.filter(p => p.result === 'win').length
-      const losses = picks.filter(p => p.result === 'loss').length  
-      const pushes = picks.filter(p => p.result === 'push').length
-      const record = `${wins}-${losses}${pushes > 0 ? `-${pushes}` : ''}`
-
-      // Get user's rank for this week
-      const { data: rankings, error: rankError } = await supabase
-        .rpc('get_weekly_leaderboard', { 
-          season_param: season,
-          week_param: week
-        })
-
-      if (rankError) throw rankError
-
-      const userRank = rankings?.findIndex(r => r.user_id === userId) + 1 || 0
-      const totalPlayers = rankings?.length || 0
-
-      // Format picks for email
-      const formattedPicks = picks.map(pick => ({
-        game: `${pick.game.away_team} @ ${pick.game.home_team}`,
-        pick: pick.selected_team,
-        result: pick.result,
-        points: pick.points_earned || 0,
-        isLock: pick.is_lock
-      }))
-
-      return {
-        points: totalPoints,
-        record,
-        rank: userRank,
-        totalPlayers,
-        picks: formattedPicks
-      }
-
-    } catch (error) {
-      console.error(`Error getting user week stats for ${userId}:`, error)
-      return null
-    }
-  }
 
   /**
    * Manual trigger for processing email jobs (could be called by cron job)
@@ -304,90 +188,4 @@ export class NotificationScheduler {
     }
   }
 
-  /**
-   * Test notification system with sample data
-   */
-  static async testNotifications(userId: string): Promise<void> {
-    try {
-      console.log(`🧪 Testing notification system for user ${userId}`)
-      
-      // Get user details
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single()
-
-      if (error) throw error
-      if (!user) throw new Error('User not found')
-
-      const currentSeason = await getActiveSeason()
-      const testWeek = 1
-      const testDeadline = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)) // 1 week from now
-
-      console.log(`📧 Scheduling test notifications for ${user.display_name} (${user.email})`)
-
-      // Test pick reminder
-      const reminderTime = new Date(Date.now() + (5 * 60 * 1000)) // 5 minutes from now
-      await EmailService.schedulePickReminder(
-        user.id,
-        user.email,
-        user.display_name,
-        testWeek,
-        currentSeason,
-        testDeadline,
-        reminderTime
-      )
-
-      // Test deadline alerts
-      await EmailService.scheduleDeadlineAlerts(
-        user.id,
-        user.email,
-        user.display_name,
-        testWeek,
-        currentSeason,
-        testDeadline
-      )
-
-      // Test weekly results with mock data
-      const mockStats = {
-        points: 85,
-        record: '4-2',
-        rank: 3,
-        totalPlayers: 25,
-        picks: [
-          {
-            game: 'Georgia @ Alabama',
-            pick: 'Alabama',
-            result: 'win' as const,
-            points: 25,
-            isLock: true
-          },
-          {
-            game: 'Michigan @ Ohio State',
-            pick: 'Ohio State', 
-            result: 'win' as const,
-            points: 20,
-            isLock: false
-          }
-        ]
-      }
-
-      await EmailService.sendWeeklyResults(
-        user.id,
-        user.email,
-        user.display_name,
-        testWeek,
-        currentSeason,
-        mockStats
-      )
-
-      console.log('✅ Test notifications scheduled successfully')
-      console.log('📧 Check email_jobs table and run processEmailQueue() to send them')
-
-    } catch (error) {
-      console.error('Error testing notifications:', error)
-      throw error
-    }
-  }
 }
