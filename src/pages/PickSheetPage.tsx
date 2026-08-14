@@ -147,6 +147,8 @@ export default function PickSheetPage() {
             season: currentSeason,
             deadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
             picks_open: false, // Default to closed if no settings
+            games_selected: false,
+            games_locked: false,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
@@ -164,8 +166,8 @@ export default function PickSheetPage() {
             spread: game.spread,
             custom_lock_time: game.custom_lock_time,
             status: game.status || 'scheduled',
-            home_ranking: game.home_team_ranking,
-            away_ranking: game.away_team_ranking,
+            home_team_ranking: game.home_team_ranking,
+            away_team_ranking: game.away_team_ranking,
             neutral_site: game.neutral_site || false,
             venue: game.venue,
             created_at: game.created_at || new Date().toISOString(),
@@ -754,7 +756,7 @@ export default function PickSheetPage() {
             pick: pick.selected_team,
             spread: game?.spread || 0,
             isLock: pick.is_lock,
-            lockTime: pick.lock_time || game?.kickoff_time || ''
+            lockTime: game?.kickoff_time || ''
           }
         })
         console.log('🔧 DEBUG: Formatted picks:', formattedPicks)
@@ -805,7 +807,7 @@ export default function PickSheetPage() {
   const arePicksSubmitted = picks.some(p => p.submitted)
   const submittedAt = picks.find(p => p.submitted)?.submitted_at
   const isDeadlinePassed = deadline && new Date() > deadline
-  const hasUnsubmittedPicks = picks.length > 0 && !arePicksSubmitted && isDeadlinePassed
+  const hasUnsubmittedPicks = Boolean(picks.length > 0 && !arePicksSubmitted && isDeadlinePassed)
 
   return (
     <Layout>

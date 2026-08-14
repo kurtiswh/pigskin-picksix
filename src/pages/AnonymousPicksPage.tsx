@@ -192,6 +192,8 @@ export default function AnonymousPicksPage() {
             season: currentSeason,
             deadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
             picks_open: false, // Default to closed if no settings
+            games_selected: false,
+            games_locked: false,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
@@ -208,7 +210,11 @@ export default function AnonymousPicksPage() {
             kickoff_time: game.kickoff_time,
             spread: game.spread,
             custom_lock_time: game.custom_lock_time,
-            status: game.status || 'scheduled'
+            status: game.status || 'scheduled',
+            home_team_ranking: game.home_team_ranking,
+            away_team_ranking: game.away_team_ranking,
+            neutral_site: game.neutral_site || false,
+            venue: game.venue
           }))
           setGames(convertedGames)
           console.log('✅ Converted and set games for anonymous picks:', convertedGames.length)

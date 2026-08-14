@@ -1,31 +1,9 @@
+import type { LeaderboardEntry } from '@/types'
 import { supabase } from '@/lib/supabase'
 import type { UserWeeklyBreakdown, WeeklyPerformance, UserWeeklyPicks, WeeklyPickDetail, EmergencyLeaderboardEntry, EmergencyWeeklyLeaderboardEntry } from './leaderboard.types'
 
-export interface LeaderboardEntry {
-  user_id: string
-  display_name: string
-  weekly_record?: string
-  season_record: string
-  lock_record: string
-  weekly_points?: number
-  season_points: number
-  weekly_rank?: number
-  season_rank: number
-  best_finish_rank?: number
-  total_picks: number
-  total_wins: number
-  total_losses: number
-  total_pushes: number
-  lock_wins: number
-  lock_losses: number
-  lock_pushes: number
-  last_week_points?: number
-  trend?: 'up' | 'down' | 'same'
-  rank_change?: number // Positive means moved up, negative means moved down
-  previous_rank?: number // Rank from previous week
-  live_calculated?: boolean
-  pick_source?: 'authenticated' | 'anonymous' | 'mixed'
-}
+// Defined in @/types; re-exported because callers import it from here.
+export type { LeaderboardEntry }
 
 export interface SeasonChampion {
   season: number
@@ -1095,6 +1073,7 @@ export class EmergencyLeaderboardService {
         total_pushes: userPicks.filter((p: any) => p.result === 'push').length,
         lock_wins: userPicks.filter((p: any) => p.result === 'win' && p.is_lock).length,
         lock_losses: userPicks.filter((p: any) => p.result === 'loss' && p.is_lock).length,
+        lock_pushes: userPicks.filter((p: any) => p.result === 'push' && p.is_lock).length,
         total_points: userPicks.reduce((sum: number, p: any) => sum + (p.points_earned || 0), 0)
       }
 

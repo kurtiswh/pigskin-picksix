@@ -1,24 +1,10 @@
 import { supabase } from '@/lib/supabase'
-import { User, UserEmail } from '@/types'
+import { User, UserEmail, UserMergeHistory } from '@/types'
 
-export interface UserMergeHistory {
-  id: string
-  target_user_id: string
-  source_user_id: string
-  source_user_email: string
-  source_user_display_name: string
-  merged_by: string
-  merge_type: 'full' | 'partial' | 'email_only'
-  picks_merged: number
-  payments_merged: number
-  anonymous_picks_merged: number
-  emails_merged: number
-  conflicts_detected: boolean
-  conflict_resolution?: any
-  merge_reason?: string
-  notes?: string
-  merged_at: string
-}
+// Defined in @/types (User.merge_history refers to it); re-exported here because
+// callers already import it from this service.
+export type { UserMergeHistory }
+
 
 export interface MergeResult {
   success: boolean

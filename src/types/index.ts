@@ -42,6 +42,25 @@ export interface User {
   merge_history?: UserMergeHistory[]
 }
 
+export interface UserMergeHistory {
+  id: string
+  target_user_id: string
+  source_user_id: string
+  source_user_email: string
+  source_user_display_name: string
+  merged_by: string
+  merge_type: 'full' | 'partial' | 'email_only'
+  picks_merged: number
+  payments_merged: number
+  anonymous_picks_merged: number
+  emails_merged: number
+  conflicts_detected: boolean
+  conflict_resolution?: any
+  merge_reason?: string
+  notes?: string
+  merged_at: string
+}
+
 export interface UserProfile extends User {
   stats?: {
     seasons_played: number
@@ -212,17 +231,39 @@ export interface WeekSettings {
   updated_at: string
 }
 
+/**
+ * A leaderboard row as LeaderboardService produces it.
+ *
+ * Was declared three times — here, in leaderboardService, and locally in
+ * LeaderboardTable — with this copy the narrowest of the three. The table reads
+ * rank_change and previous_rank to draw its movement arrows, and neither existed
+ * on the copy the page importing from '@/types' was checked against.
+ */
 export interface LeaderboardEntry {
   user_id: string
   display_name: string
-  weekly_record: string
+  weekly_record?: string
   season_record: string
   lock_record: string
-  weekly_points: number
+  weekly_points?: number
   season_points: number
-  weekly_rank: number
+  weekly_rank?: number
   season_rank: number
   best_finish_rank?: number
+  total_picks: number
+  total_wins: number
+  total_losses: number
+  total_pushes: number
+  lock_wins: number
+  lock_losses: number
+  lock_pushes: number
+  last_week_points?: number
+  trend?: 'up' | 'down' | 'same'
+  /** Positive means moved up the board since last week. */
+  rank_change?: number
+  previous_rank?: number
+  live_calculated?: boolean
+  pick_source?: 'authenticated' | 'anonymous' | 'mixed'
 }
 
 export interface PickDistribution {

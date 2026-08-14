@@ -4,29 +4,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import type { LeaderboardEntry } from '@/types'
 
-interface LeaderboardEntry {
-  user_id: string
-  display_name: string
-  weekly_record?: string
-  season_record: string
-  lock_record: string
-  weekly_points?: number
-  season_points: number
-  weekly_rank?: number
-  season_rank: number
-  best_finish_rank?: number
-  total_picks: number
-  total_wins: number
-  total_losses: number
-  total_pushes: number
-  lock_wins: number
-  lock_losses: number
-  lock_pushes: number
-  last_week_points?: number
-  trend?: 'up' | 'down' | 'same'
-  pick_source?: 'authenticated' | 'anonymous' | 'mixed'
-}
 
 interface LeaderboardTableProps {
   entries: LeaderboardEntry[]

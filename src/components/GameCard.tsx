@@ -154,7 +154,7 @@ export default function GameCard({
     )
   }
 
-  const teamRow = (team: string, label: string, ranking?: number, score?: number | null) => {
+  const teamRow = (team: string, label: string, ranking?: number | null, score?: number | null) => {
     const sel = selectedTeam === team
     const rowDisabled = disabled || (!isPicked && isMaxPicks) || isGameLocked
     return (
@@ -209,12 +209,12 @@ export default function GameCard({
 
       {/* Team rows (clickable) */}
       <div>
-        {teamRow(game.away_team, game.neutral_site ? '' : 'AWAY', game.away_ranking, game.away_score)}
-        {teamRow(game.home_team, game.neutral_site ? '' : 'HOME', game.home_ranking, game.home_score)}
+        {teamRow(game.away_team, game.neutral_site ? '' : 'AWAY', game.away_team_ranking, game.away_score)}
+        {teamRow(game.home_team, game.neutral_site ? '' : 'HOME', game.home_team_ranking, game.home_score)}
       </div>
 
       {/* Pick distribution */}
-      {showPickStats && game.total_picks !== undefined && game.total_picks > 0 && (
+      {showPickStats && game.total_picks != null && game.total_picks > 0 && (
         <div className="px-3 py-2 border-b border-[#f0ece5]">
           <PickStatisticsBar
             homeTeam={game.home_team}
@@ -223,7 +223,7 @@ export default function GameCard({
             homeTeamLocks={game.home_team_locks || 0}
             awayTeamPicks={game.away_team_picks || 0}
             awayTeamLocks={game.away_team_locks || 0}
-            totalPicks={game.total_picks}
+            totalPicks={game.total_picks || 0}
             compact={true}
             className="text-xs"
           />
