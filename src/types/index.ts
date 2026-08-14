@@ -89,31 +89,73 @@ export interface PickDetail {
   points: number
 }
 
+export type GameStatus = 'scheduled' | 'in_progress' | 'completed'
+
+/**
+ * A row of public.games.
+ *
+ * This mirrors the table column for column. It used to be one of SIX competing
+ * Game interfaces — this one plus a hand-written copy in GameResultCard,
+ * GamesList, GamesPage, GameStatsOverview and PickStatsWidget — and they had
+ * drifted from the schema and from each other. This copy had home_ranking and
+ * away_ranking, which are not columns; the columns are home_team_ranking and
+ * away_team_ranking, so any component using the shared type could not read the
+ * rankings at all. Two of the local copies declared home_conference and
+ * away_conference, which do not exist on this table either (they come from the
+ * CollegeFootballData API shape used when picking games) and were never read.
+ *
+ * Nullable columns are `?: T | null`: optional because plenty of call sites do a
+ * partial select, and null because that is what Postgres returns for them.
+ */
 export interface Game {
+  // NOT NULL in the schema
   id: string
   week: number
   season: number
   home_team: string
   away_team: string
-  home_score?: number
-  away_score?: number
   spread: number
   kickoff_time: string
-  custom_lock_time?: string
-  status: 'scheduled' | 'in_progress' | 'completed'
-  home_ranking?: number
-  away_ranking?: number
-  neutral_site?: boolean
-  venue?: string
-  created_at: string
-  updated_at: string
+
+  home_score?: number | null
+  away_score?: number | null
+  status?: GameStatus | null
+  created_at?: string | null
+  updated_at?: string | null
+  custom_lock_time?: string | null
+
+  // Scoring
+  base_points?: number | null
+  margin_bonus?: number | null
+  winner_against_spread?: string | null
+  favorite_team?: string | null
+  home_covered?: boolean | null
+  away_covered?: boolean | null
+
+  // Presentation
+  home_team_ranking?: number | null
+  away_team_ranking?: number | null
+  neutral_site?: boolean | null
+  venue?: string | null
+
+  // Live scoring, straight off the provider
+  api_home_points?: number | null
+  api_away_points?: number | null
+  api_clock?: string | null
+  api_period?: number | null
+  api_completed?: boolean | null
+  game_period?: number | null
+  game_clock?: string | null
+
   // Pick statistics
-  home_team_picks?: number
-  home_team_locks?: number
-  away_team_picks?: number
-  away_team_locks?: number
-  total_picks?: number
-  pick_stats_updated_at?: string
+  home_team_picks?: number | null
+  home_team_locks?: number | null
+  away_team_picks?: number | null
+  away_team_locks?: number | null
+  total_picks?: number | null
+  pick_stats_updated_at?: string | null
+  home_pick_percentage?: number | null
+  away_pick_percentage?: number | null
 }
 
 export interface Pick {

@@ -34,11 +34,6 @@ import {
   getWeekOpenedText 
 } from '@/templates/weekOpened'
 import { 
-  getMagicLinkSubject, 
-  getMagicLinkHtml, 
-  getMagicLinkText 
-} from '@/templates/magicLink'
-import { 
   getPasswordResetSubject, 
   getPasswordResetHtml, 
   getPasswordResetText 
@@ -57,7 +52,7 @@ export interface EmailJob {
   id: string
   user_id: string
   email: string
-  template_type: 'pick_reminder' | 'deadline_alert' | 'weekly_results' | 'game_completed' | 'picks_submitted' | 'week_opened' | 'magic_link' | 'password_reset'
+  template_type: 'pick_reminder' | 'deadline_alert' | 'weekly_results' | 'game_completed' | 'picks_submitted' | 'week_opened' | 'password_reset'
   subject: string
   html_content: string
   text_content: string
@@ -245,18 +240,6 @@ export class EmailTemplates {
     }
   }
 
-  static magicLink(userDisplayName: string, magicLinkUrl: string): EmailTemplate {
-    const templateData = {
-      userDisplayName,
-      magicLinkUrl
-    }
-
-    return {
-      subject: getMagicLinkSubject(templateData),
-      html: getMagicLinkHtml(templateData),
-      text: getMagicLinkText(templateData)
-    }
-  }
 
   static passwordReset(userDisplayName: string, resetUrl: string): EmailTemplate {
     const templateData = {
@@ -735,7 +718,12 @@ export class EmailService {
   // preview gallery via EmailTemplates.magicLink / .passwordReset.
 
   /**
-   * Cancel scheduled emails for a user/week (useful when picks are submitted)
+   * Cancel a player's pending emails for one week — used when they submit picks,
+   * so they stop being reminded about picks they have already made.
+   *
+   * `season` and `week` were accepted and then ignored until migration 211 gave
+   * email_jobs the columns to filter on, so this cancelled a player's pending
+   * reminders for every future week, not just this one.
    */
   static async cancelScheduledEmails(
     userId: string,
@@ -750,11 +738,13 @@ export class EmailService {
         .eq('user_id', userId)
         .eq('status', 'pending')
         .in('template_type', templateTypes)
+        .eq('season', season)
+        .eq('week', week)
         .gte('scheduled_for', new Date().toISOString())
 
       if (error) throw error
-      
-      console.log(`📧 Cancelled scheduled emails for user ${userId}`)
+
+      console.log(`📧 Cancelled pending ${templateTypes.join('/')} for user ${userId}, week ${week} of ${season}`)
     } catch (error) {
       console.error('Error cancelling scheduled emails:', error)
       throw error

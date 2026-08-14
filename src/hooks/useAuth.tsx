@@ -569,9 +569,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: email,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            display_name: email.split('@')[0], // Use email prefix as fallback display name
-          }
+          // This is a way to sign IN, not a way to sign up. signInWithOtp
+          // defaults to shouldCreateUser: true, which would mint an auth account
+          // for any address someone typed in and skip registration entirely —
+          // including for the LeagueSafe import shells that deliberately have no
+          // login until their owner registers.
+          shouldCreateUser: false,
         }
       })
       

@@ -3,23 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import type { Game } from '@/types'
 
-interface Game {
-  id: string
-  home_team: string
-  away_team: string
-  spread: number
-  kickoff_time: string
-  status: string
-  home_score: number | null
-  away_score: number | null
-  week: number
-  season: number
-  base_points?: number
-  margin_bonus?: number
-  winner_against_spread?: string | null
-  favorite_team?: string | null
-}
 
 interface GamesListProps {
   week?: number
@@ -344,7 +329,7 @@ export default function GamesList({ week, season }: GamesListProps) {
                       game.status === 'in_progress' && "bg-yellow-100 text-yellow-700",
                       game.status === 'completed' && "bg-green-100 text-green-700"
                     )}>
-                      {game.status.toUpperCase()}
+                      {(game.status ?? 'scheduled').toUpperCase()}
                     </div>
                   </div>
                   <div className="text-sm text-charcoal-500">

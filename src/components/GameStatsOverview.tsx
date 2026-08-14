@@ -2,23 +2,8 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
+import type { Game } from '@/types'
 
-interface Game {
-  id: string
-  week: number
-  season: number
-  home_team: string
-  away_team: string
-  home_score: number | null
-  away_score: number | null
-  spread: number
-  status: string
-  kickoff_time: string
-  home_team_picks?: number
-  away_team_picks?: number
-  home_team_locks?: number
-  away_team_locks?: number
-}
 
 interface WeekStats {
   totalSubmissions: number
@@ -396,7 +381,7 @@ export default function GameStatsOverview({
           const awayPercentage = Math.round((awayPicks / totalGamePicks) * 100)
 
           // Determine winner
-          if (game.home_score !== null && game.away_score !== null) {
+          if (game.home_score != null && game.away_score != null) {
             const margin = game.home_score - game.away_score
             const atsWinner = margin + game.spread > 0 ? game.home_team : 
                             margin + game.spread < 0 ? game.away_team : null
@@ -409,7 +394,7 @@ export default function GameStatsOverview({
                 biggestUpset = {
                   game: `${game.away_team} vs. ${game.home_team}`,
                   winnerPickPercentage: winnerPercentage,
-                  loserPercentage: loserPercentage
+                  loserPickPercentage: loserPercentage
                 }
               }
             }

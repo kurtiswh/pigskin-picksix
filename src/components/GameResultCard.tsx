@@ -3,41 +3,8 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
 import type { Pick } from '@/types'
+import type { Game } from '@/types'
 
-interface Game {
-  id: string
-  week: number
-  season: number
-  home_team: string
-  away_team: string
-  home_score: number | null
-  away_score: number | null
-  spread: number
-  status: 'scheduled' | 'in_progress' | 'completed'
-  kickoff_time: string
-  venue: string | null
-  home_conference: string | null
-  away_conference: string | null
-  // Game clock data
-  game_period?: number | null
-  game_clock?: string | null
-  // API live data (when available)
-  api_home_points?: number | null
-  api_away_points?: number | null
-  api_clock?: string
-  api_period?: number
-  api_completed?: boolean
-  // Pick statistics (new columns from migration 078)
-  home_team_picks?: number
-  home_team_locks?: number
-  away_team_picks?: number
-  away_team_locks?: number
-  total_picks?: number
-  pick_stats_updated_at?: string
-  // Scoring fields
-  base_points?: number
-  margin_bonus?: number
-}
 
 interface PickStats {
   total_picks: number
@@ -154,7 +121,10 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
       })
       
       // Use pre-calculated statistics from the games table if available
-      if (game.total_picks !== undefined && game.total_picks >= 0) {
+      // `!= null` not `!== undefined`: the column is nullable, and `null >= 0`
+      // is true in JS — so a game with no pick stats yet used to take this
+      // branch and report zeros instead of falling through.
+      if (game.total_picks != null && game.total_picks >= 0) {
         // Use the new pick statistics columns from migration 078
         const homePicks = (game.home_team_picks || 0) + (game.home_team_locks || 0)
         const awayPicks = (game.away_team_picks || 0) + (game.away_team_locks || 0)
@@ -168,7 +138,7 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, is
         let spreadCovered = null
         let pointsAwarded = 0
 
-        if (game.status === 'completed' && game.home_score !== null && game.away_score !== null) {
+        if (game.status === 'completed' && game.home_score != null && game.away_score != null) {
           const homeScore = game.home_score
           const awayScore = game.away_score
           const margin = homeScore - awayScore

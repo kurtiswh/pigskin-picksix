@@ -13,38 +13,8 @@ import { getActiveWeek } from '@/services/weekService'
 import { useAuth } from '@/hooks/useAuth'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import type { Pick } from '@/types'
+import type { Game } from '@/types'
 
-interface Game {
-  id: string
-  week: number
-  season: number
-  home_team: string
-  away_team: string
-  home_score: number | null
-  away_score: number | null
-  spread: number
-  status: 'scheduled' | 'in_progress' | 'completed'
-  kickoff_time: string
-  venue: string | null
-  home_conference: string | null
-  away_conference: string | null
-  // Live game data
-  game_period: number | null
-  game_clock: string | null
-  api_period: number | null
-  api_clock: string | null
-  api_completed: boolean | null
-  // Pick statistics
-  home_team_picks?: number
-  home_team_locks?: number
-  away_team_picks?: number
-  away_team_locks?: number
-  total_picks?: number
-  pick_stats_updated_at?: string
-  // Scoring fields
-  base_points?: number
-  margin_bonus?: number
-}
 
 interface WeekSettings {
   week: number

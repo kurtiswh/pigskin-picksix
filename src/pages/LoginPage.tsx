@@ -37,7 +37,7 @@ function readableSignInError(raw: string) {
 export default function LoginPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { user, signIn } = useAuth()
+  const { user, signIn, signInWithMagicLink } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -55,6 +55,16 @@ export default function LoginPage() {
   const [resetSending, setResetSending] = useState(false)
   const [resetNotice, setResetNotice] = useState('')
   const [resetError, setResetError] = useState('')
+
+  // "Email me a login link" — Supabase Auth's OTP, which creates a real session
+  // when the link is opened. The app used to carry its own magic_link_tokens
+  // table and MagicLinkService for this; see migration 212 for why that could
+  // never have worked from a browser.
+  const [magicOpen, setMagicOpen] = useState(false)
+  const [magicEmail, setMagicEmail] = useState('')
+  const [magicSending, setMagicSending] = useState(false)
+  const [magicSent, setMagicSent] = useState(false)
+  const [magicMsg, setMagicMsg] = useState('')
 
   useEffect(() => {
     if (!user) return
@@ -116,6 +126,38 @@ export default function LoginPage() {
     setResetNotice('')
     setResetError('')
     setResetOpen(true)
+  }
+
+  const handleSendMagicLink = async () => {
+    const target = magicEmail.trim()
+    if (!target) {
+      setMagicSent(false)
+      setMagicMsg('Enter the email address on your account.')
+      return
+    }
+
+    setMagicSending(true)
+    setMagicMsg('')
+    try {
+      await signInWithMagicLink(target)
+      setMagicSent(true)
+      setMagicMsg(`✅ Login link sent to ${target}. Check your inbox — and your spam folder if it's not there in a minute.`)
+    } catch (err: any) {
+      console.error('Magic link failed:', err)
+      const raw = String(err?.message || '')
+      setMagicSent(false)
+      // shouldCreateUser is false, so an unknown address comes back as a signup
+      // refusal. Say the useful thing instead of repeating Supabase at them.
+      setMagicMsg(
+        /signups not allowed|user not found/i.test(raw)
+          ? "We couldn't find an account with that email. If you've paid but never registered, use \u201cCreate an account\u201d below."
+          : /rate limit|too many requests/i.test(raw)
+          ? 'Too many attempts. Give it a minute and try again.'
+          : 'Could not send the login link. Try again in a moment.'
+      )
+    } finally {
+      setMagicSending(false)
+    }
   }
 
   const handleSendReset = async () => {
@@ -271,14 +313,56 @@ export default function LoginPage() {
                   </Button>
                 </div>
               </div>
+            ) : magicOpen ? (
+              <div className="mt-4 p-4 bg-[#faf8f4] border border-[#e7e2da] rounded-lg space-y-3">
+                <p className="text-sm font-semibold text-[#4B3621]">Email me a login link</p>
+                <p className="text-sm text-charcoal-700">
+                  We'll send a link that signs you in — no password needed.
+                </p>
+                <Input
+                  type="email"
+                  value={magicEmail}
+                  onChange={(e) => setMagicEmail(e.target.value)}
+                  placeholder="Enter your email"
+                />
+                {magicMsg && (
+                  <p className={`text-sm ${magicSent ? 'text-[#1f7a49]' : 'text-[#d1495b]'}`}>{magicMsg}</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleSendMagicLink}
+                    disabled={magicSending || !magicEmail.trim()}
+                    className="bg-[#4B3621] text-white hover:bg-[#3a2a19]"
+                  >
+                    {magicSending ? 'Sending...' : 'Send login link'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-[#e7e2da]"
+                    onClick={() => setMagicOpen(false)}
+                    disabled={magicSending}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
             ) : (
-              <div className="mt-4 text-center">
+              <div className="mt-4 flex flex-col items-center gap-2">
                 <button
                   type="button"
                   onClick={openReset}
                   className="text-sm text-pigskin-600 hover:text-pigskin-700 font-medium underline"
                 >
                   Forgot your password?
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMagicOpen(true); setMagicEmail(email); setMagicMsg(''); setMagicSent(false) }}
+                  className="text-sm text-pigskin-600 hover:text-pigskin-700 font-medium underline"
+                >
+                  Email me a login link instead
                 </button>
               </div>
             )}

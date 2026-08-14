@@ -2,16 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import type { Game } from '@/types'
 
-interface Game {
-  id: string
-  home_team: string
-  away_team: string
-  home_score: number | null
-  away_score: number | null
-  spread: number
-  status: string
-}
 
 interface PickStats {
   total_picks: number

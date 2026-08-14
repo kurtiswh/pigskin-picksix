@@ -5,7 +5,6 @@ import {
   getPickReminderSubject, getPickReminderHtml,
   getDeadlineAlertSubject, getDeadlineAlertHtml,
   getPicksSubmittedSubject, getPicksSubmittedHtml,
-  getMagicLinkSubject, getMagicLinkHtml,
   getPasswordResetSubject, getPasswordResetHtml,
 } from '@/templates'
 import { emailShell } from '@/templates/emailShell'
@@ -150,13 +149,6 @@ function buildDesigns(season: number): Design[] {
       when: 'Paid entrants who submitted no picks get this nudge instead of an all-zeros scorecard. They still get the rundown and the invitation back in.',
       subject: `Week 1 Recap — your results, and Week 2 is open 🏈`,
       html: recapMissed.html,
-    },
-    {
-      key: 'magic_link',
-      title: 'Magic sign-in link',
-      when: 'On request, when a player asks for a passwordless sign-in link.',
-      subject: getMagicLinkSubject({ userDisplayName: 'Kurtis', magicLinkUrl: `${SITE}/magic-login?token=sample` }),
-      html: getMagicLinkHtml({ userDisplayName: 'Kurtis', magicLinkUrl: `${SITE}/magic-login?token=sample` }),
     },
     {
       key: 'password_reset',

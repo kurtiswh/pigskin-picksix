@@ -279,7 +279,6 @@ export const testAllTemplates = () => {
       weeklyResults: EmailTemplates.weeklyResults('Test User', 1, 2024, mockStats),
       picksSubmitted: EmailTemplates.picksSubmitted('Test User', 1, 2024, mockPicks, testDate),
       weekOpened: EmailTemplates.weekOpened(1, 2024, testDate, 15),
-      magicLink: EmailTemplates.magicLink('Test User', 'https://example.com/magic?token=123'),
       passwordReset: EmailTemplates.passwordReset('Test User', 'https://example.com/reset?token=456')
     }
     
