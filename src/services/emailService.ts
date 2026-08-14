@@ -127,15 +127,29 @@ export class EmailTemplates {
     }
   }
 
+  /**
+   * Preview-only now: real weekly results are queued by queue_weekly_results and
+   * rendered by the Edge Function.
+   *
+   * It used to take a narrower shape and invent the rest — seasonPoints and
+   * seasonRank were filled in from the WEEKLY points and rank, with a comment
+   * saying they "would come from a different source in real usage". They did
+   * not, so every weekly results email reported the week's figures twice, once
+   * labelled as the season. The caller now passes the real six fields (the
+   * server reads them from weekly_leaderboard and season_leaderboard) and this
+   * fabricates nothing. `record` is not among them: the template derives it
+   * from the picks.
+   */
   static weeklyResults(
-    userDisplayName: string, 
-    week: number, 
-    season: number, 
+    userDisplayName: string,
+    week: number,
+    season: number,
     userStats: {
-      points: number
-      record: string
-      rank: number
+      weeklyPoints: number
+      weeklyRank: number
       totalPlayers: number
+      seasonPoints: number
+      seasonRank: number
       picks: Array<{
         game: string
         pick: string
@@ -146,21 +160,8 @@ export class EmailTemplates {
     }
   ): EmailTemplate {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://pigskin-picksix.vercel.app'
-    
-    const templateData = {
-      userDisplayName,
-      week,
-      season,
-      baseUrl,
-      userStats: {
-        weeklyPoints: userStats.points,
-        weeklyRank: userStats.rank,
-        totalPlayers: userStats.totalPlayers,
-        seasonPoints: userStats.points, // This would come from a different source in real usage
-        seasonRank: userStats.rank, // This would come from a different source in real usage
-        picks: userStats.picks
-      }
-    }
+
+    const templateData = { userDisplayName, week, season, baseUrl, userStats }
 
     return {
       subject: getWeeklyResultsSubject(templateData),

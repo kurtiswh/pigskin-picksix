@@ -20,12 +20,12 @@ export const testPickConfirmationEmail = async (
   
   // Mock picks data
   const mockPicks = [
-    { game: "Georgia @ Alabama", pick: "Alabama", isLock: true, lockTime: "2024-09-07T19:00:00.000Z" },
-    { game: "Michigan @ Ohio State", pick: "Ohio State", isLock: false, lockTime: "2024-09-07T15:30:00.000Z" },
-    { game: "Texas @ Oklahoma", pick: "Texas", isLock: false, lockTime: "2024-09-07T20:00:00.000Z" },
-    { game: "USC @ Oregon", pick: "Oregon", isLock: false, lockTime: "2024-09-07T17:00:00.000Z" },
-    { game: "Notre Dame @ Navy", pick: "Notre Dame", isLock: false, lockTime: "2024-09-07T16:00:00.000Z" },
-    { game: "Clemson @ Florida State", pick: "Clemson", isLock: false, lockTime: "2024-09-07T18:00:00.000Z" }
+    { game: "Georgia @ Alabama", pick: "Alabama", spread: -3, isLock: true, lockTime: "2024-09-07T19:00:00.000Z" },
+    { game: "Michigan @ Ohio State", pick: "Ohio State", spread: -7, isLock: false, lockTime: "2024-09-07T15:30:00.000Z" },
+    { game: "Texas @ Oklahoma", pick: "Texas", spread: -2.5, isLock: false, lockTime: "2024-09-07T20:00:00.000Z" },
+    { game: "USC @ Oregon", pick: "Oregon", spread: -6, isLock: false, lockTime: "2024-09-07T17:00:00.000Z" },
+    { game: "Notre Dame @ Navy", pick: "Notre Dame", spread: -10, isLock: false, lockTime: "2024-09-07T16:00:00.000Z" },
+    { game: "Clemson @ Florida State", pick: "Clemson", spread: 1, isLock: false, lockTime: "2024-09-07T18:00:00.000Z" }
   ]
 
   try {
@@ -81,12 +81,12 @@ export const testAnonymousPickConfirmation = async (
   console.log('🧪 Testing anonymous pick confirmation email...')
   
   const mockPicks = [
-    { game: "Georgia @ Alabama", pick: "Alabama", isLock: true, lockTime: "2024-09-07T19:00:00.000Z" },
-    { game: "Michigan @ Ohio State", pick: "Ohio State", isLock: false, lockTime: "2024-09-07T15:30:00.000Z" },
-    { game: "Texas @ Oklahoma", pick: "Texas", isLock: false, lockTime: "2024-09-07T20:00:00.000Z" },
-    { game: "USC @ Oregon", pick: "Oregon", isLock: false, lockTime: "2024-09-07T17:00:00.000Z" },
-    { game: "Notre Dame @ Navy", pick: "Notre Dame", isLock: false, lockTime: "2024-09-07T16:00:00.000Z" },
-    { game: "Clemson @ Florida State", pick: "Clemson", isLock: false, lockTime: "2024-09-07T18:00:00.000Z" }
+    { game: "Georgia @ Alabama", pick: "Alabama", spread: -3, isLock: true, lockTime: "2024-09-07T19:00:00.000Z" },
+    { game: "Michigan @ Ohio State", pick: "Ohio State", spread: -7, isLock: false, lockTime: "2024-09-07T15:30:00.000Z" },
+    { game: "Texas @ Oklahoma", pick: "Texas", spread: -2.5, isLock: false, lockTime: "2024-09-07T20:00:00.000Z" },
+    { game: "USC @ Oregon", pick: "Oregon", spread: -6, isLock: false, lockTime: "2024-09-07T17:00:00.000Z" },
+    { game: "Notre Dame @ Navy", pick: "Notre Dame", spread: -10, isLock: false, lockTime: "2024-09-07T16:00:00.000Z" },
+    { game: "Clemson @ Florida State", pick: "Clemson", spread: 1, isLock: false, lockTime: "2024-09-07T18:00:00.000Z" }
   ]
 
   try {
@@ -258,14 +258,18 @@ export const testAllTemplates = () => {
   try {
     const testDate = new Date('2024-09-07T19:00:00Z')
     const mockPicks = [
-      { game: "Georgia @ Alabama", pick: "Alabama", isLock: true, lockTime: "2024-09-07T19:00:00.000Z" },
-      { game: "Michigan @ Ohio State", pick: "Ohio State", isLock: false, lockTime: "2024-09-07T15:30:00.000Z" }
+      { game: "Georgia @ Alabama", pick: "Alabama", spread: -3, isLock: true, lockTime: "2024-09-07T19:00:00.000Z" },
+      { game: "Michigan @ Ohio State", pick: "Ohio State", spread: -7, isLock: false, lockTime: "2024-09-07T15:30:00.000Z" }
     ]
+    // Weekly and season figures deliberately differ — they are separate numbers
+    // in the real email, and identical mock values hid the bug where the season
+    // ones were just the weekly ones repeated.
     const mockStats = {
-      points: 40,
-      record: '2-0',
-      rank: 5,
+      weeklyPoints: 40,
+      weeklyRank: 5,
       totalPlayers: 50,
+      seasonPoints: 612,
+      seasonRank: 23,
       picks: [
         { game: "Georgia @ Alabama", pick: "Alabama", result: 'win' as const, points: 20, isLock: true },
         { game: "Michigan @ Ohio State", pick: "Ohio State", result: 'win' as const, points: 20, isLock: false }
