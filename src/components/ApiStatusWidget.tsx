@@ -14,6 +14,8 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
   const [testing, setTesting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [missingKey, setMissingKey] = useState(false)
+  const [outage, setOutage] = useState(false)
+  const [offline, setOffline] = useState(false)
 
   // Do NOT auto-test the CFBD API on mount — that hit the API on every admin
   // page load (and burned the client quota) even off-season. Testing is now
@@ -26,6 +28,8 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
       const result = await testApiConnection()
       
       setMissingKey(!!result.missingKey)
+      setOutage(!!result.outage)
+      setOffline(!!result.offline)
 
       if (result.connected) {
         setApiStatus('connected')
@@ -41,6 +45,8 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
       setApiStatus('error')
       setErrorMessage('Network error')
       setMissingKey(false)
+      setOutage(false)
+      setOffline(false)
     } finally {
       setTesting(false)
     }
@@ -143,12 +149,32 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
                     </a>{' '}
                     and set VITE_CFBD_API_KEY in your .env file. Using sample data for now.
                   </>
+                ) : offline ? (
+                  <>
+                    This device is offline. Reconnect and retry. Using sample data for now.
+                  </>
+                ) : outage ? (
+                  <>
+                    <strong>This is on CollegeFootballData's end, not ours.</strong> We reached
+                    their server and it answered with an error (typically HTTP 502), so nothing
+                    here needs fixing — the slate will load once they recover. Retry in a few
+                    minutes.
+                    <br />
+                    They do not run a status page; outages get posted in their{' '}
+                    <a
+                      href="https://discord.gg/Eb3ex5a"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:no-underline"
+                    >
+                      Discord
+                    </a>. Using sample data for now — do not save a week from it.
+                  </>
                 ) : (
                   <>
-                    Your API key is configured, so this is a network-level failure —
-                    the request never reached CollegeFootballData. Check your connection,
-                    any ad/privacy blocker, and that the dev server is still running,
-                    then retry. Using sample data for now.
+                    Your API key is configured and CollegeFootballData did not answer at all,
+                    so the request was stopped before it left this browser. Check your
+                    connection and any ad/privacy blocker, then retry. Using sample data for now.
                   </>
                 )}
               </>

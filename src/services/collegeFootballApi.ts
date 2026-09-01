@@ -823,11 +823,33 @@ export async function getCompletedGames(
 /**
  * Check if the API is accessible with timeout
  */
+/**
+ * Is api.collegefootballdata.com answering at all?
+ *
+ * `mode: 'no-cors'` skips the CORS preflight entirely and yields an opaque
+ * response, so this resolves even for a 502 — which is the point. It separates
+ * "their server answered badly" from "the request never left this machine".
+ * No custom headers: no-cors rejects anything but simple ones.
+ */
+async function cfbdHostAnswers(timeoutMs: number = 6000): Promise<boolean> {
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    await fetch(`${BASE_URL}/conferences`, { mode: 'no-cors', signal: controller.signal })
+    clearTimeout(timeoutId)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function testApiConnection(timeoutMs: number = 12000): Promise<{ 
   connected: boolean; 
   error?: string; 
   quotaExceeded?: boolean;
   missingKey?: boolean;
+  outage?: boolean;
+  offline?: boolean;
   status?: number 
 }> {
   try {
@@ -885,6 +907,16 @@ export async function testApiConnection(timeoutMs: number = 12000): Promise<{
       return { connected: false, error: 'Access forbidden', status: 403 }
     }
     
+    if (response.status >= 500) {
+      console.error(`❌ CFBD returned ${response.status} — outage on their end`)
+      return {
+        connected: false,
+        error: `CollegeFootballData is down (HTTP ${response.status})`,
+        outage: true,
+        status: response.status
+      }
+    }
+
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error')
       return { 
@@ -907,6 +939,21 @@ export async function testApiConnection(timeoutMs: number = 12000): Promise<{
       return { connected: false, error: 'Connection timeout' }
     } else {
       console.error('❌ API connection test failed:', error)
+
+      // "Failed to fetch" is identical whether CFBD 502s its own preflight or a
+      // blocker killed the request locally. Probe before naming a cause.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return { connected: false, error: 'Your device is offline', offline: true }
+      }
+
+      if (await cfbdHostAnswers()) {
+        return {
+          connected: false,
+          error: 'CollegeFootballData is down — their server is reachable but rejecting API requests (usually a 502 on their end)',
+          outage: true
+        }
+      }
+
       return { connected: false, error: error.message || 'Network error' }
     }
   }
