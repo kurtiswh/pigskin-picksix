@@ -293,16 +293,42 @@ export class EmailService {
     anonymousEmail?: string
   ): Promise<boolean> {
     try {
-      const { data, error } = anonymousEmail
-        ? await supabase.rpc('queue_anonymous_pick_confirmation', {
-            p_email: anonymousEmail,
-            p_week: week,
-            p_season: season,
-          })
-        : await supabase.rpc('queue_pick_confirmation', {
-            p_week: week,
-            p_season: season,
-          })
+      // Retry the queue step.
+      //
+      // A confirmation was lost in production when this RPC never reached
+      // Postgres at all (pg_stat_statements recorded zero executions), while
+      // the same call nine minutes later succeeded -- the signature of a
+      // transient PostgREST rejection: a stale schema cache (PGRST202) or a
+      // dropped request. One attempt turned a blip into a silently missing
+      // receipt, so try three times before giving up.
+      let data: any = null
+      let error: any = null
+
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const result = anonymousEmail
+          ? await supabase.rpc('queue_anonymous_pick_confirmation', {
+              p_email: anonymousEmail,
+              p_week: week,
+              p_season: season,
+            })
+          : await supabase.rpc('queue_pick_confirmation', {
+              p_week: week,
+              p_season: season,
+            })
+        data = result.data
+        error = result.error
+
+        if (!error) break
+
+        // Don't burn retries on a definitive answer: a rate-limit trip or a
+        // genuine "no submitted picks" will fail identically every time.
+        const permanent = /Too many confirmation emails|No submitted picks|No account found|Must be signed in/i
+          .test(error.message ?? '')
+        if (permanent) break
+
+        console.warn(`⚠️ queue attempt ${attempt}/3 failed:`, error.message ?? error)
+        if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 750))
+      }
 
       if (error) throw error
 
