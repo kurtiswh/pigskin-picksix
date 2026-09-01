@@ -667,8 +667,18 @@ export default function PickSheetPage() {
           }
         }
       } catch (sessionError) {
-        console.warn('⚠️ Submit session failed, using API key:', sessionError)
-        authToken = apiKey
+        console.warn('⚠️ Submit session lookup failed:', sessionError)
+      }
+
+      // The picks UPDATE policy is `auth.uid() = user_id AND
+      // game_is_open_for_picks(game_id)`, so a request bearing the anon key
+      // matches zero rows. PostgREST reports that as 200 [], not an error, so
+      // falling back to the anon key produced a silent no-op that still told
+      // the player (and emailed them) that their picks were in. Fail loudly.
+      if (!authToken || authToken === apiKey) {
+        const msg = 'Cannot submit picks: your session has expired. Please sign out, sign back in, and try again.'
+        setError(msg)
+        throw new Error(msg)
       }
       
       console.log('🔐 Authentication result:', sessionInfo)
@@ -689,14 +699,21 @@ export default function PickSheetPage() {
         submitted_at: new Date().toISOString()
       }))
       
-      // TEMPORARY WORKAROUND: Use API key instead of JWT to bypass trigger issue
-      // Mark all picks as submitted via direct API
+      // Mark all picks as submitted via direct API.
+      //
+      // This used to send the anon key with the note "bypass trigger issue".
+      // The trigger it worked around (the leaderboard recalc on picks) was
+      // dropped in migrations 134-137, in the SAME commit that added the
+      // workaround — so it was redundant on arrival. Migration 161 then scoped
+      // the UPDATE policy to auth.uid(), which turned it into a silent no-op.
+      // return=representation lets us verify what actually changed.
       const response = await fetch(`${supabaseUrl}/rest/v1/picks?user_id=eq.${user.id}&week=eq.${currentWeek}&season=eq.${currentSeason}`, {
         method: 'PATCH',
         headers: {
           'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey}`, // Use API key instead of JWT
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
         },
         body: JSON.stringify({ 
           submitted: true,
@@ -733,7 +750,30 @@ export default function PickSheetPage() {
         throw new Error(detailedError)
       }
       
-      console.log('✅ Picks submitted successfully via direct API')
+      // A 2xx only means the request was well-formed. RLS filters rows silently,
+      // so an empty result means nothing was submitted — and a short result means
+      // some games had already locked. Neither should reach the "success" path,
+      // which sends a confirmation email.
+      const updatedRows = await response.json().catch(() => [])
+      const updatedCount = Array.isArray(updatedRows) ? updatedRows.length : 0
+
+      if (updatedCount === 0) {
+        const msg = 'Submission failed: none of your picks could be marked as submitted. '
+          + 'This usually means the games have locked or your session expired. Nothing was saved — please reload and try again.'
+        console.error('❌ Submit matched 0 rows (RLS filtered every row)')
+        setError(msg)
+        throw new Error(msg)
+      }
+
+      if (updatedCount < picks.length) {
+        const msg = `Only ${updatedCount} of your ${picks.length} picks could be submitted — `
+          + 'the rest are for games that have already locked. Please review your pick sheet.'
+        console.error(`❌ Submit was partial: ${updatedCount}/${picks.length} rows updated`)
+        setError(msg)
+        throw new Error(msg)
+      }
+
+      console.log(`✅ Picks submitted successfully via direct API (${updatedCount} rows)`)
       
       // Send pick confirmation email
       try {

@@ -13,6 +13,7 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
   const [currentWeek, setCurrentWeek] = useState(getCurrentWeek(season))
   const [testing, setTesting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
+  const [missingKey, setMissingKey] = useState(false)
 
   // Do NOT auto-test the CFBD API on mount — that hit the API on every admin
   // page load (and burned the client quota) even off-season. Testing is now
@@ -24,6 +25,8 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
     try {
       const result = await testApiConnection()
       
+      setMissingKey(!!result.missingKey)
+
       if (result.connected) {
         setApiStatus('connected')
         setErrorMessage('')
@@ -37,6 +40,7 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
     } catch (error) {
       setApiStatus('error')
       setErrorMessage('Network error')
+      setMissingKey(false)
     } finally {
       setTesting(false)
     }
@@ -126,16 +130,27 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
               <>
                 ⚠️ <strong>API Connection Error:</strong> {errorMessage || 'Cannot connect to CollegeFootballData API'}
                 <br />
-                Get a free API key at{' '}
-                <a 
-                  href="https://collegefootballdata.com/" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="underline hover:no-underline"
-                >
-                  collegefootballdata.com
-                </a>{' '}
-                and set VITE_CFBD_API_KEY in your .env file. Using sample data for now.
+                {missingKey ? (
+                  <>
+                    Get a free API key at{' '}
+                    <a
+                      href="https://collegefootballdata.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:no-underline"
+                    >
+                      collegefootballdata.com
+                    </a>{' '}
+                    and set VITE_CFBD_API_KEY in your .env file. Using sample data for now.
+                  </>
+                ) : (
+                  <>
+                    Your API key is configured, so this is a network-level failure —
+                    the request never reached CollegeFootballData. Check your connection,
+                    any ad/privacy blocker, and that the dev server is still running,
+                    then retry. Using sample data for now.
+                  </>
+                )}
               </>
             )}
           </div>

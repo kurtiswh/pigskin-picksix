@@ -169,7 +169,7 @@ export default function AdminGameSelector({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {loading && filteredGames.length === 0 ? (
             <div className="flex items-center justify-center py-8">
               <div className="w-8 h-8 border-4 border-pigskin-500 border-t-transparent rounded-full animate-spin"></div>
             </div>
@@ -180,6 +180,19 @@ export default function AdminGameSelector({
               <div className="text-sm">Try adjusting your filters</div>
             </div>
           ) : (
+            /* Once games are on screen the scroll container stays mounted through
+               a `loading` cycle and the spinner becomes an overlay. Swapping it
+               out unmounted the scroller and reset the admin's scroll position to
+               the top on every save. */
+            <div className="relative">
+              {loading && (
+                <div
+                  className="absolute inset-0 z-10 flex items-start justify-center bg-white/60 pt-8"
+                  aria-hidden
+                >
+                  <div className="w-8 h-8 border-4 border-pigskin-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
             <div className="grid gap-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 400px)' }}>
               {filteredGames.map(game => {
                 const selected = isSelected(game)
@@ -288,6 +301,7 @@ export default function AdminGameSelector({
                   </div>
                 )
               })}
+            </div>
             </div>
           )}
         </CardContent>

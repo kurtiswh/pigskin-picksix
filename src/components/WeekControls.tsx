@@ -61,15 +61,23 @@ export default function WeekControls({
     weekSettings?.deadline ? convertUTCToLocalDatetimeString(new Date(weekSettings.deadline)) : ''
   )
   
-  // Auto-update deadline when games are selected
+  // Auto-fill the deadline as games are selected.
   useEffect(() => {
-    if (selectedGames.length > 0 && !weekSettings?.deadline) {
-      const optimalDeadline = calculateOptimalDeadline()
-      if (optimalDeadline) {
-        const deadlineString = convertUTCToLocalDatetimeString(optimalDeadline)
-        setDeadline(deadlineString)
-        onUpdateSettings({ deadline: optimalDeadline.toISOString() })
-      }
+    if (selectedGames.length === 0 || weekSettings?.deadline) return
+
+    const optimalDeadline = calculateOptimalDeadline()
+    if (!optimalDeadline) return
+
+    setDeadline(convertUTCToLocalDatetimeString(optimalDeadline))
+
+    // Only persist when a week_settings row actually exists. Before the week is
+    // saved there is no row to PATCH: the write matches zero rows, weekSettings
+    // stays null, so this effect re-fired on EVERY game selection — and each run
+    // flipped the shared `loading` flag, remounting the game list and throwing
+    // away the admin's scroll position. handleSaveGames creates the row (with a
+    // deadline) instead, and the value above is already in the input by then.
+    if (weekSettings) {
+      onUpdateSettings({ deadline: optimalDeadline.toISOString() })
     }
   }, [selectedGames.length])
 
@@ -202,6 +210,11 @@ export default function WeekControls({
     return new Date() > lockTime
   }
   const canOpenPicks = weekSettings?.games_selected && weekSettings?.deadline
+  const blockerCount = (weekSettings?.games_selected ? 0 : 1) + (weekSettings?.deadline ? 0 : 1)
+  const openPicksBlockedReason = [
+    weekSettings?.games_selected ? null : `games not saved (${selectedGamesCount}/${maxGames} selected)`,
+    weekSettings?.deadline ? null : 'no pick deadline set',
+  ].filter(Boolean).join(' and ')
   const isPicksOpen = weekSettings?.picks_open
   const isGamesLocked = weekSettings?.games_locked
   const isDeadlinePassed = weekSettings?.deadline && new Date() > new Date(weekSettings.deadline)
@@ -579,22 +592,57 @@ export default function WeekControls({
                 }
               </div>
             </div>
-            <Button
-              onClick={handleTogglePicks}
-              disabled={!canOpenPicks || loading}
-              variant={isPicksOpen ? "outline" : "default"}
-              className={isPicksOpen ? "text-red-600 border-red-200 hover:bg-red-50" : ""}
-            >
-              {isPicksOpen ? "Close Picks" : "Open Picks"}
-            </Button>
+            {/* Wrapper carries the tooltip: a disabled button fires no mouse
+                events, so `title` on the button itself never shows. */}
+            <span title={canOpenPicks ? undefined : openPicksBlockedReason}>
+              <Button
+                onClick={handleTogglePicks}
+                disabled={!canOpenPicks || loading}
+                variant={isPicksOpen ? "outline" : "default"}
+                className={isPicksOpen ? "text-red-600 border-red-200 hover:bg-red-50" : ""}
+              >
+                {isPicksOpen ? "Close Picks" : "Open Picks"}
+              </Button>
+            </span>
           </div>
 
           {!canOpenPicks && (
-            <div className="p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm">
-              <div className="font-medium mb-1">Requirements to open picks:</div>
-              <div className="space-y-1 text-xs">
-                {!weekSettings?.games_selected && <div>• Save {maxGames} games for this week</div>}
-                {!weekSettings?.deadline && <div>• Set a pick deadline</div>}
+            <div className="p-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg text-sm">
+              <div className="font-medium mb-2">
+                Picks can't open yet — {blockerCount === 1 ? 'one requirement is' : `${blockerCount} requirements are`} unmet:
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-start gap-2">
+                  <span aria-hidden>{weekSettings?.games_selected ? '✅' : '❌'}</span>
+                  <div>
+                    <div className="font-medium">Games saved to the database</div>
+                    <div className="text-blue-700">
+                      {weekSettings?.games_selected
+                        ? `${maxGames} games are saved for this week.`
+                        : selectedGamesCount === 0
+                        ? `No games selected yet — choose exactly ${maxGames} in the list above.`
+                        : selectedGamesCount === maxGames
+                        ? `${maxGames} games are selected but not saved yet — click "Save Games" above. Selecting alone does not persist them.`
+                        : `${selectedGamesCount} of ${maxGames} selected. "Save Games" stays disabled until exactly ${maxGames} are chosen.`}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span aria-hidden>{weekSettings?.deadline ? '✅' : '❌'}</span>
+                  <div>
+                    <div className="font-medium">Pick deadline set</div>
+                    <div className="text-blue-700">
+                      {weekSettings?.deadline
+                        ? formatTimeInUserTimezone(new Date(weekSettings.deadline))
+                        : 'Not set — it is filled in when you save games, or set it manually above.'}
+                    </div>
+                  </div>
+                </div>
+                {!weekSettings && (
+                  <div className="pt-2 mt-1 border-t border-blue-200 text-blue-700">
+                    Week {currentWeek} of {currentSeason} has no settings record yet. Saving games creates it.
+                  </div>
+                )}
               </div>
             </div>
           )}

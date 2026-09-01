@@ -9,7 +9,9 @@ import { matchOrCreateUserForLeagueSafeFallback } from '@/utils/userMatchingFall
 
 interface UploadResult {
   totalEntries: number
+  paidEntries: number
   newUsers: number
+  newPayments: number
   matchedPayments: number
   unmatchedPayments: number
   updatedPayments: number
@@ -92,7 +94,9 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
 
       const result: UploadResult = {
         totalEntries: entries.length,
+        paidEntries: 0,
         newUsers: 0,
+        newPayments: 0,
         matchedPayments: 0,
         unmatchedPayments: 0,
         updatedPayments: 0,
@@ -207,13 +211,19 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
             }
             
             console.log(`✅ Created payment record for ${email}`)
+            result.newPayments++
+          }
+
+          if (status === 'Paid') {
+            result.paidEntries++
           }
 
           if (userId) {
             result.matchedPayments++
           } else {
+            // Leave `action` as set above so an unmatched row that was updated
+            // or skipped still reports what happened to its payment record.
             result.unmatchedPayments++
-            action = 'unmatched'
           }
 
           result.matched.push({
@@ -350,14 +360,26 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
               </div>
             </div>
 
-            <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-4 border border-[#e7e2da] bg-[#faf8f4] rounded-lg">
                 <div className="text-2xl font-bold text-[#4B3621] tabular-nums">{result.totalEntries}</div>
-                <div className="text-sm text-charcoal-600">Total Entries</div>
+                <div className="text-sm text-charcoal-600">Rows in CSV</div>
               </div>
               <div className="text-center p-4 border border-[#bfe3cc] bg-[#e6f4ea] rounded-lg">
-                <div className="text-2xl font-bold text-[#1f7a44] tabular-nums">{result.matchedPayments}</div>
-                <div className="text-sm text-[#1f7a44]">New Payments</div>
+                <div className="text-2xl font-bold text-[#1f7a44] tabular-nums">{result.paidEntries}</div>
+                <div className="text-sm text-[#1f7a44]">Paid</div>
+              </div>
+              <div className="text-center p-4 border border-[#e7e2da] bg-[#faf8f4] rounded-lg">
+                <div className="text-2xl font-bold text-[#4B3621] tabular-nums">{result.totalEntries - result.paidEntries}</div>
+                <div className="text-sm text-charcoal-600">Not Paid / Pending</div>
+              </div>
+              <div className="text-center p-4 border border-[#e7e2da] bg-[#faf8f4] rounded-lg">
+                <div className="text-2xl font-bold text-[#C9A04E] tabular-nums">{result.newUsers}</div>
+                <div className="text-sm text-charcoal-600">New Users</div>
+              </div>
+              <div className="text-center p-4 border border-[#e7e2da] bg-[#faf8f4] rounded-lg">
+                <div className="text-2xl font-bold text-[#4B3621] tabular-nums">{result.newPayments}</div>
+                <div className="text-sm text-charcoal-600">Records Created</div>
               </div>
               <div className="text-center p-4 border border-[#f0dcb0] bg-[#fff5e2] rounded-lg">
                 <div className="text-2xl font-bold text-[#b06a1a] tabular-nums">{result.updatedPayments}</div>
@@ -365,17 +387,32 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
               </div>
               <div className="text-center p-4 border border-[#e7e2da] bg-[#faf8f4] rounded-lg">
                 <div className="text-2xl font-bold text-charcoal-600 tabular-nums">{result.skippedDuplicates}</div>
-                <div className="text-sm text-charcoal-600">Skipped</div>
+                <div className="text-sm text-charcoal-600">Unchanged</div>
               </div>
-              <div className="text-center p-4 border border-[#e7e2da] bg-[#faf8f4] rounded-lg">
-                <div className="text-2xl font-bold text-[#C9A04E] tabular-nums">{result.newUsers}</div>
-                <div className="text-sm text-charcoal-600">New Users</div>
-              </div>
-              <div className="text-center p-4 border border-[#f2c9d1] bg-[#fbe9ec] rounded-lg">
-                <div className="text-2xl font-bold text-[#d1495b] tabular-nums">{result.errors.length}</div>
-                <div className="text-sm text-[#d1495b]">Errors</div>
+              <div className={`text-center p-4 border rounded-lg ${
+                result.errors.length > 0
+                  ? 'border-[#f2c9d1] bg-[#fbe9ec]'
+                  : 'border-[#e7e2da] bg-[#faf8f4]'
+              }`}>
+                <div className={`text-2xl font-bold tabular-nums ${
+                  result.errors.length > 0 ? 'text-[#d1495b]' : 'text-charcoal-600'
+                }`}>{result.errors.length}</div>
+                <div className={`text-sm ${
+                  result.errors.length > 0 ? 'text-[#d1495b]' : 'text-charcoal-600'
+                }`}>Errors</div>
               </div>
             </div>
+
+            {result.unmatchedPayments > 0 && (
+              <div className="p-3 bg-[#fff5e2] border border-[#f0dcb0] rounded-lg">
+                <div className="font-medium text-[#b06a1a]">
+                  {result.unmatchedPayments} payment{result.unmatchedPayments === 1 ? '' : 's'} could not be matched to a user
+                </div>
+                <div className="text-sm text-[#b06a1a]">
+                  These records were saved without a user_id and need to be linked manually.
+                </div>
+              </div>
+            )}
 
             {result.existingPayments > 0 && (
               <div className="p-3 bg-[#faf8f4] border border-[#e7e2da] rounded-lg">

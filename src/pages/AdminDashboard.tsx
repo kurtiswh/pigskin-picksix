@@ -8,6 +8,7 @@ import { Game, WeekSettings } from '@/types'
 import { getGamesWithSpreads, getGamesFast, getCurrentWeek, testApiConnection, CFBGame } from '@/services/collegeFootballApi'
 import { getActiveWeek } from '@/services/weekService'
 import { ENV } from '@/lib/env'
+import { getRestHeaders } from '@/lib/restHeaders'
 import AdminGameSelector from '@/components/AdminGameSelector'
 import WeekControls from '@/components/WeekControls'
 import SeasonSettingsAdmin from '@/components/SeasonSettingsAdmin'
@@ -468,7 +469,6 @@ export default function AdminDashboard() {
       console.log('💾 Starting to save games with direct API approach...')
 
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
 
       // Create week settings if doesn't exist
       if (!weekSettings) {
@@ -485,12 +485,7 @@ export default function AdminDashboard() {
 
         const settingsResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings`, {
           method: 'POST',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          },
+          headers: await getRestHeaders({ 'Prefer': 'return=representation' }),
           body: JSON.stringify(settingsData)
         })
 
@@ -529,11 +524,7 @@ export default function AdminDashboard() {
 
       const gamesResponse = await fetch(`${supabaseUrl}/rest/v1/games`, {
         method: 'POST',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        },
+        headers: await getRestHeaders(),
         body: JSON.stringify(gamesToInsert)
       })
 
@@ -549,11 +540,7 @@ export default function AdminDashboard() {
             try {
               const updateResponse = await fetch(`${supabaseUrl}/rest/v1/games?week=eq.${gameData.week}&season=eq.${gameData.season}&home_team=eq.${encodeURIComponent(gameData.home_team)}&away_team=eq.${encodeURIComponent(gameData.away_team)}`, {
                 method: 'PATCH',
-                headers: {
-                  'apikey': apiKey || '',
-                  'Authorization': `Bearer ${apiKey || ''}`,
-                  'Content-Type': 'application/json'
-                },
+                headers: await getRestHeaders(),
                 body: JSON.stringify({
                   spread: gameData.spread,
                   custom_lock_time: gameData.custom_lock_time
@@ -586,11 +573,7 @@ export default function AdminDashboard() {
       // First check if week settings exist
       const checkResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${currentWeek}&season=eq.${currentSeason}`, {
         method: 'GET',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
+        headers: await getRestHeaders()
       })
       
       const existingSettings = await checkResponse.json()
@@ -600,12 +583,7 @@ export default function AdminDashboard() {
         // Update the existing record
         const updateResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${currentWeek}&season=eq.${currentSeason}`, {
           method: 'PATCH',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          },
+          headers: await getRestHeaders({ 'Prefer': 'return=representation' }),
           body: JSON.stringify({ games_selected: true })
         })
 
@@ -629,12 +607,7 @@ export default function AdminDashboard() {
           console.log('🔄 Trying PUT method instead of PATCH...')
           const putResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${currentWeek}&season=eq.${currentSeason}`, {
             method: 'PUT',
-            headers: {
-              'apikey': apiKey || '',
-              'Authorization': `Bearer ${apiKey || ''}`,
-              'Content-Type': 'application/json',
-              'Prefer': 'return=representation'
-            },
+            headers: await getRestHeaders({ 'Prefer': 'return=representation' }),
             body: JSON.stringify({
               ...existingSettings[0],
               games_selected: true
@@ -790,16 +763,10 @@ export default function AdminDashboard() {
 
       // Use direct API approach to avoid timeouts
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
 
       const updateResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${currentWeek}&season=eq.${currentSeason}`, {
         method: 'PATCH',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
+        headers: await getRestHeaders({ 'Prefer': 'return=representation' }),
         body: JSON.stringify(updates)
       })
 
@@ -930,6 +897,17 @@ export default function AdminDashboard() {
               />
               <ApiQuotaWidget />
             </div>
+
+            {cfbGames.some(g => (g as any).is_mock) && (
+              <div className="p-4 bg-amber-50 border border-amber-300 text-amber-900 rounded-lg">
+                <div className="font-semibold mb-1">⚠️ These are sample games, not the real slate</div>
+                <div className="text-sm">
+                  The CollegeFootballData API did not respond in time, so {cfbGames.length} placeholder
+                  games are being shown. Do not save these — click "Load Available Games" again once the
+                  API recovers. You need exactly {maxGames} real games to save a week.
+                </div>
+              </div>
+            )}
 
             {cfbGames.length > 0 ? (
               <AdminGameSelector

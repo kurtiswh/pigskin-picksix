@@ -56,6 +56,7 @@ export interface CFBGame {
   home_ranking?: number
   away_ranking?: number
   game_importance?: number // calculated importance score
+  is_mock?: boolean // true when this came from getMockGames(), not the API
   custom_lock_time?: string // custom lock time set by admin
   // Live game data
   period?: number // Current quarter (1-4)
@@ -344,8 +345,11 @@ export async function getGamesFast(
   try {
     console.log(`⚡ Fast loading games for ${season} week ${week} (spreads: ${includeSpreads})`)
     
-    // Get games first (fastest call) with 6 second timeout
-    const games = await getGames(season, week, seasonType, 6000)
+    // Timeouts sized for a slow CFBD, not a fast one. Measured 2026-09-01
+    // during a CFBD degradation: /games 35s, /lines 47s, /rankings 36s, plus
+    // intermittent 502s. The old 6s/4s/3s budgets turned any slowdown into a
+    // silent fall back to five mock games, which reads as "loading is broken".
+    const games = await getGames(season, week, seasonType, 30000)
     
     if (!includeSpreads || games.length === 0) {
       console.log(`✅ Fast loaded ${games.length} games without spreads`)
@@ -356,8 +360,8 @@ export async function getGamesFast(
     console.log('💰 Attempting to add spreads and rankings...')
     
     const [bettingResult, rankingResult] = await Promise.allSettled([
-      getBettingLines(season, week, seasonType, 4000),
-      getRankings(season, week, seasonType, 3000)
+      getBettingLines(season, week, seasonType, 20000),
+      getRankings(season, week, seasonType, 15000)
     ])
     
     const bettingLines = bettingResult.status === 'fulfilled' ? bettingResult.value : []
@@ -380,14 +384,14 @@ export async function getGamesWithSpreads(
   seasonType: 'regular' | 'postseason' = 'regular'
 ): Promise<CFBGame[]> {
   try {
-    console.log(`🎯 Fetching games with spreads (with 10s timeout) for ${season} week ${week}`)
+    console.log(`🎯 Fetching games with spreads (with 60s timeout) for ${season} week ${week}`)
     
     // Try fast loading with timeout
     const timeoutPromise = new Promise<CFBGame[]>((resolve) => 
       setTimeout(() => {
         console.log('⏰ API timeout - using mock data')
         resolve(getMockGames(season, week))
-      }, 10000)
+      }, 60000)
     )
     
     const gamesPromise = getGamesFast(season, week, seasonType, true)
@@ -585,7 +589,9 @@ function getMockGames(season: number, week: number): CFBGame[] {
     }
   ]
   
-  return mockGames
+  // Tagged so callers can surface "this is sample data" instead of passing
+  // five invented games off as a real slate.
+  return mockGames.map(g => ({ ...g, is_mock: true }))
 }
 
 // CFBD Scoreboard API Response Interface
@@ -817,16 +823,17 @@ export async function getCompletedGames(
 /**
  * Check if the API is accessible with timeout
  */
-export async function testApiConnection(timeoutMs: number = 5000): Promise<{ 
+export async function testApiConnection(timeoutMs: number = 12000): Promise<{ 
   connected: boolean; 
   error?: string; 
   quotaExceeded?: boolean;
+  missingKey?: boolean;
   status?: number 
 }> {
   try {
     if (!API_KEY) {
       console.warn('⚠️ No CFBD API key found. Set VITE_CFBD_API_KEY environment variable.')
-      return { connected: false, error: 'No API key configured' }
+      return { connected: false, error: 'No API key configured', missingKey: true }
     }
     
     // Check API quota before making test call
@@ -845,7 +852,10 @@ export async function testApiConnection(timeoutMs: number = 5000): Promise<{
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
     
-    const response = await fetch(`${BASE_URL}/teams?year=2024`, { 
+    // Deliberately a small, season-independent endpoint: /teams?year=... returns
+    // ~1MB (every FBS + FCS team) and on a cold CDN cache took ~4.7s, which raced
+    // the abort timeout and made a healthy API look down. /conferences is ~35KB.
+    const response = await fetch(`${BASE_URL}/conferences`, { 
       method: 'GET',
       headers: getHeaders(),
       signal: controller.signal
