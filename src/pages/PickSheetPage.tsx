@@ -39,6 +39,32 @@ async function getPickAuthToken(): Promise<string> {
   return token
 }
 
+/**
+ * Turn a PostgREST failure into something a player can act on.
+ *
+ * The pick policies are `auth.uid() = user_id AND game_is_open_for_picks(...)`,
+ * and game_is_open_for_picks requires week_settings.picks_open. So the ordinary
+ * "the commissioner has not opened picks yet" state arrives as a bare
+ * 42501 row-level-security violation, which a coworker testing the sheet saw
+ * verbatim as `Failed to create pick: 403 - {"code":"42501",...}`. Admins never
+ * hit it, because "Admins can manage all picks" satisfies the check for them.
+ */
+function describePickError(action: string, status: number, body: string): string {
+  if (body.includes('42501')) {
+    return 'Picks are not open for this week yet. Once the commissioner opens them '
+      + 'you will be able to make your selections. (If picks were open a moment ago, '
+      + 'reload the page.)'
+  }
+  if (body.includes('23514')) {
+    return 'That pick was rejected by a league rule. Please reload and try again — '
+      + 'if it keeps happening, let the commissioner know.'
+  }
+  if (status === 401 || status === 403) {
+    return 'Your session has expired. Please sign out, sign back in, and try again.'
+  }
+  return `${action} (${status}). Please reload and try again.`
+}
+
 export default function PickSheetPage() {
   const { user, signOut } = useAuth()
   const location = useLocation()
@@ -315,7 +341,7 @@ export default function PickSheetPage() {
         if (!response.ok) {
           const errorText = await response.text()
           console.error('❌ Failed to update pick:', response.status, errorText)
-          throw new Error(`Failed to update pick: ${response.status} - ${errorText}`)
+          throw new Error(describePickError('Could not update your pick', response.status, errorText))
         }
 
         const data = await response.json()
@@ -355,7 +381,7 @@ export default function PickSheetPage() {
         if (!response.ok) {
           const errorText = await response.text()
           console.error('❌ Failed to create pick:', response.status, errorText)
-          throw new Error(`Failed to create pick: ${response.status} - ${errorText}`)
+          throw new Error(describePickError('Could not save your pick', response.status, errorText))
         }
 
         const data = await response.json()
@@ -470,7 +496,7 @@ export default function PickSheetPage() {
 
         if (!unlockResponse.ok) {
           const errorText = await unlockResponse.text()
-          throw new Error(`Failed to unlock previous pick: ${unlockResponse.status} - ${errorText}`)
+          throw new Error(describePickError('Could not move your Lock', unlockResponse.status, errorText))
         }
       }
 
@@ -491,7 +517,7 @@ export default function PickSheetPage() {
 
       if (!lockResponse.ok) {
         const errorText = await lockResponse.text()
-        throw new Error(`Failed to toggle lock: ${lockResponse.status} - ${errorText}`)
+        throw new Error(describePickError('Could not set your Lock', lockResponse.status, errorText))
       }
 
       const data = await lockResponse.json()
@@ -549,7 +575,7 @@ export default function PickSheetPage() {
 
       if (!response.ok) {
         const errorText = await response.text()
-        throw new Error(`Failed to remove pick: ${response.status} - ${errorText}`)
+        throw new Error(describePickError('Could not remove your pick', response.status, errorText))
       }
       
       console.log('✅ Pick removed successfully via direct API')
