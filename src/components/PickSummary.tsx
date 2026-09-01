@@ -139,8 +139,17 @@ export default function PickSummary({
           )}
 
           <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2">
-            <div className="text-xs text-charcoal-500">{anyScored ? 'Points' : 'Projected'}</div>
-            <div className="text-xl font-bold text-[#4B3621] tabular-nums">{totalPoints} pts</div>
+            {/* This is the sum of points_earned, not a forecast. Before any game
+                is scored it is necessarily 0, and labelling that "Projected"
+                read as a prediction that the entry would score nothing. */}
+            <div className="text-xs text-charcoal-500">Points earned</div>
+            {anyScored ? (
+              <div className="text-xl font-bold text-[#4B3621] tabular-nums">{totalPoints} pts</div>
+            ) : (
+              <div className="text-xl font-bold text-charcoal-400 tabular-nums">
+                &mdash;<span className="text-xs font-normal text-charcoal-500 ml-2">scored after kickoff</span>
+              </div>
+            )}
           </div>
 
           <Button

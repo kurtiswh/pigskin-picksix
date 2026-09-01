@@ -15,6 +15,30 @@ import Layout from '@/components/Layout'
 import { NotificationScheduler } from '@/services/notificationScheduler'
 import EntryStatusBanner from '@/components/EntryStatusBanner'
 
+/**
+ * Access token for a pick write.
+ *
+ * Every UPDATE/DELETE policy on `picks` is scoped to auth.uid(), so a request
+ * bearing the anon key matches zero rows -- and PostgREST reports that as
+ * success (200 [] for PATCH, 204 for DELETE). The old code fell back to the
+ * anon key whenever the session lookup exceeded 3s, so a pick, a Lock, or a
+ * removal could silently never reach the database while the UI updated
+ * optimistically. Throw instead.
+ */
+async function getPickAuthToken(): Promise<string> {
+  const { data } = await Promise.race([
+    supabase.auth.getSession(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Timed out reading your session')), 8000)
+    ),
+  ]) as any
+  const token = data?.session?.access_token
+  if (!token) {
+    throw new Error('Your session has expired. Please sign out, sign back in, and try again.')
+  }
+  return token
+}
+
 export default function PickSheetPage() {
   const { user, signOut } = useAuth()
   const location = useLocation()
@@ -255,20 +279,7 @@ export default function PickSheetPage() {
       
       // Get the current session token for authenticated requests
       console.log('🔧 Step 2: Getting auth session...')
-      let authToken = apiKey
-      try {
-        const sessionPromise = supabase.auth.getSession()
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session timeout')), 3000)
-        )
-        
-        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
-        authToken = session?.access_token || apiKey
-        console.log('🔧 Session check - hasSession:', !!session, 'hasAccessToken:', !!session?.access_token)
-      } catch (sessionError) {
-        console.warn('⚠️ Session retrieval failed, using API key:', sessionError)
-        authToken = apiKey
-      }
+      const authToken = await getPickAuthToken()
       
       console.log('🔐 Auth token info:', {
         usingJWT: authToken !== apiKey,
@@ -382,19 +393,7 @@ export default function PickSheetPage() {
       const apiKey = ENV.SUPABASE_ANON_KEY
       
       // Get the current session token for authenticated requests
-      let authToken = apiKey
-      try {
-        const sessionPromise = supabase.auth.getSession()
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session timeout')), 3000)
-        )
-        
-        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
-        authToken = session?.access_token || apiKey
-      } catch (sessionError) {
-        console.warn('⚠️ Edit session failed, using API key:', sessionError)
-        authToken = apiKey
-      }
+      const authToken = await getPickAuthToken()
       
       await fetch(`${supabaseUrl}/rest/v1/picks?user_id=eq.${user!.id}&week=eq.${currentWeek}&season=eq.${currentSeason}`, {
         method: 'PATCH',
@@ -448,20 +447,7 @@ export default function PickSheetPage() {
       const apiKey = ENV.SUPABASE_ANON_KEY
       
       // Get the current session token for authenticated requests
-      let authToken = apiKey
-      try {
-        const sessionPromise = supabase.auth.getSession()
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session timeout')), 3000)
-        )
-        
-        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
-        authToken = session?.access_token || apiKey
-        console.log('🔐 Lock toggle - session check:', !!session, !!session?.access_token)
-      } catch (sessionError) {
-        console.warn('⚠️ Lock toggle session failed, using API key:', sessionError)
-        authToken = apiKey
-      }
+      const authToken = await getPickAuthToken()
       
       const pickToLock = picks.find(p => p.game_id === gameId)
       if (!pickToLock) return
@@ -550,19 +536,7 @@ export default function PickSheetPage() {
       const apiKey = ENV.SUPABASE_ANON_KEY
       
       // Get auth token with timeout
-      let authToken = apiKey
-      try {
-        const sessionPromise = supabase.auth.getSession()
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session timeout')), 3000)
-        )
-        
-        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
-        authToken = session?.access_token || apiKey
-      } catch (sessionError) {
-        console.warn('⚠️ Remove session failed, using API key:', sessionError)
-        authToken = apiKey
-      }
+      const authToken = await getPickAuthToken()
 
       const response = await fetch(`${supabaseUrl}/rest/v1/picks?id=eq.${pickToRemove.id}`, {
         method: 'DELETE',
@@ -809,7 +783,7 @@ export default function PickSheetPage() {
         }
 
         console.log('🔧 DEBUG: Calling NotificationScheduler.onPicksSubmitted...')
-        await NotificationScheduler.onPicksSubmitted(
+        const confirmationSent = await NotificationScheduler.onPicksSubmitted(
           user.id,
           user.email.trim(),
           user.display_name || 'Player',
@@ -817,7 +791,16 @@ export default function PickSheetPage() {
           currentSeason,
           formattedPicks
         )
-        console.log('✅ Pick confirmation email process completed')
+        if (!confirmationSent) {
+          console.warn('⚠️ Picks saved but the confirmation email did not send')
+          alert(
+            '✅ Your picks are submitted and saved.\n\n' +
+            '⚠️ We could not send your confirmation email. Your picks are safe — ' +
+            'this only affects the receipt. Let the commissioner know if you want it resent.'
+          )
+        } else {
+          console.log('✅ Pick confirmation email process completed')
+        }
       } catch (emailError) {
         console.error('❌ Error sending pick confirmation:', emailError)
         console.error('❌ Email error details:', emailError.message)

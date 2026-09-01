@@ -97,7 +97,7 @@ export class NotificationScheduler {
       isLock: boolean
       lockTime: string
     }>
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       console.log(`📧 Processing pick submission for user ${userId}, Week ${week}`)
       
@@ -123,6 +123,7 @@ export class NotificationScheduler {
 
         if (success) {
           console.log(`✅ Pick confirmation email sent for user ${userId}`)
+          return true
         } else {
           console.warn(`⚠️ Pick confirmation did not send for user ${userId}`)
           console.log(`💡 Email remains queued - can be sent via manual processing`)
@@ -135,6 +136,11 @@ export class NotificationScheduler {
     } catch (error) {
       console.error(`Error processing pick submission notifications for user ${userId}:`, error)
     }
+
+    // Reached only when the confirmation did not queue and send. The caller
+    // surfaces this: a submission that saves correctly but sends no email used
+    // to be a console warning nobody saw.
+    return false
   }
 
   /**
