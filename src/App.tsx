@@ -17,6 +17,7 @@ import BlogEditorPage from './pages/BlogEditorPage'
 import GamesPage from './pages/GamesPage'
 import RulesPage from './pages/RulesPage'
 import UnsubscribePage from './pages/UnsubscribePage'
+import UpdateBanner from './components/UpdateBanner'
 
 function App() {
   console.log('🚀 [STARTUP] App component rendering')
@@ -26,6 +27,7 @@ function App() {
       <CurrentSeasonProvider>
       <Router>
         <div className="min-h-screen bg-[#F8F7F3]">
+          <UpdateBanner />
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
