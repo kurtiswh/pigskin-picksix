@@ -9,7 +9,7 @@ import { getGamesWithSpreads, getGamesFast, getCurrentWeek, testApiConnection, C
 import { getActiveWeek } from '@/services/weekService'
 import { ENV } from '@/lib/env'
 import { getRestHeaders } from '@/lib/restHeaders'
-import AdminGameSelector from '@/components/AdminGameSelector'
+import AdminGameSelector, { sameMatchup } from '@/components/AdminGameSelector'
 import WeekControls from '@/components/WeekControls'
 import SeasonSettingsAdmin from '@/components/SeasonSettingsAdmin'
 import UserManagement from '@/components/UserManagement'
@@ -444,12 +444,13 @@ export default function AdminDashboard() {
     console.log('🎯 Game toggle clicked for:', game.home_team, 'vs', game.away_team, 'ID:', game.id)
     
     setTempSelectedGames(prev => {
-      const isSelected = prev.some(g => g.id === game.id)
+      // Keyed on matchup, not id — see sameMatchup() in AdminGameSelector.
+      const isSelected = prev.some(g => sameMatchup(g, game))
       console.log('🔍 Is selected:', isSelected, 'Temp selected games:', prev.map(g => `${g.home_team} vs ${g.away_team} (ID: ${g.id})`))
       
       if (isSelected) {
         console.log('➖ Removing game from temp selection')
-        return prev.filter(g => g.id !== game.id)
+        return prev.filter(g => !sameMatchup(g, game))
       } else if (prev.length < maxGames) {
         console.log('➕ Adding game to temp selection')
         return [...prev, game]

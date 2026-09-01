@@ -1,3 +1,4 @@
+import { getRestHeaders } from './restHeaders'
 // Direct Supabase REST API calls to bypass potential client issues
 import { ENV } from './env'
 
@@ -40,13 +41,7 @@ export async function directSupabaseQuery(
   try {
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...headers
-      },
+      headers: await getRestHeaders({ 'Accept': 'application/json', ...headers }),
       signal: controller.signal
     })
     
@@ -125,11 +120,7 @@ export async function unsaveGamesDirect(week: number, season: number) {
     // Get current week settings to preserve deadline
     const getResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${week}&season=eq.${season}`, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
-        'Content-Type': 'application/json'
-      },
+      headers: await getRestHeaders(),
       signal: controller.signal
     })
     
@@ -142,11 +133,7 @@ export async function unsaveGamesDirect(week: number, season: number) {
       console.log(`🗑️ Deleting games from database for week ${week} season ${season}...`)
       const deleteGamesResponse = await fetch(`${supabaseUrl}/rest/v1/games?week=eq.${week}&season=eq.${season}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
-          'Content-Type': 'application/json'
-        },
+        headers: await getRestHeaders(),
         signal: controller.signal
       })
       
@@ -159,12 +146,7 @@ export async function unsaveGamesDirect(week: number, season: number) {
       // Then update week settings to unsave games but preserve deadline
       const updateResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings?week=eq.${week}&season=eq.${season}`, {
         method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
+        headers: await getRestHeaders({ 'Prefer': 'return=representation' }),
         body: JSON.stringify({
           games_selected: false,
           picks_open: false,
@@ -212,12 +194,7 @@ export async function saveGamesDirect(games: any[], week: number, season: number
     // Insert games
     const response = await fetch(`${supabaseUrl}/rest/v1/games`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'apikey': supabaseKey,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
+      headers: await getRestHeaders({ 'Prefer': 'return=minimal' }),
       body: JSON.stringify(games),
       signal: controller.signal
     })

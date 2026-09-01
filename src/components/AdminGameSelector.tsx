@@ -23,6 +23,11 @@ interface CFBGame {
   neutral_site?: boolean
 }
 
+/** Stable identity for a game across CFBD ids and database UUIDs. */
+export function sameMatchup(a: CFBGame, b: CFBGame): boolean {
+  return a.home_team === b.home_team && a.away_team === b.away_team
+}
+
 interface AdminGameSelectorProps {
   games: CFBGame[]
   selectedGames: CFBGame[]
@@ -44,8 +49,13 @@ export default function AdminGameSelector({
   const [conferenceFilter, setConferenceFilter] = useState('all')
   const [sortBy, setSortBy] = useState<'time' | 'team' | 'conference' | 'importance'>('importance')
 
+  // Match on teams, not id. Games loaded back from the database carry a
+  // synthetic id (parseInt of the last 8 hex chars of their UUID), which never
+  // equals the CFBD id on the same matchup. Comparing ids made every saved game
+  // read as unselected while the counter still said 15/15, so every row fell to
+  // `Max reached` and the admin could not deselect anything.
   const isSelected = (game: CFBGame) => {
-    return selectedGames.some(sg => sg.id === game.id)
+    return selectedGames.some(sg => sameMatchup(sg, game))
   }
 
   const handleRankingChange = (gameId: number, team: 'home' | 'away', value: string) => {
