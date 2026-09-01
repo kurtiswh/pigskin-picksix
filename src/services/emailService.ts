@@ -344,6 +344,71 @@ export class EmailService {
   }
 
   /**
+   * Players whose picks are submitted but who never got a confirmation.
+   *
+   * The invariant is "submitted picks imply a confirmation job". It can break
+   * whenever the browser fails to reach the queueing RPC -- which happened in
+   * production and went unnoticed, because processPendingEmails only rescues
+   * jobs that already exist. Admin-only; the RPC guards itself.
+   */
+  static async findMissingPickConfirmations(
+    week: number,
+    season: number
+  ): Promise<Array<{ user_id: string; display_name: string; email: string; submitted_picks: number }>> {
+    const { data, error } = await supabase.rpc('find_missing_pick_confirmations', {
+      p_week: week,
+      p_season: season,
+    })
+    if (error) throw error
+    return (data ?? []) as Array<{
+      user_id: string
+      display_name: string
+      email: string
+      submitted_picks: number
+    }>
+  }
+
+  /**
+   * Queue and send the missing confirmations for a week.
+   *
+   * Each player is independent: one failure must not abandon the rest, so
+   * failures are collected and reported rather than thrown.
+   */
+  static async sendMissingPickConfirmations(
+    week: number,
+    season: number
+  ): Promise<{ sent: number; failed: Array<{ email: string; reason: string }> }> {
+    const missing = await this.findMissingPickConfirmations(week, season)
+    let sent = 0
+    const failed: Array<{ email: string; reason: string }> = []
+
+    for (const person of missing) {
+      try {
+        const { data, error } = await supabase.rpc('queue_pick_confirmation_for_user', {
+          p_user_id: person.user_id,
+          p_week: week,
+          p_season: season,
+        })
+        if (error) throw error
+
+        const job = data as { job_id?: string; send_token?: string } | null
+        if (!job?.job_id) throw new Error('Queue RPC returned no job id')
+
+        const ok = await this.sendQueuedJob(job.job_id, job.send_token)
+        if (ok) {
+          sent++
+        } else {
+          failed.push({ email: person.email, reason: 'Queued but the send failed; job left pending' })
+        }
+      } catch (err: any) {
+        failed.push({ email: person.email, reason: err?.message ?? String(err) })
+      }
+    }
+
+    return { sent, failed }
+  }
+
+  /**
    * Admin preview of the pick-confirmation email.
    *
    * Deliberately separate from sendPickConfirmationServerRendered: that one

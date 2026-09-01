@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { loadRecapSeed, createRecapDraft, type RecapSeed } from '@/services/recapService'
+import { EmailService } from '@/services/emailService'
 
 /**
  * Week Review — the weekly close-out hub (Part B / B2).
@@ -194,6 +195,48 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
   }
 
   const [noticeMsg, setNoticeMsg] = useState('')
+
+  // Confirmation-receipt reconciliation. See migration 213: a submission whose
+  // queueing RPC never reached the database leaves the player with no receipt
+  // and nothing in the system aware of it.
+  const [missingConfirms, setMissingConfirms] = useState<
+    Array<{ user_id: string; display_name: string; email: string; submitted_picks: number }>
+  >([])
+  const [confirmsLoading, setConfirmsLoading] = useState(false)
+  const [confirmsSending, setConfirmsSending] = useState(false)
+  const [confirmsNote, setConfirmsNote] = useState('')
+
+  const loadMissingConfirms = useCallback(async () => {
+    setConfirmsLoading(true)
+    setConfirmsNote('')
+    try {
+      setMissingConfirms(await EmailService.findMissingPickConfirmations(week, season))
+    } catch (err: any) {
+      setConfirmsNote(`Could not check: ${err?.message ?? err}`)
+    } finally {
+      setConfirmsLoading(false)
+    }
+  }, [week, season])
+
+  useEffect(() => { loadMissingConfirms() }, [loadMissingConfirms])
+
+  const sendMissingConfirms = async () => {
+    setConfirmsSending(true)
+    setConfirmsNote('')
+    try {
+      const { sent, failed } = await EmailService.sendMissingPickConfirmations(week, season)
+      setConfirmsNote(
+        failed.length === 0
+          ? `Sent ${sent} confirmation${sent === 1 ? '' : 's'}.`
+          : `Sent ${sent}; ${failed.length} failed — ${failed.map(f => `${f.email}: ${f.reason}`).join('; ')}`
+      )
+      await loadMissingConfirms()
+    } catch (err: any) {
+      setConfirmsNote(`Failed: ${err?.message ?? err}`)
+    } finally {
+      setConfirmsSending(false)
+    }
+  }
   const [savingNotice, setSavingNotice] = useState(false)
   const saveNotice = async () => {
     setSavingNotice(true); setError('')
@@ -455,6 +498,47 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
       </Card>
 
       {/* Publish */}
+      <Card className={missingConfirms.length === 0 ? 'border-[#bfe3cc]' : 'border-[#f0dcb0]'}>
+        <CardContent className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="font-medium text-[#4B3621]">
+                {confirmsLoading
+                  ? 'Checking pick confirmations…'
+                  : missingConfirms.length === 0
+                  ? '✅ Every submitted entry got a confirmation email'
+                  : `⚠️ ${missingConfirms.length} submitted ${missingConfirms.length === 1 ? 'entry has' : 'entries have'} no confirmation email`}
+              </div>
+              {missingConfirms.length > 0 && (
+                <div className="text-sm text-charcoal-600 mt-1">
+                  Their picks are saved and safe — only the receipt is missing.
+                  <div className="mt-2 space-y-0.5 max-h-32 overflow-y-auto">
+                    {missingConfirms.map(m => (
+                      <div key={m.user_id} className="text-xs">
+                        <span className="font-medium text-[#4B3621]">{m.display_name}</span>
+                        <span className="text-charcoal-500 ml-2">{m.email}</span>
+                        <span className="text-charcoal-400 ml-2">{m.submitted_picks} picks</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {confirmsNote && <div className="text-xs text-charcoal-600 mt-2">{confirmsNote}</div>}
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button variant="outline" onClick={loadMissingConfirms} disabled={confirmsLoading || confirmsSending}>
+                Re-check
+              </Button>
+              {missingConfirms.length > 0 && (
+                <Button onClick={sendMissingConfirms} disabled={confirmsSending}>
+                  {confirmsSending ? 'Sending…' : `Send ${missingConfirms.length} missing`}
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className={scoringClean ? 'border-[#bfe3cc]' : 'border-[#f0dcb0]'}>
         <CardContent className="p-5">
           {/* Optional leaderboard notice banner for this week */}
