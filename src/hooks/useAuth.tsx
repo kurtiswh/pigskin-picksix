@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { getRestHeaders } from '@/lib/restHeaders'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { User, AuthContextType } from '@/types'
@@ -232,11 +233,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('💰 [PAYMENT-LINK] Searching for LeagueSafe payments with email:', userEmail)
       const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?leaguesafe_email=eq.${userEmail}&is_matched=eq.false&select=*`, {
         method: 'GET',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        },
+        headers: await getRestHeaders(),
         signal: controller.signal
       })
       
@@ -261,12 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             try {
               const updateResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?id=eq.${payment.id}`, {
                 method: 'PATCH',
-                headers: {
-                  'apikey': apiKey || '',
-                  'Authorization': `Bearer ${apiKey || ''}`,
-                  'Content-Type': 'application/json',
-                  'Prefer': 'return=minimal'
-                },
+                headers: await getRestHeaders({ 'Prefer': 'return=minimal' }),
                 body: JSON.stringify({
                   user_id: userId,
                   is_matched: true
@@ -331,12 +323,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       let response = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${userId}&select=*`, {
         method: 'GET',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        }
+        headers: await getRestHeaders({ 'Prefer': 'return=representation' })
       })
 
       console.log('🔍 ID search response status:', response.status)
@@ -362,12 +349,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('🔍 Step 2: Looking for user by authenticated email:', userEmail)
         response = await fetch(`${supabaseUrl}/rest/v1/users?email=eq.${encodeURIComponent(userEmail)}&select=*`, {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          }
+          headers: await getRestHeaders({ 'Prefer': 'return=representation' })
         })
 
         console.log('🔍 Email search response status:', response.status)

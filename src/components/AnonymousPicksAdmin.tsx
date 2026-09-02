@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { getRestHeaders } from '@/lib/restHeaders'
 import { ENV } from '@/lib/env'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -450,7 +451,6 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       console.log('🔍 Running comprehensive database diagnostic...')
       
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
       
       // 1. Check total count for this week/season
       console.log(`📊 DIAGNOSTIC 1: Total count for week ${selectedWeek}, season ${selectedSeason}`)
@@ -458,12 +458,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&select=count`,
         {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'count=exact'
-          }
+          headers: await getRestHeaders({ 'Prefer': 'count=exact' })
         }
       )
       
@@ -478,12 +473,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         `${supabaseUrl}/rest/v1/anonymous_picks?select=week,season,count&order=week.asc,season.asc`,
         {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'count=exact'
-          }
+          headers: await getRestHeaders({ 'Prefer': 'count=exact' })
         }
       )
       
@@ -507,11 +497,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         `${supabaseUrl}/rest/v1/anonymous_picks?limit=5&select=*`,
         {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          }
+          headers: await getRestHeaders()
         }
       )
       
@@ -540,11 +526,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         `${supabaseUrl}/rest/v1/anonymous_picks?validation_status=is.null&select=id,email,week,season`,
         {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          }
+          headers: await getRestHeaders()
         }
       )
       
@@ -564,11 +546,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         `${supabaseUrl}/rest/v1/anonymous_picks?show_on_leaderboard=is.null&select=id,email,week,season`,
         {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          }
+          headers: await getRestHeaders()
         }
       )
       
@@ -588,11 +566,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         `${supabaseUrl}/rest/v1/anonymous_picks?assigned_user_id=is.null&select=id,email,week,season,validation_status,show_on_leaderboard`,
         {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          }
+          headers: await getRestHeaders()
         }
       )
       
@@ -637,18 +611,13 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       console.log('🔧 Starting fix for anonymous picks missing required fields...')
       
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
       
       // Find picks that are missing validation_status or other required fields
       const problematicPicksResponse = await fetch(
         `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&or=(validation_status.is.null,show_on_leaderboard.is.null)&select=id,email,name,validation_status,show_on_leaderboard,assigned_user_id`,
         {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          }
+          headers: await getRestHeaders()
         }
       )
       
@@ -689,11 +658,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                 if (Object.keys(updateData).length > 0) {
                   const updateResponse = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
                     method: 'PATCH',
-                    headers: {
-                      'apikey': apiKey || '',
-                      'Authorization': `Bearer ${apiKey || ''}`,
-                      'Content-Type': 'application/json'
-                    },
+                    headers: await getRestHeaders(),
                     body: JSON.stringify(updateData)
                   })
                   
@@ -735,7 +700,6 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       console.log('🔍 Loading ALL anonymous picks (assigned and unassigned)...')
 
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
 
       console.log(`🎯 Query: all picks for week ${selectedWeek}, season ${selectedSeason}`)
 
@@ -744,11 +708,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&select=*&order=submitted_at.desc&limit=1000`,
         {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          }
+          headers: await getRestHeaders()
         }
       )
 
@@ -776,11 +736,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       // Load users for assignment
       const usersResponse = await fetch(`${supabaseUrl}/rest/v1/users?select=id,email,display_name,is_admin&order=display_name.asc`, {
         method: 'GET',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
+        headers: await getRestHeaders()
       })
 
       if (!usersResponse.ok) {
@@ -859,7 +815,6 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       console.log('🔄 Starting anonymous picks scoring recalculation...')
       
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
       
       // If specific game IDs provided, use those; otherwise recalculate for current week/season
       let gameFilter = ''
@@ -876,11 +831,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         `${supabaseUrl}/rest/v1/anonymous_picks?select=id,game_id,selected_team,is_lock,games(home_team,away_team,home_score,away_score,spread,status)${gameFilter}`,
         {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          }
+          headers: await getRestHeaders()
         }
       )
 
@@ -949,11 +900,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
           // Update the pick with new result and points
           const updateResponse = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
             method: 'PATCH',
-            headers: {
-              'apikey': apiKey || '',
-              'Authorization': `Bearer ${apiKey || ''}`,
-              'Content-Type': 'application/json'
-            },
+            headers: await getRestHeaders(),
             body: JSON.stringify({
               result: result,
               points_earned: points_earned
@@ -1023,7 +970,6 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       setError('')
       
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
 
       console.log('📋 Loading anonymous picks and users...')
       console.log(`🔍 Query parameters: week=${selectedWeek}, season=${selectedSeason}`)
@@ -1033,12 +979,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&select=count`,
         {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'count=exact'
-          }
+          headers: await getRestHeaders({ 'Prefer': 'count=exact' })
         }
       )
 
@@ -1053,11 +994,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         `${supabaseUrl}/rest/v1/anonymous_picks?week=eq.${selectedWeek}&season=eq.${selectedSeason}&select=*&order=submitted_at.desc&limit=2000`,
         {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          }
+          headers: await getRestHeaders()
         }
       )
 
@@ -1115,11 +1052,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       // Load all users for assignment
       const usersResponse = await fetch(`${supabaseUrl}/rest/v1/users?select=id,email,display_name,is_admin&order=display_name.asc`, {
         method: 'GET',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
+        headers: await getRestHeaders()
       })
 
       if (!usersResponse.ok) {
@@ -1303,7 +1236,6 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
   const checkExistingPickSets = async (userId: string, week: number, season: number): Promise<ExistingPickSet[]> => {
     try {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
 
       console.log(`🔍 Checking existing pick sets for user ${userId}, week ${week}, season ${season}`)
 
@@ -1316,11 +1248,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         `${supabaseUrl}/rest/v1/picks?user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&submitted=eq.true&select=*,games(home_team,away_team)`,
         {
         method: 'GET',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
+        headers: await getRestHeaders()
       })
 
       if (authPicksResponse.ok) {
@@ -1358,11 +1286,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         `${supabaseUrl}/rest/v1/anonymous_picks?assigned_user_id=eq.${userId}&week=eq.${week}&season=eq.${season}&show_on_leaderboard=eq.true&select=*`,
         {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          }
+          headers: await getRestHeaders()
         }
       )
 
@@ -1421,11 +1345,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         // First check if the columns exist by trying a test query
         const testResponse = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pickSet.picks[0].id}&select=id,assigned_user_id,show_on_leaderboard`, {
           method: 'GET',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          }
+          headers: await getRestHeaders()
         })
 
         if (!testResponse.ok && testResponse.status === 400) {
@@ -1511,11 +1431,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
           console.log(`🔄 Updating pick ${pick.id} as inactive...`)
           const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
             method: 'PATCH',
-            headers: {
-              'apikey': apiKey || '',
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json'
-            },
+            headers: await getRestHeaders(),
             body: JSON.stringify({
               assigned_user_id: userId,
               show_on_leaderboard: false  // Explicitly set to false since existing picks are primary
@@ -1601,18 +1517,13 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
     try {
       setLoading(true)
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
 
       console.log('🔄 Unassigning pick set...', { email: pickSet.email })
 
       for (const pick of pickSet.picks) {
         const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
           method: 'PATCH',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          },
+          headers: await getRestHeaders(),
           body: JSON.stringify({
             assigned_user_id: null,
             show_on_leaderboard: false
@@ -1646,18 +1557,13 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
   const handleUpdateValidationStatus = async (pickSet: PickSet, newStatus: ValidationStatus, notes?: string) => {
     try {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
 
       console.log('🔄 Updating validation status for pick set...', { email: pickSet.email, newStatus, notes })
 
       for (const pick of pickSet.picks) {
         const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
           method: 'PATCH',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          },
+          headers: await getRestHeaders(),
           body: JSON.stringify({
             validation_status: newStatus,
             processing_notes: notes || null
@@ -1690,16 +1596,11 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
   const checkUserPaymentStatus = async (userId: string): Promise<{ isPaid: boolean; paymentStatus: string }> => {
     try {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
       const currentSeason = selectedSeason // active/selected season from component state
 
       const response = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?user_id=eq.${userId}&season=eq.${currentSeason}`, {
         method: 'GET',
-        headers: {
-          'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
-          'Content-Type': 'application/json'
-        }
+        headers: await getRestHeaders()
       })
 
       if (!response.ok) {
@@ -1725,7 +1626,6 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
   const handleToggleLeaderboard = async (pickSet: PickSet, showOnLeaderboard: boolean) => {
     try {
       const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-      const apiKey = ENV.SUPABASE_ANON_KEY
 
       console.log('📊 Toggling leaderboard visibility for pick set...', { email: pickSet.email, showOnLeaderboard })
 
@@ -1747,11 +1647,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       for (const pick of pickSet.picks) {
         const response = await fetch(`${supabaseUrl}/rest/v1/anonymous_picks?id=eq.${pick.id}`, {
           method: 'PATCH',
-          headers: {
-            'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
-            'Content-Type': 'application/json'
-          },
+          headers: await getRestHeaders(),
           body: JSON.stringify({
             show_on_leaderboard: showOnLeaderboard
           })
