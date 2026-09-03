@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -22,6 +22,15 @@ import { EmailService } from '@/services/emailService'
 interface WeekReviewProps {
   season: number
   initialWeek: number
+  /**
+   * False while the active season is still the client-side fallback.
+   * useCurrentSeason boots on FALLBACK_ACTIVE_SEASON (the PREVIOUS season) and
+   * flips when app_settings resolves; querying during that window fetched
+   * last season's week, and when that slower response resolved after the
+   * corrected one it overwrote it -- a 2026 badge over 2025 picks, and a
+   * "345 missing confirmation emails" alarm that was true only of 2025.
+   */
+  seasonReady?: boolean
 }
 
 type ItemState = 'ok' | 'warn' | 'info' | 'loading'
@@ -92,7 +101,7 @@ async function fetchAllPicksPaged(week: number, season: number): Promise<any[]> 
   }
 }
 
-export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
+export default function WeekReview({ season, initialWeek, seasonReady = true }: WeekReviewProps) {
   const [week, setWeek] = useState(initialWeek || 1)
   const [loading, setLoading] = useState(false)
   const [publishing, setPublishing] = useState(false)
@@ -115,7 +124,14 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
 
   const toggle = (key: string) => setOpen(o => ({ ...o, [key]: !o[key] }))
 
+  // Monotonic request ids: a slower, earlier query (e.g. one issued while the
+  // season was still the fallback) must not overwrite a newer result.
+  const reviewRequestSeq = useRef(0)
+  const confirmsRequestSeq = useRef(0)
+
   const loadReview = useCallback(async () => {
+    if (!seasonReady) return
+    const requestId = ++reviewRequestSeq.current
     setLoading(true)
     setError('')
     try {
@@ -160,6 +176,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
       }
       const allPicks = Array.from(byPlayer.values()).sort((a, b) => b.total_points - a.total_points)
 
+      if (requestId !== reviewRequestSeq.current) return // superseded; drop stale response
       setData({
         games,
         completedGames: completed.length,
@@ -176,12 +193,13 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
       })
       setNoticeMsg((wsRes.data as any)?.admin_custom_message ?? '')
     } catch (err: any) {
+      if (requestId !== reviewRequestSeq.current) return
       console.error('WeekReview load failed:', err)
       setError(err?.message || 'Failed to load week review data')
     } finally {
-      setLoading(false)
+      if (requestId === reviewRequestSeq.current) setLoading(false)
     }
-  }, [season, week])
+  }, [season, week, seasonReady])
 
   useEffect(() => { loadReview() }, [loadReview])
 
@@ -234,16 +252,21 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
   const [confirmsNote, setConfirmsNote] = useState('')
 
   const loadMissingConfirms = useCallback(async () => {
+    if (!seasonReady) return
+    const requestId = ++confirmsRequestSeq.current
     setConfirmsLoading(true)
     setConfirmsNote('')
     try {
-      setMissingConfirms(await EmailService.findMissingPickConfirmations(week, season))
+      const rows = await EmailService.findMissingPickConfirmations(week, season)
+      if (requestId !== confirmsRequestSeq.current) return // superseded; drop stale response
+      setMissingConfirms(rows)
     } catch (err: any) {
+      if (requestId !== confirmsRequestSeq.current) return
       setConfirmsNote(`Could not check: ${err?.message ?? err}`)
     } finally {
-      setConfirmsLoading(false)
+      if (requestId === confirmsRequestSeq.current) setConfirmsLoading(false)
     }
-  }, [week, season])
+  }, [week, season, seasonReady])
 
   useEffect(() => { loadMissingConfirms() }, [loadMissingConfirms])
 

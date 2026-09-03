@@ -42,7 +42,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   
-  const { activeSeason: currentSeason } = useCurrentSeason()
+  const { activeSeason: currentSeason, loading: seasonLoading } = useCurrentSeason()
   const [gameSelectionWeek, setGameSelectionWeek] = useState(0)
   const [currentWeek, setCurrentWeek] = useState(0)
   const maxGames = 15
@@ -949,7 +949,7 @@ export default function AdminDashboard() {
 
         {activeTab === 'weekreview' && (
           <div className="space-y-6">
-            <WeekReview season={currentSeason} initialWeek={currentWeek} />
+            <WeekReview season={currentSeason} initialWeek={currentWeek} seasonReady={!seasonLoading} />
 
             {/* Advanced pick tools (assign anon, duplicates, unsubmitted, hidden,
                 pick-set management). Folded in from the old Pick Management tab;
