@@ -72,6 +72,26 @@ interface ReviewData {
 
 const WEEKS = Array.from({ length: 14 }, (_, i) => i + 1)
 
+/**
+ * wr_all_picks returns one row per pick, so a full league blows straight past
+ * PostgREST's 1000-row response cap (week 1 of 2026: content-range 0-999/1518).
+ * A single .rpc() call therefore delivered the first 167 players of an
+ * alphabetical list and silently dropped everyone after mid-"K". Page until a
+ * short page instead.
+ */
+async function fetchAllPicksPaged(week: number, season: number): Promise<any[]> {
+  const PAGE = 1000
+  const rows: any[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .rpc('wr_all_picks', { p_week: week, p_season: season })
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    rows.push(...(data ?? []))
+    if (!data || data.length < PAGE) return rows
+  }
+}
+
 export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
   const [week, setWeek] = useState(initialWeek || 1)
   const [loading, setLoading] = useState(false)
@@ -100,7 +120,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
         supabase.rpc('wr_anonymous_unmatched', { p_week: week, p_season: season }),
         supabase.rpc('detect_overpick_entries', { p_week: week, p_season: season }),
         supabase.rpc('wr_unpaid_submitters', { p_week: week, p_season: season }),
-        supabase.rpc('wr_all_picks', { p_week: week, p_season: season }),
+        fetchAllPicksPaged(week, season).then(rows => ({ data: rows, error: null })),
         supabase.from('week_settings').select('scoring_complete, leaderboard_complete, admin_custom_message')
           .eq('season', season).eq('week', week).maybeSingle(),
       ])
