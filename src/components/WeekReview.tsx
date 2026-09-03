@@ -51,7 +51,7 @@ interface PickCell {
   is_lock: boolean; result: string | null; points_earned: number | null; disqualified: boolean
 }
 interface PlayerPicks {
-  user_id: string; display_name: string; is_paid: boolean
+  user_id: string; display_name: string; email: string; is_paid: boolean
   picks: PickCell[]; total_points: number
 }
 
@@ -100,6 +100,13 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
   const [data, setData] = useState<ReviewData | null>(null)
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [showAllPicks, setShowAllPicks] = useState(false)
+  const [pickSearch, setPickSearch] = useState('')
+
+  const filteredAllPicks = (data?.allPicks || []).filter(p => {
+    const q = pickSearch.trim().toLowerCase()
+    if (!q) return true
+    return p.display_name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)
+  })
   const navigate = useNavigate()
   const { user } = useAuth()
   const [recap, setRecap] = useState<RecapSeed | null>(null)
@@ -142,7 +149,7 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
       for (const r of (allRes.data as any[]) || []) {
         let pp = byPlayer.get(r.user_id)
         if (!pp) {
-          pp = { user_id: r.user_id, display_name: r.display_name, is_paid: r.is_paid, picks: [], total_points: 0 }
+          pp = { user_id: r.user_id, display_name: r.display_name, email: r.email || '', is_paid: r.is_paid, picks: [], total_points: 0 }
           byPlayer.set(r.user_id, pp)
         }
         pp.picks.push({
@@ -480,11 +487,22 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
       <Card>
         <CardHeader className="cursor-pointer" onClick={() => setShowAllPicks(s => !s)}>
           <CardTitle className="text-base flex items-center justify-between text-[#4B3621]">
-            <span>{showAllPicks ? '▾' : '▸'} All Picks — Week {week} ({data?.allPicks.length || 0} players)</span>
+            <span>
+              {showAllPicks ? '▾' : '▸'} All Picks — Week {week} (
+              {pickSearch ? `${filteredAllPicks.length} of ${data?.allPicks.length || 0}` : data?.allPicks.length || 0} players)
+            </span>
           </CardTitle>
         </CardHeader>
         {showAllPicks && (
           <CardContent className="p-0 overflow-x-auto">
+            <div className="px-4 py-3 border-b border-[#f0ece5]">
+              <Input
+                value={pickSearch}
+                onChange={e => setPickSearch(e.target.value)}
+                placeholder="Search by player name or email…"
+                className="max-w-sm"
+              />
+            </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-charcoal-500 border-b border-[#f0ece5]">
@@ -494,11 +512,12 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
                 </tr>
               </thead>
               <tbody>
-                {(data?.allPicks || []).map(p => (
+                {filteredAllPicks.map(p => (
                   <tr key={p.user_id} className="border-b border-[#f0ece5] last:border-0 align-top">
                     <td className="px-4 py-2 whitespace-nowrap">
                       <span className="font-medium">{p.display_name}</span>
                       {!p.is_paid && <span className="ml-2 text-xs text-[#d1495b]">unpaid</span>}
+                      <div className="text-xs text-charcoal-400">{p.email}</div>
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex flex-wrap gap-1">
@@ -508,8 +527,10 @@ export default function WeekReview({ season, initialWeek }: WeekReviewProps) {
                     <td className="px-4 py-2 text-right font-semibold tabular-nums">{p.total_points}</td>
                   </tr>
                 ))}
-                {(!data || data.allPicks.length === 0) && (
-                  <tr><td colSpan={3} className="px-4 py-6 text-center text-charcoal-400">No submitted picks for this week.</td></tr>
+                {filteredAllPicks.length === 0 && (
+                  <tr><td colSpan={3} className="px-4 py-6 text-center text-charcoal-400">
+                    {pickSearch ? 'No players match your search.' : 'No submitted picks for this week.'}
+                  </td></tr>
                 )}
               </tbody>
             </table>
