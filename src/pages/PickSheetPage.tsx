@@ -12,6 +12,7 @@ import PickSummary from '@/components/PickSummary'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Layout from '@/components/Layout'
+import { logSubmissionFailure } from '@/lib/submissionFailureLog'
 import { NotificationScheduler } from '@/services/notificationScheduler'
 import EntryStatusBanner from '@/components/EntryStatusBanner'
 
@@ -397,6 +398,7 @@ export default function PickSheetPage() {
     } catch (err: any) {
       console.error('❌ Error updating pick via direct API:', err)
       setError(err.message)
+      logSubmissionFailure('pick', currentWeek, currentSeason, err, user?.id)
     }
   }
 
@@ -531,6 +533,7 @@ export default function PickSheetPage() {
     } catch (err: any) {
       console.error('❌ Error toggling lock via direct API:', err)
       setError(err.message)
+      logSubmissionFailure('lock', currentWeek, currentSeason, err, user?.id)
     }
   }
 
@@ -583,6 +586,7 @@ export default function PickSheetPage() {
     } catch (err: any) {
       console.error('❌ Error removing pick via direct API:', err)
       setError(err.message)
+      logSubmissionFailure('remove', currentWeek, currentSeason, err, user?.id)
     }
   }
 
@@ -842,6 +846,8 @@ export default function PickSheetPage() {
     } catch (err: any) {
       console.error('❌ Error submitting picks:', err)
       setError(err.message)
+      // The player sees the red error; this line is how the COMMISSIONER does.
+      logSubmissionFailure('submit', currentWeek, currentSeason, err, user?.id)
     } finally {
       setSubmitting(false)
     }

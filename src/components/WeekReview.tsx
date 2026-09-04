@@ -251,6 +251,17 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
   const [confirmsSending, setConfirmsSending] = useState(false)
   const [confirmsNote, setConfirmsNote] = useState('')
 
+  // Players with picks in and nothing submitted. A stale pre-fix tab could
+  // tell the player "submitted" while writing nothing (see migration 221) --
+  // this is the admin-side net so complete sheets don't quietly miss the
+  // deadline.
+  const [unsubmitted, setUnsubmitted] = useState<
+    Array<{ user_id: string; display_name: string; email: string; picks: number; has_lock: boolean; complete: boolean }>
+  >([])
+  const [submitFailures, setSubmitFailures] = useState<
+    Array<{ display_name: string; email: string; stage: string; message: string; created_at: string }>
+  >([])
+
   const loadMissingConfirms = useCallback(async () => {
     if (!seasonReady) return
     const requestId = ++confirmsRequestSeq.current
@@ -258,8 +269,14 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
     setConfirmsNote('')
     try {
       const rows = await EmailService.findMissingPickConfirmations(week, season)
+      const { data: unsub } = await supabase
+        .rpc('wr_unsubmitted_entries', { p_week: week, p_season: season })
+      const { data: fails } = await supabase
+        .rpc('wr_recent_submission_failures', { p_week: week, p_season: season })
       if (requestId !== confirmsRequestSeq.current) return // superseded; drop stale response
       setMissingConfirms(rows)
+      setUnsubmitted(unsub ?? [])
+      setSubmitFailures(fails ?? [])
     } catch (err: any) {
       if (requestId !== confirmsRequestSeq.current) return
       setConfirmsNote(`Could not check: ${err?.message ?? err}`)
@@ -562,6 +579,57 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
       </Card>
 
       {/* Publish */}
+      <Card className={unsubmitted.filter(u => u.complete).length === 0 ? 'border-[#bfe3cc]' : 'border-[#f0dcb0]'}>
+        <CardContent className="p-5">
+          <div className="font-medium text-[#4B3621]">
+            {unsubmitted.length === 0
+              ? '✅ No entries stuck at "picks made but never submitted"'
+              : `⚠️ ${unsubmitted.length} ${unsubmitted.length === 1 ? 'entry has' : 'entries have'} picks in but nothing submitted`}
+          </div>
+          {unsubmitted.length > 0 && (
+            <div className="text-sm text-charcoal-600 mt-1">
+              {unsubmitted.filter(u => u.complete).length > 0 && (
+                <div className="font-medium text-[#b06a1a]">
+                  {unsubmitted.filter(u => u.complete).length} of them are COMPLETE sheets (6 picks + lock) — they
+                  almost certainly believe they submitted. Worth a nudge before the deadline.
+                </div>
+              )}
+              <div className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
+                {unsubmitted.map(u => (
+                  <div key={u.user_id} className="text-xs">
+                    <span className="font-medium text-[#4B3621]">{u.display_name}</span>
+                    <span className="text-charcoal-500 ml-2">{u.email}</span>
+                    <span className="text-charcoal-400 ml-2">{u.picks} picks{u.has_lock ? ' + lock' : ''}</span>
+                    {u.complete && <span className="ml-2 text-[#b06a1a] font-semibold">complete, unsubmitted</span>}
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs text-charcoal-500 mt-2">
+                Partial sheets are usually just players mid-week; complete ones are the worry.
+                Picks are saved either way — submitting is what enters them.
+              </div>
+            </div>
+          )}
+          {submitFailures.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-[#f0ece5] text-sm">
+              <div className="font-medium text-[#d1495b]">
+                🚨 {submitFailures.length} failed submit {submitFailures.length === 1 ? 'attempt' : 'attempts'} recorded this week
+              </div>
+              <div className="mt-1 space-y-0.5 max-h-32 overflow-y-auto">
+                {submitFailures.map((f, i) => (
+                  <div key={i} className="text-xs">
+                    <span className="font-medium text-[#4B3621]">{f.display_name}</span>
+                    <span className="text-charcoal-500 ml-2">{f.email}</span>
+                    <span className="text-charcoal-400 ml-2">{new Date(f.created_at).toLocaleString()}</span>
+                    <div className="text-charcoal-600 ml-1">{f.stage}: {f.message}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card className={missingConfirms.length === 0 ? 'border-[#bfe3cc]' : 'border-[#f0dcb0]'}>
         <CardContent className="p-5">
           <div className="flex items-start justify-between gap-4">
