@@ -261,6 +261,14 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
   const [submitFailures, setSubmitFailures] = useState<
     Array<{ display_name: string; email: string; stage: string; message: string; created_at: string }>
   >([])
+  // Pick changes made after their game kicked off or after the deadline. The
+  // audit trail deliberately ignores result/points_earned, so a scoring pass
+  // never lands here -- that ambiguity is what prompted it (migration 223).
+  const [flaggedChanges, setFlaggedChanges] = useState<
+    Array<{ display_name: string; email: string; matchup: string; change_type: string;
+            old_value: string | null; new_value: string | null; changed_at: string;
+            after_kickoff: boolean; after_deadline: boolean; by_owner: boolean }>
+  >([])
 
   const loadMissingConfirms = useCallback(async () => {
     if (!seasonReady) return
@@ -273,10 +281,13 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
         .rpc('wr_unsubmitted_entries', { p_week: week, p_season: season })
       const { data: fails } = await supabase
         .rpc('wr_recent_submission_failures', { p_week: week, p_season: season })
+      const { data: flagged } = await supabase
+        .rpc('wr_pick_change_log', { p_week: week, p_season: season, p_flagged_only: true })
       if (requestId !== confirmsRequestSeq.current) return // superseded; drop stale response
       setMissingConfirms(rows)
       setUnsubmitted(unsub ?? [])
       setSubmitFailures(fails ?? [])
+      setFlaggedChanges(flagged ?? [])
     } catch (err: any) {
       if (requestId !== confirmsRequestSeq.current) return
       setConfirmsNote(`Could not check: ${err?.message ?? err}`)
@@ -610,6 +621,30 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
               </div>
             </div>
           )}
+          {flaggedChanges.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-[#f0ece5] text-sm">
+              <div className="font-medium text-[#d1495b]">
+                🔍 {flaggedChanges.length} pick {flaggedChanges.length === 1 ? 'change' : 'changes'} after kickoff or deadline
+              </div>
+              <div className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">
+                {flaggedChanges.map((c, i) => (
+                  <div key={i} className="text-xs">
+                    <span className="font-medium text-[#4B3621]">{c.display_name}</span>
+                    <span className="text-charcoal-500 ml-2">{c.matchup}</span>
+                    <span className="ml-2">
+                      {c.change_type}
+                      {c.old_value && c.new_value && <> ({c.old_value} → {c.new_value})</>}
+                    </span>
+                    <span className="text-charcoal-400 ml-2">{new Date(c.changed_at).toLocaleString()}</span>
+                    {c.after_kickoff && <span className="ml-2 text-[#d1495b] font-semibold">after kickoff</span>}
+                    {c.after_deadline && <span className="ml-2 text-[#d1495b] font-semibold">after deadline</span>}
+                    {!c.by_owner && <span className="ml-2 text-charcoal-500">(by admin)</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {submitFailures.length > 0 && (
             <div className="mt-3 pt-3 border-t border-[#f0ece5] text-sm">
               <div className="font-medium text-[#d1495b]">
