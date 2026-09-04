@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 import { parseLeagueSafeCSV, validateLeagueSafeEntry, cleanLeagueSafeEntry } from '@/utils/csvParser'
 import { matchOrCreateUserForLeagueSafeFallback } from '@/utils/userMatchingFallback'
+import { clearAppSettingsCache } from '@/lib/season'
 
 interface UploadResult {
   totalEntries: number
@@ -39,6 +40,13 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
   const [result, setResult] = useState<UploadResult | null>(null)
   const [error, setError] = useState('')
   const [season, setSeason] = useSeasonState() // Defaults to the active season for new uploads
+  // When the register was EXPORTED from LeagueSafe -- the player-facing
+  // watermark. Download and upload happen at different times, so this is its
+  // own required field rather than an implicit "now".
+  const [downloadedAt, setDownloadedAt] = useState(() => {
+    const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    return d.toISOString().slice(0, 16)
+  })
 
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,6 +63,10 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
 
   const processUpload = async () => {
     if (!file) return
+    if (!downloadedAt || isNaN(new Date(downloadedAt).getTime())) {
+      setError('Enter when this register was downloaded from LeagueSafe — players see it as "no payment recorded as of …".')
+      return
+    }
 
     try {
       setLoading(true)
@@ -271,6 +283,17 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
         }
       }
 
+      // Stamp the watermark only when the import actually ran to completion.
+      const { error: stampError } = await supabase
+        .from('app_settings')
+        .update({ payments_synced_at: new Date(downloadedAt).toISOString() })
+        .eq('id', true)
+      if (stampError) {
+        result.warnings.push(`Import finished, but the "payments recorded through" timestamp did not save: ${stampError.message}`)
+      } else {
+        clearAppSettingsCache() // so this browser's notices pick it up immediately
+      }
+
       setResult(result)
       onUploadComplete?.(result)
 
@@ -298,7 +321,7 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
       <CardContent className="space-y-4">
         {!result ? (
           <>
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-3 gap-4">
               <div>
                 <label htmlFor="season" className="block text-sm font-medium text-charcoal-700 mb-2">
                   Season Year
@@ -311,6 +334,18 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
                   disabled={loading}
                   min={2020}
                   max={2030}
+                />
+              </div>
+              <div>
+                <label htmlFor="downloaded-at" className="block text-sm font-medium text-charcoal-700 mb-2">
+                  Register downloaded from LeagueSafe at
+                </label>
+                <Input
+                  id="downloaded-at"
+                  type="datetime-local"
+                  value={downloadedAt}
+                  onChange={(e) => setDownloadedAt(e.target.value)}
+                  disabled={loading}
                 />
               </div>
               <div>
@@ -327,7 +362,9 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
               </div>
             </div>
             <div className="text-xs text-charcoal-500">
-              Upload your LeagueSafe payment details CSV to import payment records for {season}
+              Upload your LeagueSafe payment details CSV to import payment records for {season}.
+              The download time is shown to players as "no payment recorded as of …" — use the moment the
+              file was exported from LeagueSafe, not when you're uploading it.
             </div>
 
             {file && (

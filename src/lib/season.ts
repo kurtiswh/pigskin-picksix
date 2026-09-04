@@ -16,6 +16,12 @@ export const FALLBACK_ACTIVE_SEASON = 2025
 export interface AppSettings {
   activeSeason: number
   graceWeeks: number
+  /**
+   * When the most recently imported LeagueSafe register was EXPORTED from
+   * LeagueSafe (not when it was uploaded here). Player-facing watermark:
+   * "no payment recorded as of <this>". Null until the first stamped import.
+   */
+  paymentsSyncedAt: string | null
 }
 
 let cached: AppSettings | null = null
@@ -30,7 +36,7 @@ export async function fetchAppSettings(): Promise<AppSettings> {
     try {
       const { data, error } = await supabase
         .from('app_settings')
-        .select('active_season, grace_period_weeks')
+        .select('active_season, grace_period_weeks, payments_synced_at')
         .limit(1)
         .single()
 
@@ -39,12 +45,13 @@ export async function fetchAppSettings(): Promise<AppSettings> {
       cached = {
         activeSeason: data.active_season,
         graceWeeks: data.grace_period_weeks ?? 0,
+        paymentsSyncedAt: data.payments_synced_at ?? null,
       }
       return cached
     } catch (e) {
       console.warn(`[season] Could not load app_settings, falling back to ${FALLBACK_ACTIVE_SEASON}:`, e)
       // Do NOT cache the fallback, so a later call can retry the DB.
-      return { activeSeason: FALLBACK_ACTIVE_SEASON, graceWeeks: 0 }
+      return { activeSeason: FALLBACK_ACTIVE_SEASON, graceWeeks: 0, paymentsSyncedAt: null }
     } finally {
       inflight = null
     }
@@ -70,4 +77,25 @@ export function getActiveSeasonSync(): number {
 export function clearAppSettingsCache(): void {
   cached = null
   inflight = null
+}
+
+/**
+ * The payment watermark, formatted for players: "Sep 4, 7:45 AM CT".
+ * Null when no import has stamped a download time yet -- callers hide the
+ * "as of" clause entirely in that case rather than invent a date.
+ */
+export async function getPaymentsSyncedAtLabel(): Promise<string | null> {
+  const { paymentsSyncedAt } = await fetchAppSettings()
+  return formatSyncedAt(paymentsSyncedAt)
+}
+
+export function formatSyncedAt(iso: string | null): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return null
+  const label = d.toLocaleString('en-US', {
+    timeZone: 'America/Chicago',
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
+  return `${label} CT`
 }

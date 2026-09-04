@@ -46,3 +46,7 @@ export const RULES_PDF_PATH = '/rules/pigskin-pick-six-2026-rules.pdf'
 
 /** Where players should write when a payment or email match looks wrong. */
 export const ADMIN_EMAIL = 'admin@pigskinpicksix.com'
+
+/** Copy constants for the payment notices, so every surface says the same thing. */
+export const ENTRY_FEE_LABEL = '$40'
+export const PICK_DEADLINE_LABEL = 'Saturday 11:00 AM CT'

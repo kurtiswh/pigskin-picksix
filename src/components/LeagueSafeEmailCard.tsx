@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { EmailClaimService, LinkedEmail, MyPaymentStatus } from '@/services/emailClaimService'
 import { ADMIN_EMAIL, ENTRY_FEE, LEAGUESAFE_ACCOUNT_URL, LEAGUESAFE_JOIN_URL, LEAGUESAFE_PAY_URL } from '@/lib/league'
+import { usePaymentsSyncedAt } from '@/hooks/usePaymentsSyncedAt'
 
 interface Props {
   accountEmail: string
@@ -28,6 +29,7 @@ interface Props {
  * is only for addresses we don't already know about.
  */
 export default function LeagueSafeEmailCard({ accountEmail, activeSeason, onLinked }: Props) {
+  const paymentsSyncedAt = usePaymentsSyncedAt()
   const [emails, setEmails] = useState<LinkedEmail[]>([])
   const [status, setStatus] = useState<MyPaymentStatus | null>(null)
 
@@ -228,21 +230,50 @@ export default function LeagueSafeEmailCard({ accountEmail, activeSeason, onLink
               {status.matched_email && <>Matched to <b>{status.matched_email}</b>. </>}
               {!status.linked && (
                 <>It's still being attached to this account — you're clear to submit picks in the
-                meantime.</>
+                meantime. </>
+              )}
+              {paymentsSyncedAt && (
+                <span className="block text-xs text-charcoal-500 mt-1">
+                  Reflects the LeagueSafe register as of <span className="tabular-nums">{paymentsSyncedAt}</span>.
+                </span>
               )}
             </p>
           ) : (
-            <p className="text-sm text-charcoal-700">
-              Your {activeSeason} entry shows as <b>{status.payment_status}</b>. It'll clear once
-              LeagueSafe settles up.
-            </p>
+            <div className="text-sm text-charcoal-700 space-y-2">
+              <p>
+                <b className="text-[#b06a1a]">
+                  {activeSeason} entry · No payment recorded
+                  {paymentsSyncedAt && <> as of <span className="tabular-nums whitespace-nowrap">{paymentsSyncedAt}</span></>}
+                </b>
+              </p>
+              <p>
+                <b>If LeagueSafe shows you paid, you're good</b> — we import the register by hand and expect
+                updates before next week's results. If your receipt is under another email, add it below and
+                we'll match you.
+              </p>
+              <p>
+                <b>Haven't paid?</b>{' '}
+                <a href={LEAGUESAFE_PAY_URL} target="_blank" rel="noopener noreferrer" className="underline font-semibold text-pigskin-700">
+                  Make your {activeSeason} payment on LeagueSafe
+                </a>.
+              </p>
+            </div>
           )
         ) : (
           <div className="space-y-3">
-            <p className="text-sm text-charcoal-700">
-              We don't see a {activeSeason} payment for you yet. If you already paid, it may just be
-              under a different email — add it below.
-            </p>
+            <div className="text-sm text-charcoal-700 space-y-1.5">
+              <p>
+                <b className="text-[#b06a1a]">
+                  We don't see a {activeSeason} payment for you
+                  {paymentsSyncedAt && <> in the register as of <span className="tabular-nums whitespace-nowrap">{paymentsSyncedAt}</span></>}.
+                </b>
+              </p>
+              <p>
+                <b>If LeagueSafe shows you paid, you're good</b> — we import the register by hand and expect
+                updates before next week's results. Your receipt may be under a different email — add it below
+                and we'll match you automatically.
+              </p>
+            </div>
             <div>
               <a href={LEAGUESAFE_JOIN_URL} target="_blank" rel="noopener noreferrer" className="block">
                 <Button type="button" className="w-full">Pay your ${ENTRY_FEE} entry on LeagueSafe</Button>

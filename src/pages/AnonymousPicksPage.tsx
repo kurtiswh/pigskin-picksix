@@ -12,7 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { NotificationScheduler } from '@/services/notificationScheduler'
 import { EmailService } from '@/services/emailService'
 import { EmailClaimService, PlayerLookup } from '@/services/emailClaimService'
-import { LEAGUESAFE_ACCOUNT_URL } from '@/lib/league'
+import { LEAGUESAFE_ACCOUNT_URL, LEAGUESAFE_JOIN_URL, ENTRY_FEE_LABEL } from '@/lib/league'
+import { usePaymentsSyncedAt } from '@/hooks/usePaymentsSyncedAt'
 import Layout from '@/components/Layout'
 
 interface AnonymousPick {
@@ -22,6 +23,7 @@ interface AnonymousPick {
 }
 
 export default function AnonymousPicksPage() {
+  const paymentsSyncedAt = usePaymentsSyncedAt()
   // ⚠️ HARD INVARIANT (Part B / B3): this page must NEVER load or display a
   // visitor's previously-submitted picks. `picks` below always starts empty and
   // is only ever populated by the current in-session selections. Do not add a
@@ -503,26 +505,34 @@ export default function AnonymousPicksPage() {
                 {isValidated === true && (
                   <p className="text-[#1f7a44] text-sm mt-1">
                     {lookup?.paid
-                      ? `✅ Found you${lookup.display_name ? `, ${lookup.display_name}` : ''} — your ${currentSeason} entry is paid. You're good to submit.`
+                      ? `✅ Found you${lookup.display_name ? `, ${lookup.display_name}` : ''} — you're paid for ${currentSeason}. You're good; go make your picks.`
                       : lookup?.payment_status
                         ? `✅ Found you${lookup.display_name ? `, ${lookup.display_name}` : ''} — your ${currentSeason} entry shows as ${lookup.payment_status}.`
                         : `✅ Email validated — you're in our system. We don't see a ${currentSeason} payment yet, so your picks will be confirmed once it lands.`}
                   </p>
                 )}
                 {isValidated === false && email.trim() && (
-                  <p className="text-[#b06a1a] text-sm mt-1">
-                    ⚠️ Email not found - picks will require manual verification by admins and won't
-                    show in the leaderboard until reviewed and confirmed. If you paid on LeagueSafe
-                    under a different address, use that one here — you can look it up in{' '}
-                    <a
-                      href={LEAGUESAFE_ACCOUNT_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline font-semibold text-pigskin-700"
-                    >
-                      your LeagueSafe account settings
-                    </a>.
-                  </p>
+                  <div className="text-[#5c4a24] text-sm mt-1 rounded-lg border border-[#f0dcb0] bg-[#fff8ea] px-4 py-3 space-y-1.5">
+                    <div className="font-bold text-[#b06a1a]">
+                      We show no payment for that email
+                      {paymentsSyncedAt && <> as of <span className="tabular-nums whitespace-nowrap">{paymentsSyncedAt}</span></>}
+                      {' '}— the last time we pulled the LeagueSafe register. We import it by hand, so there's a lag.
+                    </div>
+                    <div><b>Submit your picks now either way</b> — picks are matched to payments afterward, and the deadline doesn't wait.</div>
+                    <div>
+                      <b>If LeagueSafe shows you paid, you're good.</b> You'll get full credit; we expect statuses
+                      updated before next week's results go out. Tip: try the email on your LeagueSafe receipt — it's in{' '}
+                      <a href={LEAGUESAFE_ACCOUNT_URL} target="_blank" rel="noopener noreferrer" className="underline font-semibold text-pigskin-700">
+                        your LeagueSafe account settings
+                      </a>.
+                    </div>
+                    <div>
+                      <b>Haven't paid?</b>{' '}
+                      <a href={LEAGUESAFE_JOIN_URL} target="_blank" rel="noopener noreferrer" className="underline font-semibold text-pigskin-700">
+                        Join on LeagueSafe
+                      </a>{' '}— {ENTRY_FEE_LABEL}.
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

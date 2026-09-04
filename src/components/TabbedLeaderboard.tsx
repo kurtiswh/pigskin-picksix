@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { usePaymentsSyncedAt } from '@/hooks/usePaymentsSyncedAt'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -20,6 +21,7 @@ import WinnersDisplay from '@/components/WinnersDisplay'
 import { ENTRY_FEE, LEAGUESAFE_JOIN_URL } from '@/lib/league'
 
 export default function TabbedLeaderboard() {
+  const paymentsSyncedAt = usePaymentsSyncedAt()
   const { user } = useAuth()
   const { activeSeason, loading: seasonLoading } = useCurrentSeason()
   const [season, setSeason] = useState(activeSeason)
@@ -438,6 +440,16 @@ export default function TabbedLeaderboard() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-pigskin-600">Leaderboard</h1>
         
+        {/* Payment watermark — pre-answers "why does it say I'm unpaid?" */}
+        {paymentsSyncedAt && (
+          <div className="mt-4 px-4 py-2.5 border rounded-lg bg-[#faf8f4] border-[#e7e2da] text-sm text-charcoal-700">
+            💳 Payment status reflects the LeagueSafe register as of{' '}
+            <b className="tabular-nums whitespace-nowrap">{paymentsSyncedAt}</b> — we import it by hand, and expect
+            updates before next week's results. If LeagueSafe shows you paid, you're good and will get full credit.
+            Unpaid entries come off the board when the grace period ends.
+          </div>
+        )}
+
         {/* Dynamic Notice Banner */}
         {(() => {
           // Nothing to say until we know which season state we're in. Without

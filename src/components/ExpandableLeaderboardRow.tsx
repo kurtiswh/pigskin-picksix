@@ -133,9 +133,13 @@ export function LeaderboardRowContent({
     // Only show payment indicators for unpaid users
     if (!paymentStatus || paymentStatus === 'Paid') return null
     
+    // "payment pending*" for both non-Paid states: it describes the state of
+    // OUR register (imported by hand, see the watermark note above the table),
+    // not the player's character. The red "Payment Due" treatment made people
+    // who had already paid feel called out in public.
     const badges = {
-      'Pending': { text: 'Payment Pending', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-      'NotPaid': { text: 'Payment Due', className: 'bg-red-100 text-red-700 border-red-200' }
+      'Pending': { text: 'payment pending*', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+      'NotPaid': { text: 'payment pending*', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' }
     }
     
     const badge = badges[paymentStatus]
