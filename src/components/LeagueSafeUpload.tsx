@@ -74,21 +74,32 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
       console.log(`🔍 Checking existing LeagueSafe payments for season ${season}`)
       const { data: existingPayments, error: fetchError } = await supabase
         .from('leaguesafe_payments')
-        .select('leaguesafe_email, user_id, status, leaguesafe_owner_name')
+        .select('id, leaguesafe_email, user_id, status, leaguesafe_owner_name')
         .eq('season', season)
+        .limit(5000)
 
       if (fetchError) {
         console.warn('Failed to fetch existing payments:', fetchError)
         // Continue anyway with empty set
       }
 
+      // Two indexes, both kept current as the loop inserts. The table's real
+      // uniqueness is (user_id, season) -- "unique_user_season" -- not email:
+      // a register can carry the same person twice (second entries) or under a
+      // new address, and a map built once by email alone sent those straight
+      // into INSERT, where 25 rows died on the constraint mid-upload.
       const existingByEmail = new Map<string, any>()
+      const existingByUserId = new Map<string, any>()
+      const indexPayment = (payment: any) => {
+        if (payment.leaguesafe_email) {
+          existingByEmail.set(payment.leaguesafe_email.toLowerCase(), payment)
+        }
+        if (payment.user_id) {
+          existingByUserId.set(payment.user_id, payment)
+        }
+      }
       if (existingPayments) {
-        existingPayments.forEach(payment => {
-          if (payment.leaguesafe_email) {
-            existingByEmail.set(payment.leaguesafe_email.toLowerCase(), payment)
-          }
-        })
+        existingPayments.forEach(indexPayment)
         console.log(`📊 Found ${existingPayments.length} existing payments for season ${season}`)
       }
 
@@ -144,8 +155,11 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
             result.newUsers++
           }
 
-          // Check if payment already exists for this email/season
+          // Look up by email first, then by the matched user: the constraint
+          // is per user, so a second entry or a changed address must land on
+          // the same row, not a doomed INSERT.
           const existingPayment = existingByEmail.get(email)
+            || (userId ? existingByUserId.get(userId) : undefined)
           const paymentData = {
             user_id: userId || null, // Allow null user_id if user matching failed
             season,
@@ -161,10 +175,18 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
           }
 
           if (existingPayment) {
-            // Check if data has changed
+            // A register with two lines for one player (a second entry) must
+            // not let a NotPaid line stomp the Paid one -- keep Paid sticky.
+            if (existingPayment.status === 'Paid' && status !== 'Paid') {
+              console.log(`⏭️ Keeping Paid for ${email} (${name}); ${status} line ignored`)
+              result.warnings.push(`${name} <${email}>: kept existing Paid row; a ${status} line in this file was ignored (multiple entries)`)
+              result.skippedDuplicates++
+              action = 'skipped'
+            } else {
             const hasChanges = (
               existingPayment.status !== status ||
               existingPayment.leaguesafe_owner_name !== name ||
+              existingPayment.leaguesafe_email !== email ||
               existingPayment.user_id !== userId
             )
 
@@ -173,13 +195,14 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
               result.skippedDuplicates++
               action = 'skipped'
             } else {
-              // Update existing payment
+              // Update by primary key: when the row was found via user_id its
+              // stored email differs from this line, and a season+email filter
+              // would match zero rows -- which PostgREST reports as success.
               console.log(`🔄 Updating existing payment for ${email} (${name})`)
               const { error: updateError } = await supabase
                 .from('leaguesafe_payments')
                 .update(paymentData)
-                .eq('season', season)
-                .eq('leaguesafe_email', email)
+                .eq('id', existingPayment.id)
 
               if (updateError) {
                 console.error(`❌ Failed to update payment record for ${email}:`, updateError)
@@ -188,8 +211,10 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
               }
 
               console.log(`✅ Updated payment record for ${email}`)
+              indexPayment({ ...existingPayment, ...paymentData })
               result.updatedPayments++
               action = 'updated'
+            }
             }
           } else {
             // Create new payment record
@@ -212,6 +237,14 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
             
             console.log(`✅ Created payment record for ${email}`)
             result.newPayments++
+            // Index the new row so a later line for the same person in this
+            // same file updates it instead of re-INSERTing into the
+            // unique_user_season constraint.
+            const { data: createdRows } = await supabase
+              .from('leaguesafe_payments')
+              .select('id, leaguesafe_email, user_id, status, leaguesafe_owner_name')
+              .eq('season', season).eq('leaguesafe_email', email).limit(1)
+            if (createdRows && createdRows[0]) indexPayment(createdRows[0])
           }
 
           if (status === 'Paid') {
