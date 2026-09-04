@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@2.0.0'
+import { renderJobPayload, type RenderContext } from '../_shared/renderJob.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,7 +13,8 @@ interface EmailJob {
   id: string
   email: string
   subject: string
-  html_content: string
+  html_content: string | null
+  payload: Record<string, unknown>
   scheduled_for: string
   template_type: string
   status: string
@@ -136,13 +138,18 @@ serve(async (req) => {
       try {
         console.log(`📤 Sending reminder email ${email.id} to ${email.email}`)
         
-        // Send email via Resend
+        // Render server-side from the payload. These jobs are queued with
+        // html_content NULL on purpose (the server owns the content), so the
+        // old `email.html_content.replace(...)` threw on every single one --
+        // which is why no reminder had ever actually sent.
+        const rendered = renderJobPayload(email.template_type, email.payload, {} as RenderContext)
+
         const emailData = {
           from: 'Pigskin Pick Six <admin@pigskinpicksix.com>',
           to: [email.email],
-          subject: email.subject,
-          html: email.html_content,
-          text: email.html_content.replace(/<[^>]*>/g, ''), // Strip HTML for text fallback
+          subject: rendered.subject || email.subject,
+          html: rendered.html,
+          text: rendered.text,
         }
 
         const result = await resend.emails.send(emailData)
