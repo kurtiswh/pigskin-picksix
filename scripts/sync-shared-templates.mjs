@@ -35,6 +35,7 @@ const FILES = [
   'deadlineAlert.ts',
   'weekOpened.ts',
   'weeklyResults.ts',
+  'picksUnsubmitted.ts',
 ]
 
 const HEADER = `// GENERATED FILE — DO NOT EDIT.

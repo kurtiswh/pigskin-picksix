@@ -59,7 +59,7 @@ serve(async (req) => {
       .from('email_jobs')
       .select('*')
       .eq('status', 'pending')
-      .in('template_type', ['pick_reminder', 'deadline_alert'])
+      .in('template_type', ['pick_reminder', 'deadline_alert', 'picks_unsubmitted'])
       .lte('scheduled_for', now.toISOString())
       .gte('scheduled_for', staleFloor.toISOString())
       .order('scheduled_for', { ascending: true })
@@ -91,7 +91,48 @@ serve(async (req) => {
     let errors = 0
 
     // Process each due email
-    for (const email of dueEmails) {
+    // Re-check submission at SEND time, not just queue time. Cancel-on-submit
+    // covers the normal path, but a submit that bypassed it (an admin edit, a
+    // direct API call) would otherwise still trigger "your picks aren't in".
+    const candidates = dueEmails ?? []
+    const reminderish = candidates.filter(j =>
+      ['pick_reminder', 'deadline_alert', 'picks_unsubmitted'].includes(j.template_type))
+    const skipIds = new Set<string>()
+    for (const j of reminderish) {
+      if (!j.user_id || j.week == null || j.season == null) continue
+      const { data: sub } = await supabase
+        .from('picks')
+        .select('id')
+        .eq('user_id', j.user_id).eq('week', j.week).eq('season', j.season)
+        .eq('submitted', true)
+        .limit(1)
+      if (sub && sub.length > 0) {
+        skipIds.add(j.id)
+        await supabase.from('email_jobs').update({ status: 'cancelled' }).eq('id', j.id)
+        console.log(`⏭️ Skipping ${j.template_type} for ${j.email} — already submitted`)
+        continue
+      }
+
+      // "Picks due soon" goes to paid entries only, re-checked HERE rather than
+      // trusting the queue-time audience: a register re-upload can flip someone
+      // to NotPaid after their job was queued. picks_unsubmitted is deliberately
+      // exempt -- picks count during the grace period regardless of payment, and
+      // that email never mentions money.
+      if (j.template_type === 'pick_reminder' || j.template_type === 'deadline_alert') {
+        const { data: paid } = await supabase
+          .from('leaguesafe_payments')
+          .select('id')
+          .eq('user_id', j.user_id).eq('season', j.season).eq('status', 'Paid')
+          .limit(1)
+        if (!paid || paid.length === 0) {
+          skipIds.add(j.id)
+          await supabase.from('email_jobs').update({ status: 'cancelled' }).eq('id', j.id)
+          console.log(`⏭️ Skipping ${j.template_type} for ${j.email} — not marked paid`)
+        }
+      }
+    }
+
+    for (const email of (dueEmails ?? []).filter(j => !skipIds.has(j.id))) {
       try {
         console.log(`📤 Sending reminder email ${email.id} to ${email.email}`)
         

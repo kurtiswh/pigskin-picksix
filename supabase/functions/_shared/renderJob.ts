@@ -27,6 +27,11 @@ import {
   getPickReminderSubject, getPickReminderHtml, getPickReminderText,
 } from './templates/pickReminder.ts'
 import {
+  getPicksUnsubmittedSubject,
+  getPicksUnsubmittedHtml,
+  getPicksUnsubmittedText,
+} from './templates/picksUnsubmitted.ts'
+import {
   getDeadlineAlertSubject, getDeadlineAlertHtml, getDeadlineAlertText,
 } from './templates/deadlineAlert.ts'
 import {
@@ -237,6 +242,23 @@ export function renderJobPayload(
     // The week batches an admin triggers when a week opens or closes. All four
     // carry a raw `deadline` timestamp rather than a formatted string, so the
     // date is rendered in one place instead of by whichever browser queued it.
+    case 'picks_unsubmitted': {
+      const raw = payload as Record<string, unknown>
+      const data = {
+        userDisplayName: String(raw.userDisplayName || 'there'),
+        week: Number(raw.week), season: Number(raw.season), baseUrl: SITE_URL,
+        deadlineStr: formatDeadline(raw.deadline as string) ?? '',
+        tier: (String(raw.tier || 'partial') as 'complete' | 'no_lock' | 'partial'),
+        pickCount: Number(raw.pickCount ?? 0),
+        picks: Array.isArray(raw.picks) ? (raw.picks as any[]) : [],
+      }
+      return {
+        subject: getPicksUnsubmittedSubject(data),
+        html: getPicksUnsubmittedHtml(data),
+        text: getPicksUnsubmittedText(data),
+      }
+    }
+
     case 'pick_reminder': {
       const raw = payload as WeekEmailPayload
       const data = {

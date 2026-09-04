@@ -1,0 +1,47 @@
+name: Process Email Reminders
+
+# Sends queued reminder / deadline-alert / picks-unsubmitted emails.
+#
+# This workflow did not exist, which is why 2,172 reminder jobs for week 1 of
+# 2026 sat pending and nothing ever went out: queue_pick_reminders was writing
+# rows that no scheduler ever drained. Every 15 minutes is well inside the
+# 6-hour staleness floor in the function, so a job queued for a given time
+# sends within a quarter hour of it.
+#
+# The function itself re-checks, per job, that the player still hasn't
+# submitted (and, for "picks due soon", that they're still marked paid), so a
+# frequent schedule cannot spam people whose situation changed after queueing.
+
+on:
+  schedule:
+    # Every 15 minutes, Thursday through Sunday UTC — the window that covers
+    # Thursday-night kickoffs through the Sunday morning wrap-up.
+    - cron: '*/15 * * * 4,5,6,0'
+    # Hourly the rest of the week, so mid-week queues still drain.
+    - cron: '0 * * * 1,2,3'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call process-reminders Edge Function
+        run: |
+          echo "📧 Processing due reminder emails..."
+          code=$(curl -s -o /tmp/out.json -w "%{http_code}" -X POST \
+            "https://zgdaqbnpgrabbnljmiqy.supabase.co/functions/v1/process-reminders" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          echo "HTTP $code"
+          cat /tmp/out.json
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::process-reminders returned HTTP $code"
+            exit 1
+          fi
