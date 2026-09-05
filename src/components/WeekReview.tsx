@@ -624,7 +624,7 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
           {flaggedChanges.length > 0 && (
             <div className="mt-3 pt-3 border-t border-[#f0ece5] text-sm">
               <div className="font-medium text-[#d1495b]">
-                🔍 {flaggedChanges.length} pick {flaggedChanges.length === 1 ? 'change' : 'changes'} after kickoff or deadline
+                🔍 {flaggedChanges.length} pick {flaggedChanges.length === 1 ? 'change' : 'changes'} after that game's lock
               </div>
               <div className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">
                 {flaggedChanges.map((c, i) => (
@@ -636,7 +636,7 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
                       {c.old_value && c.new_value && <> ({c.old_value} → {c.new_value})</>}
                     </span>
                     <span className="text-charcoal-400 ml-2">{new Date(c.changed_at).toLocaleString()}</span>
-                    {c.after_kickoff && <span className="ml-2 text-[#d1495b] font-semibold">after kickoff</span>}
+                    {c.after_kickoff && <span className="ml-2 text-[#d1495b] font-semibold">after that game locked</span>}
                     {c.after_deadline && <span className="ml-2 text-[#d1495b] font-semibold">after deadline</span>}
                     {!c.by_owner && <span className="ml-2 text-charcoal-500">(by admin)</span>}
                   </div>
