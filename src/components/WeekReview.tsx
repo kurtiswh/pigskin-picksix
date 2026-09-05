@@ -268,7 +268,7 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
     Array<{ display_name: string; email: string; matchup: string; change_type: string;
             old_value: string | null; new_value: string | null; changed_at: string;
             after_kickoff: boolean; after_deadline: boolean; by_owner: boolean;
-            blocks_submission: boolean }>
+            blocks_submission: boolean; was_submitted: boolean }>
   >([])
 
   const loadMissingConfirms = useCallback(async () => {
@@ -641,6 +641,9 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
                 </span>
                 <span className="text-charcoal-400 ml-2">{new Date(c.changed_at).toLocaleString()}</span>
                 {c.after_deadline && <span className="ml-2 text-[#d1495b] font-semibold">after deadline</span>}
+                <span className={`ml-2 ${c.was_submitted ? 'text-[#d1495b] font-semibold' : 'text-charcoal-500'}`}>
+                  {c.was_submitted ? 'sheet was SUBMITTED' : 'sheet not submitted yet'}
+                </span>
                 {!c.by_owner && <span className="ml-2 text-charcoal-500">(commissioner correction)</span>}
               </div>
             )
@@ -652,18 +655,18 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
                       🚩 {violations.length} pick {violations.length === 1 ? 'change' : 'changes'} after that game locked, still in the sheet
                     </div>
                     <div className="text-xs text-charcoal-600 mb-1">
-                      These would be rejected on submit today. Worth a look.
+                      The sheet was already submitted when this happened, so the pick was a live entry — not a draft.
                     </div>
                     <div className="space-y-0.5 max-h-32 overflow-y-auto">{violations.map(row)}</div>
                   </>
                 ) : (
-                  <div className="font-medium text-[#1f7a44]">✅ No post-lock changes affecting a submitted sheet</div>
+                  <div className="font-medium text-[#1f7a44]">✅ No post-lock changes to an already-submitted sheet</div>
                 )}
 
                 {context.length > 0 && (
                   <details className="mt-2">
                     <summary className="cursor-pointer text-xs text-charcoal-500">
-                      {context.length} other post-lock {context.length === 1 ? 'entry' : 'entries'} — removed picks and commissioner corrections (not violations)
+                      {context.length} other post-lock {context.length === 1 ? 'entry' : 'entries'} — sheets that were never submitted at the time, plus commissioner corrections (not violations)
                     </summary>
                     <div className="mt-1 space-y-0.5 max-h-32 overflow-y-auto">{context.map(row)}</div>
                   </details>
