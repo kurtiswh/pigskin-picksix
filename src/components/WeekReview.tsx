@@ -267,7 +267,8 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
   const [flaggedChanges, setFlaggedChanges] = useState<
     Array<{ display_name: string; email: string; matchup: string; change_type: string;
             old_value: string | null; new_value: string | null; changed_at: string;
-            after_kickoff: boolean; after_deadline: boolean; by_owner: boolean }>
+            after_kickoff: boolean; after_deadline: boolean; by_owner: boolean;
+            blocks_submission: boolean }>
   >([])
 
   const loadMissingConfirms = useCallback(async () => {
@@ -621,29 +622,55 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
               </div>
             </div>
           )}
-          {flaggedChanges.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-[#f0ece5] text-sm">
-              <div className="font-medium text-[#d1495b]">
-                🔍 {flaggedChanges.length} pick {flaggedChanges.length === 1 ? 'change' : 'changes'} after that game's lock
+          {flaggedChanges.length > 0 && (() => {
+            // A post-lock change only matters if the player made it themselves
+            // AND the affected pick is still in their sheet -- the same rule
+            // validate_pick_submission uses, so this list and the submit gate
+            // can never disagree. Deleting an unsubmitted pick and choosing a
+            // still-open game is legitimate, and a commissioner correction is
+            // the fix rather than the finding.
+            const violations = flaggedChanges.filter(c => c.blocks_submission)
+            const context = flaggedChanges.filter(c => !c.blocks_submission)
+            const row = (c: typeof flaggedChanges[number], i: number) => (
+              <div key={i} className="text-xs">
+                <span className="font-medium text-[#4B3621]">{c.display_name}</span>
+                <span className="text-charcoal-500 ml-2">{c.matchup}</span>
+                <span className="ml-2">
+                  {c.change_type}
+                  {c.old_value && c.new_value && <> ({c.old_value} → {c.new_value})</>}
+                </span>
+                <span className="text-charcoal-400 ml-2">{new Date(c.changed_at).toLocaleString()}</span>
+                {c.after_deadline && <span className="ml-2 text-[#d1495b] font-semibold">after deadline</span>}
+                {!c.by_owner && <span className="ml-2 text-charcoal-500">(commissioner correction)</span>}
               </div>
-              <div className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">
-                {flaggedChanges.map((c, i) => (
-                  <div key={i} className="text-xs">
-                    <span className="font-medium text-[#4B3621]">{c.display_name}</span>
-                    <span className="text-charcoal-500 ml-2">{c.matchup}</span>
-                    <span className="ml-2">
-                      {c.change_type}
-                      {c.old_value && c.new_value && <> ({c.old_value} → {c.new_value})</>}
-                    </span>
-                    <span className="text-charcoal-400 ml-2">{new Date(c.changed_at).toLocaleString()}</span>
-                    {c.after_kickoff && <span className="ml-2 text-[#d1495b] font-semibold">after that game locked</span>}
-                    {c.after_deadline && <span className="ml-2 text-[#d1495b] font-semibold">after deadline</span>}
-                    {!c.by_owner && <span className="ml-2 text-charcoal-500">(by admin)</span>}
-                  </div>
-                ))}
+            )
+            return (
+              <div className="mt-3 pt-3 border-t border-[#f0ece5] text-sm">
+                {violations.length > 0 ? (
+                  <>
+                    <div className="font-medium text-[#d1495b]">
+                      🚩 {violations.length} pick {violations.length === 1 ? 'change' : 'changes'} after that game locked, still in the sheet
+                    </div>
+                    <div className="text-xs text-charcoal-600 mb-1">
+                      These would be rejected on submit today. Worth a look.
+                    </div>
+                    <div className="space-y-0.5 max-h-32 overflow-y-auto">{violations.map(row)}</div>
+                  </>
+                ) : (
+                  <div className="font-medium text-[#1f7a44]">✅ No post-lock changes affecting a submitted sheet</div>
+                )}
+
+                {context.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-charcoal-500">
+                      {context.length} other post-lock {context.length === 1 ? 'entry' : 'entries'} — removed picks and commissioner corrections (not violations)
+                    </summary>
+                    <div className="mt-1 space-y-0.5 max-h-32 overflow-y-auto">{context.map(row)}</div>
+                  </details>
+                )}
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {submitFailures.length > 0 && (
             <div className="mt-3 pt-3 border-t border-[#f0ece5] text-sm">
