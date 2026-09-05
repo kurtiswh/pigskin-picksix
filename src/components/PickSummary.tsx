@@ -14,6 +14,32 @@ interface PickSummaryProps {
   disabled?: boolean
 }
 
+
+/**
+ * Has this game passed the point where its pick can be added or removed?
+ *
+ * League rule, matching GameCard.calculateDefaultLockTime and the database's
+ * game_effective_lock_time(): Thursday and Friday games lock at 6:00 PM CT on
+ * game day; everything else rides the Saturday deadline. CT is UTC-5 in
+ * season, so 18:00 CT is 23:00 UTC.
+ */
+function isGameLockedForPick(game: Game | undefined, deadline: Date | null, now: Date): boolean {
+  if (!game) return false
+  if (game.custom_lock_time) return now > new Date(game.custom_lock_time)
+
+  const kickoff = new Date(game.kickoff_time)
+  const inCT = (opts: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', ...opts }).format(kickoff)
+
+  const weekday = inCT({ weekday: 'short' })
+  if (weekday === 'Thu' || weekday === 'Fri') {
+    const day = inCT({ year: 'numeric', month: '2-digit', day: '2-digit' })
+    return now > new Date(`${day}T23:00:00Z`)
+  }
+
+  return deadline ? now > deadline : false
+}
+
 export default function PickSummary({ 
   picks, 
   games, 
@@ -122,7 +148,13 @@ export default function PickSummary({
                   </span>
                   <span className="flex items-center gap-2 shrink-0">
                     {resultChip(p)}
-                    {!isDeadlinePassed && !arePicksSubmitted && (
+                    {/* Also gate on THIS game's lock, not just the week
+                        deadline. Four players removed a pick on the finished
+                        Thursday game from this list and replaced it with a
+                        fresh one -- GameCard's own remove button checks the
+                        game lock, this one did not. */}
+                    {!isDeadlinePassed && !arePicksSubmitted &&
+                      !isGameLockedForPick(games.find(g => g.id === p.game_id), deadline, currentTime) && (
                       <button onClick={() => onRemovePick(p.game_id)} className="text-charcoal-300 hover:text-[#d1495b] text-base leading-none" title="Remove">×</button>
                     )}
                   </span>
