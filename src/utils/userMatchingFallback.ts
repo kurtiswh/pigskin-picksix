@@ -29,6 +29,13 @@ export async function matchOrCreateUserForLeagueSafeFallback(
       .from('users')
       .select('*')
       .or(`email.eq.${email},leaguesafe_email.eq.${email}`)
+      // Never match a merged tombstone. merge_users renames the losing
+      // account's email but historically left leaguesafe_email intact, so an
+      // import could attach a payment to a dead account -- which is how three
+      // 2026 payments landed on tombstones while the real players read as
+      // unpaid. Migration 227 neutered the existing ones; this stops the
+      // matcher re-creating the situation from any that slip through.
+      .not('email', 'like', '%\\_merged\\_%')
       .limit(1)
       .single()
 
