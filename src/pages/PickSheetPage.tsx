@@ -66,6 +66,22 @@ function describePickError(action: string, status: number, body: string): string
   return `${action} (${status}). Please reload and try again.`
 }
 
+/**
+ * Is this game past the point where its pick can still be edited?
+ *
+ * A game is closed once EITHER its lock time or its kickoff has passed. The
+ * kickoff term matters: no game carries a custom_lock_time, so the database's
+ * game_is_open_for_picks falls back to the week deadline and considers a
+ * Thursday game editable until Saturday morning.
+ */
+function isGameClosedForEditing(game: { kickoff_time: string; custom_lock_time?: string | null } | undefined): boolean {
+  if (!game) return false
+  const kickoff = new Date(game.kickoff_time)
+  const lock = game.custom_lock_time ? new Date(game.custom_lock_time) : kickoff
+  const closesAt = new Date(Math.min(kickoff.getTime(), lock.getTime()))
+  return new Date() > closesAt
+}
+
 export default function PickSheetPage() {
   const { user, signOut } = useAuth()
   const location = useLocation()
@@ -481,7 +497,29 @@ export default function PickSheetPage() {
       if (!pickToLock) return
 
       const currentLockPick = picks.find(p => p.is_lock)
-      
+
+      // Refuse to move a Lock OFF a game that has already started.
+      //
+      // GameCard disables the row of a locked game, but this path unlocks the
+      // PREVIOUSLY locked pick by id and never checked that game's clock. A
+      // player could therefore watch Thursday's result, then set their Lock on
+      // an unplayed game -- silently clearing the Lock on the finished one and
+      // effectively re-rolling it with information nobody else had. Observed in
+      // production on 2026-09-05.
+      if (currentLockPick && currentLockPick.id !== pickToLock.id) {
+        const currentLockGame = games.find(g => g.id === currentLockPick.game_id)
+        if (isGameClosedForEditing(currentLockGame)) {
+          const label = currentLockGame
+            ? `${currentLockGame.away_team} @ ${currentLockGame.home_team}`
+            : 'that game'
+          setError(
+            `Your Lock is on ${label}, which has already started — it can't be moved now. ` +
+            `Locks have to be set before the game kicks off.`
+          )
+          return
+        }
+      }
+
       // Remove lock from current lock pick if different
       if (currentLockPick && currentLockPick.id !== pickToLock.id) {
         console.log('🔓 Removing lock from previous pick via direct API...')
