@@ -105,7 +105,9 @@ export default function GameCard({
   
   const shouldShowLockTimeIndicator = isThursdayFridayGame || isCustomLockTimeDifferent
   
-  // Check if this game is locked (past its lock time)
+  // Check if this game is locked (past its lock time).
+  // Evaluated at render with no timer of its own -- PickSheetPage ticks every
+  // 20s so this re-runs and a lock engages on an open tab without a reload.
   const now = new Date()
   const isGameLocked = now > actualLockTime
 

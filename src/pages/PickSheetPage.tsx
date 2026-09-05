@@ -91,6 +91,20 @@ export default function PickSheetPage() {
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+
+  // Live clock so game locks engage without a reload.
+  //
+  // GameCard computes `new Date()` at render and has no timer of its own;
+  // PickSummary ticks but owns that state, so its updates re-render only
+  // itself. A tab left open therefore kept showing editable controls after a
+  // game locked -- how four players removed a pick on a finished game. Ticking
+  // here re-renders the whole sheet, so every card re-evaluates its lock and
+  // the deadline transition takes effect on its own.
+  const [, setClockTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setClockTick(t => t + 1), 20000)
+    return () => clearInterval(id)
+  }, [])
   const [error, setError] = useState('')
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [pendingEdit, setPendingEdit] = useState<{ gameId: string; team: string } | null>(null)
