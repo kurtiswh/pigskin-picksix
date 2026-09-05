@@ -647,6 +647,31 @@ export default function PickSheetPage() {
     
     try {
       setSubmitting(true)
+
+      // Ask the server, at the moment Submit is clicked, whether this sheet is
+      // still legal: the deadline has not passed, there are 6 picks and 1 Lock,
+      // and nothing in it was changed by this player after its own game locked.
+      // A pick on a locked game is fine to carry -- editing other games and
+      // re-submitting is the normal flow -- it just must not have been altered
+      // after that game closed. Client gating alone cannot cover a stale tab or
+      // a clock that moved while the page sat open.
+      const { data: verdict, error: verdictError } = await supabase
+        .rpc('validate_pick_submission', { p_week: currentWeek, p_season: currentSeason })
+
+      if (verdictError) {
+        console.warn('⚠️ Could not validate submission, proceeding:', verdictError.message)
+      } else if (verdict && verdict.ok === false) {
+        const messages: string[] = Array.isArray(verdict.errors) ? verdict.errors : []
+        const msg = messages.length
+          ? messages.join(' ')
+          : 'This sheet can no longer be submitted.'
+        console.warn('🚫 Submission rejected by validation:', verdict)
+        setError(msg)
+        logSubmissionFailure('submit', currentWeek, currentSeason, new Error(`validation: ${verdict.reason}`), user?.id)
+        setSubmitting(false)
+        return
+      }
+
       console.log('🚨 PICK SUBMISSION DEBUG START 🚨')
       console.log('=' .repeat(50))
       
