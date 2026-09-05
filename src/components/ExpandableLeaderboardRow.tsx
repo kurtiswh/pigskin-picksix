@@ -222,11 +222,10 @@ export function LeaderboardRowContent({
         {/* Record */}
         <div className="text-sm text-gray-500 tabular-nums">{record}</div>
 
-        {/* Lock */}
-        <div className="text-sm text-gray-500 tabular-nums flex items-center gap-1">
-          <Lock className="w-3 h-3 shrink-0" />
-          <span>{lockRecord}</span>
-        </div>
+        {/* Lock — no inline icon: the column header already reads "Lock", and
+            the icon plus its gap indented the value ~16px past every other
+            column, which is what made this column look misaligned. */}
+        <div className="text-sm text-gray-500 tabular-nums">{lockRecord}</div>
 
         {/* Points */}
         <div className="text-right font-extrabold text-[#4B3621] text-lg tabular-nums">{points}</div>
