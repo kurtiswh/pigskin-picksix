@@ -1,0 +1,227 @@
+-- Migration 236: merge_users must neuter every identity field
+--
+-- merge_users soft-deleted the absorbed account by appending '_merged_<ts>' to
+-- users.email and nothing else. leaguesafe_email and the user_emails rows
+-- stayed intact, so the dead account remained findable by every identity path
+-- except the one that was neutered -- the cause of three 2026 payments and two
+-- players' anonymous picks attaching to tombstones. Migration 227 added
+-- neuter_merged_user_identity() and cleaned up the existing rows but did not
+-- wire it in; this does, so the next merge cannot recreate the problem.
+
+CREATE OR REPLACE FUNCTION public.merge_users(p_source_user_id uuid, p_target_user_id uuid, p_merged_by_id uuid, p_merge_reason text DEFAULT NULL::text, p_conflict_resolution jsonb DEFAULT '{}'::jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+    v_result JSONB;
+    v_source_user RECORD;
+    v_picks_merged INTEGER := 0;
+    v_payments_merged INTEGER := 0;
+    v_anonymous_picks_merged INTEGER := 0;
+    v_emails_merged INTEGER := 0;
+    v_conflicts_detected BOOLEAN := FALSE;
+    v_conflict_details JSONB := '[]'::jsonb;
+BEGIN
+  PERFORM public.assert_admin_or_server();
+    -- Validate inputs
+    IF p_source_user_id = p_target_user_id THEN
+        RAISE EXCEPTION 'Cannot merge a user with itself';
+    END IF;
+    
+    -- Get source user details before deletion
+    SELECT * INTO v_source_user FROM public.users WHERE id = p_source_user_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Source user not found';
+    END IF;
+    
+    -- Check target user exists
+    IF NOT EXISTS (SELECT 1 FROM public.users WHERE id = p_target_user_id) THEN
+        RAISE EXCEPTION 'Target user not found';
+    END IF;
+    
+    -- Validate merged_by user exists if provided
+    IF p_merged_by_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.users WHERE id = p_merged_by_id) THEN
+        -- If merged_by user doesn't exist, use target user as the merger
+        p_merged_by_id := p_target_user_id;
+    END IF;
+    
+    -- Start merging data
+    
+    -- 1. Merge picks (check for conflicts)
+    WITH conflict_check AS (
+        SELECT 
+            s.week,
+            s.season,
+            COUNT(*) as conflict_count
+        FROM public.picks s
+        JOIN public.picks t ON s.week = t.week AND s.season = t.season
+        WHERE s.user_id = p_source_user_id 
+            AND t.user_id = p_target_user_id
+        GROUP BY s.week, s.season
+    )
+    SELECT COUNT(*) > 0 INTO v_conflicts_detected FROM conflict_check;
+    
+    IF v_conflicts_detected THEN
+        -- Store conflict details
+        SELECT jsonb_agg(jsonb_build_object(
+            'type', 'picks',
+            'week', week,
+            'season', season
+        )) INTO v_conflict_details
+        FROM (
+            SELECT DISTINCT s.week, s.season
+            FROM public.picks s
+            JOIN public.picks t ON s.week = t.week AND s.season = t.season
+            WHERE s.user_id = p_source_user_id 
+                AND t.user_id = p_target_user_id
+        ) conflicts;
+    END IF;
+    
+    -- Merge non-conflicting picks
+    UPDATE public.picks 
+    SET user_id = p_target_user_id,
+        updated_at = NOW()
+    WHERE user_id = p_source_user_id
+        AND NOT EXISTS (
+            SELECT 1 FROM public.picks t 
+            WHERE t.user_id = p_target_user_id 
+                AND t.week = picks.week 
+                AND t.season = picks.season
+        );
+    GET DIAGNOSTICS v_picks_merged = ROW_COUNT;
+    
+    -- 2. Merge payments
+    UPDATE public.leaguesafe_payments
+    SET user_id = p_target_user_id,
+        updated_at = NOW()
+    WHERE user_id = p_source_user_id
+        AND NOT EXISTS (
+            SELECT 1 FROM public.leaguesafe_payments t
+            WHERE t.user_id = p_target_user_id
+                AND t.season = leaguesafe_payments.season
+        );
+    GET DIAGNOSTICS v_payments_merged = ROW_COUNT;
+    
+    -- 3. Merge anonymous picks assignments
+    UPDATE public.anonymous_picks
+    SET assigned_user_id = p_target_user_id
+    WHERE assigned_user_id = p_source_user_id;
+    GET DIAGNOSTICS v_anonymous_picks_merged = ROW_COUNT;
+    
+    -- 4. Merge email addresses
+    -- First, update existing emails from source user to point to target user
+    -- This avoids the foreign key constraint issue
+    UPDATE public.user_emails
+    SET user_id = p_target_user_id,
+        email_type = CASE 
+            WHEN email_type = 'primary' THEN 'merged'
+            ELSE email_type
+        END,
+        is_primary = false,
+        is_primary_user_email = false,
+        source = COALESCE(source, 'Merged from user: ' || v_source_user.display_name),
+        source_user_id = p_source_user_id,
+        updated_at = NOW()
+    WHERE user_id = p_source_user_id
+        AND NOT EXISTS (
+            SELECT 1 FROM public.user_emails t
+            WHERE t.user_id = p_target_user_id
+                AND t.email = user_emails.email
+        );
+    GET DIAGNOSTICS v_emails_merged = ROW_COUNT;
+    
+    -- Delete duplicate emails that couldn't be moved
+    DELETE FROM public.user_emails
+    WHERE user_id = p_source_user_id;
+    
+    -- Also add the primary email from the source user if not already there
+    IF NOT EXISTS (
+        SELECT 1 FROM public.user_emails 
+        WHERE user_id = p_target_user_id 
+            AND email = v_source_user.email
+    ) THEN
+        INSERT INTO public.user_emails (
+            user_id, 
+            email, 
+            email_type, 
+            is_primary,
+            source,
+            source_user_id,
+            added_by
+        ) VALUES (
+            p_target_user_id,
+            v_source_user.email,
+            'merged',
+            false,
+            'Merged from user: ' || v_source_user.display_name,
+            p_source_user_id,
+            COALESCE(p_merged_by_id, p_target_user_id)
+        );
+        v_emails_merged := v_emails_merged + 1;
+    END IF;
+    
+    -- 6. Record the merge in history
+    INSERT INTO public.user_merge_history (
+        target_user_id,
+        source_user_id,
+        source_user_email,
+        source_user_display_name,
+        merged_by,
+        merge_type,
+        picks_merged,
+        payments_merged,
+        anonymous_picks_merged,
+        emails_merged,
+        conflicts_detected,
+        conflict_resolution,
+        merge_reason
+    ) VALUES (
+        p_target_user_id,
+        p_source_user_id,
+        v_source_user.email,
+        v_source_user.display_name,
+        COALESCE(p_merged_by_id, p_target_user_id),
+        'full',
+        v_picks_merged,
+        v_payments_merged,
+        v_anonymous_picks_merged,
+        v_emails_merged,
+        v_conflicts_detected,
+        CASE 
+            WHEN v_conflicts_detected THEN 
+                jsonb_build_object(
+                    'conflicts', v_conflict_details,
+                    'resolution', p_conflict_resolution
+                )
+            ELSE NULL
+        END,
+        p_merge_reason
+    );
+    
+    -- 7. Delete or deactivate the source user
+    -- We'll soft delete by marking as merged
+    -- Neuter EVERY identity field, not just users.email. Leaving
+    -- leaguesafe_email and user_emails intact kept the absorbed account
+    -- findable by the LeagueSafe importer and the auto-tie, which is how
+    -- three 2026 payments and two players' anonymous picks landed on dead
+    -- accounts (see migrations 227 and 233).
+    PERFORM public.neuter_merged_user_identity(p_source_user_id);
+    
+    -- Build result
+    v_result := jsonb_build_object(
+        'success', true,
+        'picks_merged', v_picks_merged,
+        'payments_merged', v_payments_merged,
+        'anonymous_picks_merged', v_anonymous_picks_merged,
+        'emails_merged', v_emails_merged,
+        'conflicts_detected', v_conflicts_detected,
+        'conflict_details', v_conflict_details
+    );
+    
+    RETURN v_result;
+END;
+$function$
+
+;
