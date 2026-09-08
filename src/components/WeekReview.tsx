@@ -63,6 +63,30 @@ interface PlayerPicks {
   user_id: string; display_name: string; email: string; is_paid: boolean
   picks: PickCell[]; total_points: number
 }
+/**
+ * One pick sheet on file for a player this week. See migration 238: counting is
+ * per pick, not per sheet, because show_on_leaderboard is a per-pick flag and a
+ * legal six can be built across two submissions with it.
+ */
+interface PickSetEntry {
+  user_id: string; display_name: string; account_email: string
+  source: string; set_label: string
+  pick_count: number; counted_picks: number
+  lock_count: number; counted_locks: number
+  is_submitted: boolean; disqualified_count: number
+  points: number; counted_points: number
+  last_submitted_at: string | null
+  counts_for_leaderboard: boolean
+}
+interface MultiSetPlayer {
+  user_id: string; display_name: string; account_email: string
+  sets: PickSetEntry[]
+  /** sheets contributing at least one counted pick */
+  sheetsCounting: number
+  countedPicks: number
+  countedLocks: number
+  countedPoints: number
+}
 
 interface ReviewData {
   games: GameRow[]
@@ -71,6 +95,7 @@ interface ReviewData {
   unscoredCount: number
   discrepancies: Discrepancy[]
   anonUnresolved: AnonEntry[]
+  multiSets: PickSetEntry[]
   overpickDetail: OverpickEntry[]
   unpaidList: UnpaidEntry[]
   allPicks: PlayerPicks[]
@@ -135,12 +160,13 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
     setLoading(true)
     setError('')
     try {
-      const [gamesRes, discRes, anonRes, overRes, unpaidRes, allRes, wsRes] = await Promise.all([
+      const [gamesRes, discRes, anonRes, setsRes, overRes, unpaidRes, allRes, wsRes] = await Promise.all([
         supabase.from('games')
           .select('id, home_team, away_team, status, home_score, away_score, spread, winner_against_spread, margin_bonus')
           .eq('season', season).eq('week', week),
         supabase.from('scoring_discrepancies').select('kind, label, issue').eq('season', season).eq('week', week),
         supabase.rpc('wr_anonymous_unmatched', { p_week: week, p_season: season }),
+        supabase.rpc('wr_multiple_pick_sets', { p_week: week, p_season: season }),
         supabase.rpc('detect_overpick_entries', { p_week: week, p_season: season }),
         supabase.rpc('wr_unpaid_submitters', { p_week: week, p_season: season }),
         fetchAllPicksPaged(week, season).then(rows => ({ data: rows, error: null })),
@@ -184,6 +210,7 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
         unscoredCount: completed.length - scored.length,
         discrepancies: (discRes.data as any[]) || [],
         anonUnresolved: (anonRes.data as any[]) || [],
+        multiSets: (setsRes.data as any[]) || [],
         overpickDetail: (overRes.data as any[]) || [],
         unpaidList: (unpaidRes.data as any[]) || [],
         allPicks,
@@ -356,7 +383,30 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
   }
 
   const scoringClean = !!data && data.completedGames > 0 && data.unscoredCount === 0 && data.discrepancies.length === 0
-  const hasWarnings = !!data && (data.anonUnresolved.length > 0 || data.overpickDetail.length > 0)
+
+  // One block per player holding more than one sheet. The totals are what the
+  // standings actually score for them, summed across every sheet: over six
+  // picks or more than one lock is a fault, six drawn from two sheets is not.
+  const multiSetPlayers: MultiSetPlayer[] = Array.from(
+    (data?.multiSets || []).reduce((m, r) => {
+      const g = m.get(r.user_id) ?? {
+        user_id: r.user_id, display_name: r.display_name, account_email: r.account_email,
+        sets: [], sheetsCounting: 0, countedPicks: 0, countedLocks: 0, countedPoints: 0,
+      }
+      g.sets.push(r)
+      if (r.counted_picks > 0) g.sheetsCounting++
+      g.countedPicks += r.counted_picks
+      g.countedLocks += r.counted_locks
+      g.countedPoints += r.counted_points
+      m.set(r.user_id, g)
+      return m
+    }, new Map<string, MultiSetPlayer>()).values()
+  ).sort((a, b) => b.sets.length - a.sets.length || a.display_name.localeCompare(b.display_name))
+  const faultySets = multiSetPlayers.filter(p => p.countedPicks > 6 || p.countedLocks > 1)
+  const splitSets = multiSetPlayers.filter(p => p.sheetsCounting > 1 && !faultySets.includes(p))
+  const multiSetIds = new Set(multiSetPlayers.map(p => p.user_id))
+
+  const hasWarnings = !!data && (data.anonUnresolved.length > 0 || data.overpickDetail.length > 0 || faultySets.length > 0)
 
   return (
     <div className="space-y-6">
@@ -467,6 +517,24 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
         </ExpandRow>
 
         <ExpandRow
+          k="sets" open={!!open.sets} onToggle={() => toggle('sets')}
+          state={loading ? 'loading' : multiSetPlayers.length === 0 ? 'ok' : faultySets.length > 0 ? 'warn' : 'info'}
+          title="Duplicate pick sets"
+          detail="Players with more than one sheet on file for this week."
+          pill={data
+            ? multiSetPlayers.length === 0
+              ? 'None'
+              : faultySets.length > 0
+                ? `${faultySets.length} to fix`
+                : `${multiSetPlayers.length} ${multiSetPlayers.length === 1 ? 'player' : 'players'}`
+            : ''}
+        >
+          {multiSetPlayers.length === 0
+            ? <p className="text-sm text-[#1f7a44]">✓ Every player has a single sheet this week.</p>
+            : <PickSetsList players={multiSetPlayers} splitCount={splitSets.length} />}
+        </ExpandRow>
+
+        <ExpandRow
           k="over" open={!!open.over} onToggle={() => toggle('over')}
           state={loading ? 'loading' : data && data.overpickDetail.length === 0 ? 'ok' : 'warn'}
           title="Over-submissions"
@@ -569,6 +637,11 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
                     <td className="px-4 py-2 whitespace-nowrap">
                       <span className="font-medium">{p.display_name}</span>
                       {!p.is_paid && <span className="ml-2 text-xs text-[#d1495b]">unpaid</span>}
+                      {multiSetIds.has(p.user_id) && (
+                        <span className="ml-2 text-xs text-[#b06a1a]" title="More than one sheet on file — see Duplicate pick sets above. Only the counted one is shown here.">
+                          +1 sheet on file
+                        </span>
+                      )}
                       <div className="text-xs text-charcoal-400">{p.email}</div>
                     </td>
                     <td className="px-4 py-2">
@@ -851,6 +924,123 @@ function ExpandRow({
         <span className="text-charcoal-400 w-4 text-center">{open ? '▾' : '▸'}</span>
       </button>
       {open && <div className="border-t border-[#f0ece5] px-4 py-3 bg-[#faf8f4]/50">{children}</div>}
+    </div>
+  )
+}
+
+function PickSetsList({ players, splitCount }: { players: MultiSetPlayer[]; splitCount: number }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-charcoal-600">
+        Counting is per pick, not per sheet: a submitted account sheet takes the week over an anonymous
+        entry, and within an entry each pick can be shown or hidden. <b>Counted</b> is what the standings
+        score — the rest is on file and ignored, nothing here is deleted. More than 6 counted picks, or
+        more than one counted lock, means the week is scored wrong.
+      </p>
+      {splitCount > 0 && (
+        <p className="text-sm text-charcoal-600">
+          {splitCount === 1 ? '1 player has their' : `${splitCount} players have their`} counted picks drawn
+          from more than one sheet. That is legal if it adds to six with a single lock — usually a
+          combination built by hand — but worth confirming it was deliberate.
+        </p>
+      )}
+      {players.map(p => {
+        const overPicks = p.countedPicks > 6
+        const overLocks = p.countedLocks > 1
+        const faulty = overPicks || overLocks
+        return (
+          <div key={p.user_id}
+            className={`rounded-lg border bg-white overflow-hidden ${faulty ? 'border-[#f2c9d1]' : 'border-[#e7e2da]'}`}>
+            <div className="flex items-center justify-between gap-3 px-3 py-2 bg-[#faf8f4] border-b border-[#f0ece5]">
+              <div className="min-w-0">
+                <span className="font-medium text-[#4B3621]">{p.display_name}</span>
+                <span className="text-xs text-charcoal-400 ml-2">{p.account_email}</span>
+              </div>
+              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap tabular-nums ${
+                faulty ? 'bg-[#fbe9ec] text-[#d1495b]' : 'bg-white text-charcoal-700 border border-[#e7e2da]'}`}>
+                {p.sets.length} sheets · {p.countedPicks} counted
+                {p.countedLocks !== 1 ? ` · ${p.countedLocks} locks` : ''}
+              </span>
+            </div>
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-charcoal-500 border-b border-[#f0ece5]">
+                <th className="px-3 py-1.5 font-medium">Sheet</th>
+                <th className="px-3 py-1.5 font-medium">Submitted under</th>
+                <th className="px-3 py-1.5 font-medium">Counted picks</th>
+                <th className="px-3 py-1.5 font-medium">State</th>
+                <th className="px-3 py-1.5 font-medium text-right">Pts</th>
+                <th className="px-3 py-1.5 font-medium text-right">Counts?</th>
+              </tr></thead>
+              <tbody>
+                {p.sets.map((st, i) => (
+                  <tr key={i} className={`border-b border-[#f0ece5] last:border-0 ${st.counted_picks > 0 ? '' : 'text-charcoal-500'}`}>
+                    <td className="px-3 py-1.5 whitespace-nowrap">
+                      {st.source === 'anonymous' ? 'Anonymous entry' : 'Account sheet'}
+                    </td>
+                    <td className="px-3 py-1.5 text-charcoal-500">{st.set_label}</td>
+                    <td className="px-3 py-1.5 tabular-nums whitespace-nowrap">
+                      {st.counted_picks === st.pick_count
+                        ? `${st.pick_count}`
+                        : `${st.counted_picks} of ${st.pick_count}`}
+                      {st.counted_locks > 0 && <span className="ml-1.5">🔒{st.counted_locks > 1 ? `×${st.counted_locks}` : ''}</span>}
+                      {st.disqualified_count > 0 && (
+                        <span className="text-charcoal-400 ml-1.5">{st.disqualified_count} dropped</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5 whitespace-nowrap">
+                      <span className={st.is_submitted ? 'text-[#1f7a44]' : 'text-[#b06a1a]'}>
+                        {st.is_submitted ? 'submitted' : 'never submitted'}
+                      </span>
+                      {st.last_submitted_at && (
+                        <span className="text-charcoal-400 ml-1.5">
+                          {new Date(st.last_submitted_at).toLocaleDateString()}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
+                      {st.counted_points}
+                      {st.counted_points !== st.points && (
+                        <span className="text-charcoal-400 text-xs ml-1">({st.points} on file)</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                      {st.counted_picks === 0
+                        ? <span className="text-xs px-2 py-0.5 rounded-full bg-[#f0ece5] text-charcoal-500">ignored</span>
+                        : st.counted_picks === st.pick_count
+                          ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#e6f4ea] text-[#1f7a44]">counted</span>
+                          : <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#fff5e2] text-[#b06a1a]">partly</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {faulty && (
+              <div className="px-3 py-2 text-xs text-[#d1495b] bg-[#fbe9ec] border-t border-[#f2c9d1]">
+                ⚠️ {overPicks && `${p.countedPicks} picks are counting — 6 is the entry.`}
+                {overPicks && overLocks && ' '}
+                {overLocks && `${p.countedLocks} locks are counting — only one pick can be the lock.`}
+                {' '}Hide the extras in Advanced pick tools below before publishing.
+              </div>
+            )}
+            {!faulty && p.sheetsCounting > 1 && (
+              <div className="px-3 py-2 text-xs text-charcoal-600 border-t border-[#f0ece5]">
+                Counted picks come from {p.sheetsCounting} sheets and add to {p.countedPicks} with{' '}
+                {p.countedLocks} lock — a combination, not a duplicate.
+              </div>
+            )}
+            {!faulty && p.sheetsCounting === 1 && p.sets.some(st => st.counted_picks === 0 && st.pick_count >= 6) && (
+              <div className="px-3 py-2 text-xs text-charcoal-500 border-t border-[#f0ece5]">
+                A full second sheet the standings ignore. Worth a look — the player may believe the
+                ignored one is their entry.
+              </div>
+            )}
+          </div>
+        )
+      })}
+      <p className="text-xs text-charcoal-400">
+        Resolve in <b>Advanced pick tools</b> below (assign anonymous, duplicates, hidden, pick-set
+        management). All Picks shows only counted picks, so these players have more on file than it lists.
+      </p>
     </div>
   )
 }
