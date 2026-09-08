@@ -532,6 +532,9 @@ export class LeaderboardService {
         `)
         .eq('user_id', userId)
         .eq('season', season)
+        .eq('submitted', true)
+        .eq('show_on_leaderboard', true)
+        .eq('disqualified', false)
         .order('week')
 
       // Also query anonymous picks that might be linked to this user
@@ -547,6 +550,7 @@ export class LeaderboardService {
         .eq('assigned_user_id', userId)
         .eq('season', season)
         .eq('show_on_leaderboard', true)
+        .eq('disqualified', false)
         .order('week')
 
       // Get user display name separately to avoid relationship ambiguity
@@ -580,9 +584,14 @@ export class LeaderboardService {
         return null
       }
 
-      // Combine authenticated and anonymous picks
-      const allPicks = [...(picks || []), ...(anonPicks || [])]
-      console.log(`🔍 [BREAKDOWN] Found ${picks?.length || 0} authenticated picks, ${anonPicks?.length || 0} anonymous picks`)
+      // Combine authenticated and anonymous picks, one source per week. A submitted
+      // pick sheet wins its week outright, so an anonymous sheet the same player also
+      // has on file for that week is dropped instead of double-counted — the same
+      // precedence the season_leaderboard view applies.
+      const weeksWithSubmittedPicks = new Set((picks || []).map((p: any) => p.week))
+      const eligibleAnonPicks = (anonPicks || []).filter((p: any) => !weeksWithSubmittedPicks.has(p.week))
+      const allPicks = [...(picks || []), ...eligibleAnonPicks]
+      console.log(`🔍 [BREAKDOWN] Found ${picks?.length || 0} authenticated picks, ${anonPicks?.length || 0} anonymous picks (${eligibleAnonPicks.length} counted after week precedence)`)
 
       if (!allPicks || allPicks.length === 0) {
         console.log('❌ [BREAKDOWN] No picks found for user')
@@ -755,6 +764,9 @@ export class LeaderboardService {
         .eq('user_id', userId)
         .eq('season', season)
         .eq('week', week)
+        .eq('submitted', true)
+        .eq('show_on_leaderboard', true)
+        .eq('disqualified', false)
         .order('games(kickoff_time)')
 
       const { data: picks, error } = await Promise.race([
@@ -836,6 +848,7 @@ export class LeaderboardService {
         .eq('season', season)
         .eq('week', week)
         .eq('show_on_leaderboard', true)
+        .eq('disqualified', false)
         .order('games(kickoff_time)')
 
       const { data: picks, error } = await Promise.race([

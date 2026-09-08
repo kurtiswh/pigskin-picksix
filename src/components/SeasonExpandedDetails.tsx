@@ -55,9 +55,9 @@ export function SeasonExpandedDetails({ data, isLoading = false, asOfWeek, curre
                 {w.best_week && <Trophy className="w-3.5 h-3.5 text-[#C9A04E] shrink-0" />}
                 <span className="whitespace-nowrap">Week {w.week}</span>
               </div>
-              <div className="flex items-center gap-3 sm:gap-4 text-sm tabular-nums shrink-0">
-                <span className="text-gray-500 w-12 text-right">{w.record}</span>
-                <span className="text-gray-500 w-12 flex items-center justify-end gap-1"><Lock className="w-3 h-3" />{w.lock_record}</span>
+              <div className="flex items-center gap-3 sm:gap-4 text-sm tabular-nums shrink-0 whitespace-nowrap">
+                <span className="text-gray-500 w-14 text-right">{w.record}</span>
+                <span className="text-gray-500 w-16 flex items-center justify-end gap-1"><Lock className="w-3 h-3 shrink-0" />{w.lock_record}</span>
                 <span className="font-extrabold text-[#4B3621] w-10 text-right">{w.points}</span>
               </div>
             </div>
