@@ -19,7 +19,7 @@ Pigskin Pick Six Pro is a modern, mobile-first college football pick 'em contest
 - **UI Components**: shadcn/ui with sports theming
 - **Backend**: Supabase (PostgreSQL + Auth + Realtime)
 - **External APIs**: CollegeFootballData.com (free tier)
-- **Deployment**: Vercel-ready
+- **Deployment**: Cloudflare Workers (`npm run deploy`)
 - **Local Development**: Supabase CLI with local database
 
 ## Development Commands
@@ -132,6 +132,19 @@ src/
 - Admin permissions controlled via `is_admin` flag
 - Magic links supported for password reset
 
+### Weekly Reconciliation
+
+Each week, after scoring and before Approve & Publish, reconcile the entry register against
+the picks being scored: paid entries that are not being scored, scored entries with no
+payment, duplicate pick sheets, untied anonymous entries. Runbook:
+[`docs/WEEKLY_RECONCILIATION.md`](docs/WEEKLY_RECONCILIATION.md).
+
+Anything that turns an email address into an account must call
+`find_user_id_for_email(email, season)` rather than querying `users` directly — it reads
+`user_emails` and prior payments and skips merged tombstones. Querying `users.email` /
+`users.leaguesafe_email` alone is what split 23 players into a paid account and a playing
+account in 2026.
+
 ### Testing
 - No formal test framework currently configured
 - Test manually with development server
@@ -165,11 +178,15 @@ src/
 
 ## Deployment
 
-**Vercel (Recommended):**
-- Build command: `npm run build`
-- Output directory: `dist`
-- Environment variables set in Vercel dashboard
-- Automatic deployments from main branch
+**Cloudflare Workers** (`wrangler.toml`, worker `pigskin-pick-six`, serving `dist` as an
+assets-only Worker with SPA fallback):
+- `npm run deploy` = `vite build && wrangler deploy`. This is the ONLY thing that ships.
+- **Pushing to `main` deploys nothing.** There is no Vercel project and no deploy workflow;
+  `.github/workflows/` holds only the games/reminders cron jobs.
+- Verify a deploy by comparing the `assets/index-<hash>.js` in local `dist/index.html`
+  against the hash served by pigskinpicksix.com. Allow a minute for the Cloudflare edge to
+  revalidate the root HTML before concluding it failed.
+- `VITE_*` variables are baked in at build time from `.env`, so the build needs them present.
 
 **Environment Variables for Production:**
 - Set all VITE_ prefixed variables in deployment platform

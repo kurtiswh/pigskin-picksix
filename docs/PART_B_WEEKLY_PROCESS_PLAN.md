@@ -36,6 +36,8 @@ Part A made the **DB the single source of truth** for scoring (`calculate_and_up
 
 Everything below is organized as workstreams that build this pipeline.
 
+Phase 7 has a companion runbook for the money-and-identity half of the review — paid entries that are not being scored, scored entries with no payment, duplicate sheets and untied anonymous entries: [`WEEKLY_RECONCILIATION.md`](WEEKLY_RECONCILIATION.md).
+
 ---
 
 ## Workstream B1 — Single live-update writer
