@@ -76,3 +76,6 @@ feature-demo.html
 # Historic import raw data (may contain PII)
 data/imports/
 data/exports/
+
+# Reconciliation exports carry player names, emails and payment detail
+leaguesafe-reconciliation-*.xlsx

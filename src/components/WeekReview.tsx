@@ -78,6 +78,24 @@ interface PickSetEntry {
   last_submitted_at: string | null
   counts_for_leaderboard: boolean
 }
+/** One sheet's pick for one game, for the sheet-comparison grid. Migration 239. */
+interface PickDiffCell {
+  user_id: string; display_name: string
+  game_id: string; matchup: string; kickoff_time: string
+  source: string; set_label: string
+  selected_team: string; is_lock: boolean; counted: boolean
+  result: string | null; points_earned: number | null
+  game_disagrees: boolean; sheets_with_pick: number
+}
+/** A proposed account for an untied anonymous entry. Migration 240. */
+interface AnonCandidate {
+  entry_email: string; entry_name: string | null
+  pick_count: number; lock_count: number; submitted_at: string | null
+  auto_tie_target: string | null
+  candidate_user_id: string | null; candidate_name: string | null; candidate_email: string | null
+  basis: string | null; basis_rank: number | null
+  is_paid: boolean | null; has_picks: boolean | null
+}
 interface MultiSetPlayer {
   user_id: string; display_name: string; account_email: string
   sets: PickSetEntry[]
@@ -95,7 +113,9 @@ interface ReviewData {
   unscoredCount: number
   discrepancies: Discrepancy[]
   anonUnresolved: AnonEntry[]
+  anonCandidates: AnonCandidate[]
   multiSets: PickSetEntry[]
+  pickDiff: PickDiffCell[]
   overpickDetail: OverpickEntry[]
   unpaidList: UnpaidEntry[]
   allPicks: PlayerPicks[]
@@ -160,13 +180,15 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
     setLoading(true)
     setError('')
     try {
-      const [gamesRes, discRes, anonRes, setsRes, overRes, unpaidRes, allRes, wsRes] = await Promise.all([
+      const [gamesRes, discRes, anonRes, candRes, setsRes, diffRes, overRes, unpaidRes, allRes, wsRes] = await Promise.all([
         supabase.from('games')
           .select('id, home_team, away_team, status, home_score, away_score, spread, winner_against_spread, margin_bonus')
           .eq('season', season).eq('week', week),
         supabase.from('scoring_discrepancies').select('kind, label, issue').eq('season', season).eq('week', week),
         supabase.rpc('wr_anonymous_unmatched', { p_week: week, p_season: season }),
+        supabase.rpc('wr_anonymous_candidates', { p_week: week, p_season: season }),
         supabase.rpc('wr_multiple_pick_sets', { p_week: week, p_season: season }),
+        supabase.rpc('wr_pick_set_diff', { p_week: week, p_season: season }),
         supabase.rpc('detect_overpick_entries', { p_week: week, p_season: season }),
         supabase.rpc('wr_unpaid_submitters', { p_week: week, p_season: season }),
         fetchAllPicksPaged(week, season).then(rows => ({ data: rows, error: null })),
@@ -210,7 +232,9 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
         unscoredCount: completed.length - scored.length,
         discrepancies: (discRes.data as any[]) || [],
         anonUnresolved: (anonRes.data as any[]) || [],
+        anonCandidates: (candRes.data as any[]) || [],
         multiSets: (setsRes.data as any[]) || [],
+        pickDiff: (diffRes.data as any[]) || [],
         overpickDetail: (overRes.data as any[]) || [],
         unpaidList: (unpaidRes.data as any[]) || [],
         allPicks,
@@ -240,6 +264,56 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
       await loadReview()
     } catch (err: any) { setError(err?.message || 'Auto-tie failed') } finally { setTying(false) }
   }
+
+  // Tie one anonymous entry to an account without leaving the review. Same
+  // write PickManagement's assign performs, so the two paths cannot disagree:
+  // every row for that address and week, matched on email rather than id.
+  const [tying2, setTying2] = useState<string | null>(null)
+  const tieAnonEntry = async (email: string, userId: string) => {
+    setTying2(`${email}|${userId}`); setError('')
+    try {
+      const { error: e } = await supabase
+        .from('anonymous_picks')
+        .update({
+          assigned_user_id: userId,
+          show_on_leaderboard: true,
+          is_validated: true,
+          validation_status: 'manually_validated',
+          processing_notes: 'Tied to account from Week Review',
+        })
+        .eq('email', email)
+        .eq('week', week)
+        .eq('season', season)
+      if (e) throw e
+      setSearchFor(null); setUserQuery(''); setUserResults([])
+      await loadReview()
+    } catch (err: any) {
+      setError(err?.message || 'Failed to tie entry')
+    } finally { setTying2(null) }
+  }
+
+  // Manual account search, for an entry with no candidate worth proposing.
+  const [searchFor, setSearchFor] = useState<string | null>(null)
+  const [userQuery, setUserQuery] = useState('')
+  const [userResults, setUserResults] = useState<Array<{ id: string; display_name: string; email: string }>>([])
+  const [searching, setSearching] = useState(false)
+  useEffect(() => {
+    const q = userQuery.trim()
+    if (!searchFor || q.length < 2) { setUserResults([]); return }
+    let cancelled = false
+    const t = setTimeout(async () => {
+      setSearching(true)
+      const { data } = await supabase
+        .from('users')
+        .select('id, display_name, email')
+        .or(`display_name.ilike.%${q}%,email.ilike.%${q}%`)
+        .not('email', 'like', '%_merged_%')
+        .order('display_name')
+        .limit(8)
+      if (!cancelled) { setUserResults(data || []); setSearching(false) }
+    }, 250)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [userQuery, searchFor])
 
   const [dismissTarget, setDismissTarget] = useState<string | null>(null)
   const [dismissNote, setDismissNote] = useState('')
@@ -402,6 +476,20 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
       return m
     }, new Map<string, MultiSetPlayer>()).values()
   ).sort((a, b) => b.sets.length - a.sets.length || a.display_name.localeCompare(b.display_name))
+  // Untied anonymous entries, each with the accounts worth proposing. The
+  // unmatched list returns the address as stored and the candidate RPC
+  // lowercases it, so match on lowercase and keep the raw value for the write.
+  const anonEntries = (data?.anonUnresolved || []).map(a => {
+    const rows = (data?.anonCandidates || []).filter(
+      c => c.entry_email === a.email.toLowerCase()
+    )
+    return {
+      ...a,
+      autoTie: rows.some(r => r.auto_tie_target),
+      candidates: rows.filter(r => r.candidate_user_id),
+    }
+  })
+
   const faultySets = multiSetPlayers.filter(p => p.countedPicks > 6 || p.countedLocks > 1)
   const splitSets = multiSetPlayers.filter(p => p.sheetsCounting > 1 && !faultySets.includes(p))
   const multiSetIds = new Set(multiSetPlayers.map(p => p.user_id))
@@ -473,21 +561,24 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
               {tying ? 'Tying…' : 'Auto-tie matchable entries'}
             </Button>
           </div>
-          {(!data || data.anonUnresolved.length === 0)
+          {(!data || anonEntries.length === 0)
             ? <p className="text-sm text-[#1f7a44]">✓ Nothing to resolve.</p>
             : (
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-charcoal-500 border-b border-[#f0ece5]">
-                  <th className="px-3 py-2 font-medium">Name</th><th className="px-3 py-2 font-medium">Email</th>
-                  <th className="px-3 py-2 font-medium">Picks</th><th className="px-3 py-2"></th>
-                </tr></thead>
-                <tbody>
-                  {data.anonUnresolved.map(a => (
-                    <tr key={a.email} className="border-b border-[#f0ece5] last:border-0 align-top">
-                      <td className="px-3 py-2 font-medium">{a.name || '(no name)'}</td>
-                      <td className="px-3 py-2 text-charcoal-500">{a.email}</td>
-                      <td className="px-3 py-2 tabular-nums">{a.pick_count}</td>
-                      <td className="px-3 py-2 text-right">
+              <div className="flex flex-col gap-2">
+                {anonEntries.map(a => (
+                  <div key={a.email} className="rounded-lg border border-[#e7e2da] bg-white overflow-hidden">
+                    <div className="flex items-start justify-between gap-3 px-3 py-2 bg-[#faf8f4] border-b border-[#f0ece5]">
+                      <div className="min-w-0">
+                        <div>
+                          <span className="font-medium text-[#4B3621]">{a.name || '(no name)'}</span>
+                          <span className="text-xs text-charcoal-400 ml-2 break-all">{a.email}</span>
+                        </div>
+                        <div className="text-xs text-charcoal-500">
+                          {a.pick_count} picks
+                          {a.autoTie && <span className="text-[#1f7a44] ml-1.5">· auto-tie resolves this one</span>}
+                        </div>
+                      </div>
+                      <div className="shrink-0">
                         {dismissTarget === a.email ? (
                           <div className="flex flex-col items-end gap-2">
                             <Input placeholder="Reason (e.g. no payment found)" value={dismissNote}
@@ -501,18 +592,89 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
                             </div>
                           </div>
                         ) : (
-                          <Button size="sm" variant="outline" onClick={() => { setDismissTarget(a.email); setDismissNote('') }}>
-                            Dismiss…
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline"
+                              onClick={() => { setSearchFor(searchFor === a.email ? null : a.email); setUserQuery('') }}>
+                              {searchFor === a.email ? 'Close search' : 'Find account…'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => { setDismissTarget(a.email); setDismissNote('') }}>
+                              Dismiss…
+                            </Button>
+                          </div>
                         )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+
+                    {a.candidates.length > 0 ? (
+                      <table className="w-full text-sm">
+                        <thead><tr className="text-left text-charcoal-500 border-b border-[#f0ece5]">
+                          <th className="px-3 py-1.5 font-medium">Account</th>
+                          <th className="px-3 py-1.5 font-medium">Matched on</th>
+                          <th className="px-3 py-1.5 font-medium">This season</th>
+                          <th className="px-3 py-1.5"></th>
+                        </tr></thead>
+                        <tbody>
+                          {a.candidates.map(c => (
+                            <tr key={c.candidate_user_id} className="border-b border-[#f0ece5] last:border-0">
+                              <td className="px-3 py-1.5">
+                                <span className="font-medium">{c.candidate_name}</span>
+                                <span className="text-xs text-charcoal-400 ml-2 break-all">{c.candidate_email}</span>
+                              </td>
+                              <td className="px-3 py-1.5 text-charcoal-600">{c.basis}</td>
+                              <td className="px-3 py-1.5 whitespace-nowrap">
+                                <span className={c.is_paid ? 'text-[#1f7a44]' : 'text-[#b06a1a]'}>
+                                  {c.is_paid ? 'paid' : 'no payment'}
+                                </span>
+                                {c.has_picks && <span className="text-charcoal-500 ml-1.5">· already has picks</span>}
+                              </td>
+                              <td className="px-3 py-1.5 text-right">
+                                <Button size="sm" className="bg-gold-500 text-pigskin-900 hover:bg-gold-600"
+                                  onClick={() => tieAnonEntry(a.email, c.candidate_user_id!)}
+                                  disabled={tying2 === `${a.email}|${c.candidate_user_id}`}>
+                                  {tying2 === `${a.email}|${c.candidate_user_id}` ? 'Tying…' : 'Tie to this'}
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="px-3 py-2 text-sm text-charcoal-500">
+                        No account matches this address or name. Search for one, or dismiss the entry with a note.
+                      </p>
+                    )}
+
+                    {searchFor === a.email && (
+                      <div className="px-3 py-2 border-t border-[#f0ece5] bg-[#faf8f4]/60 flex flex-col gap-2">
+                        <Input autoFocus placeholder="Search every account by name or email…"
+                          value={userQuery} onChange={e => setUserQuery(e.target.value)} className="h-8 text-sm" />
+                        {searching && <p className="text-xs text-charcoal-400">Searching…</p>}
+                        {!searching && userQuery.trim().length >= 2 && userResults.length === 0 && (
+                          <p className="text-xs text-charcoal-400">No account matches “{userQuery.trim()}”.</p>
+                        )}
+                        {userResults.map(u => (
+                          <div key={u.id} className="flex items-center justify-between gap-3 text-sm">
+                            <div className="min-w-0">
+                              <span className="font-medium">{u.display_name}</span>
+                              <span className="text-xs text-charcoal-400 ml-2 break-all">{u.email}</span>
+                            </div>
+                            <Button size="sm" variant="outline" className="shrink-0"
+                              onClick={() => tieAnonEntry(a.email, u.id)}
+                              disabled={tying2 === `${a.email}|${u.id}`}>
+                              {tying2 === `${a.email}|${u.id}` ? 'Tying…' : 'Tie to this'}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           <p className="text-xs text-charcoal-400 mt-2">
-            Auto-tie links paid email-matches. Dismiss (with a note) removes an entry with no matching account from this list.
+            Tying an entry assigns every pick submitted under that address this week and puts them on the
+            leaderboard. Auto-tie does the same for addresses it can resolve outright. Dismiss (with a note)
+            removes an entry with no matching account from this list.
           </p>
         </ExpandRow>
 
@@ -531,7 +693,7 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
         >
           {multiSetPlayers.length === 0
             ? <p className="text-sm text-[#1f7a44]">✓ Every player has a single sheet this week.</p>
-            : <PickSetsList players={multiSetPlayers} splitCount={splitSets.length} />}
+            : <PickSetsList players={multiSetPlayers} splitCount={splitSets.length} diff={data?.pickDiff || []} />}
         </ExpandRow>
 
         <ExpandRow
@@ -928,7 +1090,94 @@ function ExpandRow({
   )
 }
 
-function PickSetsList({ players, splitCount }: { players: MultiSetPlayer[]; splitCount: number }) {
+/**
+ * The two sheets side by side, game by game. An identical duplicate needs no
+ * grid — it needs one sentence saying so — while a sheet that disagrees on a
+ * game or moves the lock is the whole reason the totals differ, so that is
+ * what opens.
+ */
+function SheetCompare({ player, cells }: { player: MultiSetPlayer; cells: PickDiffCell[] }) {
+  if (cells.length === 0) return null
+
+  const columns = player.sets.map(st => ({
+    key: `${st.source}|${st.set_label}`,
+    source: st.source,
+    label: st.set_label,
+    counted: st.counted_picks > 0,
+  }))
+  // two sheets of the same kind (two anonymous entries) need the address to tell them apart
+  const needsLabel = new Set(columns.filter(
+    (c, _, all) => all.filter(o => o.source === c.source).length > 1
+  ).map(c => c.key))
+
+  const games: Array<{ id: string; matchup: string; disagrees: boolean; by: Record<string, PickDiffCell> }> = []
+  const seen = new Map<string, number>()
+  for (const c of cells) {
+    let i = seen.get(c.game_id)
+    if (i === undefined) {
+      i = games.length
+      seen.set(c.game_id, i)
+      games.push({ id: c.game_id, matchup: c.matchup, disagrees: c.game_disagrees, by: {} })
+    }
+    games[i].by[`${c.source}|${c.set_label}`] = c
+    if (c.game_disagrees) games[i].disagrees = true
+  }
+  const differing = games.filter(g => g.disagrees).length
+
+  if (differing === 0) {
+    return (
+      <div className="px-3 py-2 text-xs text-charcoal-600 border-t border-[#f0ece5]">
+        Both sheets hold the same {games.length} picks with the same lock — an exact duplicate, so which one
+        counts makes no difference to the score.
+      </div>
+    )
+  }
+
+  return (
+    <details open className="border-t border-[#f0ece5]">
+      <summary className="cursor-pointer px-3 py-2 text-xs text-[#b06a1a] hover:bg-[#faf8f4]">
+        Sheets differ on {differing} of {games.length} games — compare
+      </summary>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="text-left text-charcoal-500 border-y border-[#f0ece5]">
+            <th className="px-3 py-1.5 font-medium">Game</th>
+            {columns.map(c => (
+              <th key={c.key} className="px-3 py-1.5 font-medium whitespace-nowrap">
+                {c.source === 'anonymous' ? 'Anonymous' : 'Account'}
+                {needsLabel.has(c.key) && <span className="text-charcoal-400 font-normal"> · {c.label}</span>}
+                {c.counted && <span className="text-[#1f7a44] font-normal"> (counted)</span>}
+              </th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {games.map(g => (
+              <tr key={g.id} className={`border-b border-[#f0ece5] last:border-0 ${g.disagrees ? 'bg-[#fff8ea]' : ''}`}>
+                <td className="px-3 py-1.5 whitespace-nowrap text-charcoal-600">{g.matchup}</td>
+                {columns.map(c => {
+                  const cell = g.by[c.key]
+                  return (
+                    <td key={c.key} className="px-3 py-1.5 whitespace-nowrap">
+                      {cell ? (
+                        <span className={cell.counted ? 'text-gray-900' : 'text-charcoal-500'}>
+                          {cell.is_lock && '🔒 '}{cell.selected_team}
+                        </span>
+                      ) : (
+                        <span className="text-charcoal-300">no pick</span>
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  )
+}
+
+function PickSetsList({ players, splitCount, diff }: { players: MultiSetPlayer[]; splitCount: number; diff: PickDiffCell[] }) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-charcoal-600">
@@ -1014,6 +1263,7 @@ function PickSetsList({ players, splitCount }: { players: MultiSetPlayer[]; spli
                 ))}
               </tbody>
             </table>
+            <SheetCompare player={p} cells={diff.filter(d => d.user_id === p.user_id)} />
             {faulty && (
               <div className="px-3 py-2 text-xs text-[#d1495b] bg-[#fbe9ec] border-t border-[#f2c9d1]">
                 ⚠️ {overPicks && `${p.countedPicks} picks are counting — 6 is the entry.`}
