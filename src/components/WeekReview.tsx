@@ -417,6 +417,24 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
       setConfirmsSending(false)
     }
   }
+  // The reconciliation workbook, built in the browser from one RPC. Same nine
+  // tabs as scripts/build-reconciliation-workbook.py, no psql required.
+  const [workbookState, setWorkbookState] = useState<'idle' | 'building' | 'done'>('idle')
+  const [workbookNote, setWorkbookNote] = useState('')
+  const buildWorkbook = async () => {
+    setWorkbookState('building'); setWorkbookNote('')
+    try {
+      // Loaded on click: the xlsx writer is ~100KB and only an admin ever needs it.
+      const { downloadReconciliationWorkbook } = await import('@/services/reconciliationWorkbook')
+      const name = await downloadReconciliationWorkbook(season, week)
+      setWorkbookState('done')
+      setWorkbookNote(`Downloaded ${name}`)
+    } catch (err: any) {
+      setWorkbookState('idle')
+      setWorkbookNote(`Failed: ${err?.message ?? err}`)
+    }
+  }
+
   const [savingNotice, setSavingNotice] = useState(false)
   const saveNotice = async () => {
     setSavingNotice(true); setError('')
@@ -1002,6 +1020,35 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
               disabled={!scoringClean || publishing || (data?.leaderboardComplete ?? false)}
               className="bg-[#1f7a44] hover:bg-[#186237] text-white">
               {publishing ? 'Publishing…' : data?.leaderboardComplete ? `Week ${week} Published ✓` : `Approve & Publish Week ${week}`}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Reconciliation workbook */}
+      <Card>
+        <CardHeader><CardTitle className="text-base text-[#4B3621]">📊 Reconciliation workbook</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 max-w-2xl">
+              <p className="text-sm text-charcoal-600">
+                Ties the entry register to the picks being scored: paid entries nobody is playing, sheets
+                being scored with no payment, split identities, duplicate sheets and untied anonymous
+                entries. Nine tabs, filterable, with a Summary that says what to act on.
+              </p>
+              <p className="text-xs text-charcoal-400 mt-2">
+                Carries every player's name, address and payment detail — it downloads to this device;
+                don't put it anywhere public. Process: <span className="font-medium">docs/WEEKLY_RECONCILIATION.md</span>
+              </p>
+              {workbookNote && (
+                <p className={`text-xs mt-2 ${workbookNote.startsWith('Failed') ? 'text-[#d1495b]' : 'text-[#1f7a44]'}`}>
+                  {workbookNote}
+                </p>
+              )}
+            </div>
+            <Button onClick={buildWorkbook} disabled={workbookState === 'building'}
+              className="bg-pigskin-600 hover:bg-pigskin-700 text-white shrink-0">
+              {workbookState === 'building' ? 'Building…' : `⬇ Download for Week ${week}`}
             </Button>
           </div>
         </CardContent>

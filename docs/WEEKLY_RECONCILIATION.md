@@ -29,13 +29,18 @@ The one check SQL cannot do on itself. Download today's CSV from LeagueSafe and 
 
 ### 2. Build the workbook
 
+**Week Review → Reconciliation workbook → Download for Week N.** Nine filterable tabs, built in the browser from one call to `wr_reconciliation`; the Summary tab says what to act on. It downloads to that device and **carries every player's name, address and payment detail** — treat it accordingly and don't put it anywhere public.
+
+The same workbook from a terminal, if you'd rather (needs `psql`, python and `pip install openpyxl`):
+
 ```bash
-pip install openpyxl            # once
 python3 scripts/build-reconciliation-workbook.py            # active season, latest week
 python3 scripts/build-reconciliation-workbook.py 2026 3     # or name them
 ```
 
-Writes `leaguesafe-reconciliation-<season>.xlsx` at the repo root — **gitignored, and it must stay that way**: it carries every player's name, addresses and payment detail. Nine filterable tabs; the Summary tab derives every count from the others, so it cannot drift from them.
+Both write the same nine tabs from the same queries. The generated filenames are gitignored, and must stay that way.
+
+To check a change to the sheet layout without clicking through the admin UI, `node scripts/check-reconciliation-workbook.mjs 2026 1` runs the button's own builder against real data and writes the file — the library rejects a malformed sheet, so a clean run means the button works.
 
 ### 3. Work the tabs, in this order
 
@@ -103,11 +108,14 @@ Why splits happen and how they are resolved — worth understanding before touch
 | What | Where |
 |---|---|
 | The seven register checks, as SQL | [`../database/leaguesafe_reconciliation.sql`](../database/leaguesafe_reconciliation.sql) |
-| Workbook generator | [`../scripts/build-reconciliation-workbook.py`](../scripts/build-reconciliation-workbook.py) |
+| Workbook, in the app | Week Review → Reconciliation workbook, via `wr_reconciliation` (migration 243) and [`reconciliationWorkbook.ts`](../src/services/reconciliationWorkbook.ts) |
+| Workbook, from a terminal | [`../scripts/build-reconciliation-workbook.py`](../scripts/build-reconciliation-workbook.py) |
+| Check the builder without a browser | [`../scripts/check-reconciliation-workbook.mjs`](../scripts/check-reconciliation-workbook.mjs) |
 | Split-identity merges | [`../database/merge_split_identities.sql`](../database/merge_split_identities.sql) |
 | Duplicate sheets + differences | `wr_multiple_pick_sets`, `wr_pick_set_diff` (migrations 238, 239) |
 | Anonymous candidates | `wr_anonymous_candidates` (migration 240) |
 | Payment gate | `wr_unpaid_submitters` (migration 241 — counts anonymous entries as well as account sheets) |
+| Weekly recap figures | `wr_recap_seed` (migration 242 — player-level figures come from `weekly_leaderboard`, so the recap and the standings cannot disagree) |
 | Address → account | `find_user_id_for_email` (migrations 234, 235) |
 
 Deploying frontend changes: `npm run deploy` (Cloudflare Workers). Pushing to `main` deploys nothing.
