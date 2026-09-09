@@ -158,7 +158,7 @@ export default function LeagueSafeUpload({ onUploadComplete }: LeagueSafeUploadP
           }
 
           // Use the fallback user matching system (works with existing schema)
-          const matchResult = await matchOrCreateUserForLeagueSafeFallback(email, name, isCommish)
+          const matchResult = await matchOrCreateUserForLeagueSafeFallback(email, name, isCommish, season)
           
           const userId = matchResult.user?.id || null
           let action: 'matched' | 'unmatched' | 'user_created' | 'updated' | 'skipped' = matchResult.user ? (matchResult.isNewUser ? 'user_created' : 'matched') : 'unmatched'

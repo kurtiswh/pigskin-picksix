@@ -15,7 +15,8 @@ export interface UserMatchResult {
 export async function matchOrCreateUserForLeagueSafeFallback(
   leaguesafeEmail: string,
   leaguesafeName: string,
-  isCommish: boolean = false
+  isCommish: boolean = false,
+  season?: number
 ): Promise<UserMatchResult> {
   const email = leaguesafeEmail.toLowerCase().trim()
   
@@ -24,6 +25,53 @@ export async function matchOrCreateUserForLeagueSafeFallback(
   // EMERGENCY BYPASS: If we're still getting 42P17 errors, skip user matching
   // and create a payment record without linking to a user
   try {
+    // Resolve through every address the player has on file, not just the two
+    // columns on their own row. find_user_id_for_email also reads user_emails
+    // and prior payment records, skips merged tombstones, and prefers the
+    // account that paid and then the one holding picks.
+    //
+    // The narrow lookup below is why 23 of the 2026 entries split in two: a
+    // player pays under an address that is not their account email, nothing
+    // matches, and the importer creates a second account that takes the
+    // payment while they keep playing on the first. Nine of those had the
+    // address already on file -- four from an earlier merge, five typed in by
+    // the player themselves through the LeagueSafe email prompt -- and the
+    // import walked straight past it, so merging them only held until the
+    // next upload.
+    if (season) {
+      const { data: resolvedId, error: resolveError } = await supabase
+        .rpc('find_user_id_for_email', { p_email: email, p_season: season })
+
+      if (resolveError) {
+        // Fall through to the narrow lookup rather than failing the import.
+        console.warn('⚠️ [FALLBACK] find_user_id_for_email unavailable:', resolveError.message)
+      } else if (resolvedId) {
+        const { data: resolvedUser } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', resolvedId)
+          .single()
+
+        if (resolvedUser) {
+          console.log(`✅ [FALLBACK] Resolved ${email} to ${resolvedUser.email} via addresses on file`)
+          // Record the payment address on the account so the narrow lookup
+          // finds it next time too, even if this path is ever unavailable.
+          if (resolvedUser.leaguesafe_email !== email) {
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({ leaguesafe_email: email })
+              .eq('id', resolvedUser.id)
+            if (updateError) console.warn('Could not update leaguesafe_email:', updateError)
+          }
+          return {
+            user: resolvedUser,
+            isNewUser: false,
+            matchedEmails: [resolvedUser.email, email].filter((e, i, arr) => arr.indexOf(e) === i)
+          }
+        }
+      }
+    }
+
     // Try to find existing user by primary email or leaguesafe_email
     const { data: existingUser, error: fetchError } = await supabase
       .from('users')
