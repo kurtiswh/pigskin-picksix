@@ -698,37 +698,15 @@ export class LeaderboardService {
         return anonymousResult
       }
 
-      // MIXED CASE: Combine both pick sets, avoiding duplicates by game_id
-      const authPicks = authenticatedResult!.picks
-      const anonPicks = anonymousResult!.picks
-
-      // Create a map of game_id -> pick (authenticated picks take priority)
-      const picksByGameId = new Map<string, WeeklyPickDetail>()
-      anonPicks.forEach(pick => picksByGameId.set(pick.game_id, pick))
-      authPicks.forEach(pick => picksByGameId.set(pick.game_id, pick))
-
-      const combinedPicks = Array.from(picksByGameId.values()).sort((a, b) =>
-        new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime()
-      )
-
-      const totalPoints = combinedPicks.reduce((sum, pick) => sum + pick.points_earned, 0)
-      const wins = combinedPicks.filter(p => p.result === 'win').length
-      const losses = combinedPicks.filter(p => p.result === 'loss').length
-      const pushes = combinedPicks.filter(p => p.result === 'push').length
-      const lockWins = combinedPicks.filter(p => p.result === 'win' && p.is_lock).length
-      const lockLosses = combinedPicks.filter(p => p.result === 'loss' && p.is_lock).length
-      const lockPushes = combinedPicks.filter(p => p.result === 'push' && p.is_lock).length
-
-      return {
-        user_id: userId,
-        display_name: authenticatedResult!.display_name,
-        week: week,
-        season: season,
-        picks: combinedPicks,
-        total_points: totalPoints,
-        weekly_record: `${wins}-${losses}-${pushes}`,
-        lock_record: `${lockWins}-${lockLosses}-${lockPushes}`
-      }
+      // BOTH ON FILE: the leaderboard resolves this per SHEET, not per game — a
+      // submitted account sheet takes the week outright and the anonymous entry
+      // is ignored whole. Merging the two by game_id showed Griffin Knipp seven
+      // picks and two locks for 87 while his row read 61, because a Mississippi
+      // State lock from his anonymous entry sat beside the BYU lock from the
+      // sheet actually being scored. getAuthenticatedUserPicks only returns a
+      // result when a qualifying submitted sheet exists, which is the same gate
+      // the views apply, so reaching here means the account sheet wins.
+      return authenticatedResult
 
     } catch (error: any) {
       console.log('❌ [WEEKLY PICKS] Error loading weekly picks:', error.message)
@@ -754,6 +732,7 @@ export class LeaderboardService {
           is_lock,
           result,
           points_earned,
+          disqualified,
           games!inner(
             home_team,
             away_team,
@@ -766,7 +745,6 @@ export class LeaderboardService {
         .eq('week', week)
         .eq('submitted', true)
         .eq('show_on_leaderboard', true)
-        .eq('disqualified', false)
         .order('games(kickoff_time)')
 
       const { data: picks, error } = await Promise.race([
@@ -778,6 +756,9 @@ export class LeaderboardService {
         return null
       }
 
+      // A dropped pick stays in the list so the sheet explains itself — six
+      // counted picks and a seventh that was taken off otherwise look identical
+      // — but it contributes nothing to the record or the points.
       const pickDetails: WeeklyPickDetail[] = picks.map((pick: any) => ({
         game_id: pick.game_id,
         game_name: `${pick.games.away_team} @ ${pick.games.home_team}`,
@@ -786,16 +767,18 @@ export class LeaderboardService {
         result: pick.result,
         points_earned: pick.points_earned || 0,
         game_status: pick.games.status,
-        kickoff_time: pick.games.kickoff_time
+        kickoff_time: pick.games.kickoff_time,
+        dropped: !!pick.disqualified
       }))
 
-      const totalPoints = pickDetails.reduce((sum, pick) => sum + pick.points_earned, 0)
-      const wins = pickDetails.filter(p => p.result === 'win').length
-      const losses = pickDetails.filter(p => p.result === 'loss').length
-      const pushes = pickDetails.filter(p => p.result === 'push').length
-      const lockWins = pickDetails.filter(p => p.result === 'win' && p.is_lock).length
-      const lockLosses = pickDetails.filter(p => p.result === 'loss' && p.is_lock).length
-      const lockPushes = pickDetails.filter(p => p.result === 'push' && p.is_lock).length
+      const scored = pickDetails.filter(p => !p.dropped)
+      const totalPoints = scored.reduce((sum, pick) => sum + pick.points_earned, 0)
+      const wins = scored.filter(p => p.result === 'win').length
+      const losses = scored.filter(p => p.result === 'loss').length
+      const pushes = scored.filter(p => p.result === 'push').length
+      const lockWins = scored.filter(p => p.result === 'win' && p.is_lock).length
+      const lockLosses = scored.filter(p => p.result === 'loss' && p.is_lock).length
+      const lockPushes = scored.filter(p => p.result === 'push' && p.is_lock).length
 
       return {
         user_id: userId,

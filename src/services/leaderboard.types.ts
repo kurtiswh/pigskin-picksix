@@ -68,6 +68,8 @@ export interface WeeklyPickDetail {
   points_earned: number
   game_status: 'scheduled' | 'in_progress' | 'completed'
   kickoff_time: string
+  /** dropped by a commissioner adjustment — shown, but not scored */
+  dropped?: boolean
 }
 
 export interface UserWeeklyPicks {
