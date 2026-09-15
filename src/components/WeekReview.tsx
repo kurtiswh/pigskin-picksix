@@ -86,6 +86,8 @@ interface PickDiffCell {
   selected_team: string; is_lock: boolean; counted: boolean
   result: string | null; points_earned: number | null
   game_disagrees: boolean; sheets_with_pick: number
+  /** the pick was made after its own game kicked off — never legitimate */
+  made_after_kickoff: boolean
 }
 /** A proposed account for an untied anonymous entry. Migration 240. */
 interface AnonCandidate {
@@ -1170,8 +1172,9 @@ function SheetCompare({ player, cells }: { player: MultiSetPlayer; cells: PickDi
     if (c.game_disagrees) games[i].disagrees = true
   }
   const differing = games.filter(g => g.disagrees).length
+  const afterKickoff = cells.filter(c => c.made_after_kickoff).length
 
-  if (differing === 0) {
+  if (differing === 0 && afterKickoff === 0) {
     return (
       <div className="px-3 py-2 text-xs text-charcoal-600 border-t border-[#f0ece5]">
         Both sheets hold the same {games.length} picks with the same lock — an exact duplicate, so which one
@@ -1182,8 +1185,10 @@ function SheetCompare({ player, cells }: { player: MultiSetPlayer; cells: PickDi
 
   return (
     <details open className="border-t border-[#f0ece5]">
-      <summary className="cursor-pointer px-3 py-2 text-xs text-[#b06a1a] hover:bg-[#faf8f4]">
-        Sheets differ on {differing} of {games.length} games — compare
+      <summary className={`cursor-pointer px-3 py-2 text-xs hover:bg-[#faf8f4] ${afterKickoff > 0 ? 'text-[#d1495b] font-semibold' : 'text-[#b06a1a]'}`}>
+        {afterKickoff > 0
+          ? `${afterKickoff} pick${afterKickoff === 1 ? '' : 's'} made after that game kicked off — compare`
+          : `Sheets differ on ${differing} of ${games.length} games — compare`}
       </summary>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -1208,6 +1213,12 @@ function SheetCompare({ player, cells }: { player: MultiSetPlayer; cells: PickDi
                       {cell ? (
                         <span className={cell.counted ? 'text-gray-900' : 'text-charcoal-500'}>
                           {cell.is_lock && '🔒 '}{cell.selected_team}
+                          {cell.made_after_kickoff && (
+                            <span className="ml-1.5 text-[#d1495b] font-semibold"
+                              title={`Picked after kickoff (${new Date(cell.kickoff_time).toLocaleString()})`}>
+                              ⚠ after kickoff
+                            </span>
+                          )}
                         </span>
                       ) : (
                         <span className="text-charcoal-300">no pick</span>
@@ -1288,8 +1299,13 @@ function PickSetsList({ players, splitCount, diff }: { players: MultiSetPlayer[]
                         {st.is_submitted ? 'submitted' : 'never submitted'}
                       </span>
                       {st.last_submitted_at && (
-                        <span className="text-charcoal-400 ml-1.5">
-                          {new Date(st.last_submitted_at).toLocaleDateString()}
+                        // Two sheets for one player are routinely submitted the same day, so the
+                        // date alone cannot say which came first. Minutes here, full stamp on hover.
+                        <span className="text-charcoal-400 ml-1.5"
+                          title={new Date(st.last_submitted_at).toLocaleString()}>
+                          {new Date(st.last_submitted_at).toLocaleString(undefined, {
+                            month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                          })}
                         </span>
                       )}
                     </td>
