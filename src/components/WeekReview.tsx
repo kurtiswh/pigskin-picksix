@@ -152,6 +152,34 @@ async function fetchAllPicksPaged(week: number, season: number): Promise<any[]> 
 
 export default function WeekReview({ season, initialWeek, seasonReady = true }: WeekReviewProps) {
   const [week, setWeek] = useState(initialWeek || 1)
+
+  /**
+   * Land on the week that actually needs reviewing.
+   *
+   * initialWeek arrives as 0 while AdminDashboard resolves the active week, and
+   * useState only reads it once, so the tab froze on the fallback of 1 every
+   * time however far into the season it was. Resolve it here instead, and from
+   * the right question: the latest week with games selected that has not been
+   * published. If everything is published, the latest week. A week the admin
+   * picks by hand is never overridden.
+   */
+  const weekChosenByHand = useRef(false)
+  useEffect(() => {
+    if (!seasonReady || weekChosenByHand.current) return
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('week_settings')
+        .select('week, leaderboard_complete')
+        .eq('season', season)
+        .eq('games_selected', true)
+        .order('week', { ascending: false })
+      if (cancelled || !data || data.length === 0) return
+      const target = data.find(w => !w.leaderboard_complete) ?? data[0]
+      if (!weekChosenByHand.current) setWeek(target.week)
+    })()
+    return () => { cancelled = true }
+  }, [season, seasonReady])
   const [loading, setLoading] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [error, setError] = useState('')
@@ -550,7 +578,8 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
           <p className="text-charcoal-600 text-sm">Reconcile scoring, resolve entries, and publish the week.</p>
         </div>
         <div className="flex items-center gap-2">
-          <select value={week} onChange={e => setWeek(Number(e.target.value))}
+          <select value={week}
+            onChange={e => { weekChosenByHand.current = true; setWeek(Number(e.target.value)) }}
             className="border border-[#e7e2da] rounded-md px-3 py-2 text-sm bg-white text-charcoal-700">
             {WEEKS.map(w => <option key={w} value={w}>Week {w}</option>)}
           </select>
