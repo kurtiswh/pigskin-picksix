@@ -88,6 +88,8 @@ interface PickDiffCell {
   game_disagrees: boolean; sheets_with_pick: number
   /** the pick was made after its own game kicked off — never legitimate */
   made_after_kickoff: boolean
+  /** dropped by the over-submission penalty — still on the sheet, not scored */
+  dropped: boolean
 }
 /** A proposed account for an untied anonymous entry. Migration 240. */
 interface AnonCandidate {
@@ -1173,8 +1175,9 @@ function SheetCompare({ player, cells }: { player: MultiSetPlayer; cells: PickDi
   }
   const differing = games.filter(g => g.disagrees).length
   const afterKickoff = cells.filter(c => c.made_after_kickoff).length
+  const droppedCells = cells.filter(c => c.dropped).length
 
-  if (differing === 0 && afterKickoff === 0) {
+  if (differing === 0 && afterKickoff === 0 && droppedCells === 0) {
     return (
       <div className="px-3 py-2 text-xs text-charcoal-600 border-t border-[#f0ece5]">
         Both sheets hold the same {games.length} picks with the same lock — an exact duplicate, so which one
@@ -1188,7 +1191,9 @@ function SheetCompare({ player, cells }: { player: MultiSetPlayer; cells: PickDi
       <summary className={`cursor-pointer px-3 py-2 text-xs hover:bg-[#faf8f4] ${afterKickoff > 0 ? 'text-[#d1495b] font-semibold' : 'text-[#b06a1a]'}`}>
         {afterKickoff > 0
           ? `${afterKickoff} pick${afterKickoff === 1 ? '' : 's'} made after that game kicked off — compare`
-          : `Sheets differ on ${differing} of ${games.length} games — compare`}
+          : droppedCells > 0
+            ? `${droppedCells} pick${droppedCells === 1 ? '' : 's'} dropped by a commissioner adjustment · sheets differ on ${differing} of ${games.length} games — compare`
+            : `Sheets differ on ${differing} of ${games.length} games — compare`}
       </summary>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -1211,8 +1216,11 @@ function SheetCompare({ player, cells }: { player: MultiSetPlayer; cells: PickDi
                   return (
                     <td key={c.key} className="px-3 py-1.5 whitespace-nowrap">
                       {cell ? (
-                        <span className={cell.counted ? 'text-gray-900' : 'text-charcoal-500'}>
-                          {cell.is_lock && '🔒 '}{cell.selected_team}
+                        <span className={cell.dropped ? 'text-[#d1495b]' : cell.counted ? 'text-gray-900' : 'text-charcoal-500'}>
+                          <span className={cell.dropped ? 'line-through' : ''}>
+                            {cell.is_lock && '🔒 '}{cell.selected_team}
+                          </span>
+                          {cell.dropped && <span className="ml-1.5 text-[11px] font-semibold">dropped</span>}
                           {cell.made_after_kickoff && (
                             <span className="ml-1.5 text-[#d1495b] font-semibold"
                               title={`Picked after kickoff (${new Date(cell.kickoff_time).toLocaleString()})`}>
