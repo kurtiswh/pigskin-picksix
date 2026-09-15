@@ -361,8 +361,32 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
   // this is the admin-side net so complete sheets don't quietly miss the
   // deadline.
   const [unsubmitted, setUnsubmitted] = useState<
-    Array<{ user_id: string; display_name: string; email: string; picks: number; has_lock: boolean; complete: boolean }>
+    Array<{
+      user_id: string; display_name: string; email: string; picks: number
+      has_lock: boolean; complete: boolean
+      lock_count: number; picks_after_lock: number; changes_after_kickoff: number
+      already_counted: boolean; is_paid: boolean
+      approvable: boolean; blockers: string | null
+    }>
   >([])
+
+  // Counting a sheet nobody submitted. Every check lives in
+  // wr_approve_unsubmitted_sheet (migration 247) and runs again there, so this
+  // button cannot admit a sheet the list says is blocked.
+  const [approving, setApproving] = useState<string | null>(null)
+  const approveSheet = async (userId: string, name: string) => {
+    setApproving(userId); setError('')
+    try {
+      const { error: e } = await supabase.rpc('wr_approve_unsubmitted_sheet', {
+        p_user_id: userId, p_week: week, p_season: season,
+      })
+      if (e) throw e
+      setConfirmsNote(`Counted ${name}'s sheet.`)
+      await Promise.all([loadReview(), loadMissingConfirms()])
+    } catch (err: any) {
+      setError(err?.message || 'Failed to approve sheet')
+    } finally { setApproving(null) }
+  }
   const [submitFailures, setSubmitFailures] = useState<
     Array<{ display_name: string; email: string; stage: string; message: string; created_at: string }>
   >([])
@@ -865,17 +889,32 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
               )}
               <div className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
                 {unsubmitted.map(u => (
-                  <div key={u.user_id} className="text-xs">
-                    <span className="font-medium text-[#4B3621]">{u.display_name}</span>
-                    <span className="text-charcoal-500 ml-2">{u.email}</span>
-                    <span className="text-charcoal-400 ml-2">{u.picks} picks{u.has_lock ? ' + lock' : ''}</span>
-                    {u.complete && <span className="ml-2 text-[#b06a1a] font-semibold">complete, unsubmitted</span>}
+                  <div key={u.user_id} className="flex items-start justify-between gap-3 text-xs py-1 border-b border-[#f0ece5] last:border-0">
+                    <div className="min-w-0">
+                      <span className="font-medium text-[#4B3621]">{u.display_name}</span>
+                      <span className="text-charcoal-500 ml-2">{u.email}</span>
+                      <span className="text-charcoal-400 ml-2">{u.picks} picks{u.has_lock ? ' + lock' : ''}</span>
+                      {u.complete && <span className="ml-2 text-[#b06a1a] font-semibold">complete, unsubmitted</span>}
+                      {!u.is_paid && <span className="ml-2 text-[#d1495b]">unpaid</span>}
+                      {u.blockers && <div className="text-[#d1495b] mt-0.5">Cannot count: {u.blockers}</div>}
+                    </div>
+                    <Button size="sm" variant="outline" className="shrink-0 h-7 text-xs"
+                      disabled={!u.approvable || approving === u.user_id}
+                      title={u.approvable
+                        ? 'Mark this sheet submitted and count it in the standings'
+                        : `Cannot count: ${u.blockers}`}
+                      onClick={() => approveSheet(u.user_id, u.display_name)}>
+                      {approving === u.user_id ? 'Counting…' : 'Count this sheet'}
+                    </Button>
                   </div>
                 ))}
               </div>
               <div className="text-xs text-charcoal-500 mt-2">
                 Partial sheets are usually just players mid-week; complete ones are the worry.
-                Picks are saved either way — submitting is what enters them.
+                Picks are saved either way — submitting is what enters them. Counting a sheet
+                checks first that it is six picks with one lock, that nothing else is already
+                being scored for them this week, and that no pick was made after its game
+                locked; the approval is stamped now, not back-dated.
               </div>
             </div>
           )}
