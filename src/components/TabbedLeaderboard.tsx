@@ -52,6 +52,15 @@ export default function TabbedLeaderboard() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [expandedData, setExpandedData] = useState<Map<string, any>>(new Map())
   const [loadingExpansions, setLoadingExpansions] = useState<Set<string>>(new Set())
+
+  // Changing week, season or tab makes every open expansion belong to a view
+  // that is no longer on screen. Drop them rather than carry them, so the cache
+  // cannot grow without bound and nothing reopens against the wrong week.
+  useEffect(() => {
+    setExpandedRows(new Set())
+    setExpandedData(new Map())
+    setLoadingExpansions(new Set())
+  }, [season, selectedWeek, activeTab])
   
   // Search state
   const [searchTerm, setSearchTerm] = useState('')
@@ -333,9 +342,20 @@ export default function TabbedLeaderboard() {
   }
 
 
+  /**
+   * Cache key for an expanded row. The season, and for a weekly row the week,
+   * are part of it: keyed on the player alone, expanding Randy Moore in week 2
+   * and then switching to week 1 re-served the week 2 payload under a week 1
+   * row — the header said "Week 2 picks" beside a row reading week 1's score.
+   */
+  const expansionKey = (userId: string, tabType: 'season' | 'weekly') =>
+    tabType === 'season'
+      ? `${userId}-season-${season}`
+      : `${userId}-weekly-${season}-${selectedWeek}`
+
   // Handle row expansion
   const handleRowToggle = async (userId: string, tabType: 'season' | 'weekly') => {
-    const rowKey = `${userId}-${tabType}`
+    const rowKey = expansionKey(userId, tabType)
     const isExpanded = expandedRows.has(rowKey)
     
     if (isExpanded) {
@@ -904,7 +924,7 @@ export default function TabbedLeaderboard() {
             )
             .map((entry) => {
             const tabType = activeTab === 'season' ? 'season' : 'weekly'
-            const rowKey = `${entry.user_id}-${tabType}`
+            const rowKey = expansionKey(entry.user_id, tabType)
             const isExpanded = expandedRows.has(rowKey)
             const isLoadingExpansion = loadingExpansions.has(rowKey)
             const expansionData = expandedData.get(rowKey)
