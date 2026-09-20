@@ -1,5 +1,6 @@
 import { Lock, Clock, CheckCircle, XCircle, Minus, Ban } from 'lucide-react'
 import { UserWeeklyPicks, WeeklyPickDetail } from '@/services/leaderboard.types'
+import { formatRecord } from '@/lib/records'
 
 interface WeeklyExpandedDetailsProps {
   data: UserWeeklyPicks
@@ -52,8 +53,8 @@ export function WeeklyExpandedDetails({ data, isLoading = false }: WeeklyExpande
         <h4 className="font-semibold text-gray-900">{data.display_name}'s Week {data.week} picks</h4>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-gray-500">
           <span>Total <b className="text-[#4B3621] tabular-nums text-sm">{data.total_points}</b></span>
-          <span>Record <b className="tabular-nums text-sm text-gray-700">{data.weekly_record}</b></span>
-          <span className="flex items-center gap-1">Lock <Lock className="w-3 h-3" /> <b className="tabular-nums text-sm text-gray-700">{data.lock_record}</b></span>
+          <span>Record <b className="tabular-nums text-sm text-gray-700">{formatRecord(data.weekly_record)}</b></span>
+          <span className="flex items-center gap-1">Lock <Lock className="w-3 h-3" /> <b className="tabular-nums text-sm text-gray-700">{formatRecord(data.lock_record)}</b></span>
         </div>
       </div>
       {dropped > 0 && (

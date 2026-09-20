@@ -2,6 +2,7 @@ import React from 'react'
 import { Trophy, Calendar, Lock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { BestFinishWeeklyDetail } from '@/services/bestFinishService'
+import { formatRecord } from '@/lib/records'
 
 interface BestFinishExpandedDetailsProps {
   data: BestFinishWeeklyDetail[]
@@ -49,7 +50,7 @@ function WeeklyPerformanceCard({ week, isWorstWeek = false, isBestWeek = false }
       <div className="grid grid-cols-3 gap-3 text-sm">
         <div className="text-center">
           <div className="text-xs text-gray-500 uppercase tracking-wide">Record</div>
-          <div className="font-medium text-gray-900">{week.record}</div>
+          <div className="font-medium text-gray-900">{formatRecord(week.record)}</div>
         </div>
 
         <div className="text-center">
@@ -57,7 +58,7 @@ function WeeklyPerformanceCard({ week, isWorstWeek = false, isBestWeek = false }
             <Lock className="w-3 h-3" />
             <span>Lock</span>
           </div>
-          <div className="font-medium text-gray-900">{week.lockRecord}</div>
+          <div className="font-medium text-gray-900">{formatRecord(week.lockRecord)}</div>
         </div>
 
         <div className="text-center">
@@ -199,7 +200,7 @@ export function BestFinishExpandedDetails({
           <div className="space-y-2">
             <div className="flex justify-between">
               <span className="text-gray-600">Overall Record:</span>
-              <span className="font-medium">{totalWins}-{totalLosses}-{totalPushes}</span>
+              <span className="font-medium">{formatRecord(`${totalWins}-${totalLosses}-${totalPushes}`)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Win Percentage:</span>

@@ -1,5 +1,6 @@
 import { Trophy, Lock } from 'lucide-react'
 import { UserWeeklyBreakdown } from '@/services/leaderboard.types'
+import { formatRecord } from '@/lib/records'
 
 interface SeasonExpandedDetailsProps {
   data: UserWeeklyBreakdown
@@ -60,11 +61,17 @@ export function SeasonExpandedDetails({ data, isLoading = false, asOfWeek, curre
                 <span className="w-3.5 shrink-0">
                   {w.best_week && <Trophy className="w-3.5 h-3.5 text-[#C9A04E]" />}
                 </span>
-                <span className="whitespace-nowrap">Week {w.week}</span>
+                {/* "W3" on phones, "Week 3" once there is room. The summary
+                    line above already reads "Best W2", so the short form is
+                    the one players see first. */}
+                <span className="whitespace-nowrap">
+                  <span className="sm:hidden">W{w.week}</span>
+                  <span className="hidden sm:inline">Week {w.week}</span>
+                </span>
               </div>
               <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm tabular-nums shrink-0 ml-auto whitespace-nowrap">
-                <span className="text-gray-500 w-12 sm:w-14 text-right">{w.record}</span>
-                <span className="text-gray-500 w-14 sm:w-16 flex items-center justify-end gap-1"><Lock className="w-3 h-3 shrink-0" />{w.lock_record}</span>
+                <span className="text-gray-500 w-12 sm:w-14 text-right">{formatRecord(w.record)}</span>
+                <span className="text-gray-500 w-14 sm:w-16 flex items-center justify-end gap-1"><Lock className="w-3 h-3 shrink-0" />{formatRecord(w.lock_record)}</span>
                 <span className="font-extrabold text-[#4B3621] w-9 sm:w-10 text-right">{w.points}</span>
               </div>
             </div>

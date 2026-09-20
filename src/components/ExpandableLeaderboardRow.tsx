@@ -1,6 +1,7 @@
 import React from 'react'
 import { ChevronRight, Lock, Trophy, TrendingUp, TrendingDown, Minus, RefreshCw, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { formatRecord } from '@/lib/records'
 import { Badge } from '@/components/ui/badge'
 import type { ExpansionStatus } from '@/hooks/useExpandableRows'
 
@@ -300,12 +301,12 @@ export function LeaderboardRowContent({
         </div>
 
         {/* Record */}
-        <div className="text-sm text-gray-500 tabular-nums">{record}</div>
+        <div className="text-sm text-gray-500 tabular-nums">{formatRecord(record)}</div>
 
         {/* Lock — no inline icon: the column header already reads "Lock", and
             the icon plus its gap indented the value ~16px past every other
             column, which is what made this column look misaligned. */}
-        <div className="text-sm text-gray-500 tabular-nums">{lockRecord}</div>
+        <div className="text-sm text-gray-500 tabular-nums">{formatRecord(lockRecord)}</div>
 
         {/* Points */}
         <div className="text-right font-extrabold text-[#4B3621] text-lg tabular-nums">{points}</div>
@@ -329,8 +330,8 @@ export function LeaderboardRowContent({
 
         {/* Line 2: record · lock · badges (compact) */}
         <div className="mt-0.5 flex items-center gap-3 text-xs text-gray-500 tabular-nums">
-          <span>{record}</span>
-          <span className="flex items-center gap-1"><Lock className="w-3 h-3" />{lockRecord}</span>
+          <span>{formatRecord(record)}</span>
+          <span className="flex items-center gap-1"><Lock className="w-3 h-3" />{formatRecord(lockRecord)}</span>
           {getPaymentBadge()}
           {getSourceBadge()}
         </div>
