@@ -1,14 +1,22 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { ChevronDown, ChevronRight, Lock, Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import React from 'react'
+import { ChevronRight, Lock, Trophy, TrendingUp, TrendingDown, Minus, RefreshCw, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import type { ExpansionStatus } from '@/hooks/useExpandableRows'
 
 interface ExpandableLeaderboardRowProps {
   children: React.ReactNode
+  /** Rendered only once the row's data is in hand. */
   expandedContent: React.ReactNode
-  isLoading?: boolean
+  /** Controlled: the owner of the data owns the open/closed state too. */
+  isExpanded: boolean
+  onToggle: () => void
+  status?: ExpansionStatus
+  error?: string
+  onRetry?: () => void
+  emptyMessage?: string
+  loadingLabel?: string
   canExpand?: boolean
-  defaultExpanded?: boolean
   className?: string
   id?: string
 }
@@ -33,21 +41,80 @@ interface LeaderboardRowContentProps {
   isCurrentUser?: boolean  // Highlight the logged-in user's own row
 }
 
-export function ExpandableLeaderboardRow({ 
-  children, 
-  expandedContent, 
-  isLoading = false,
+/** Placeholder rows that match the shape of the real breakdown. */
+function ExpansionSkeleton({ label }: { label: string }) {
+  return (
+    <div className="space-y-3" role="status" aria-live="polite">
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <div className="w-4 h-4 animate-spin rounded-full border-2 border-gray-300 border-t-[#4B3621]" />
+        <span>{label}</span>
+      </div>
+      <div className="rounded-xl border border-[#ece7de] bg-white overflow-hidden">
+        {[0, 1, 2].map(i => (
+          <div key={i} className="flex items-center justify-between gap-3 px-3.5 py-3 border-b border-[#f0ece5] last:border-b-0">
+            <div className="h-3 rounded bg-[#ece7de] animate-pulse w-20" />
+            <div className="flex items-center gap-3">
+              <div className="h-3 rounded bg-[#f0ece5] animate-pulse w-12" />
+              <div className="h-3 rounded bg-[#f0ece5] animate-pulse w-12" />
+              <div className="h-3 rounded bg-[#ece7de] animate-pulse w-8" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** The state the old code had no way to reach: it failed, and you can try again. */
+function ExpansionError({ message, onRetry }: { message?: string; onRetry?: () => void }) {
+  return (
+    <div className="rounded-xl border border-[#f0d9d9] bg-[#fdf6f6] px-4 py-4 text-center">
+      <div className="flex items-center justify-center gap-2 text-sm font-medium text-[#8a3a3a]">
+        <AlertCircle className="w-4 h-4 shrink-0" />
+        <span>{message || 'Something went wrong loading this.'}</span>
+      </div>
+      {onRetry && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-3 gap-1.5"
+          onClick={(e) => { e.stopPropagation(); onRetry() }}
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Try again
+        </Button>
+      )}
+    </div>
+  )
+}
+
+export function ExpandableLeaderboardRow({
+  children,
+  expandedContent,
+  isExpanded,
+  onToggle,
+  status = 'ready',
+  error,
+  onRetry,
+  emptyMessage = 'Nothing to show here yet',
+  loadingLabel = 'Loading…',
   canExpand = true,
-  defaultExpanded = false,
   className = '',
   id
 }: ExpandableLeaderboardRowProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded)
-  const contentRef = useRef<HTMLDivElement>(null)
-
   const handleToggle = () => {
-    if (canExpand && !isLoading) {
-      setIsExpanded(!isExpanded)
+    // Deliberately NOT gated on the loading state: a row that is still
+    // fetching must stay closable, and a row whose fetch got stuck must stay
+    // clickable. Blocking on it is what left rows frozen mid-spinner.
+    if (canExpand) onToggle()
+  }
+
+  const renderBody = () => {
+    switch (status) {
+      case 'loading': return <ExpansionSkeleton label={loadingLabel} />
+      case 'error': return <ExpansionError message={error} onRetry={onRetry} />
+      case 'empty': return <div className="text-center py-6 text-sm text-gray-500">{emptyMessage}</div>
+      default: return expandedContent
     }
   }
 
@@ -55,8 +122,18 @@ export function ExpandableLeaderboardRow({
     <div id={id} className={`border-b border-[#ece7de] last:border-b-0 transition-colors duration-200 scroll-mt-24 ${isExpanded ? 'bg-[#faf8f4]' : ''} ${className}`}>
       {/* Main row */}
       <div
-        className={`px-4 py-2.5 ${canExpand && !isLoading ? 'cursor-pointer hover:bg-[#faf8f4] active:bg-[#f3efe7]' : ''} transition-colors duration-150`}
+        className={`px-4 py-2.5 ${canExpand ? 'cursor-pointer hover:bg-[#faf8f4] active:bg-[#f3efe7]' : ''} transition-colors duration-150`}
         onClick={handleToggle}
+        role={canExpand ? 'button' : undefined}
+        tabIndex={canExpand ? 0 : undefined}
+        aria-expanded={canExpand ? isExpanded : undefined}
+        onKeyDown={(e) => {
+          if (!canExpand) return
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handleToggle()
+          }
+        }}
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex-1 min-w-0">
@@ -65,41 +142,44 @@ export function ExpandableLeaderboardRow({
 
           {canExpand && (
             <div className="flex items-center shrink-0">
-              {isLoading ? (
-                <div className="w-4 h-4 animate-spin rounded-full border-2 border-gray-300 border-t-[#4B3621]" />
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="p-1 hover:bg-gray-200 transition-all duration-200"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleToggle()
-                  }}
-                >
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-1 hover:bg-gray-200 transition-all duration-200"
+                aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                onClick={(e) => {
+                  // The chevron used to toggle a second, private copy of the
+                  // open state. The panel opened, the fetch never fired, and
+                  // the row sat empty forever. One source of truth now.
+                  e.stopPropagation()
+                  handleToggle()
+                }}
+              >
+                {status === 'loading' && isExpanded ? (
+                  <div className="w-4 h-4 animate-spin rounded-full border-2 border-gray-300 border-t-[#4B3621]" />
+                ) : (
                   <div className={`transform transition-transform duration-300 ${isExpanded ? 'rotate-90' : 'rotate-0'}`}>
-                    <ChevronRight className="w-4 h-4 text-gray-600" />
+                    <ChevronRight className={`w-4 h-4 ${status === 'error' && isExpanded ? 'text-[#8a3a3a]' : 'text-gray-600'}`} />
                   </div>
-                </Button>
-              )}
+                )}
+              </Button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Expanded content with smooth animation */}
+      {/* Expanded content. Animated with grid rows rather than a max-height
+          guess: the old max-h-[2000px] silently clipped a long breakdown. */}
       <div
-        ref={contentRef}
-        className={`overflow-hidden transition-all duration-300 ease-in-out border-t ${
-          isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+          isExpanded ? 'grid-rows-[1fr] opacity-100 border-t border-[#ece7de]' : 'grid-rows-[0fr] opacity-0'
         }`}
-        style={{
-          borderTopColor: isExpanded ? undefined : 'transparent'
-        }}
       >
-        <div className="bg-[#faf8f4]">
-          <div className="p-4">
-            {expandedContent}
+        <div className="overflow-hidden min-h-0">
+          <div className="bg-[#faf8f4]">
+            <div className="p-4">
+              {isExpanded && renderBody()}
+            </div>
           </div>
         </div>
       </div>

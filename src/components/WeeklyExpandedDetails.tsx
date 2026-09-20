@@ -70,17 +70,18 @@ export function WeeklyExpandedDetails({ data, isLoading = false }: WeeklyExpande
             const r = resultMeta(p)
             return (
               <div key={p.game_id} className={`px-3.5 py-2.5 border-b border-[#f0ece5] ${i % 2 === 1 ? 'xl:border-l xl:border-[#ece7de]' : ''} ${r.row}`}>
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                <div className="flex flex-col gap-1 min-w-0 sm:flex-row sm:items-center sm:gap-3">
                   {/* Game */}
                   <div className="flex items-center gap-1.5 min-w-0 sm:flex-1">
                     {p.is_lock && <Lock className="w-3.5 h-3.5 text-[#4B3621] shrink-0" />}
                     <span className={`font-medium truncate ${p.dropped ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{p.game_name}</span>
                   </div>
-                  {/* Pick / result / points */}
-                  <div className="flex items-center gap-3 text-sm shrink-0 pl-5 sm:pl-0">
-                    <span className="text-gray-600 w-24 truncate sm:text-right">{p.selected_team}</span>
-                    <span className={`flex items-center gap-1 w-14 font-medium ${r.color}`}>{r.icon}{r.label}</span>
-                    <span className={`font-bold tabular-nums w-8 text-right ${r.color}`}>{p.dropped ? '—' : p.points_earned}</span>
+                  {/* Pick / result / points. Widths step down on phones so the
+                      row stays inside the card, which clips what overflows. */}
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 text-xs sm:text-sm shrink-0 pl-5 sm:pl-0">
+                    <span className="text-gray-600 w-20 sm:w-24 truncate sm:text-right">{p.selected_team}</span>
+                    <span className={`flex items-center gap-1 w-14 shrink-0 font-medium ${r.color}`}>{r.icon}{r.label}</span>
+                    <span className={`font-bold tabular-nums w-8 shrink-0 text-right ${r.color}`}>{p.dropped ? '—' : p.points_earned}</span>
                   </div>
                 </div>
               </div>

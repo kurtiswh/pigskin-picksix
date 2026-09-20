@@ -6,6 +6,7 @@ import { BestFinishService, BestFinishEntry } from '@/services/bestFinishService
 import { useAuth } from '@/hooks/useAuth'
 import { ExpandableLeaderboardRow, LeaderboardRowContent } from '@/components/ExpandableLeaderboardRow'
 import { BestFinishExpandedDetails } from '@/components/BestFinishExpandedDetails'
+import { useExpandableRows } from '@/hooks/useExpandableRows'
 
 interface BestFinishLeaderboardProps {
   season: number
@@ -19,10 +20,9 @@ export function BestFinishLeaderboard({ season, searchTerm = '' }: BestFinishLea
   const [error, setError] = useState('')
   const [eligibleWeeks, setEligibleWeeks] = useState<number[]>([])
 
-  // State for expandable rows
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
-  const [expandedData, setExpandedData] = useState<Map<string, any>>(new Map())
-  const [loadingExpansions, setLoadingExpansions] = useState<Set<string>>(new Set())
+  // Expandable rows: open/closed plus per-row load state, reset whenever the
+  // season changes so a row can never reopen onto another season's breakdown.
+  const rows = useExpandableRows<any>({ resetKey: season })
 
   const isAdmin = user?.is_admin === true
 
@@ -61,48 +61,10 @@ export function BestFinishLeaderboard({ season, searchTerm = '' }: BestFinishLea
   }
 
   // Handle row expansion
-  const handleRowToggle = async (userId: string) => {
-    const rowKey = `${userId}-bestfinish`
-    const isExpanded = expandedRows.has(rowKey)
-
-    if (isExpanded) {
-      // Collapse row
-      const newExpanded = new Set(expandedRows)
-      newExpanded.delete(rowKey)
-      setExpandedRows(newExpanded)
-      return
-    }
-
-    // Expand row - load data if not already loaded
-    const newExpanded = new Set(expandedRows)
-    newExpanded.add(rowKey)
-    setExpandedRows(newExpanded)
-
-    if (!expandedData.has(rowKey)) {
-      const newLoading = new Set(loadingExpansions)
-      newLoading.add(rowKey)
-      setLoadingExpansions(newLoading)
-
-      try {
-        console.log(`🔍 Loading Best Finish expanded data for ${rowKey}`)
-        const details = await BestFinishService.getBestFinishDetails(userId, season)
-        console.log('✅ Best Finish expanded data loaded:', details)
-
-        if (details) {
-          const newExpandedData = new Map(expandedData)
-          newExpandedData.set(rowKey, details)
-          setExpandedData(newExpandedData)
-        } else {
-          console.warn('⚠️ No data returned for expanded content:', rowKey)
-        }
-      } catch (error) {
-        console.error('❌ Failed to load expanded data:', error)
-      } finally {
-        const newLoading = new Set(loadingExpansions)
-        newLoading.delete(rowKey)
-        setLoadingExpansions(newLoading)
-      }
-    }
+  const handleRowToggle = (userId: string) => {
+    rows.toggle(`${userId}-bestfinish-${season}`, () =>
+      BestFinishService.getBestFinishDetails(userId, season)
+    )
   }
 
   const exportToCSV = async () => {
@@ -230,10 +192,11 @@ export function BestFinishLeaderboard({ season, searchTerm = '' }: BestFinishLea
           {/* Expandable rows */}
           <div className="border-x border-b border-[#ece7de] rounded-b-lg overflow-hidden">
             {filteredData.map((entry) => {
-              const rowKey = `${entry.userId}-bestfinish`
-              const isExpanded = expandedRows.has(rowKey)
-              const isLoadingExpansion = loadingExpansions.has(rowKey)
-              const expansionData = expandedData.get(rowKey)
+              const rowKey = `${entry.userId}-bestfinish-${season}`
+              const isExpanded = rows.isExpanded(rowKey)
+              const rowState = rows.getState(rowKey)
+              const expansionStatus = rowState?.status ?? 'loading'
+              const expansionData = rowState?.data
 
               // Check if this rank is tied
               const isTied = filteredData.filter(e => e.totalPoints === entry.totalPoints).length > 1
@@ -247,7 +210,13 @@ export function BestFinishLeaderboard({ season, searchTerm = '' }: BestFinishLea
               return (
                 <ExpandableLeaderboardRow
                   key={entry.userId}
-                  isLoading={isLoadingExpansion}
+                  isExpanded={isExpanded}
+                  onToggle={() => handleRowToggle(entry.userId)}
+                  status={expansionStatus}
+                  error={rowState?.error}
+                  onRetry={() => rows.retry(rowKey)}
+                  loadingLabel="Loading weekly breakdown…"
+                  emptyMessage="No weekly data available for Best Finish competition"
                   className={`${rankTint} ${tiedTint}`.trim()}
                   expandedContent={
                     expansionData ? (
@@ -259,25 +228,20 @@ export function BestFinishLeaderboard({ season, searchTerm = '' }: BestFinishLea
                     ) : null
                   }
                 >
-                  <div
-                    className="cursor-pointer"
-                    onClick={() => handleRowToggle(entry.userId)}
-                  >
-                    <LeaderboardRowContent
-                      rank={getDisplayRank(entry)}
-                      displayName={entry.displayName}
-                      record={entry.record}
-                      lockRecord={entry.lockRecord}
-                      points={entry.totalPoints}
-                      paymentStatus={entry.paymentStatus?.toLowerCase() === 'paid' ? 'Paid' : 'NotPaid'}
-                      isExpanded={isExpanded}
-                      isLoading={isLoadingExpansion}
-                      canExpand={true}
-                      onToggle={() => {}}
-                      isAdmin={isAdmin}
-                      isTied={isTied}
-                    />
-                  </div>
+                  <LeaderboardRowContent
+                    rank={getDisplayRank(entry)}
+                    displayName={entry.displayName}
+                    record={entry.record}
+                    lockRecord={entry.lockRecord}
+                    points={entry.totalPoints}
+                    paymentStatus={entry.paymentStatus?.toLowerCase() === 'paid' ? 'Paid' : 'NotPaid'}
+                    isExpanded={isExpanded}
+                    isLoading={expansionStatus === 'loading' && isExpanded}
+                    canExpand={true}
+                    onToggle={() => {}}
+                    isAdmin={isAdmin}
+                    isTied={isTied}
+                  />
                 </ExpandableLeaderboardRow>
               )
             })}

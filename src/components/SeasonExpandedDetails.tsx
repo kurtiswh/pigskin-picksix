@@ -32,7 +32,7 @@ export function SeasonExpandedDetails({ data, isLoading = false, asOfWeek, curre
     <div className="space-y-3">
       {/* Summary line (stacks on mobile) */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <h4 className="font-semibold text-gray-900">
+        <h4 className="font-semibold text-gray-900 min-w-0 break-words">
           {data.display_name}'s weekly breakdown
           {isHistorical && <span className="text-gray-400 font-normal"> · through Week {asOfWeek}</span>}
         </h4>
@@ -49,16 +49,23 @@ export function SeasonExpandedDetails({ data, isLoading = false, asOfWeek, curre
           {weeks.map((w, i) => (
             <div
               key={w.week}
-              className={`flex items-center justify-between gap-3 px-3.5 py-2.5 border-b border-[#f0ece5] ${i % 2 === 1 ? 'lg:border-l lg:border-[#ece7de]' : ''} ${w.best_week ? 'bg-[#fff8ea]' : ''}`}
+              className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-1 sm:gap-x-3 px-2.5 sm:px-3.5 py-2.5 border-b border-[#f0ece5] ${i % 2 === 1 ? 'lg:border-l lg:border-[#ece7de]' : ''} ${w.best_week ? 'bg-[#fff8ea]' : ''}`}
             >
+              {/* Wraps rather than squashes: everything used to be shrink-0 on
+                  one line, so on a narrow phone the row ran past the card, and
+                  the card clips. That is how the best week, a trophy plus a
+                  three-digit score, lost its last digit. The trophy slot is
+                  always reserved so the best week is no wider than any other. */}
               <div className="flex items-center gap-1.5 font-medium text-gray-900 shrink-0">
-                {w.best_week && <Trophy className="w-3.5 h-3.5 text-[#C9A04E] shrink-0" />}
+                <span className="w-3.5 shrink-0">
+                  {w.best_week && <Trophy className="w-3.5 h-3.5 text-[#C9A04E]" />}
+                </span>
                 <span className="whitespace-nowrap">Week {w.week}</span>
               </div>
-              <div className="flex items-center gap-3 sm:gap-4 text-sm tabular-nums shrink-0 whitespace-nowrap">
-                <span className="text-gray-500 w-14 text-right">{w.record}</span>
-                <span className="text-gray-500 w-16 flex items-center justify-end gap-1"><Lock className="w-3 h-3 shrink-0" />{w.lock_record}</span>
-                <span className="font-extrabold text-[#4B3621] w-10 text-right">{w.points}</span>
+              <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm tabular-nums shrink-0 ml-auto whitespace-nowrap">
+                <span className="text-gray-500 w-12 sm:w-14 text-right">{w.record}</span>
+                <span className="text-gray-500 w-14 sm:w-16 flex items-center justify-end gap-1"><Lock className="w-3 h-3 shrink-0" />{w.lock_record}</span>
+                <span className="font-extrabold text-[#4B3621] w-9 sm:w-10 text-right">{w.points}</span>
               </div>
             </div>
           ))}

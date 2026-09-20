@@ -5,6 +5,32 @@ import type { UserWeeklyBreakdown, WeeklyPerformance, UserWeeklyPicks, WeeklyPic
 // Defined in @/types; re-exported because callers import it from here.
 export type { LeaderboardEntry }
 
+/**
+ * A row-expansion query that failed rather than came back empty. The two used to
+ * be the same `null`, so the UI could only ever render "nothing" — no retry, no
+ * explanation. Keep the distinction: throw this for a broken/timed-out request,
+ * return null (or an empty list) only when the player genuinely has no data.
+ */
+export class LeaderboardDetailError extends Error {
+  readonly cause?: unknown
+
+  constructor(message: string, cause?: unknown) {
+    super(message)
+    this.name = 'LeaderboardDetailError'
+    this.cause = cause
+  }
+
+  static wrap(error: any, message: string): LeaderboardDetailError {
+    if (error instanceof LeaderboardDetailError) return error
+    return new LeaderboardDetailError(message, error)
+  }
+}
+
+// Row-expansion queries run one player at a time on a phone that may have just
+// woken up. 5s was tight enough that a cold connection routinely lost the race
+// and the row went permanently blank.
+const DETAIL_QUERY_TIMEOUT_MS = 12000
+
 export interface SeasonChampion {
   season: number
   champion: { display_name: string; total_points: number | null; record: string | null } | null
@@ -562,26 +588,29 @@ export class LeaderboardService {
 
       const [picksResult, anonPicksResult, userResult] = await Promise.race([
         Promise.all([picksQuery, anonPicksQuery, userQuery]),
-        this.createTimeoutPromise<any>(5000)
+        this.createTimeoutPromise<any>(DETAIL_QUERY_TIMEOUT_MS)
       ])
 
       const { data: picks, error: picksError } = picksResult
       const { data: anonPicks, error: anonPicksError } = anonPicksResult
       const { data: user, error: userError } = userResult
 
+      // A failed query is not an empty breakdown. Returning null for both is what
+      // made an expanded row sit blank forever with no way to tell the player
+      // whether they had no picks or the request had simply fallen over.
       if (picksError) {
         console.log('❌ [BREAKDOWN] Direct picks query failed:', picksError.message)
-        return null
+        throw new LeaderboardDetailError('Could not load this weekly breakdown.', picksError)
       }
 
       if (anonPicksError) {
         console.log('⚠️ [BREAKDOWN] Anonymous picks query failed:', anonPicksError.message)
-        // Don't return null, just continue without anonymous picks
+        // Don't fail the breakdown, just continue without anonymous picks
       }
 
       if (userError) {
-        console.log('❌ [BREAKDOWN] User query failed:', userError.message)
-        return null
+        // Non-fatal: the weeks are the point, the name is a label.
+        console.log('⚠️ [BREAKDOWN] User query failed:', userError.message)
       }
 
       // Combine authenticated and anonymous picks, one source per week. A submitted
@@ -667,7 +696,7 @@ export class LeaderboardService {
 
     } catch (error: any) {
       console.log('❌ [BREAKDOWN] Error loading weekly breakdown:', error.message)
-      return null
+      throw LeaderboardDetailError.wrap(error, 'Could not load this weekly breakdown.')
     }
   }
 
@@ -679,11 +708,27 @@ export class LeaderboardService {
     console.log('📊 [WEEKLY PICKS] Loading picks for user', userId, 'season', season, 'week', week)
 
     try {
-      const authenticatedResult = await this.getAuthenticatedUserPicks(userId, season, week)
-      const anonymousResult = await this.getAnonymousUserPicks(userId, season, week)
+      // Both sheets in parallel: run back to back they doubled the wait on a
+      // phone, which is most of what "the row never opens" actually was.
+      const [authSettled, anonSettled] = await Promise.allSettled([
+        this.getAuthenticatedUserPicks(userId, season, week),
+        this.getAnonymousUserPicks(userId, season, week),
+      ])
 
-      // If no picks found at all
+      const authenticatedResult = authSettled.status === 'fulfilled' ? authSettled.value : null
+      const anonymousResult = anonSettled.status === 'fulfilled' ? anonSettled.value : null
+
+      // A rejected half only matters when the other half has nothing to show:
+      // with picks in hand the sheet is complete (the account sheet wins its
+      // week outright anyway), without them we cannot claim "no picks".
       if (!authenticatedResult && !anonymousResult) {
+        const failure =
+          (authSettled.status === 'rejected' && authSettled.reason) ||
+          (anonSettled.status === 'rejected' && anonSettled.reason)
+        if (failure) {
+          console.log('❌ [WEEKLY PICKS] Both pick queries failed')
+          throw LeaderboardDetailError.wrap(failure, 'Could not load these picks.')
+        }
         console.log('❌ [WEEKLY PICKS] No picks found for user')
         return null
       }
@@ -710,7 +755,7 @@ export class LeaderboardService {
 
     } catch (error: any) {
       console.log('❌ [WEEKLY PICKS] Error loading weekly picks:', error.message)
-      return null
+      throw LeaderboardDetailError.wrap(error, 'Could not load these picks.')
     }
   }
 
@@ -749,10 +794,15 @@ export class LeaderboardService {
 
       const { data: picks, error } = await Promise.race([
         query,
-        this.createTimeoutPromise<any>(5000)
+        this.createTimeoutPromise<any>(DETAIL_QUERY_TIMEOUT_MS)
       ])
 
-      if (error || !picks || picks.length === 0) {
+      if (error) {
+        console.log('❌ [AUTHENTICATED PICKS] Query failed:', error.message)
+        throw new LeaderboardDetailError('Could not load these picks.', error)
+      }
+
+      if (!picks || picks.length === 0) {
         return null
       }
 
@@ -792,7 +842,7 @@ export class LeaderboardService {
       }
     } catch (error: any) {
       console.log('❌ [AUTHENTICATED PICKS] Error:', error.message)
-      return null
+      throw LeaderboardDetailError.wrap(error, 'Could not load these picks.')
     }
   }
 
@@ -805,8 +855,8 @@ export class LeaderboardService {
         .single()
 
       if (userError) {
-        console.log('❌ [ANONYMOUS PICKS] User lookup failed:', userError.message)
-        return null
+        // Non-fatal: PGRST116 just means there is no users row to name.
+        console.log('⚠️ [ANONYMOUS PICKS] User lookup failed:', userError.message)
       }
 
       const query = supabase
@@ -836,10 +886,15 @@ export class LeaderboardService {
 
       const { data: picks, error } = await Promise.race([
         query,
-        this.createTimeoutPromise<any>(5000)
+        this.createTimeoutPromise<any>(DETAIL_QUERY_TIMEOUT_MS)
       ])
 
-      if (error || !picks || picks.length === 0) {
+      if (error) {
+        console.log('❌ [ANONYMOUS PICKS] Query failed:', error.message)
+        throw new LeaderboardDetailError('Could not load these picks.', error)
+      }
+
+      if (!picks || picks.length === 0) {
         return null
       }
 
@@ -874,7 +929,7 @@ export class LeaderboardService {
       }
     } catch (error: any) {
       console.log('❌ [ANONYMOUS PICKS] Error:', error.message)
-      return null
+      throw LeaderboardDetailError.wrap(error, 'Could not load these picks.')
     }
   }
 

@@ -14,6 +14,7 @@ import { WeekSettingsService, WeekSettings } from '@/services/weekSettingsServic
 import { useAuth } from '@/hooks/useAuth'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { ExpandableLeaderboardRow, LeaderboardRowContent } from '@/components/ExpandableLeaderboardRow'
+import { useExpandableRows } from '@/hooks/useExpandableRows'
 import { SeasonExpandedDetails } from '@/components/SeasonExpandedDetails'
 import { WeeklyExpandedDetails } from '@/components/WeeklyExpandedDetails'
 import { BestFinishLeaderboard } from '@/components/BestFinishLeaderboard'
@@ -48,19 +49,10 @@ export default function TabbedLeaderboard() {
   const [strategy, setStrategy] = useState('')
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
   
-  // State for expandable rows
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
-  const [expandedData, setExpandedData] = useState<Map<string, any>>(new Map())
-  const [loadingExpansions, setLoadingExpansions] = useState<Set<string>>(new Set())
-
-  // Changing week, season or tab makes every open expansion belong to a view
-  // that is no longer on screen. Drop them rather than carry them, so the cache
-  // cannot grow without bound and nothing reopens against the wrong week.
-  useEffect(() => {
-    setExpandedRows(new Set())
-    setExpandedData(new Map())
-    setLoadingExpansions(new Set())
-  }, [season, selectedWeek, activeTab])
+  // Expandable rows. Changing week, season or tab makes every open expansion
+  // belong to a view that is no longer on screen, so resetKey drops them (and
+  // invalidates anything still in flight) rather than carrying them over.
+  const rows = useExpandableRows<any>({ resetKey: `${season}-${selectedWeek}-${activeTab}` })
   
   // Search state
   const [searchTerm, setSearchTerm] = useState('')
@@ -354,55 +346,16 @@ export default function TabbedLeaderboard() {
       : `${userId}-weekly-${season}-${selectedWeek}`
 
   // Handle row expansion
-  const handleRowToggle = async (userId: string, tabType: 'season' | 'weekly') => {
+  const handleRowToggle = (userId: string, tabType: 'season' | 'weekly') => {
     const rowKey = expansionKey(userId, tabType)
-    const isExpanded = expandedRows.has(rowKey)
-    
-    if (isExpanded) {
-      // Collapse row
-      const newExpanded = new Set(expandedRows)
-      newExpanded.delete(rowKey)
-      setExpandedRows(newExpanded)
-      return
-    }
-    
-    // Expand row - load data if not already loaded
-    const newExpanded = new Set(expandedRows)
-    newExpanded.add(rowKey)
-    setExpandedRows(newExpanded)
-    
-    if (!expandedData.has(rowKey)) {
-      const newLoading = new Set(loadingExpansions)
-      newLoading.add(rowKey)
-      setLoadingExpansions(newLoading)
-      
-      try {
-        let data
-        console.log(`🔍 Loading expanded data for ${rowKey}, tabType: ${tabType}`)
-        if (tabType === 'season') {
-          data = await LeaderboardService.getUserWeeklyBreakdown(userId, season)
-          console.log('🔍 Season expanded data loaded:', data)
-        } else {
-          data = await LeaderboardService.getUserWeeklyPicks(userId, season, selectedWeek)
-          console.log('🔍 Weekly expanded data loaded:', data)
-        }
-        
-        if (data) {
-          console.log('✅ Setting expanded data for', rowKey)
-          const newExpandedData = new Map(expandedData)
-          newExpandedData.set(rowKey, data)
-          setExpandedData(newExpandedData)
-        } else {
-          console.warn('⚠️ No data returned for expanded content:', rowKey)
-        }
-      } catch (error) {
-        console.error('❌ Failed to load expanded data:', error)
-      } finally {
-        const newLoading = new Set(loadingExpansions)
-        newLoading.delete(rowKey)
-        setLoadingExpansions(newLoading)
-      }
-    }
+    // The week is captured per toggle, so a row opened under Week 3 can never
+    // be filled by a request that resolves after the picker moved on.
+    const week = selectedWeek
+    rows.toggle(rowKey, () => {
+      if (tabType === 'season') return LeaderboardService.getUserWeeklyBreakdown(userId, season)
+      if (week === null) return Promise.resolve(null)
+      return LeaderboardService.getUserWeeklyPicks(userId, season, week)
+    })
   }
 
   // Helper function to format lock record display for weekly tab
@@ -925,9 +878,10 @@ export default function TabbedLeaderboard() {
             .map((entry) => {
             const tabType = activeTab === 'season' ? 'season' : 'weekly'
             const rowKey = expansionKey(entry.user_id, tabType)
-            const isExpanded = expandedRows.has(rowKey)
-            const isLoadingExpansion = loadingExpansions.has(rowKey)
-            const expansionData = expandedData.get(rowKey)
+            const isExpanded = rows.isExpanded(rowKey)
+            const rowState = rows.getState(rowKey)
+            const expansionStatus = rowState?.status ?? 'loading'
+            const expansionData = rowState?.data
             const currentRank = entry.season_rank || entry.weekly_rank
             
             // Check if this rank is tied - compare by points, not just rank
@@ -959,7 +913,15 @@ export default function TabbedLeaderboard() {
               <ExpandableLeaderboardRow
                 key={entry.user_id}
                 id={isMe ? 'my-leaderboard-row' : undefined}
-                isLoading={isLoadingExpansion}
+                isExpanded={isExpanded}
+                onToggle={() => handleRowToggle(entry.user_id, tabType)}
+                status={expansionStatus}
+                error={rowState?.error}
+                onRetry={() => rows.retry(rowKey)}
+                loadingLabel={tabType === 'season' ? 'Loading weekly breakdown…' : 'Loading pick details…'}
+                emptyMessage={tabType === 'season'
+                  ? 'No weekly data available for this season'
+                  : `No picks found for Week ${selectedWeek ?? ''}`.trim()}
                 className={`${meHighlight} ${tiedTint}`.trim()}
                 expandedContent={
                   expansionData ? (
@@ -975,30 +937,25 @@ export default function TabbedLeaderboard() {
                   ) : null
                 }
               >
-                <div
-                  className="cursor-pointer"
-                  onClick={() => handleRowToggle(entry.user_id, tabType)}
-                >
-                  <LeaderboardRowContent
-                    rank={getDisplayRank(entry, data)}
-                    displayName={entry.display_name}
-                    record={entry.season_record || entry.weekly_record}
-                    lockRecord={tabType === 'weekly' ? formatLockRecordForWeekly(entry) : entry.lock_record}
-                    points={('season_points' in entry ? entry.season_points : entry.total_points) || 0}
-                    paymentStatus={entry.payment_status}
-                    pickSource={entry.pick_source}
-                    isExpanded={isExpanded}
-                    isLoading={isLoadingExpansion}
-                    canExpand={true}
-                    onToggle={() => {}}
-                    isAdmin={isAdmin}
-                    isTied={isTied}
-                    rankChange={activeTab === 'season' ? ('rank_change' in entry ? entry.rank_change : undefined) : undefined}
-                    previousRank={activeTab === 'season' ? ('previous_rank' in entry ? entry.previous_rank : undefined) : undefined}
-                    trend={activeTab === 'season' ? ('trend' in entry ? entry.trend : undefined) : undefined}
-                    isCurrentUser={isMe}
-                  />
-                </div>
+                <LeaderboardRowContent
+                  rank={getDisplayRank(entry, data)}
+                  displayName={entry.display_name}
+                  record={entry.season_record || entry.weekly_record}
+                  lockRecord={tabType === 'weekly' ? formatLockRecordForWeekly(entry) : entry.lock_record}
+                  points={('season_points' in entry ? entry.season_points : entry.total_points) || 0}
+                  paymentStatus={entry.payment_status}
+                  pickSource={entry.pick_source}
+                  isExpanded={isExpanded}
+                  isLoading={expansionStatus === 'loading' && isExpanded}
+                  canExpand={true}
+                  onToggle={() => {}}
+                  isAdmin={isAdmin}
+                  isTied={isTied}
+                  rankChange={activeTab === 'season' ? ('rank_change' in entry ? entry.rank_change : undefined) : undefined}
+                  previousRank={activeTab === 'season' ? ('previous_rank' in entry ? entry.previous_rank : undefined) : undefined}
+                  trend={activeTab === 'season' ? ('trend' in entry ? entry.trend : undefined) : undefined}
+                  isCurrentUser={isMe}
+                />
               </ExpandableLeaderboardRow>
             )
           })}

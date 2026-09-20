@@ -25,10 +25,10 @@ function WeeklyPerformanceCard({ week, isWorstWeek = false, isBestWeek = false }
         ? 'bg-gradient-to-r from-red-50 to-orange-50 border-red-200 ring-1 ring-red-200'
         : 'bg-white border-gray-200 hover:border-gray-300'
     } transition-colors`}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center space-x-2">
-          <Calendar className="w-4 h-4 text-gray-500" />
-          <span className="font-semibold text-gray-900">Week {week.week}</span>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center space-x-2 min-w-0">
+          <Calendar className="w-4 h-4 text-gray-500 shrink-0" />
+          <span className="font-semibold text-gray-900 whitespace-nowrap">Week {week.week}</span>
           {isBestWeek && (
             <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
               <Trophy className="w-3 h-3 mr-1" />
@@ -41,7 +41,7 @@ function WeeklyPerformanceCard({ week, isWorstWeek = false, isBestWeek = false }
             </Badge>
           )}
         </div>
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-1 shrink-0">
           <span className="font-bold text-lg text-[#4B3621]">{week.points}</span>
         </div>
       </div>
