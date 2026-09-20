@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatsService, CareerStats, BiggestWeek, TeamAts, PerfectWeeks, Contrarian, WeekDifficulty, WeekSlate } from '@/services/statsService'
 import { useAuth } from '@/hooks/useAuth'
+import { formatRecord } from '@/lib/records'
 
 // Competition ranking (1,1,3…): equal consecutive values share the lower rank.
 // Input must already be sorted in display order.
@@ -35,7 +36,7 @@ const BOARDS: Board[] = [
   { title: 'Best Avg Points / Season', column: 'avg_season_points', rankKey: 'avg_season_points_rank', minSeasons: 3,
     fmt: s => `${s.avg_season_points}`, sub: s => `${s.career_points.toLocaleString()} total` },
   { title: 'Win %', column: 'win_pct', rankKey: 'win_pct_rank', minSeasons: 3,
-    fmt: s => pct(s.win_pct), sub: s => `${s.career_wins}-${s.career_losses}-${s.career_pushes}` },
+    fmt: s => pct(s.win_pct), sub: s => formatRecord(`${s.career_wins}-${s.career_losses}-${s.career_pushes}`) },
   { title: 'Lock Win %', column: 'lock_win_pct', rankKey: 'lock_win_pct_rank', minSeasons: 3,
     fmt: s => pct(s.lock_win_pct), sub: s => `${s.career_lock_wins}-${s.career_lock_losses} locks` },
   { title: 'Most Weekly Wins', column: 'weekly_wins', rankKey: 'weekly_wins_rank',

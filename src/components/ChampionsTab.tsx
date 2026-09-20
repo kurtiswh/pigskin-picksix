@@ -4,6 +4,7 @@ import { LeaderboardService, LeaderboardEntry, SeasonChampion } from '@/services
 import { StatsService, SeasonHistoryRow } from '@/services/statsService'
 import { useAuth } from '@/hooks/useAuth'
 import WinnersDisplay from '@/components/WinnersDisplay'
+import { formatRecord } from '@/lib/records'
 
 /** Hall of Champions: past-season winners, expandable to full final standings. */
 export default function ChampionsTab() {
@@ -75,7 +76,7 @@ export default function ChampionsTab() {
                         {champion.display_name}
                         {champion.total_points != null && (
                           <span className="text-charcoal-500 font-normal ml-2">
-                            {champion.total_points} pts · {champion.record}
+                            {champion.total_points} pts · {formatRecord(champion.record)}
                           </span>
                         )}
                       </div>
@@ -128,8 +129,8 @@ export default function ChampionsTab() {
                                   <td className={`py-2 pr-2 ${isMe ? 'font-semibold text-[#4B3621]' : 'text-charcoal-800'}`}>
                                     {e.display_name}{isMe && <span className="ml-2 text-[10px] font-bold uppercase text-[#C9A04E]">You</span>}
                                   </td>
-                                  <td className="py-2 pr-2 text-right text-charcoal-600 tabular-nums">{e.season_record}</td>
-                                  <td className="py-2 pr-2 text-right text-charcoal-600 tabular-nums">{e.lock_record}</td>
+                                  <td className="py-2 pr-2 text-right text-charcoal-600 tabular-nums">{formatRecord(e.season_record)}</td>
+                                  <td className="py-2 pr-2 text-right text-charcoal-600 tabular-nums">{formatRecord(e.lock_record)}</td>
                                   <td className="py-2 pl-2 text-right font-semibold text-[#4B3621] tabular-nums">
                                     {e.season_points ?? e.total_points}
                                   </td>

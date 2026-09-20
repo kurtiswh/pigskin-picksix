@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatsService, CareerStats, SeasonHistoryRow } from '@/services/statsService'
+import { formatRecord } from '@/lib/records'
 
 interface Props {
   userId: string
@@ -97,7 +98,7 @@ export default function CareerStatsCard({ userId, bestWeekScore, currentSeasonPo
                         {h.entrants ? <span className="text-charcoal-400"> / {h.entrants}</span> : null}
                       </td>
                       <td className="py-1.5 pr-3 text-right tabular-nums text-charcoal-600">
-                        {h.wins}-{h.losses}-{h.pushes}
+                        {formatRecord(`${h.wins}-${h.losses}-${h.pushes}`)}
                       </td>
                       <td className="py-1.5 pr-3 text-right tabular-nums text-charcoal-600">
                         {h.lock_wins}-{h.lock_losses}

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
 import type { Game } from '@/types'
+import { formatRecord } from '@/lib/records'
 
 
 interface WeekStats {
@@ -527,22 +528,22 @@ export default function GameStatsOverview({
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2">
             <div className="text-[11px] text-charcoal-500">Week {week} Record</div>
-            <div className="font-bold text-[#4B3621] tabular-nums text-sm">{weekStats.overallRecord.wins}-{weekStats.overallRecord.losses}-{weekStats.overallRecord.pushes} <span className="text-charcoal-500 font-semibold">· {weekStats.overallRecord.winPercentage}%</span></div>
+            <div className="font-bold text-[#4B3621] tabular-nums text-sm">{formatRecord(`${weekStats.overallRecord.wins}-${weekStats.overallRecord.losses}-${weekStats.overallRecord.pushes}`)} <span className="text-charcoal-500 font-semibold">· {weekStats.overallRecord.winPercentage}%</span></div>
           </div>
           {weekStats.seasonRecord && (
             <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2">
               <div className="text-[11px] text-charcoal-500">Season Record</div>
-              <div className="font-bold text-[#4B3621] tabular-nums text-sm">{weekStats.seasonRecord.wins}-{weekStats.seasonRecord.losses}-{weekStats.seasonRecord.pushes} <span className="text-charcoal-500 font-semibold">· {weekStats.seasonRecord.winPercentage}%</span></div>
+              <div className="font-bold text-[#4B3621] tabular-nums text-sm">{formatRecord(`${weekStats.seasonRecord.wins}-${weekStats.seasonRecord.losses}-${weekStats.seasonRecord.pushes}`)} <span className="text-charcoal-500 font-semibold">· {weekStats.seasonRecord.winPercentage}%</span></div>
             </div>
           )}
           <div className="rounded-lg bg-[#fff5e2] border border-[#f0dcb0] px-3 py-2">
             <div className="text-[11px] text-[#8a6a1f]">Week {week} Lock</div>
-            <div className="font-bold text-[#4B3621] tabular-nums text-sm">{weekStats.lockRecord.wins}-{weekStats.lockRecord.losses}-{weekStats.lockRecord.pushes} <span className="text-[#8a6a1f] font-semibold">· {weekStats.lockRecord.winPercentage}%</span></div>
+            <div className="font-bold text-[#4B3621] tabular-nums text-sm">{formatRecord(`${weekStats.lockRecord.wins}-${weekStats.lockRecord.losses}-${weekStats.lockRecord.pushes}`)} <span className="text-[#8a6a1f] font-semibold">· {weekStats.lockRecord.winPercentage}%</span></div>
           </div>
           {weekStats.seasonLockRecord && (
             <div className="rounded-lg bg-[#fff5e2] border border-[#f0dcb0] px-3 py-2">
               <div className="text-[11px] text-[#8a6a1f]">Season Lock</div>
-              <div className="font-bold text-[#4B3621] tabular-nums text-sm">{weekStats.seasonLockRecord.wins}-{weekStats.seasonLockRecord.losses}-{weekStats.seasonLockRecord.pushes} <span className="text-[#8a6a1f] font-semibold">· {weekStats.seasonLockRecord.winPercentage}%</span></div>
+              <div className="font-bold text-[#4B3621] tabular-nums text-sm">{formatRecord(`${weekStats.seasonLockRecord.wins}-${weekStats.seasonLockRecord.losses}-${weekStats.seasonLockRecord.pushes}`)} <span className="text-[#8a6a1f] font-semibold">· {weekStats.seasonLockRecord.winPercentage}%</span></div>
             </div>
           )}
         </div>

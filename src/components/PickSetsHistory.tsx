@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { UserPickSet, PickDetail } from '@/types'
+import { formatRecord } from '@/lib/records'
 
 const RESULT_TEXT: Record<string, string> = {
   win: 'text-[#2E7D4F]', loss: 'text-[#B23A3A]', push: 'text-[#8a6a1f]', pending: 'text-charcoal-400',
@@ -70,7 +71,7 @@ export default function PickSetsHistory({ pickSets }: { pickSets: UserPickSet[] 
               >
                 <span className="font-semibold text-[#4B3621]">{season}</span>
                 <span className="flex items-center gap-3 text-sm text-charcoal-600">
-                  <span className="tabular-nums">{w}-{l}-{p}</span>
+                  <span className="tabular-nums">{formatRecord(`${w}-${l}-${p}`)}</span>
                   <span className="font-semibold text-[#4B3621] tabular-nums">{totalPts} pts</span>
                   <span className="text-charcoal-400">{isOpen ? '▲' : '▼'}</span>
                 </span>
@@ -103,7 +104,7 @@ export default function PickSetsHistory({ pickSets }: { pickSets: UserPickSet[] 
                             )}
                           </div>
                           <div className="flex items-center gap-4 shrink-0 tabular-nums">
-                            <span className="text-charcoal-600">{ps.wins}-{ps.losses}-{ps.pushes}</span>
+                            <span className="text-charcoal-600">{formatRecord(`${ps.wins}-${ps.losses}-${ps.pushes}`)}</span>
                             <span className="hidden sm:inline text-charcoal-500 w-12 text-right">🔒 {(ps.lockWins || 0)}-{(ps.lockLosses || 0)}</span>
                             <span className="font-semibold text-[#4B3621] w-14 text-right">{ps.points} pts</span>
                           </div>

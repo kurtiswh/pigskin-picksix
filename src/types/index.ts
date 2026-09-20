@@ -234,10 +234,11 @@ export interface WeekSettings {
 /**
  * A leaderboard row as LeaderboardService produces it.
  *
- * Was declared three times — here, in leaderboardService, and locally in
- * LeaderboardTable — with this copy the narrowest of the three. The table reads
- * rank_change and previous_rank to draw its movement arrows, and neither existed
- * on the copy the page importing from '@/types' was checked against.
+ * Was declared three times — here, in leaderboardService, and locally in the
+ * old LeaderboardTable component — with this copy the narrowest of the three.
+ * rank_change and previous_rank drive the movement arrows, and neither existed
+ * on the copy the page importing from '@/types' was checked against. That
+ * component has since been deleted; TabbedLeaderboard renders the board now.
  */
 export interface LeaderboardEntry {
   user_id: string

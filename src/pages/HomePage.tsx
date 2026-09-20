@@ -17,6 +17,7 @@ import {
   LEAGUESAFE_JOIN_URL,
   LEAGUESAFE_PAY_URL,
 } from '@/lib/league'
+import { formatRecord } from '@/lib/records'
 
 export default function HomePage() {
   const { user } = useAuth()
@@ -470,7 +471,7 @@ export default function HomePage() {
                           {player.season_points || 0} <span className="text-xs font-semibold text-gray-400">pts</span>
                         </div>
                         <div className="text-xs text-gray-500 tabular-nums">
-                          {player.season_record || `${player.total_wins || 0}-${player.total_losses || 0}-${player.total_pushes || 0}`}
+                          {formatRecord(player.season_record || `${player.total_wins || 0}-${player.total_losses || 0}-${player.total_pushes || 0}`)}
                         </div>
                       </div>
                     </div>
@@ -556,7 +557,7 @@ export default function HomePage() {
                           {player.season_points || 0} <span className="text-xs font-semibold text-gray-400">pts</span>
                         </div>
                         <div className="text-xs text-gray-500 tabular-nums">
-                          {player.season_record || `${player.total_wins || 0}-${player.total_losses || 0}-${player.total_pushes || 0}`}
+                          {formatRecord(player.season_record || `${player.total_wins || 0}-${player.total_losses || 0}-${player.total_pushes || 0}`)}
                         </div>
                       </div>
                     </div>
