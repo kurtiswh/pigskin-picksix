@@ -187,6 +187,18 @@ assets-only Worker with SPA fallback):
 - `npm run deploy` = `vite build && wrangler deploy` still works from a laptop and ships the
   same thing. Use it when CI is unavailable; otherwise prefer the workflow, which cannot
   forget the env vars.
+- **The Cloudflare token needs TWO policies**, and this is not obvious. `wrangler deploy`
+  reads `/accounts/{id}/workers/subdomain`, an account-level setting, so a token scoped only
+  to the `pigskin-pick-six` Worker fails with `Authentication error [code: 10000]` even
+  though it can write the Worker itself. The token (an account-owned one, under Manage
+  Account > Account API Tokens, NOT the user tokens under /profile/api-tokens) carries:
+  - Specified Workers > `pigskin-pick-six` > **Editor** (the write access)
+  - Entire Account > Workers > **Metadata Read-only** (the account-level read)
+  Editing a token's policies does not change its value, so the `CLOUDFLARE_API_TOKEN` secret
+  does not need updating when you adjust its permissions.
+- **Rotating a `VITE_*` secret does not deploy anything.** Those values are compiled into the
+  bundle at build time, and changing a secret is not a push, so nothing rebuilds. Run the
+  workflow by hand from the Actions tab to bake a rotated value in.
 - The workflow refuses to ship a bundle with no injected `VITE_SUPABASE_URL` value. `env.ts`
   has no fallbacks, so a build without the vars produces a site that loads and talks to
   nowhere. Note that several components hardcode the project's `supabase.co` host, so the
