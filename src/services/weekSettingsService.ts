@@ -117,20 +117,20 @@ export class WeekSettingsService {
     // If no week settings, show default message
     if (!weekSettings) {
       return {
-        message: 'IF YOU SEE SOMETHING WRONG WITH THE LEADERBOARD, PLEASE EMAIL US AT ADMIN@PIGSKINPICKSIX.COM.',
+        message: 'Something look wrong? Email admin@pigskinpicksix.com.',
         type: 'default'
       }
     }
 
     // If both scoring and leaderboard are complete, show final message
     if (weekSettings.scoring_complete && weekSettings.leaderboard_complete) {
-      let message = 'SCORING AND LEADERBOARD ARE COMPLETE AND VALIDATED. '
-      
+      let message = 'Scoring is complete and validated.'
+
       if (weekSettings.admin_custom_message) {
-        message += weekSettings.admin_custom_message + ' '
+        message += ' ' + weekSettings.admin_custom_message
       }
-      
-      message += 'IF YOU SEE ANY ERRORS, PLEASE EMAIL US AT ADMIN@PIGSKINPICKSIX.COM.'
+
+      message += ' Spot an error? Email admin@pigskinpicksix.com.'
       
       return {
         message,
@@ -138,16 +138,19 @@ export class WeekSettingsService {
       }
     }
 
-    // If live updating or scoring not complete, show experimental message
+    // If live updating or scoring not complete, show experimental message.
+    // Kept to one sentence: the banner's own "LIVE SCORING" title already says
+    // what state this is, and the old three-sentence all-caps version buried
+    // the only part that matters (nothing is final until an admin reviews it)
+    // behind a warning that results "may not be accurate", which read as though
+    // the whole board was untrustworthy.
     if (isLiveUpdating || !weekSettings.scoring_complete || !weekSettings.leaderboard_complete) {
-      let message = 'LIVE SCORING/LEADERBOARD IS EXPERIMENTAL AND ALL RESULTS MAY NOT BE ACCURATE. RESULTS AREN\'T FINAL UNTIL REVIEW AND VALIDATION BY AN ADMIN. '
-      
+      let message = 'Scores update as games finish and are not final until an admin reviews them.'
+
       if (weekSettings.admin_custom_message) {
-        message += weekSettings.admin_custom_message + ' '
+        message += ' ' + weekSettings.admin_custom_message
       }
-      
-      message += 'THIS HEADER WILL REFLECT WHEN RESULTS ARE CONFIRMED.'
-      
+
       return {
         message,
         type: 'experimental'

@@ -19,7 +19,7 @@ import { SeasonExpandedDetails } from '@/components/SeasonExpandedDetails'
 import { WeeklyExpandedDetails } from '@/components/WeeklyExpandedDetails'
 import { BestFinishLeaderboard } from '@/components/BestFinishLeaderboard'
 import WinnersDisplay from '@/components/WinnersDisplay'
-import { ENTRY_FEE, LEAGUESAFE_JOIN_URL } from '@/lib/league'
+import { ADMIN_EMAIL, ENTRY_FEE, LEAGUESAFE_JOIN_URL } from '@/lib/league'
 
 export default function TabbedLeaderboard() {
   const paymentsSyncedAt = usePaymentsSyncedAt()
@@ -413,15 +413,38 @@ export default function TabbedLeaderboard() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-pigskin-600">Leaderboard</h1>
         
-        {/* Payment watermark — pre-answers "why does it say I'm unpaid?" */}
-        {paymentsSyncedAt && (
-          <div className="mt-4 px-4 py-2.5 border rounded-lg bg-[#faf8f4] border-[#e7e2da] text-sm text-charcoal-700">
-            💳 Payment status reflects the LeagueSafe register as of{' '}
-            <b className="tabular-nums whitespace-nowrap">{paymentsSyncedAt}</b> — we import it by hand, and expect
-            updates before next week's results. If LeagueSafe shows you paid, you're good and will get full credit.
-            Unpaid entries come off the board when the grace period ends.
-          </div>
-        )}
+        {/* Payment watermark — pre-answers "why am I not on here?"
+            The wording is driven by what the board is actually showing rather
+            than hardcoded, because the season_leaderboard view only carries
+            unpaid players while the grace period is open (migration 155:
+            paid OR max configured week <= grace_period_weeks). Saying "unpaid
+            entries aren't shown" while the grace period still shows them would
+            be flatly wrong, and pointing players at the admin over a row that
+            is sitting right there wastes their time and yours. */}
+        {(() => {
+          const rows = activeTab === 'weekly' ? weeklyData : seasonData
+          const unpaidOnBoard = rows.some(e => 'payment_status' in e && e.payment_status && e.payment_status !== 'Paid')
+          return (
+            <div className="mt-4 px-4 py-2.5 border rounded-lg bg-[#faf8f4] border-[#e7e2da] text-sm text-charcoal-700">
+              {unpaidOnBoard ? (
+                <>
+                  💳 Unpaid entries still appear during the grace period and come off the board when it ends.
+                  If LeagueSafe shows you paid, you're good and will get full credit.
+                </>
+              ) : (
+                <>
+                  💳 Unpaid entries are not on the leaderboard. If you paid and don't see yourself,
+                  email <a href={`mailto:${ADMIN_EMAIL}`} className="underline font-semibold text-[#4B3621]">{ADMIN_EMAIL}</a>.
+                </>
+              )}
+              {paymentsSyncedAt && (
+                <span className="text-charcoal-500">
+                  {' '}Register last imported <b className="tabular-nums whitespace-nowrap font-semibold">{paymentsSyncedAt}</b>.
+                </span>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Dynamic Notice Banner */}
         {(() => {
@@ -488,8 +511,10 @@ export default function TabbedLeaderboard() {
           
           return (
             <div className={`mt-4 mb-5 px-4 py-2.5 border rounded-lg ${bgColor}`}>
-              <div className="flex items-center gap-2.5">
-                <span className={`text-sm font-bold ${textColor}`}>{title}</span>
+              {/* Stacks on phones: side by side, the title wrapped onto two
+                  lines and squeezed the message into a narrow column. */}
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2.5">
+                <span className={`text-sm font-bold whitespace-nowrap shrink-0 ${textColor}`}>{title}</span>
                 <span className={`text-sm ${messageColor}`}>{noticeData.message}</span>
               </div>
             </div>
