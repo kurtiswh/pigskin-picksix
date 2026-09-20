@@ -355,7 +355,7 @@ export class EnhancedAnonymousPicksService {
         primaryUserId,
         notes
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in validation:', error)
       return {
         canAssign: false,

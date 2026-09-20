@@ -331,8 +331,7 @@ export class WinnersService {
 
     // Find max points for each week and filter to only include winners
     const weeklyWinners: Array<{week: number, user_id: string, display_name: string, total_points: number}> = []
-    weeklyResults.forEach(({ data }, index) => {
-      const week = index + 1
+    weeklyResults.forEach(({ data }, _index) => {
       if (data && data.length > 0) {
         const maxPoints = data[0].total_points
         // Include all players with max points (handles ties)

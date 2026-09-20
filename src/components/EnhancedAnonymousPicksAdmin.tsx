@@ -3,12 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { 
   EnhancedAnonymousPicksService, 
-  ValidationResult, 
-  PickSetConflict 
+  ValidationResult 
 } from '@/services/enhancedAnonymousPicksService'
 import { supabase } from '@/lib/supabase'
 
@@ -557,7 +555,7 @@ export default function EnhancedAnonymousPicksAdmin({ currentWeek, currentSeason
     loadPickSets()
   }, [selectedWeek, selectedSeason])
 
-  const handleValidationComplete = (pickSetId: string) => {
+  const handleValidationComplete = (_pickSetId: string) => {
     setValidatingPickSet(null)
     loadPickSets() // Reload to get updated status
   }

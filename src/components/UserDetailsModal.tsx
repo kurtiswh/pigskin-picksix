@@ -241,7 +241,7 @@ export default function UserDetailsModal({
           setCurrentUser(updatedUser)
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error in handleSavePaymentStatus:', error)
       clearTimeout(timeoutId)
       alert(`Failed to update payment status: ${error.message}`)

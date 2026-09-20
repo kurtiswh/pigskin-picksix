@@ -100,7 +100,6 @@ export default function PickSummary({
 
   const isDeadlinePassed = deadline && currentTime > deadline
   const timeRemaining = deadline ? deadline.getTime() - currentTime.getTime() : 0
-  const isUrgent = timeRemaining <= 30 * 60 * 1000 && timeRemaining > 0 // Last 30 minutes
   const isCritical = timeRemaining <= 5 * 60 * 1000 && timeRemaining > 0 // Last 5 minutes
 
   const totalPoints = picks.reduce((n, p) => n + (p.points_earned || 0), 0)

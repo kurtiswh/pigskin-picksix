@@ -971,7 +971,7 @@ export class EmergencyLeaderboardService {
     try {
       console.log('📊 [STRATEGY 1] Trying TABLE approach...')
       return await this.getTableLeaderboard(season)
-    } catch (error) {
+    } catch (error: any) {
       console.log('❌ [STRATEGY 1] TABLE approach failed:', error.message)
     }
 
@@ -979,7 +979,7 @@ export class EmergencyLeaderboardService {
     try {
       console.log('📊 [STRATEGY 2] Trying VIEW approach...')
       return await this.getViewLeaderboard(season)
-    } catch (error) {
+    } catch (error: any) {
       console.log('❌ [STRATEGY 2] VIEW approach failed:', error.message)
     }
 
@@ -987,7 +987,7 @@ export class EmergencyLeaderboardService {
     try {
       console.log('📊 [STRATEGY 3] Trying direct picks query...')
       return await this.getPicksLeaderboard(season)
-    } catch (error) {
+    } catch (error: any) {
       console.log('❌ [STRATEGY 3] Direct picks failed:', error.message)
     }
 
@@ -1179,7 +1179,7 @@ export class EmergencyWeeklyLeaderboardService {
     try {
       console.log('📊 [WEEKLY STRATEGY 1] Trying TABLE approach...')
       return await this.getTableWeeklyLeaderboard(season, week)
-    } catch (error) {
+    } catch (error: any) {
       console.log('❌ [WEEKLY STRATEGY 1] TABLE approach failed:', error.message)
     }
 
@@ -1187,7 +1187,7 @@ export class EmergencyWeeklyLeaderboardService {
     try {
       console.log('📊 [WEEKLY STRATEGY 2] Trying VIEW approach...')
       return await this.getViewWeeklyLeaderboard(season, week)
-    } catch (error) {
+    } catch (error: any) {
       console.log('❌ [WEEKLY STRATEGY 2] VIEW approach failed:', error.message)
     }
 
@@ -1195,7 +1195,7 @@ export class EmergencyWeeklyLeaderboardService {
     try {
       console.log('📊 [WEEKLY STRATEGY 3] Trying direct picks calculation...')
       return await this.getPicksWeeklyLeaderboard(season, week)
-    } catch (error) {
+    } catch (error: any) {
       console.log('❌ [WEEKLY STRATEGY 3] Direct picks failed:', error.message)
     }
 
@@ -1325,7 +1325,7 @@ export class EmergencyWeeklyLeaderboardService {
   /**
    * Format data from picks query (compute weekly stats)
    */
-  private static formatPicksData(data: any[], season: number, week: number): EmergencyWeeklyLeaderboardEntry[] {
+  private static formatPicksData(data: any[], _season: number, week: number): EmergencyWeeklyLeaderboardEntry[] {
     // Group picks by user_id
     const userPicksMap = new Map<string, any[]>()
     

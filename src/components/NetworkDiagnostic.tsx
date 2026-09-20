@@ -53,7 +53,7 @@ export default function NetworkDiagnostic() {
       } else {
         diagnostics.tests.supabaseHealthCheck = `HTTP ${response.status}`
       }
-    } catch (error) {
+    } catch (error: any) {
       diagnostics.tests.supabaseHealthCheck = `Error: ${error.message}`
     }
     
@@ -78,7 +78,7 @@ export default function NetworkDiagnostic() {
       } else {
         diagnostics.tests.usersTableDirect = `HTTP ${response.status}`
       }
-    } catch (error) {
+    } catch (error: any) {
       diagnostics.tests.usersTableDirect = error.name === 'AbortError' ? 'Timeout' : `Error: ${error.message}`
     }
     
@@ -104,7 +104,7 @@ export default function NetworkDiagnostic() {
         const errorText = await response.text()
         diagnostics.tests.gamesTableMinimal = `HTTP ${response.status}: ${errorText.substring(0, 100)}`
       }
-    } catch (error) {
+    } catch (error: any) {
       diagnostics.tests.gamesTableMinimal = error.name === 'AbortError' ? 'Timeout after 10s' : `Error: ${error.message}`
     }
     
@@ -130,7 +130,7 @@ export default function NetworkDiagnostic() {
         const errorText = await response.text()
         diagnostics.tests.gamesTableDirect = `HTTP ${response.status}: ${errorText.substring(0, 100)}`
       }
-    } catch (error) {
+    } catch (error: any) {
       diagnostics.tests.gamesTableDirect = error.name === 'AbortError' ? 'Timeout after 15s' : `Error: ${error.message}`
     }
 

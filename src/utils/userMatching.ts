@@ -111,7 +111,7 @@ export async function findUserByAnyEmail(email: string): Promise<User | null> {
 
       console.log('✅ Found user via RPC function:', userData.email)
       return userData
-    } catch (rpcError) {
+    } catch (rpcError: any) {
       console.warn('RPC function call failed:', rpcError.message)
       console.log('📊 No user found via any method')
       return null

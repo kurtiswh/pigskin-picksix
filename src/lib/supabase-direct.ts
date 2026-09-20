@@ -56,7 +56,7 @@ export async function directSupabaseQuery(
     console.log(`✅ Direct API success: ${data.length || 'N/A'} rows`)
     return data
     
-  } catch (error) {
+  } catch (error: any) {
     clearTimeout(timeoutId)
     if (error.name === 'AbortError') {
       throw new Error(`Direct API timeout after ${timeout}ms`)
@@ -170,7 +170,7 @@ export async function unsaveGamesDirect(week: number, season: number) {
       throw new Error('No week settings found to unsave')
     }
     
-  } catch (error) {
+  } catch (error: any) {
     clearTimeout(timeoutId)
     if (error.name === 'AbortError') {
       throw new Error('Unsave operation timed out after 20 seconds')
@@ -180,7 +180,7 @@ export async function unsaveGamesDirect(week: number, season: number) {
 }
 
 // Helper for saving games directly via REST API
-export async function saveGamesDirect(games: any[], week: number, season: number) {
+export async function saveGamesDirect(games: any[], _week: number, _season: number) {
   console.log(`💾 Saving ${games.length} games directly via REST API...`)
   
   if (!supabaseUrl || !supabaseKey) {
@@ -209,7 +209,7 @@ export async function saveGamesDirect(games: any[], week: number, season: number
     console.log('✅ Games saved successfully via direct API')
     return true
     
-  } catch (error) {
+  } catch (error: any) {
     clearTimeout(timeoutId)
     if (error.name === 'AbortError') {
       throw new Error('Save operation timed out after 20 seconds')

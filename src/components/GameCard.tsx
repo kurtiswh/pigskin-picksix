@@ -1,5 +1,4 @@
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { Game, Pick } from '@/types'
 import PickStatisticsBar from '@/components/PickStatisticsBar'

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -192,7 +192,7 @@ export default function ScheduledFunctionsManager() {
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {functions.map((func, index) => (
+        {functions.map((func, _index) => (
           <Card key={func.name} className="h-full">
             <CardHeader>
               <div className="flex items-center justify-between">

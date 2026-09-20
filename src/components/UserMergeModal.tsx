@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -53,12 +53,6 @@ export default function UserMergeModal({ sourceUser, targetUser, onMerge, onCanc
     } finally {
       setLoading(false)
     }
-  }
-
-  const swapUsers = () => {
-    // Note: We can't actually swap since the props are fixed
-    // This would need to be handled at the parent level
-    console.log('Swap would need to be handled by parent component')
   }
 
   return (

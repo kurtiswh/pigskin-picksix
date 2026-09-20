@@ -6,10 +6,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
-import { getCompletedGames, updateGameScores } from './collegeFootballApi'
-import { updateGameInDatabase, processCompletedGames } from './scoreCalculation'
 import { CFBDLiveUpdater } from './cfbdLiveUpdater'
-import { ENV } from '@/lib/env'
 
 export interface LiveUpdateResult {
   success: boolean
@@ -381,7 +378,7 @@ export class LiveUpdateService {
       }
 
       // Check if all games are completed before proceeding
-      const { allCompleted, completedCount, totalCount } = await this.areAllGamesCompleted()
+      const { allCompleted, totalCount } = await this.areAllGamesCompleted()
       if (allCompleted && totalCount > 0) {
         console.log(`🏁 All ${totalCount} games completed - automatically stopping live updates`)
         this.stopPolling()
@@ -599,7 +596,6 @@ export class LiveUpdateService {
    */
   async shouldAutoStart(): Promise<{ should: boolean; reason: string }> {
     const isGameDay = await this.isGameDay()
-    const isInWindow = this.isInPollingWindow()
     const { hasActive, activeCount } = await this.hasActiveGames()
     const { hasApproaching, approachingCount, nextKickoff } = await this.hasApproachingGames()
 
@@ -784,7 +780,6 @@ export class LiveUpdateService {
    * Main scheduled pick processing - only processes games that have changed
    */
   private async runScheduledPickProcessing(): Promise<void> {
-    const startTime = Date.now()
     
     try {
       const result = await this.processGamesNeedingPickUpdates()
@@ -1278,129 +1273,6 @@ export class LiveUpdateService {
     }
 
     return { picksUpdated, anonPicksUpdated }
-  }
-
-  /**
-   * Direct pick processing fallback - bypasses database functions for timeout resistance
-   */
-  private async processPicksDirectly(game: any): Promise<void> {
-    // Calculate winner and points directly in TypeScript
-    const homeMargin = game.home_score - game.away_score
-    const spread = game.spread || 0
-    
-    let winnerAgainstSpread: string
-    let marginBonus = 0
-    
-    // Calculate winner against spread
-    if (Math.abs(homeMargin + spread) < 0.5) {
-      winnerAgainstSpread = 'push'
-    } else if (homeMargin + spread > 0) {
-      winnerAgainstSpread = game.home_team
-      // Calculate margin bonus for home team win
-      if ((homeMargin + spread) >= 29) marginBonus = 5
-      else if ((homeMargin + spread) >= 20) marginBonus = 3
-      else if ((homeMargin + spread) >= 11) marginBonus = 1
-    } else {
-      winnerAgainstSpread = game.away_team
-      // Calculate margin bonus for away team win
-      if (Math.abs(homeMargin + spread) >= 29) marginBonus = 5
-      else if (Math.abs(homeMargin + spread) >= 20) marginBonus = 3
-      else if (Math.abs(homeMargin + spread) >= 11) marginBonus = 1
-    }
-
-    // Update game with calculated values
-    await supabase
-      .from('games')
-      .update({
-        winner_against_spread: winnerAgainstSpread,
-        margin_bonus: marginBonus,
-        base_points: 20
-      })
-      .eq('id', game.id)
-
-    // Simplified direct updates - update picks in batches to avoid complex SQL
-    // Get picks that need updating for this game
-    const { data: picks, error: getPicksError } = await supabase
-      .from('picks')
-      .select('id, selected_team, is_lock')
-      .eq('game_id', game.id)
-      .is('result', null)
-
-    if (!getPicksError && picks) {
-      for (const pick of picks) {
-        const result = winnerAgainstSpread === 'push' ? 'push' : 
-                      pick.selected_team === winnerAgainstSpread ? 'win' : 'loss'
-        
-        const points = result === 'push' ? 10 :
-                      result === 'win' ? (20 + marginBonus + (pick.is_lock ? marginBonus : 0)) : 0
-
-        await supabase
-          .from('picks')
-          .update({ result, points_earned: points, updated_at: new Date().toISOString() })
-          .eq('id', pick.id)
-      }
-    }
-
-    // Get anonymous picks that need updating
-    const { data: anonPicks, error: getAnonError } = await supabase
-      .from('anonymous_picks')
-      .select('id, selected_team, is_lock')
-      .eq('game_id', game.id)
-      .is('result', null)
-
-    if (!getAnonError && anonPicks) {
-      for (const pick of anonPicks) {
-        const result = winnerAgainstSpread === 'push' ? 'push' : 
-                      pick.selected_team === winnerAgainstSpread ? 'win' : 'loss'
-        
-        const points = result === 'push' ? 10 :
-                      result === 'win' ? (20 + marginBonus + (pick.is_lock ? marginBonus : 0)) : 0
-
-        await supabase
-          .from('anonymous_picks')
-          .update({ result, points_earned: points })
-          .eq('id', pick.id)
-      }
-    }
-  }
-
-  /**
-   * Refresh both season and weekly leaderboards with error handling
-   */
-  private async refreshLeaderboards(season: number, week: number): Promise<void> {
-    try {
-      // Refresh season leaderboard
-      console.log('   📈 Refreshing season leaderboard...')
-      const { error: seasonError } = await supabase.rpc('refresh_season_leaderboard_sources')
-      if (seasonError) {
-        // Don't throw on unique constraint errors - just log them
-        if (seasonError.message.includes('unique constraint') || seasonError.message.includes('duplicate key')) {
-          console.warn(`   ⚠️ Season leaderboard unique constraint (expected): ${seasonError.message}`)
-        } else {
-          throw new Error(`Season leaderboard refresh failed: ${seasonError.message}`)
-        }
-      }
-
-      // Refresh weekly leaderboards
-      console.log('   📈 Refreshing weekly leaderboards...')
-      const { error: weeklyError } = await supabase.rpc('refresh_all_weekly_leaderboard_sources', {
-        target_season: season
-      })
-      if (weeklyError) {
-        // Don't throw on unique constraint errors - just log them
-        if (weeklyError.message.includes('unique constraint') || weeklyError.message.includes('duplicate key')) {
-          console.warn(`   ⚠️ Weekly leaderboard unique constraint (expected): ${weeklyError.message}`)
-        } else {
-          throw new Error(`Weekly leaderboard refresh failed: ${weeklyError.message}`)
-        }
-      }
-      
-      console.log('   ✅ Leaderboard refresh completed')
-    } catch (error: any) {
-      // Log but don't fail the entire pick processing
-      console.warn(`   ⚠️ Leaderboard refresh had issues: ${error.message}`)
-      throw error
-    }
   }
 
   /**

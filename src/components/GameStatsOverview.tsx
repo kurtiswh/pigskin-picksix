@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
 import type { Game } from '@/types'
 import { formatRecord } from '@/lib/records'
@@ -273,7 +272,7 @@ export default function GameStatsOverview({
           const weeksWithData = weeklyStats.size
           
           // Calculate stats for each week
-          weeklyStats.forEach((weekData, weekNum) => {
+          weeklyStats.forEach((weekData, _weekNum) => {
             const usersWithPicksThisWeek = weekData.filter(user => (user.wins || 0) + (user.losses || 0) + (user.pushes || 0) > 0)
             
             // Perfect records for this week (6-0-0)

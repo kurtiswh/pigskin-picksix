@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { User as SupabaseUser } from '@supabase/supabase-js'
+
 import { supabase } from '@/lib/supabase'
 import { User, AuthContextType } from '@/types'
-import { findUserByAnyEmail, createUserWithEmails, addEmailToUser } from '@/utils/userMatching'
 import { ENV } from '@/lib/env'
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -20,7 +19,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [userCache, setUserCache] = useState<{[key: string]: {user: User, timestamp: number}}>({})
+  const [, setUserCache] = useState<{[key: string]: {user: User, timestamp: number}}>({})
   
   console.log('🚀 [STARTUP] AuthProvider state initialized - Loading:', loading)
   

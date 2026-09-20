@@ -1,4 +1,3 @@
-import { Progress } from '@/components/ui/progress'
 import { Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 

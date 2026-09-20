@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
 import { User, LeagueSafePayment } from '@/types'
-import { getUnmatchedUsersAndPayments, addEmailToUser } from '@/utils/userMatching'
+import { getUnmatchedUsersAndPayments } from '@/utils/userMatching'
 import PaymentMatcher from './PaymentMatcher'
 
 interface UnmatchedUsersPaymentsProps {
@@ -48,38 +48,6 @@ export default function UnmatchedUsersPayments({ season, onMatchComplete }: Unma
       console.error('Error loading unmatched data:', error)
     } finally {
       setLoading(false)
-    }
-  }
-
-  // Function is available for future manual matching features
-  // Currently using PaymentMatcher modal instead
-  const handleManualMatch = async (userId: string, paymentId: string) => {
-    try {
-      const payment = unmatchedPayments.find(p => p.id === paymentId)
-      if (!payment) return
-
-      // Add LeagueSafe email to user
-      await addEmailToUser(userId, payment.leaguesafe_email, 'leaguesafe')
-
-      // Update payment to be matched
-      const { error } = await supabase
-        .from('leaguesafe_payments')
-        .update({
-          user_id: userId,
-          is_matched: true
-        })
-        .eq('id', paymentId)
-
-      if (error) {
-        console.error('Error matching payment:', error)
-        return
-      }
-
-      // Reload data
-      await loadData()
-      onMatchComplete?.()
-    } catch (error) {
-      console.error('Error in manual match:', error)
     }
   }
 

@@ -226,7 +226,6 @@ export default function WinnersDisplay({ season, hidePayouts = false }: WinnersD
   }
 
   const winnerRows = getWinnerRows()
-  const weeklyWinners = getWeeklyWinners()
   const groupedWeeklyWinners = getGroupedWeeklyWinners()
   const totalPercentage = 100
   const weeklyTotal = (winners?.weekly_payout || 80) * groupedWeeklyWinners.length

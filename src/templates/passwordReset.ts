@@ -1,7 +1,7 @@
 import type { PasswordResetData } from './types'
 import { emailShell, emailButton, emailPanel, p, EMAIL } from './emailShell'
 
-export function getPasswordResetSubject(data: PasswordResetData): string {
+export function getPasswordResetSubject(_data: PasswordResetData): string {
   return `🔐 Reset Your Pigskin Pick Six Password`
 }
 

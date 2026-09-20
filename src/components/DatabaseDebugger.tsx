@@ -152,7 +152,7 @@ export default function DatabaseDebugger() {
       addResult('🔍 Checking if leaguesafe_payments table exists...')
       
       // Try a simple query to see if table exists
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('leaguesafe_payments')
         .select('id')
         .limit(1)

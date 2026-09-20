@@ -3,13 +3,13 @@
  * Real-time dashboard for monitoring pick processing status
  */
 
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { RefreshCw, PlayCircle, StopCircle, Clock, TrendingUp, AlertCircle } from 'lucide-react'
-import { liveUpdateService, LiveUpdateStatus, PickProcessingResult } from '@/services/liveUpdateService'
+import { liveUpdateService, LiveUpdateStatus } from '@/services/liveUpdateService'
 
 interface ProcessingStats {
   totalGamesChecked: number

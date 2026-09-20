@@ -1,4 +1,3 @@
-import React from 'react'
 import { Trophy, Calendar, Lock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { BestFinishWeeklyDetail } from '@/services/bestFinishService'

@@ -43,7 +43,6 @@ export function getPicksSubmittedText(data: PicksSubmittedData): string {
     // Parse game string to determine home/away teams
     const gameMatch = pick.game.match(/^(.+?)\s+@\s+(.+)$/)
     const awayTeam = gameMatch?.[1]?.trim()
-    const homeTeam = gameMatch?.[2]?.trim()
     
     // Determine the spread for the picked team
     // Spread is always relative to the home team

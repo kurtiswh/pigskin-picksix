@@ -31,13 +31,6 @@ export default function ApiQuotaWidget() {
     }
   }
 
-  const getUsageColor = (percent: number) => {
-    if (percent >= 90) return 'destructive'
-    if (percent >= 75) return 'default'
-    if (percent >= 50) return 'secondary'
-    return 'secondary'
-  }
-
   const getStatusBadge = (percent: number) => {
     if (percent >= 90) return <Badge variant="destructive">Critical</Badge>
     if (percent >= 75) return <Badge variant="secondary">Warning</Badge>

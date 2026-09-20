@@ -28,7 +28,7 @@ export default function SimpleConnectionTest() {
       } else {
         setResult(`❌ Connection failed: HTTP ${response.status}`)
       }
-    } catch (error) {
+    } catch (error: any) {
       setResult(`❌ Connection error: ${error.message}`)
     }
     

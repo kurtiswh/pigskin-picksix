@@ -36,7 +36,7 @@ export interface GameResult {
 export function calculatePickResult(
   selectedTeam: string,
   homeTeam: string,
-  awayTeam: string,
+  _awayTeam: string,
   homeScore: number,
   awayScore: number,
   spread: number,

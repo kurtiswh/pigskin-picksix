@@ -30,14 +30,6 @@ interface ValidationError {
   data?: any
 }
 
-// Helper functions for validation
-const isValidDate = (dateString: string): boolean => {
-  const regex = /^\d{4}-\d{2}-\d{2}$/
-  if (!regex.test(dateString)) return false
-  const date = new Date(dateString)
-  return date instanceof Date && !isNaN(date.getTime())
-}
-
 const isValidDateTime = (dateTimeString: string): boolean => {
   try {
     // Handle space-separated format (YYYY-MM-DD HH:mm:ss) by converting to ISO
@@ -226,7 +218,7 @@ export default function HistoricalPicksImport() {
 
     try {
       // Get all users to validate emails
-      const { data: users, error: usersError } = await supabase
+      const { error: usersError } = await supabase
         .from('users')
         .select('id, email, display_name')
 

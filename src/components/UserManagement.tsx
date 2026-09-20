@@ -4,9 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
-import { directSupabaseQuery } from '@/lib/supabase-direct'
 import { UserWithPayment, LeagueSafePayment } from '@/types'
-import { EmailService } from '@/services/emailService'
 import { ENV } from '@/lib/env'
 import LeagueSafeUpload from './LeagueSafeUpload'
 import PaymentMatcher from './PaymentMatcher'
@@ -361,7 +359,7 @@ export default function UserManagement() {
     }
   }
 
-  const sendPasswordReset = async (userId: string, email: string, displayName: string) => {
+  const sendPasswordReset = async (_userId: string, email: string, _displayName: string) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useSeasonState } from '@/hooks/useCurrentSeason'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/hooks/useAuth'
-import { AlertTriangle, Check, Clock, User, Trophy, Calendar, MapPin, Shuffle } from 'lucide-react'
+import { AlertTriangle, Check, User, Trophy, Shuffle } from 'lucide-react'
 
 interface PickSetInfo {
   user_id: string
@@ -28,24 +28,6 @@ interface PickSetInfo {
   admin_name: string | null
   preference_set_at: string | null
   status: string
-}
-
-interface PickWithGame {
-  pick_id: string
-  selected_team: string
-  is_lock: boolean
-  points_earned: number
-  result: string
-  game: {
-    id: string
-    home_team: string
-    away_team: string
-    spread: number
-    home_score: number | null
-    away_score: number | null
-    status: string
-    game_time: string
-  }
 }
 
 export default function PickSetManager() {

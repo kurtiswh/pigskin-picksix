@@ -12,7 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { 
   ChevronDown, 
   ChevronUp, 
-  Users, 
+ 
   UserX, 
   Eye, 
   EyeOff, 
@@ -20,7 +20,7 @@ import {
   Copy,
   Check,
   X,
-  Edit,
+
   Save,
   MessageSquare
 } from 'lucide-react'
@@ -131,7 +131,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
   const [hiddenAuthPicks, setHiddenAuthPicks] = useState<HiddenPicks[]>([])
   const [unsubmittedPickSets, setUnsubmittedPickSets] = useState<UnsubmittedPickSet[]>([])
   const [multiplePickSets, setMultiplePickSets] = useState<MultiplePickSets[]>([])
-  const [submittedUnpaidPickSets, setSubmittedUnpaidPickSets] = useState<SubmittedUnpaidPickSet[]>([])
+  const [, setSubmittedUnpaidPickSets] = useState<SubmittedUnpaidPickSet[]>([])
   
   // Note editing states
   const [editingNote, setEditingNote] = useState<string | null>(null)
@@ -753,7 +753,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
         // Find users with BOTH authenticated and anonymous picks (duplicate pick sets)
         // This catches any user who has picks in both tables, regardless of count or submission status
         const multiple: MultiplePickSets[] = Object.entries(userPickCounts)
-          .filter(([userId, counts]) => 
+          .filter(([_userId, counts]) => 
             // User must have picks in BOTH authenticated and anonymous tables
             counts.auth > 0 && counts.anon > 0
           )
@@ -794,19 +794,6 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
         )
         setHiddenAnonPicks(finalFilteredHiddenAnon)
         
-        // Debug logging - show all users with more than 6 picks
-        const usersWithMoreThan6 = Object.entries(userPickCounts)
-          .filter(([userId, counts]) => (counts.auth + counts.anon) > 6)
-          .map(([userId, counts]) => ({
-            userId: userId,
-            display_name: counts.display_name,
-            auth: counts.auth,
-            anon: counts.anon,
-            total: counts.auth + counts.anon,
-            auth_submitted: counts.auth_submitted,
-            anon_submitted: counts.anon_submitted,
-            passes_filter: counts.auth > 0 && counts.anon > 0
-          }))
           
         console.log('🔍 Duplicate pick sets detection:', {
           totalUsersWithDuplicates: multiple.length,
@@ -1033,7 +1020,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
         ? 'toggle_picks_leaderboard_visibility'
         : 'toggle_anonymous_picks_leaderboard_visibility'
       
-      const { data, error } = await supabase.rpc(functionName, {
+      const { error } = await supabase.rpc(functionName, {
         target_user_id: userId,
         target_season: currentSeason,
         target_week: parseInt(selectedWeek),

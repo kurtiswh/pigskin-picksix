@@ -6,10 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { supabase } from '@/lib/supabase'
 
 type ValidationStatus = 'pending_validation' | 'auto_validated' | 'manually_validated' | 'duplicate_conflict'
-type PickSource = 'authenticated' | 'anonymous'
 
 interface AnonymousPick {
   id: string
@@ -296,7 +294,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         } else {
           console.log(`⚠️ No matching user found for validated email: ${pickSet.email}`)
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error(`❌ Error auto-processing ${pickSet.email}:`, error)
         setError(`Failed to auto-process ${pickSet.email}: ${error.message}`)
         // Stop auto-processing to prevent infinite loops
@@ -419,7 +417,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
               )
             )
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error(`❌ Error processing ${pickSet.email}:`, error)
           errorCount++
           results.push(`❌ ${pickSet.email} - Error: ${error.message}`)
@@ -436,7 +434,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         alert(`Auto-assignment complete!\n\nSuccessfully assigned: ${successCount}\nErrors: ${errorCount}\n\nCheck console for details.`)
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error in comprehensive auto-assignment:', error)
       setError(`Auto-assignment failed: ${error.message}`)
     } finally {
@@ -596,7 +594,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       
       alert('Database diagnostic complete! Check the browser console for detailed results.')
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error in database diagnostic:', error)
       setError(`Diagnostic failed: ${error.message}`)
     } finally {
@@ -684,7 +682,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         console.error('❌ Failed to query problematic picks:', problematicPicksResponse.status)
         alert('Failed to query picks for field fixes.')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error in fix missing pick fields:', error)
       setError(`Field fix failed: ${error.message}`)
     } finally {
@@ -932,7 +930,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         await loadData()
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error in anonymous picks recalculation:', error)
       setError(`Recalculation failed: ${error.message}`)
     } finally {
@@ -1424,7 +1422,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         console.log('👥 Keeping existing pick set - marking anonymous picks as inactive...', { email: pickSet.email, userId })
         
         // Check payment status to determine if we should assign user_id even though not showing on leaderboard
-        const { isPaid, paymentStatus } = await checkUserPaymentStatus(userId)
+        const { paymentStatus } = await checkUserPaymentStatus(userId)
         console.log(`💳 User payment status: ${paymentStatus} - assigning user_id but not showing on leaderboard`)
         
         for (const pick of pickSet.picks) {
@@ -1938,7 +1936,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {unassignedPickSets.map((pickSet, index) => (
+              {unassignedPickSets.map((pickSet, _index) => (
                 <div key={`${pickSet.email}-${pickSet.submittedAt}`} className={`border rounded-lg p-4 ${
                   processingPickSets.has(`${pickSet.email}-${pickSet.submittedAt}`) 
                     ? 'bg-blue-50 border-blue-300' 

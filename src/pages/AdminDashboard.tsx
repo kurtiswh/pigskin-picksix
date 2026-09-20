@@ -3,9 +3,9 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { Navigate, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { getWeekDataDirect, saveGamesDirect, unsaveGamesDirect } from '@/lib/supabase-direct'
-import { Game, WeekSettings } from '@/types'
-import { getGamesWithSpreads, getGamesFast, getCurrentWeek, testApiConnection, CFBGame } from '@/services/collegeFootballApi'
+import { getWeekDataDirect, unsaveGamesDirect } from '@/lib/supabase-direct'
+import { WeekSettings } from '@/types'
+import { getGamesWithSpreads, CFBGame } from '@/services/collegeFootballApi'
 import { getActiveWeek } from '@/services/weekService'
 import { ENV } from '@/lib/env'
 import { getRestHeaders } from '@/lib/restHeaders'
@@ -25,18 +25,18 @@ import BestFinishConfig from '@/components/BestFinishConfig'
 import BracketWinnersAdmin from '@/components/BracketWinnersAdmin'
 import SeasonWinnersAdmin from '@/components/SeasonWinnersAdmin'
 import '@/utils/emailTesting' // Load email testing utilities for console access
-import { testPickConfirmationEmail, processTestEmailQueue, testNotificationScheduling, registerGlobalEmailTesting } from '@/utils/emailTesting'
+import { registerGlobalEmailTesting } from '@/utils/emailTesting'
 import Layout from '@/components/Layout'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 
 // CFBGame interface is now imported from the API service
 
 export default function AdminDashboard() {
-  const { user, signOut } = useAuth()
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<'setup' | 'weekreview' | 'scores' | 'winners' | 'users' | 'notifications'>('weekreview')
   const [cfbGames, setCfbGames] = useState<CFBGame[]>([])
-  const [savedGames, setSavedGames] = useState<CFBGame[]>([]) // Games actually saved to database
+  const [, setSavedGames] = useState<CFBGame[]>([]) // Games actually saved to database
   const [tempSelectedGames, setTempSelectedGames] = useState<CFBGame[]>([]) // UI-only selections
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
   const [loading, setLoading] = useState(false)
@@ -245,7 +245,7 @@ export default function AdminDashboard() {
           } else {
             console.log('⚠️ Real API returned no games, will show mock games after delay...')
           }
-        } catch (apiError) {
+        } catch (apiError: any) {
           console.log('⚠️ Real API failed, will show mock games after delay:', apiError.message)
         }
       } else {
@@ -693,11 +693,6 @@ export default function AdminDashboard() {
       setError('')
 
       console.log('🗑️ Starting to unsave games with timeout protection...')
-
-      // Add timeout to prevent infinite hanging (reduced since network tests show API works)  
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Unsave operation timed out')), 10000)
-      )
 
       try {
         // Check if deadline has passed

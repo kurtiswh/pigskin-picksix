@@ -27,9 +27,16 @@ export async function validateUserProfileForPicks(userId: string): Promise<Profi
   try {
     console.log('🔍 Validating user profile for picks:', userId)
     
+    // The RPC has no generated return type, so .single() hands back `unknown`.
+    // Name the shape the function actually returns rather than casting at each use.
     const { data: validationResult, error } = await supabase
       .rpc('validate_user_profile_for_picks', { user_id: userId })
-      .single()
+      .single<{
+        is_valid: boolean
+        missing_fields: string[]
+        display_name: string
+        email: string
+      }>()
     
     if (error) {
       console.error('❌ Profile validation function error:', error)

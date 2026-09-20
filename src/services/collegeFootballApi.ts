@@ -147,7 +147,6 @@ export async function getGames(
     
     if (response.status === 429) {
       const responseData = await response.json().catch(() => ({}))
-      const message = responseData.message || 'Rate limit exceeded'
       console.warn('⚠️ CFBD API quota exceeded for games request, using mock data')
       return getMockGames(season, week)
     }
@@ -224,7 +223,6 @@ export async function getBettingLines(
     
     if (response.status === 429) {
       const responseData = await response.json().catch(() => ({}))
-      const message = responseData.message || 'Rate limit exceeded'
       console.warn('⚠️ CFBD API quota exceeded for betting lines, skipping spreads')
       return []  // Return empty array, games will work without spreads
     }
@@ -814,7 +812,7 @@ export async function getCompletedGames(
   try {
     const games = await getGames(season, week, seasonType)
     return games.filter(game => game.completed && (game.home_points !== null || game.away_points !== null))
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error fetching completed games:', error)
     throw error
   }
@@ -933,7 +931,7 @@ export async function testApiConnection(timeoutMs: number = 12000): Promise<{
     
     return { connected: true }
     
-  } catch (error) {
+  } catch (error: any) {
     if (error.name === 'AbortError') {
       console.log('⏰ API connection test timed out')
       return { connected: false, error: 'Connection timeout' }

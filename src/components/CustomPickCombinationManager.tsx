@@ -1,16 +1,15 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useSeasonState } from '@/hooks/useCurrentSeason'
 import { supabase } from '@/lib/supabase'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/hooks/useAuth'
 import { 
-  AlertTriangle, Check, Clock, User, Trophy, Calendar, MapPin, 
+  Check, Clock, User, MapPin, 
   Target, Lock, Unlock, Eye, EyeOff, Shuffle, Save
 } from 'lucide-react'
 
@@ -137,7 +136,7 @@ export default function CustomPickCombinationManager() {
           console.log('No custom combination found, trying comparison function for raw picks...')
           throw new Error('No custom combination, trying fallback')
         }
-      } catch (customError) {
+      } catch (customError: any) {
         console.log('Using comparison function. Reason:', customError.message)
         
         // Fallback to existing comparison function
@@ -243,38 +242,6 @@ export default function CustomPickCombinationManager() {
         console.log('Combination info:', data.combination_info)
         console.log('Selected picks summary raw:', data.combination_info.selected_picks_summary)
         
-        let existingSelections = []
-        try {
-          const summaryData = data.combination_info.selected_picks_summary
-          console.log('Summary data type:', typeof summaryData)
-          console.log('Summary data value:', summaryData)
-          
-          if (typeof summaryData === 'string') {
-            try {
-              existingSelections = JSON.parse(summaryData || '[]')
-            } catch (jsonError) {
-              console.error('JSON parse failed on string:', summaryData, jsonError)
-              existingSelections = []
-            }
-          } else if (Array.isArray(summaryData)) {
-            existingSelections = summaryData
-          } else if (typeof summaryData === 'object' && summaryData !== null) {
-            // If it's already an object, try to use it directly if it has the right structure
-            console.log('Summary data is object, attempting direct use')
-            if (Array.isArray(summaryData)) {
-              existingSelections = summaryData
-            } else {
-              // Maybe it's an object that needs to be converted to array format
-              existingSelections = []
-            }
-          } else {
-            console.log('Unexpected summary data format:', typeof summaryData, summaryData)
-            existingSelections = []
-          }
-        } catch (parseError) {
-          console.error('Failed to parse selected_picks_summary:', parseError)
-          existingSelections = []
-        }
         
         const selectedPicksMap: SelectedPick[] = []
         

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { supabase } from '@/lib/supabase'
 import type { Pick } from '@/types'
 import type { Game } from '@/types'
 
@@ -31,9 +30,9 @@ interface GameResultCardProps {
 
 
 
-export default function GameResultCard({ game, gameNumber = 1, showPickStats, isAdmin, userPick }: GameResultCardProps) {
-  const [pickStats, setPickStats] = useState<PickStats | null>(null)
-  const [loading, setLoading] = useState(false)
+export default function GameResultCard({ game, gameNumber = 1, showPickStats, userPick }: GameResultCardProps) {
+  const [, setPickStats] = useState<PickStats | null>(null)
+  const [, setLoading] = useState(false)
   
   // Use database status directly as single source of truth
   const homeScore = game.home_score

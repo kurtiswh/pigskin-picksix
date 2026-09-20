@@ -194,17 +194,12 @@ export function LeaderboardRowContent({
   record, 
   lockRecord, 
   points,
-  isExpanded,
-  isLoading,
-  canExpand,
-  onToggle,
   paymentStatus,
   pickSource,
   isAdmin,
   isTied = false,
   rankChange,
   previousRank,
-  trend,
   isCurrentUser = false
 }: LeaderboardRowContentProps) {
   const youBadge = isCurrentUser ? (

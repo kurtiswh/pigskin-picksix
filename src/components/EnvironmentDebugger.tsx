@@ -50,7 +50,7 @@ export default function EnvironmentDebugger() {
       try {
         const cfbdTest = await testApiConnection(3000)
         diagnostics.tests.cfbdApi = cfbdTest ? 'Success' : 'Failed'
-      } catch (error) {
+      } catch (error: any) {
         diagnostics.tests.cfbdApi = `Error: ${error.message}`
       }
       setResults({ ...diagnostics })
@@ -73,7 +73,7 @@ export default function EnvironmentDebugger() {
           diagnostics.tests.supabaseConnection = 'Success'
           diagnostics.tests.supabaseUsers = `Found ${result?.data?.length || 0} users`
         }
-      } catch (error) {
+      } catch (error: any) {
         diagnostics.tests.supabaseConnection = `Exception: ${error.message}`
         diagnostics.tests.supabaseUsers = `Exception: ${error.message}`
       }
@@ -87,7 +87,7 @@ export default function EnvironmentDebugger() {
         } else {
           diagnostics.tests.supabaseGames = `Found ${data?.length || 0} games`
         }
-      } catch (error) {
+      } catch (error: any) {
         diagnostics.tests.supabaseGames = `Exception: ${error.message}`
       }
       setResults({ ...diagnostics })
@@ -116,7 +116,7 @@ export default function EnvironmentDebugger() {
         } else {
           diagnostics.tests.queryPerformance = 'No authenticated user to test with'
         }
-      } catch (error) {
+      } catch (error: any) {
         diagnostics.tests.queryPerformance = `Exception: ${error.message}`
       }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
@@ -83,8 +83,7 @@ function isGameClosedForEditing(game: { kickoff_time: string; custom_lock_time?:
 }
 
 export default function PickSheetPage() {
-  const { user, signOut } = useAuth()
-  const location = useLocation()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const [games, setGames] = useState<Game[]>([])
   const [picks, setPicks] = useState<Pick[]>([])
@@ -908,7 +907,7 @@ export default function PickSheetPage() {
         } else {
           console.log('✅ Pick confirmation email process completed')
         }
-      } catch (emailError) {
+      } catch (emailError: any) {
         console.error('❌ Error sending pick confirmation:', emailError)
         console.error('❌ Email error details:', emailError.message)
         console.error('❌ Email error stack:', emailError.stack)

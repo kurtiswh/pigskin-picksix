@@ -46,7 +46,7 @@ export default function TabbedLeaderboard() {
   const [weeklyData, setWeeklyData] = useState<EmergencyWeeklyLeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [strategy, setStrategy] = useState('')
+  const [, setStrategy] = useState('')
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
   
   // Expandable rows. Changing week, season or tab makes every open expansion
@@ -176,7 +176,7 @@ export default function TabbedLeaderboard() {
           const dataPromise = LeaderboardService.getSeasonLeaderboardAsOfWeek(season, selectedSeasonWeek)
           entries = await Promise.race([dataPromise, timeoutPromise])
           console.log('✅ [TABBED] Loaded historical season data:', entries.length, 'entries')
-        } catch (error) {
+        } catch (error: any) {
           console.log('⚠️ [TABBED] Historical data failed:', error.message, '- falling back to current')
           // Fall back to current season data if historical fails
           setSelectedSeasonWeek('current')
@@ -491,19 +491,6 @@ export default function TabbedLeaderboard() {
                                noticeData.type === 'experimental' ? 'text-orange-700' : 
                                'text-yellow-700'
           
-          const icon = noticeData.type === 'final' ? (
-            <svg className={`h-6 w-6 ${iconColor} mt-0.5`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          ) : noticeData.type === 'experimental' ? (
-            <svg className={`h-6 w-6 ${iconColor} mt-0.5`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          ) : (
-            <svg className={`h-6 w-6 ${iconColor} mt-0.5`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          )
           
           const title = noticeData.type === 'final' ? '✅ RESULTS CONFIRMED' : 
                        noticeData.type === 'experimental' ? '🔄 LIVE SCORING' : 
@@ -777,7 +764,7 @@ export default function TabbedLeaderboard() {
     document.body.removeChild(link)
   }
 
-  function renderLeaderboardContent(data: any[], tabType: 'season' | 'weekly') {
+  function renderLeaderboardContent(data: any[], _tabType: 'season' | 'weekly') {
     if (loading) {
       return (
         <div className="flex items-center justify-center py-12">

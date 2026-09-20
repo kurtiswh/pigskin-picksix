@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Layout from '@/components/Layout'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import GameResultCard from '@/components/GameResultCard'
 import GameStatsOverview from '@/components/GameStatsOverview'
-import GamePickStatistics from '@/components/GamePickStatistics'
 import { supabase } from '@/lib/supabase'
 import { getActiveWeek } from '@/services/weekService'
 import { useAuth } from '@/hooks/useAuth'
@@ -49,7 +47,7 @@ export default function GamesPage() {
   const [userPicks, setUserPicks] = useState<Pick[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [offline, setOffline] = useState(false)
+  const [offline] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   const isAdmin = user?.is_admin === true
@@ -236,11 +234,6 @@ export default function GamesPage() {
   const handleWeekChange = (week: string) => {
     setCurrentWeek(parseInt(week))
   }
-
-  const handleSeasonChange = (season: string) => {
-    setCurrentSeason(parseInt(season))
-  }
-
 
   return (
     <Layout>
