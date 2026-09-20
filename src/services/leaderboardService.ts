@@ -782,7 +782,10 @@ export class LeaderboardService {
             home_team,
             away_team,
             status,
-            kickoff_time
+            kickoff_time,
+            home_score,
+            away_score,
+            spread
           )
         `)
         .eq('user_id', userId)
@@ -818,7 +821,12 @@ export class LeaderboardService {
         points_earned: pick.points_earned || 0,
         game_status: pick.games.status,
         kickoff_time: pick.games.kickoff_time,
-        dropped: !!pick.disqualified
+        dropped: !!pick.disqualified,
+        home_team: pick.games.home_team,
+        away_team: pick.games.away_team,
+        home_score: pick.games.home_score,
+        away_score: pick.games.away_score,
+        spread: pick.games.spread
       }))
 
       const scored = pickDetails.filter(p => !p.dropped)
@@ -906,7 +914,12 @@ export class LeaderboardService {
         result: pick.result,
         points_earned: pick.points_earned || 0,
         game_status: pick.games.status,
-        kickoff_time: pick.games.kickoff_time
+        kickoff_time: pick.games.kickoff_time,
+        home_team: pick.games.home_team,
+        away_team: pick.games.away_team,
+        home_score: pick.games.home_score,
+        away_score: pick.games.away_score,
+        spread: pick.games.spread
       }))
 
       const totalPoints = pickDetails.reduce((sum, pick) => sum + pick.points_earned, 0)

@@ -70,6 +70,13 @@ export interface WeeklyPickDetail {
   kickoff_time: string
   /** dropped by a commissioner adjustment — shown, but not scored */
   dropped?: boolean
+  home_team?: string
+  away_team?: string
+  /** null until the game has a score; present while in progress too */
+  home_score?: number | null
+  away_score?: number | null
+  /** As stored on games: relative to the HOME team, negative = home favored. */
+  spread?: number | null
 }
 
 export interface UserWeeklyPicks {
