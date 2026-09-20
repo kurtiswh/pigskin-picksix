@@ -19,7 +19,7 @@ Pigskin Pick Six Pro is a modern, mobile-first college football pick 'em contest
 - **UI Components**: shadcn/ui with sports theming
 - **Backend**: Supabase (PostgreSQL + Auth + Realtime)
 - **External APIs**: CollegeFootballData.com (free tier)
-- **Deployment**: Cloudflare Workers (`npm run deploy`)
+- **Deployment**: Cloudflare Workers (auto-deploys on push to `main`; `npm run deploy` for manual)
 - **Local Development**: Supabase CLI with local database
 
 ## Development Commands
@@ -180,13 +180,22 @@ account in 2026.
 
 **Cloudflare Workers** (`wrangler.toml`, worker `pigskin-pick-six`, serving `dist` as an
 assets-only Worker with SPA fallback):
-- `npm run deploy` = `vite build && wrangler deploy`. This is the ONLY thing that ships.
-- **Pushing to `main` deploys nothing.** There is no Vercel project and no deploy workflow;
-  `.github/workflows/` holds only the games/reminders cron jobs.
+- **Pushing to `main` deploys.** `.github/workflows/deploy.yml` builds and runs
+  `wrangler deploy` on every push to `main`, and can also be run by hand from the Actions
+  tab (`workflow_dispatch`). It needs five repository secrets: `CLOUDFLARE_API_TOKEN`,
+  `CLOUDFLARE_ACCOUNT_ID`, and the three `VITE_*` values.
+- `npm run deploy` = `vite build && wrangler deploy` still works from a laptop and ships the
+  same thing. Use it when CI is unavailable; otherwise prefer the workflow, which cannot
+  forget the env vars.
+- The workflow refuses to ship a bundle with no injected `VITE_SUPABASE_URL` value. `env.ts`
+  has no fallbacks, so a build without the vars produces a site that loads and talks to
+  nowhere. Note that several components hardcode the project's `supabase.co` host, so the
+  presence of that host proves nothing about the build — check for the inlined value.
 - Verify a deploy by comparing the `assets/index-<hash>.js` in local `dist/index.html`
   against the hash served by pigskinpicksix.com. Allow a minute for the Cloudflare edge to
-  revalidate the root HTML before concluding it failed.
-- `VITE_*` variables are baked in at build time from `.env`, so the build needs them present.
+  revalidate the root HTML before concluding it failed; the workflow does this for you.
+- `VITE_*` variables are baked in at build time (from `.env` locally, from repository
+  secrets in CI), so the build needs them present.
 
 **Environment Variables for Production:**
 - Set all VITE_ prefixed variables in deployment platform

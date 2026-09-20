@@ -1,0 +1,121 @@
+name: Deploy to Cloudflare
+
+# Push to main = deploy. Before this workflow existed, nothing shipped on push
+# and `npm run deploy` from a laptop was the only way anything reached
+# pigskinpicksix.com, which meant merged work could sit unpublished for days.
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   CLOUDFLARE_API_TOKEN    - "Edit Cloudflare Workers" token
+#   CLOUDFLARE_ACCOUNT_ID   - from the Cloudflare dashboard URL, or `wrangler whoami`
+#   VITE_SUPABASE_URL       - same values as your local .env; these are baked
+#   VITE_SUPABASE_ANON_KEY    into the browser bundle at build time, so they are
+#   VITE_CFBD_API_KEY         public by design (anon key is guarded by RLS)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why this manual deploy is being run (shown in the run summary)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# Never let two deploys race. Queue rather than cancel: a half-finished
+# upload that gets cancelled is worse than waiting.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  SITE_URL: https://pigskinpicksix.com
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Verify required secrets are present
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_CFBD_API_KEY: ${{ secrets.VITE_CFBD_API_KEY }}
+        run: |
+          missing=()
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY VITE_CFBD_API_KEY; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]}"
+            echo "Add them under Settings > Secrets and variables > Actions, then re-run this workflow."
+            exit 1
+          fi
+          echo "✅ All five secrets present"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_CFBD_API_KEY: ${{ secrets.VITE_CFBD_API_KEY }}
+        run: npm run build
+
+      - name: Verify the bundle actually carries its config
+        run: |
+          # src/lib/env.ts has no fallbacks: a build without VITE_* vars produces
+          # a bundle that loads and then talks to nowhere. That is a blank site
+          # for everyone, so catch it here rather than after it ships.
+          #
+          # The marker has to be the INJECTED VALUE, not the URL: several
+          # components hardcode the project's supabase.co host, so grepping for
+          # the host passes even on a build with no env at all. env.ts reads
+          # import.meta.env by dynamic key, so Vite inlines the whole env object
+          # and a good build contains VITE_SUPABASE_URL:"https://...". A build
+          # without the vars only ever contains the bare lookup string.
+          if ! grep -rqE 'VITE_SUPABASE_URL"?:"http' dist/assets/*.js; then
+            echo "::error::Built bundle has no injected VITE_SUPABASE_URL value — the secrets did not reach the build."
+            echo "If the secrets ARE set and this still fails, check whether a Vite upgrade changed how import.meta.env is inlined."
+            exit 1
+          fi
+          echo "✅ Bundle carries its injected Supabase config"
+
+      - name: Deploy to Cloudflare Workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 deploy
+
+      - name: Confirm the edge is serving the new bundle
+        continue-on-error: true
+        run: |
+          built=$(grep -o 'assets/index-[a-z0-9]*\.js' dist/index.html | head -1)
+          echo "Built asset: $built"
+          for attempt in $(seq 1 10); do
+            live=$(curl -fsS --max-time 20 "$SITE_URL/" | grep -o 'assets/index-[a-z0-9]*\.js' | head -1 || true)
+            if [ "$live" = "$built" ]; then
+              echo "✅ $SITE_URL is serving $built"
+              echo "✅ Live: \`$built\`" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "attempt $attempt: edge still serving '${live:-nothing}', waiting…"
+            sleep 15
+          done
+          # Not a failure: the deploy succeeded, the edge is just slow to
+          # revalidate the root HTML. Worth saying out loud, not worth a red X.
+          echo "::warning::Edge still served a different bundle after ~2.5 min. Deploy reported success; check $SITE_URL with a hard refresh."
+          echo "⚠️ Edge had not picked up \`$built\` after ~2.5 min." >> "$GITHUB_STEP_SUMMARY"
