@@ -153,7 +153,7 @@ export class EnhancedAnonymousPicksService {
       // Also get the user's primary email from users table
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('email, leaguesafe_email, display_name')
+        .select('email, leaguesafe_email')
         .eq('id', userId)
         .single()
 
@@ -226,8 +226,13 @@ export class EnhancedAnonymousPicksService {
       console.log('No payment found via email matching, checking for similar display names...')
       
       // Get the user's display name to look for similar users
-      if (userData?.display_name) {
-        const displayName = userData.display_name.toLowerCase().trim()
+      // DORMANT ON PURPOSE. The query above does not select display_name, so this
+      // is always falsy and the block below never runs. That block fuzzy-matches
+      // display names and hands back ANOTHER user's payment row, which can mark an
+      // unpaid entry paid whenever two players share name words. Do not enable it
+      // by adding display_name to the select without reworking the matching.
+      if ((userData as any)?.display_name) {
+        const displayName = (userData as any).display_name.toLowerCase().trim()
         console.log(`Looking for similar users to "${displayName}"`)
         
         const { data: similarUsers, error: similarError } = await supabase
