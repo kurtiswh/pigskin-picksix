@@ -46,8 +46,8 @@ export interface CFBGame {
   venue_id?: number
   home_id?: number
   away_id?: number
-  home_points?: number
-  away_points?: number
+  home_points?: number | null
+  away_points?: number | null
   spread?: number
   status?: string
   home_line_scores?: number[]
@@ -60,9 +60,9 @@ export interface CFBGame {
   is_mock?: boolean // true when this came from getMockGames(), not the API
   custom_lock_time?: string // custom lock time set by admin
   // Live game data
-  period?: number // Current quarter (1-4)
-  clock?: string // Time remaining in quarter (e.g., "14:23")
-  possession?: string // Team with possession
+  period?: number | null // Current quarter (1-4)
+  clock?: string | null // Time remaining in quarter (e.g., "14:23")
+  possession?: string | null // Team with possession
   down?: number // Current down (1-4)
   distance?: number // Yards to go
   yard_line?: number // Field position
@@ -661,15 +661,15 @@ function convertScoreboardGame(scoreboardGame: CFBScoreboardGame, week: number, 
     home_conference: scoreboardGame.homeTeam.conference,
     away_conference: scoreboardGame.awayTeam.conference,
     venue: scoreboardGame.venue?.name,
-    home_points: scoreboardGame.homeTeam.points ?? undefined,
-    away_points: scoreboardGame.awayTeam.points ?? undefined,
+    home_points: scoreboardGame.homeTeam.points,
+    away_points: scoreboardGame.awayTeam.points,
     home_line_scores: scoreboardGame.homeTeam.lineScores || undefined,
     away_line_scores: scoreboardGame.awayTeam.lineScores || undefined,
     spread: scoreboardGame.betting?.spread,
     // Live game data from scoreboard API
-    period: scoreboardGame.period ?? undefined,
-    clock: scoreboardGame.clock ?? undefined,
-    possession: scoreboardGame.possession ?? undefined,
+    period: scoreboardGame.period,
+    clock: scoreboardGame.clock,
+    possession: scoreboardGame.possession,
   }
 }
 
