@@ -153,7 +153,7 @@ export class EnhancedAnonymousPicksService {
       // Also get the user's primary email from users table
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('email, leaguesafe_email')
+        .select('email, leaguesafe_email, display_name')
         .eq('id', userId)
         .single()
 
@@ -191,10 +191,10 @@ export class EnhancedAnonymousPicksService {
           
           // Find payments where the user's email matches any of our emails
           const matchingPayments = paymentsByEmail.filter(payment => {
-            const userEmail = payment.users.email?.toLowerCase().trim()
-            const leaguesafeEmail = payment.users.leaguesafe_email?.toLowerCase().trim()
+            const userEmail = (payment.users as any).email?.toLowerCase().trim()
+            const leaguesafeEmail = (payment.users as any).leaguesafe_email?.toLowerCase().trim()
             
-            console.log(`Checking payment for user ${payment.users.display_name}:`)
+            console.log(`Checking payment for user ${(payment.users as any).display_name}:`)
             console.log(`  - User email: ${userEmail}`)
             console.log(`  - Leaguesafe email: ${leaguesafeEmail}`)
             console.log(`  - Matches our emails: ${(userEmail && allEmails.has(userEmail)) || (leaguesafeEmail && allEmails.has(leaguesafeEmail))}`)
@@ -242,23 +242,23 @@ export class EnhancedAnonymousPicksService {
           .eq('season', season)
         
         if (!similarError && similarUsers) {
-          const nameWords = displayName.split(/\s+/).filter(word => word.length > 2)
+          const nameWords = displayName.split(/\s+/).filter((word: any) => word.length > 2)
           console.log('Name words to match:', nameWords)
           
           const possibleMatches = similarUsers.filter(payment => {
-            const paymentUserName = payment.users.display_name?.toLowerCase().trim()
+            const paymentUserName = (payment.users as any).display_name?.toLowerCase().trim()
             if (!paymentUserName) return false
             
             // Check if all significant words from our user appear in payment user name
-            const matchesName = nameWords.every(word => 
+            const matchesName = nameWords.every((word: any) => 
               paymentUserName.includes(word) || 
               paymentUserName.replace(/\s+/g, '').includes(word)
             )
             
             if (matchesName) {
               console.log(`Possible name match found: "${paymentUserName}" vs "${displayName}"`)
-              console.log(`  - Payment user email: ${payment.users.email}`)
-              console.log(`  - Payment user leaguesafe: ${payment.users.leaguesafe_email}`)
+              console.log(`  - Payment user email: ${(payment.users as any).email}`)
+              console.log(`  - Payment user leaguesafe: ${(payment.users as any).leaguesafe_email}`)
             }
             
             return matchesName

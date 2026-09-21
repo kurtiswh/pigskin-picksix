@@ -314,7 +314,7 @@ export default function BlogPage() {
                       <div className="flex items-center gap-2 text-xs text-charcoal-400 uppercase tracking-wide">
                         <span className="font-semibold text-charcoal-500">{post.season}</span>
                         <span>·</span>
-                        <span>{getWeekLabel(post.week)}</span>
+                        <span>{getWeekLabel(post.week ?? null)}</span>
                         <span>·</span>
                         <span>{formatDate(post.created_at)}</span>
                         {!post.is_published && (

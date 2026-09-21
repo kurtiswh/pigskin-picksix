@@ -212,7 +212,8 @@ export default function HomePage() {
               total_losses: player.total_losses || 0,
               total_pushes: player.total_pushes || 0,
               lock_wins: 0,
-              lock_losses: 0
+              lock_losses: 0,
+              lock_pushes: 0
             }))
             setTopPlayers(transformedFallback)
             setLeaderboardError(null) // Clear error if fallback works

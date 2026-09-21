@@ -479,9 +479,6 @@ export default function TabbedLeaderboard() {
                          noticeData.type === 'experimental' ? 'bg-orange-50 border-orange-400' : 
                          'bg-yellow-50 border-yellow-400'
           
-          const iconColor = noticeData.type === 'final' ? 'text-green-600' : 
-                           noticeData.type === 'experimental' ? 'text-orange-600' : 
-                           'text-yellow-600'
           
           const textColor = noticeData.type === 'final' ? 'text-green-800' : 
                            noticeData.type === 'experimental' ? 'text-orange-800' : 

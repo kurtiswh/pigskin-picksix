@@ -66,7 +66,7 @@ export default function UserDetailsModal({
     if (currentUser) {
       const currentSeasonPayment = currentUser.season_payment_history?.find((p: any) => p.season === currentSeason)
       const currentStatus = currentSeasonPayment?.status || (currentSeason === 2024 && currentUser.payment_status !== 'No Payment' ? currentUser.payment_status : 'No Payment')
-      setSelectedPaymentStatus(currentStatus)
+      setSelectedPaymentStatus(currentStatus || '')
       setHasUnsavedChanges(false)
       setLeaguesafeEmail(currentUser.leaguesafe_email || '')
       setHasLeaguesafeEmailChanged(false)
@@ -611,7 +611,7 @@ export default function UserDetailsModal({
                       onClick={() => {
                         const currentSeasonPayment = currentUser.season_payment_history?.find((p: any) => p.season === currentSeason)
                         const currentStatus = currentSeasonPayment?.status || (currentSeason === 2024 && currentUser.payment_status !== 'No Payment' ? currentUser.payment_status : 'No Payment')
-                        setSelectedPaymentStatus(currentStatus)
+                        setSelectedPaymentStatus(currentStatus || '')
                         setHasUnsavedChanges(false)
                       }}
                       disabled={loading}

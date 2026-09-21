@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { User, UserEmail } from '@/types'
+import { User } from '@/types'
 import { generateUUID } from './uuid'
 
 export interface UserMatchResult {
@@ -126,7 +126,7 @@ export async function findUserByAnyEmail(email: string): Promise<User | null> {
 /**
  * Get all emails associated with a user
  */
-export async function getUserEmails(userId: string): Promise<UserEmail[]> {
+export async function getUserEmails(userId: string): Promise<{ email: string; type: 'primary' | 'leaguesafe' | 'alternate'; verified: boolean }[]> {
   try {
     const { data, error } = await supabase
       .from('user_emails')

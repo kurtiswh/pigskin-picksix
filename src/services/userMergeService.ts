@@ -114,16 +114,19 @@ export class UserMergeService {
       }
 
       // Check picks conflicts
-      const { data: picksConflicts } = await supabase
+      // A composite (week, season) match cannot be expressed as a single .in(),
+      // so pull the target's weeks and intersect in memory.
+      const { data: targetPicks } = await supabase
+        .from('picks')
+        .select('week, season')
+        .eq('user_id', targetUserId)
+      const targetPickKeys = new Set((targetPicks || []).map(p => `${p.season}-${p.week}`))
+
+      const { data: sourcePicks } = await supabase
         .from('picks')
         .select('week, season')
         .eq('user_id', sourceUserId)
-        .in('week, season', 
-          supabase
-            .from('picks')
-            .select('week, season')
-            .eq('user_id', targetUserId)
-        )
+      const picksConflicts = (sourcePicks || []).filter(p => targetPickKeys.has(`${p.season}-${p.week}`))
 
       if (picksConflicts && picksConflicts.length > 0) {
         for (const conflict of picksConflicts) {
@@ -153,16 +156,20 @@ export class UserMergeService {
       mergeable.picks = mergeablePicksCount || 0
 
       // Check payments conflicts
-      const { data: paymentsConflicts } = await supabase
+      const { data: targetPayments } = await supabase
         .from('leaguesafe_payments')
         .select('season')
-        .eq('user_id', sourceUserId)
-        .in('season',
-          supabase
+        .eq('user_id', targetUserId)
+      const targetSeasons = (targetPayments || []).map(p => p.season)
+
+      const { data: sourcePayments } = targetSeasons.length
+        ? await supabase
             .from('leaguesafe_payments')
             .select('season')
-            .eq('user_id', targetUserId)
-        )
+            .eq('user_id', sourceUserId)
+            .in('season', targetSeasons)
+        : { data: [] as { season: any }[] }
+      const paymentsConflicts = sourcePayments
 
       if (paymentsConflicts && paymentsConflicts.length > 0) {
         for (const conflict of paymentsConflicts) {

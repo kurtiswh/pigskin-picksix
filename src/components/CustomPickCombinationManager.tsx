@@ -118,7 +118,7 @@ export default function CustomPickCombinationManager() {
     
     try {
       // Try the custom combination function first, fallback to comparison function
-      let data, error
+      let data: any, error: any
       
       console.log('Attempting to load custom combination...')
       try {

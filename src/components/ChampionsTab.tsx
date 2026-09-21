@@ -132,7 +132,7 @@ export default function ChampionsTab() {
                                   <td className="py-2 pr-2 text-right text-charcoal-600 tabular-nums">{formatRecord(e.season_record)}</td>
                                   <td className="py-2 pr-2 text-right text-charcoal-600 tabular-nums">{formatRecord(e.lock_record)}</td>
                                   <td className="py-2 pl-2 text-right font-semibold text-[#4B3621] tabular-nums">
-                                    {e.season_points ?? e.total_points}
+                                    {e.season_points ?? (e as any).total_points}
                                   </td>
                                 </tr>
                               )

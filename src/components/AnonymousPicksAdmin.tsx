@@ -532,7 +532,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         const nullValidationData = await nullValidationResponse.json()
         console.log(`📊 Records with NULL validation_status: ${nullValidationData.length}`)
         if (nullValidationData.length > 0) {
-          nullValidationData.slice(0, 5).forEach((pick, i) => {
+          nullValidationData.slice(0, 5).forEach((pick: any, i: any) => {
             console.log(`  ${i+1}. ${pick.email} - Week ${pick.week}, Season ${pick.season}`)
           })
         }
@@ -552,7 +552,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         const nullLeaderboardData = await nullLeaderboardResponse.json()
         console.log(`📊 Records with NULL show_on_leaderboard: ${nullLeaderboardData.length}`)
         if (nullLeaderboardData.length > 0) {
-          nullLeaderboardData.slice(0, 5).forEach((pick, i) => {
+          nullLeaderboardData.slice(0, 5).forEach((pick: any, i: any) => {
             console.log(`  ${i+1}. ${pick.email} - Week ${pick.week}, Season ${pick.season}`)
           })
         }
@@ -586,7 +586,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         
         if (unassignedData.length > 0) {
           console.log('📝 First 5 unassigned picks:')
-          unassignedData.slice(0, 5).forEach((pick, i) => {
+          unassignedData.slice(0, 5).forEach((pick: any, i: any) => {
             console.log(`  ${i+1}. ${pick.email} - Week ${pick.week}, Season ${pick.season}, validation: ${pick.validation_status}, leaderboard: ${pick.show_on_leaderboard}`)
           })
         }
@@ -724,10 +724,10 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
 
       // Debug: Analyze all picks
       console.log('🔍 Analyzing all picks...')
-      const uniqueEmails = [...new Set(picksData.map(p => p.email))]
+      const uniqueEmails = [...new Set(picksData.map((p: any) => p.email))]
       console.log(`📧 Unique emails: ${uniqueEmails.length}`)
       uniqueEmails.slice(0, 10).forEach(email => {
-        const pickCount = picksData.filter(p => p.email === email).length
+        const pickCount = picksData.filter((p: any) => p.email === email).length
         console.log(`  - ${email}: ${pickCount} picks`)
       })
       
@@ -1024,10 +1024,10 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       }
       
       // Debug: Count picks by assignment status
-      const assignedPicks = picksData.filter(p => p.assigned_user_id)
-      const unassignedPicks = picksData.filter(p => !p.assigned_user_id)
-      const validatedPicks = picksData.filter(p => p.is_validated)
-      const pendingValidationPicks = picksData.filter(p => p.validation_status === 'pending_validation')
+      const assignedPicks = picksData.filter((p: any) => p.assigned_user_id)
+      const unassignedPicks = picksData.filter((p: any) => !p.assigned_user_id)
+      const validatedPicks = picksData.filter((p: any) => p.is_validated)
+      const pendingValidationPicks = picksData.filter((p: any) => p.validation_status === 'pending_validation')
       
       console.log('📊 Pick status breakdown:')
       console.log(`  - Total picks loaded: ${picksData.length}`)
@@ -1037,10 +1037,10 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
       console.log(`  - Pending validation picks: ${pendingValidationPicks.length}`)
       
       // Debug: Show unique emails for unassigned picks
-      const unassignedEmails = [...new Set(unassignedPicks.map(p => p.email))]
+      const unassignedEmails = [...new Set(unassignedPicks.map((p: any) => p.email))]
       console.log(`📧 Unique emails with unassigned picks: ${unassignedEmails.length}`)
       unassignedEmails.slice(0, 10).forEach(email => {
-        const pickCount = unassignedPicks.filter(p => p.email === email).length
+        const pickCount = unassignedPicks.filter((p: any) => p.email === email).length
         console.log(`  - ${email}: ${pickCount} picks`)
       })
       if (unassignedEmails.length > 10) {
@@ -1254,15 +1254,15 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         console.log(`📊 Found ${authPicks.length} authenticated picks for user ${userId}`)
         if (authPicks.length > 0) {
           // Group by submitted_at to get pick sets with full pick details
-          const submissionTimes = [...new Set(authPicks.map(p => p.submitted_at))]
+          const submissionTimes = [...new Set(authPicks.map((p: any) => p.submitted_at))]
           console.log(`📅 Authenticated submission times:`, submissionTimes)
           for (const submittedAt of submissionTimes) {
-            const picksForSubmission = authPicks.filter(p => p.submitted_at === submittedAt)
+            const picksForSubmission = authPicks.filter((p: any) => p.submitted_at === submittedAt)
             results.push({
-              submittedAt,
+              submittedAt: submittedAt as string,
               source: 'authenticated',
               pickCount: picksForSubmission.length,
-              picks: picksForSubmission.map(p => ({
+              picks: picksForSubmission.map((p: any) => ({
                 id: p.id,
                 game_id: p.game_id,
                 selected_team: p.selected_team,
@@ -1293,15 +1293,15 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
         console.log(`📊 Found ${anonPicks.length} assigned anonymous picks for user ${userId}`)
         if (anonPicks.length > 0) {
           // Group by submitted_at to get pick sets with full pick details
-          const submissionTimes = [...new Set(anonPicks.map(p => p.submitted_at))]
+          const submissionTimes = [...new Set(anonPicks.map((p: any) => p.submitted_at))]
           console.log(`📅 Anonymous submission times:`, submissionTimes)
           for (const submittedAt of submissionTimes) {
-            const picksForSubmission = anonPicks.filter(p => p.submitted_at === submittedAt)
+            const picksForSubmission = anonPicks.filter((p: any) => p.submitted_at === submittedAt)
             results.push({
-              submittedAt,
+              submittedAt: submittedAt as string,
               source: 'anonymous',
               pickCount: picksForSubmission.length,
-              picks: picksForSubmission.map(p => ({
+              picks: picksForSubmission.map((p: any) => ({
                 id: p.id,
                 game_id: p.game_id,
                 selected_team: p.selected_team,
@@ -1733,7 +1733,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Status Filter:</label>
-              <Select value={statusFilter} onValueChange={(value: ValidationStatus | 'all') => setStatusFilter(value)}>
+              <Select value={statusFilter} onValueChange={(value: string) => setStatusFilter(value as ValidationStatus | 'all')}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -1988,7 +1988,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                         <div className="text-xs font-medium text-charcoal-600 mb-1">Change Status:</div>
                         <Select 
                           value={pickSet.validationStatus} 
-                          onValueChange={(value: ValidationStatus) => handleUpdateValidationStatus(pickSet, value)}
+                          onValueChange={(value: string) => handleUpdateValidationStatus(pickSet, value as ValidationStatus)}
                         >
                           <SelectTrigger className="w-full text-xs h-8">
                             <SelectValue />
@@ -2170,7 +2170,7 @@ export default function AnonymousPicksAdmin({ currentWeek, currentSeason }: Anon
                           <div className="text-xs font-medium text-charcoal-600 mb-1">Change Status:</div>
                           <Select 
                             value={pickSet.validationStatus} 
-                            onValueChange={(value: ValidationStatus) => handleUpdateValidationStatus(pickSet, value)}
+                            onValueChange={(value: string) => handleUpdateValidationStatus(pickSet, value as ValidationStatus)}
                           >
                             <SelectTrigger className="w-full text-xs h-8">
                               <SelectValue />

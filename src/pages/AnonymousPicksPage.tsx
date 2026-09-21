@@ -202,7 +202,7 @@ export default function AnonymousPicksPage() {
 
         // Convert and set games
         if (weekData.games && weekData.games.length > 0) {
-          const convertedGames: Game[] = weekData.games.map(game => ({
+          const convertedGames: Game[] = weekData.games.map((game: any) => ({
             id: game.id,
             week: game.week,
             season: game.season,
@@ -581,7 +581,7 @@ export default function AnonymousPicksPage() {
                       selected_team: pick.selectedTeam,
                       is_lock: pick.isLock,
                       submitted: false,
-                      submitted_at: null,
+                      submitted_at: undefined,
                       created_at: new Date().toISOString(),
                       updated_at: new Date().toISOString()
                     } : undefined}

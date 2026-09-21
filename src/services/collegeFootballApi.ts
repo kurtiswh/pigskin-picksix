@@ -49,6 +49,7 @@ export interface CFBGame {
   home_points?: number
   away_points?: number
   spread?: number
+  status?: string
   home_line_scores?: number[]
   away_line_scores?: number[]
   attendance?: number
@@ -146,7 +147,6 @@ export async function getGames(
     clearTimeout(timeoutId)
     
     if (response.status === 429) {
-      const responseData = await response.json().catch(() => ({}))
       console.warn('⚠️ CFBD API quota exceeded for games request, using mock data')
       return getMockGames(season, week)
     }
@@ -222,7 +222,6 @@ export async function getBettingLines(
     clearTimeout(timeoutId)
     
     if (response.status === 429) {
-      const responseData = await response.json().catch(() => ({}))
       console.warn('⚠️ CFBD API quota exceeded for betting lines, skipping spreads')
       return []  // Return empty array, games will work without spreads
     }
@@ -662,15 +661,15 @@ function convertScoreboardGame(scoreboardGame: CFBScoreboardGame, week: number, 
     home_conference: scoreboardGame.homeTeam.conference,
     away_conference: scoreboardGame.awayTeam.conference,
     venue: scoreboardGame.venue?.name,
-    home_points: scoreboardGame.homeTeam.points,
-    away_points: scoreboardGame.awayTeam.points,
+    home_points: scoreboardGame.homeTeam.points ?? undefined,
+    away_points: scoreboardGame.awayTeam.points ?? undefined,
     home_line_scores: scoreboardGame.homeTeam.lineScores || undefined,
     away_line_scores: scoreboardGame.awayTeam.lineScores || undefined,
     spread: scoreboardGame.betting?.spread,
     // Live game data from scoreboard API
-    period: scoreboardGame.period,
-    clock: scoreboardGame.clock,
-    possession: scoreboardGame.possession,
+    period: scoreboardGame.period ?? undefined,
+    clock: scoreboardGame.clock ?? undefined,
+    possession: scoreboardGame.possession ?? undefined,
   }
 }
 

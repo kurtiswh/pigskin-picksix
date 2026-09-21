@@ -22,6 +22,7 @@ interface CFBGame {
   custom_lock_time?: string
   home_ranking?: number
   away_ranking?: number
+  neutral_site?: boolean | null
 }
 
 interface WeekControlsProps {

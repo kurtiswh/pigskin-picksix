@@ -402,7 +402,7 @@ export class LeaderboardService {
       console.log('📊 Raw weekly data for aggregation:', weeklyData?.length, 'entries')
       
       // First, let's see what weeks we have data for
-      const weekCounts = {}
+      const weekCounts: Record<string, number> = {}
       weeklyData?.forEach(entry => {
         weekCounts[entry.week] = (weekCounts[entry.week] || 0) + 1
       })
@@ -451,7 +451,14 @@ export class LeaderboardService {
           weekly_rank: 0,
           payment_status: records.payment_status,
           is_verified: true,
-          pick_source: records.pick_source || 'authenticated'
+          pick_source: records.pick_source || 'authenticated',
+          total_picks: (records.wins || 0) + (records.losses || 0) + (records.pushes || 0),
+          total_wins: records.wins || 0,
+          total_losses: records.losses || 0,
+          total_pushes: records.pushes || 0,
+          lock_wins: records.lock_wins || 0,
+          lock_losses: records.lock_losses || 0,
+          lock_pushes: records.lock_pushes || 0
         }
       })
       

@@ -29,6 +29,7 @@ export interface User {
   email: string
   display_name: string
   is_admin: boolean
+  user_status?: string
   leaguesafe_email?: string
   /**
    * They told us they paid LeagueSafe under this same sign-in address, so the
@@ -315,7 +316,7 @@ export interface SignUpOutcome {
 export interface AuthContextType {
   user: User | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<void>
+  signIn: (email: string, password: string) => Promise<any>
   signUp: (email: string, password: string, displayName: string) => Promise<SignUpOutcome>
   signOut: () => Promise<void>
   signInWithGoogle: () => Promise<void>

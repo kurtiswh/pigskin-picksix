@@ -171,8 +171,8 @@ export default function UserManagement() {
 
       const totalUsers = cohort.length
       const adminUsers = currentUsers.filter(u => u.is_admin).length // league-wide, not season-scoped
-      const paidUsers = cohort.filter(u => ['Paid', 'Manual Registration'].includes(u.payment_status)).length
-      const unpaidUsers = cohort.filter(u => ['NotPaid', 'No Payment'].includes(u.payment_status)).length
+      const paidUsers = cohort.filter(u => ['Paid', 'Manual Registration'].includes(u.payment_status || '')).length
+      const unpaidUsers = cohort.filter(u => ['NotPaid', 'No Payment'].includes(u.payment_status || '')).length
 
       console.log('🔍 Stats calculation details:', {
         totalUsers, paidCount: paidUsers, unpaidCount: unpaidUsers, adminUsers, cohortSize: cohort.length,
@@ -314,7 +314,7 @@ export default function UserManagement() {
 
       // Update selected user if it's the one being modified
       if (selectedUser?.id === userId) {
-        setSelectedUser(prev => prev ? { ...prev, payment_status: newStatus } : null)
+        setSelectedUser(prev => prev ? { ...prev, payment_status: newStatus as typeof prev.payment_status } : null)
       }
 
       // Note: Don't refresh here as the modal will handle it via onRefresh

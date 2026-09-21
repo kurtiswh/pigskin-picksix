@@ -97,7 +97,7 @@ export class WeekSettingsService {
           .single()
 
         if (error) throw error
-        settings = data
+        settings = data as WeekSettings
       }
 
       return settings

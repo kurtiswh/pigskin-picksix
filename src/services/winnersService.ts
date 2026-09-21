@@ -409,7 +409,7 @@ export class WinnersService {
 
     // Build live winners object
     const liveWinners = {
-      id: seasonWinners?.id || 'live',
+      id: (seasonWinners as any)?.id || 'live',
       season,
       ...pointWinnerColumns(season, pointWinners),
       lock_winner_user_id: lockWinners[0]?.[0] || null,

@@ -21,7 +21,7 @@ interface WeekStats {
     averagePerfectRecords: number
     averageZeroRecords: number
     averageOver100Points: number
-  }
+  } | null
   overallRecord: {
     wins: number
     losses: number
@@ -39,13 +39,13 @@ interface WeekStats {
     losses: number
     pushes: number
     winPercentage: number
-  }
+  } | null
   seasonLockRecord?: {
     wins: number
     losses: number
     pushes: number
     winPercentage: number
-  }
+  } | null
   mostPopularGame: {
     game: string
     pickCount: number
@@ -273,31 +273,31 @@ export default function GameStatsOverview({
           
           // Calculate stats for each week
           weeklyStats.forEach((weekData, _weekNum) => {
-            const usersWithPicksThisWeek = weekData.filter(user => (user.wins || 0) + (user.losses || 0) + (user.pushes || 0) > 0)
+            const usersWithPicksThisWeek = weekData.filter((user: any) => (user.wins || 0) + (user.losses || 0) + (user.pushes || 0) > 0)
             
             // Perfect records for this week (6-0-0)
-            const weekPerfectRecords = usersWithPicksThisWeek.filter(user => 
+            const weekPerfectRecords = usersWithPicksThisWeek.filter((user: any) => 
               (user.wins || 0) === 6 && 
               (user.losses || 0) === 0 && 
               (user.pushes || 0) === 0
             ).length
             
             // Zero records for this week (0-6-0)
-            const weekZeroRecords = usersWithPicksThisWeek.filter(user => 
+            const weekZeroRecords = usersWithPicksThisWeek.filter((user: any) => 
               (user.wins || 0) === 0 && 
               (user.losses || 0) === 6 && 
               (user.pushes || 0) === 0
             ).length
             
             // Over 100 points for this week
-            const weekOver100Points = usersWithPicksThisWeek.filter(user => 
+            const weekOver100Points = usersWithPicksThisWeek.filter((user: any) => 
               (user.total_points || 0) > 100
             ).length
             
             // Calculate average score for this week
-            const weekScores = usersWithPicksThisWeek.map(user => user.total_points || 0)
+            const weekScores = usersWithPicksThisWeek.map((user: any) => user.total_points || 0)
             const weekAverageScore = weekScores.length > 0 ? 
-              weekScores.reduce((a, b) => a + b, 0) / weekScores.length : 0
+              weekScores.reduce((a: any, b: any) => a + b, 0) / weekScores.length : 0
             
             totalPerfectRecords += weekPerfectRecords
             totalZeroRecords += weekZeroRecords

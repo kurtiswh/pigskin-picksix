@@ -87,7 +87,7 @@ export async function getWeekDataDirect(week: number, season: number) {
     console.log(`✅ Direct week data loaded: ${weekSettings.length} settings, ${games.length} games`)
     
     // Debug custom lock times in loaded games
-    console.log('📊 Loaded games with custom lock times (direct API):', games.map(g => ({
+    console.log('📊 Loaded games with custom lock times (direct API):', games.map((g: any) => ({
       matchup: `${g.home_team} vs ${g.away_team}`,
       custom_lock_time: g.custom_lock_time,
       hasCustomLockTime: !!g.custom_lock_time

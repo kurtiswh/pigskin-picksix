@@ -346,7 +346,7 @@ export default function HistoricalPicksImport() {
     try {
       // Get users and games data
       const { data: users } = await supabase.from('users').select('id, email')
-      const { data: games } = await supabase.from('games').select('id, home_team, away_team, week, season')
+      const { data: games } = await supabase.from('games').select('id, home_team, away_team, week, season, spread, home_score, away_score, kickoff_time, status')
 
       for (const pick of importData) {
         try {
@@ -443,8 +443,8 @@ export default function HistoricalPicksImport() {
           const { data: existingPick } = await supabase
             .from('picks')
             .select('id')
-            .eq('user_id', user.id)
-            .eq('game_id', game.id)
+            .eq('user_id', user!.id)
+            .eq('game_id', game!.id)
             .single()
 
           // Prepare timestamp data
@@ -464,8 +464,8 @@ export default function HistoricalPicksImport() {
           }
 
           const pickData = {
-            user_id: user.id,
-            game_id: game.id,
+            user_id: user!.id,
+            game_id: game!.id,
             week: pick.week,
             season: pick.season,
             selected_team: pick.selected_team,

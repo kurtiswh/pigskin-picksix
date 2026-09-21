@@ -196,7 +196,7 @@ export class DirectBlogService {
     console.log('DirectBlogService.updatePost called for ID:', id)
     
     try {
-      const updateData = {
+      const updateData: Record<string, any> = {
         ...updates,
         updated_at: new Date().toISOString()
       }

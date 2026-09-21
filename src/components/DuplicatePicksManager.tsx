@@ -353,10 +353,10 @@ export default function DuplicatePicksManager() {
                 <label className="text-sm font-medium">Pick Source</label>
                 <Select
                   value={editingPreference.preference.preferred_source}
-                  onValueChange={(value: 'authenticated' | 'anonymous') =>
+                  onValueChange={(value: string) =>
                     setEditingPreference(prev => prev ? {
                       ...prev,
-                      preference: { ...prev.preference, preferred_source: value }
+                      preference: { ...prev.preference, preferred_source: value as typeof prev.preference.preferred_source }
                     } : null)
                   }
                 >

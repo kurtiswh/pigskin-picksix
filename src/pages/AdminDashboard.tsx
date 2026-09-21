@@ -167,7 +167,7 @@ export default function AdminDashboard() {
           setWeekSettings(directData.weekSettings)
           
           // Convert games to CFB format
-          const cfbFormatGames: CFBGame[] = (directData.games || []).map(game => ({
+          const cfbFormatGames: CFBGame[] = (directData.games || []).map((game: any) => ({
             id: parseInt(game.id.slice(-8), 16),
             week: game.week,
             season: game.season,
@@ -336,7 +336,7 @@ export default function AdminDashboard() {
         setCfbGames(mockGames)
         
         // Sync selected games with mock games
-        setSelectedGames(prev => {
+        setTempSelectedGames(prev => {
           if (prev.length > 0) {
             const synced = syncSelectedGamesWithAvailable(prev, mockGames)
             console.log(`🔄 Synced ${synced.length} selected games with mock games`)
@@ -390,7 +390,7 @@ export default function AdminDashboard() {
       setCfbGames(fallbackGames)
       
       // Sync selected games with fallback games
-      setSelectedGames(prev => {
+      setTempSelectedGames(prev => {
         if (prev.length > 0) {
           const synced = syncSelectedGamesWithAvailable(prev, fallbackGames)
           console.log(`🔄 Synced ${synced.length} selected games with fallback games`)

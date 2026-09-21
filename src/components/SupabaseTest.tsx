@@ -19,8 +19,8 @@ export function SupabaseTest() {
       addResult('Starting Supabase connection test...')
       
       // Test 1: Basic client info
-      addResult(`Supabase URL: ${supabase.supabaseUrl}`)
-      addResult(`Supabase Key: ${supabase.supabaseKey.substring(0, 20)}...`)
+      addResult(`Supabase URL: ${(supabase as any).supabaseUrl}`)
+      addResult(`Supabase Key: ${(supabase as any).supabaseKey.substring(0, 20)}...`)
       
       // Test 2: Simple query with timeout
       addResult('Testing users table access...')

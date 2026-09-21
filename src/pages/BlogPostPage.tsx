@@ -100,7 +100,7 @@ export default function BlogPostPage() {
             <div className="flex items-center gap-2 text-sm text-charcoal-500 mb-4">
               <span className="font-medium">{post.season}</span>
               <span>•</span>
-              <span>{getWeekLabel(post.week)}</span>
+              <span>{getWeekLabel(post.week ?? null)}</span>
               <span>•</span>
               <span>{formatDate(post.created_at)}</span>
               {post.author && (

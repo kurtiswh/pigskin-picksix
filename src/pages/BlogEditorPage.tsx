@@ -177,7 +177,9 @@ export default function BlogEditorPage() {
       } else {
         // Create new post
         console.log('Creating new post')
-        result = await DirectBlogService.createPost(postData as BlogPostCreate, user.id)
+        // Non-null: the component early-returns on !user below, so this handler
+        // can only be reached from UI that rendered with a user present.
+        result = await DirectBlogService.createPost(postData as BlogPostCreate, user!.id)
       }
       
       console.log('Save successful:', result)

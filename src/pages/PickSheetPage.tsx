@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
-import { Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { getActiveWeek } from '@/services/weekService'
 import { getWeekDataDirect } from '@/lib/supabase-direct'
@@ -236,7 +236,7 @@ export default function PickSheetPage() {
 
         // Convert and set games
         if (weekData.games && weekData.games.length > 0) {
-          const convertedGames: Game[] = weekData.games.map(game => ({
+          const convertedGames: Game[] = weekData.games.map((game: any) => ({
             id: game.id,
             week: game.week,
             season: game.season,

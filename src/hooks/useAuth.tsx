@@ -160,7 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }, 10000)
         })
         
-        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise])
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
         
         console.log('🚀 [INIT] ✅ getSession() completed successfully!')
         console.log('🔍 [INIT] Current session user:', session?.user?.id, session?.user?.email)

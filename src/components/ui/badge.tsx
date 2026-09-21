@@ -8,15 +8,24 @@ const badgeVariants = {
   outline: "text-gray-700 border-gray-300",
 }
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: keyof typeof badgeVariants
+const badgeSizes = {
+  sm: "px-2 py-0 text-[10px]",
+  md: "px-2.5 py-0.5 text-xs",
 }
 
-function Badge({ className, variant = "default", ...props }: BadgeProps) {
+export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+  variant?: keyof typeof badgeVariants
+  // Call sites already pass size; without it here the value fell through to the
+  // DOM as an invalid <div size="sm"> attribute.
+  size?: keyof typeof badgeSizes
+}
+
+function Badge({ className, variant = "default", size = "md", ...props }: BadgeProps) {
   return (
     <div 
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors",
+        "inline-flex items-center rounded-full border font-semibold transition-colors",
+        badgeSizes[size],
         badgeVariants[variant],
         className
       )} 

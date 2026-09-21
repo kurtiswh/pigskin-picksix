@@ -672,7 +672,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
               userPickCounts[pick.user_id] = { 
                 auth: 0, 
                 anon: 0, 
-                display_name: pick.users?.display_name || 'Unknown',
+                display_name: (pick.users as any)?.display_name || 'Unknown',
                 auth_visible: 0,
                 anon_visible: 0,
                 auth_submitted: pick.submitted || false,
@@ -717,7 +717,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
               userPickCounts[userId] = { 
                 auth: 0, 
                 anon: 0, 
-                display_name: pick.users?.display_name || 'Unknown',
+                display_name: (pick.users as any)?.display_name || 'Unknown',
                 auth_visible: 0,
                 anon_visible: 0,
                 auth_submitted: false,
@@ -931,8 +931,8 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
             if (!unpaidUsers[key]) {
               unpaidUsers[key] = {
                 user_id: pick.user_id,
-                display_name: pick.users?.display_name || 'Unknown',
-                email: pick.users?.email || '',
+                display_name: (pick.users as any)?.display_name || 'Unknown',
+                email: (pick.users as any)?.email || '',
                 week: pick.week,
                 pick_type: 'auth',
                 submitted_count: 0,
@@ -945,7 +945,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
             unpaidUsers[key].total_points += pick.points_earned || 0
             unpaidUsers[key].picks.push({
               pick_id: pick.id,
-              game_matchup: `${pick.games?.away_team || '?'} @ ${pick.games?.home_team || '?'}`,
+              game_matchup: `${(pick.games as any)?.away_team || '?'} @ ${(pick.games as any)?.home_team || '?'}`,
               selected_team: pick.selected_team,
               result: pick.result,
               points_earned: pick.points_earned || 0,
@@ -964,8 +964,8 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
             if (!unpaidUsers[key]) {
               unpaidUsers[key] = {
                 user_id: pick.assigned_user_id,
-                display_name: pick.users?.display_name || 'Unknown',
-                email: pick.users?.email || '',
+                display_name: (pick.users as any)?.display_name || 'Unknown',
+                email: (pick.users as any)?.email || '',
                 week: pick.week,
                 pick_type: 'anon',
                 submitted_count: 0,
@@ -1242,9 +1242,9 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
         // Update local state
         if (pickSetDetails.auth?.individualPickVisibility) {
           const updated = { ...pickSetDetails.auth }
-          updated.individualPickVisibility[pickId] = visible
+          updated.individualPickVisibility![pickId] = visible
           // Update overall status based on individual picks
-          updated.show_on_leaderboard = Object.values(updated.individualPickVisibility).every(v => v)
+          updated.show_on_leaderboard = Object.values(updated.individualPickVisibility!).every(v => v)
           setPickSetDetails({ ...pickSetDetails, auth: updated })
         }
       } else {
@@ -1258,9 +1258,9 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
         // Update local state
         if (pickSetDetails.anon?.individualPickVisibility) {
           const updated = { ...pickSetDetails.anon }
-          updated.individualPickVisibility[pickId] = visible
+          updated.individualPickVisibility![pickId] = visible
           // Update overall status based on individual picks
-          updated.show_on_leaderboard = Object.values(updated.individualPickVisibility).every(v => v)
+          updated.show_on_leaderboard = Object.values(updated.individualPickVisibility!).every(v => v)
           setPickSetDetails({ ...pickSetDetails, anon: updated })
         }
       }
@@ -2147,7 +2147,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                                   )}
                                 </div>
                                 <Switch
-                                  checked={pickSetDetails.auth.individualPickVisibility?.[pick.id] ?? true}
+                                  checked={pickSetDetails.auth?.individualPickVisibility?.[pick.id] ?? true}
                                   onCheckedChange={(checked) => toggleIndividualPick('auth', pick.id, checked)}
                                   disabled={updatingPickSets}
                                 />
@@ -2239,7 +2239,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                                   )}
                                 </div>
                                 <Switch
-                                  checked={pickSetDetails.anon.individualPickVisibility?.[pick.id] ?? true}
+                                  checked={pickSetDetails.anon?.individualPickVisibility?.[pick.id] ?? true}
                                   onCheckedChange={(checked) => toggleIndividualPick('anon', pick.id, checked)}
                                   disabled={updatingPickSets}
                                 />

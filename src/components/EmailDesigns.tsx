@@ -9,7 +9,6 @@ import {
 } from '@/templates'
 import { emailShell } from '@/templates/emailShell'
 import { buildRecapEmailHtml, type RecapRecipient, type RecapPicksCta } from '@/services/recapService'
-import type { BlogPost } from '@/types/blog'
 
 /**
  * Live gallery of every email the platform sends, rendered from the real
@@ -45,7 +44,7 @@ function buildDesigns(season: number): Design[] {
   ]
 
   // ── recap samples ──
-  const recapPost = { week: 1, season, slug: `week-1-recap-${season}`, title: 'Week 1 Recap' } as BlogPost
+  const recapPost = { week: 1, season, slug: `week-1-recap-${season}`, title: 'Week 1 Recap' }
   const rundown = `<ul>
     <li><strong>Top of the board:</strong> Garrett C took the week with 112 pts.</li>
     <li><strong>The field:</strong> 584 entrants went 52% ATS (1822-1682), and just 48% on locks.</li>
