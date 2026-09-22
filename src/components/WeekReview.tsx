@@ -1007,15 +1007,37 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
             // An errored attempt only matters if the player never got a sheet
             // in. Week 3 had six failures and six eventual submissions, and the
             // bare count read like six people locked out.
-            const known = submitFailures.some(f => f.resolved !== undefined)
-            const open = submitFailures.filter(f => f.resolved === false)
+            //
+            // The outcome is worked out here rather than only server-side so it
+            // does not wait on migration 248: this week's own counted sheets and
+            // the unsubmitted queue already answer it. 248 is still preferred
+            // where present because it joins by user id and sees a submitted
+            // sheet even when nothing of it ended up counted.
+            const submittedIds = new Set((data?.allPicks ?? []).map(p => p.user_id))
+            const submittedEmails = new Set((data?.allPicks ?? []).map(p => (p.email || '').toLowerCase()))
+            const pendingIds = new Set(unsubmitted.map(u => u.user_id))
+            const pendingEmails = new Set(unsubmitted.map(u => (u.email || '').toLowerCase()))
+            type Outcome = 'submitted' | 'pending' | 'none' | 'unknown'
+            const outcomeOf = (f: typeof submitFailures[number]): Outcome => {
+              if (f.resolved === true) return 'submitted'
+              if (f.resolved === false) return f.has_unsubmitted ? 'pending' : 'none'
+              if (!data) return 'unknown' // week still loading; do not guess
+              const id = (f as any).user_id as string | undefined
+              const em = (f.email || '').toLowerCase()
+              if ((id && submittedIds.has(id)) || (em && submittedEmails.has(em))) return 'submitted'
+              if ((id && pendingIds.has(id)) || (em && pendingEmails.has(em))) return 'pending'
+              return 'none'
+            }
+            const outcomes = submitFailures.map(outcomeOf)
+            const known = outcomes.some(o => o !== 'unknown')
+            const open = outcomes.filter(o => o === 'pending' || o === 'none')
             const allResolved = known && open.length === 0
             return (
               <div className="mt-3 pt-3 border-t border-[#f0ece5] text-sm">
                 <div className={`font-medium ${allResolved ? 'text-[#1f7a44]' : 'text-[#d1495b]'}`}>
                   {allResolved ? '✅' : '🚨'} {submitFailures.length} failed submit{' '}
                   {submitFailures.length === 1 ? 'attempt' : 'attempts'} recorded this week
-                  {allResolved && ' — all of these players submitted afterwards, nothing to chase'}
+                  {allResolved && ' — every one of these players got a sheet in afterwards, nothing to chase'}
                   {known && open.length > 0 &&
                     ` — ${open.length} ${open.length === 1 ? 'player is' : 'players are'} still without a submitted sheet`}
                 </div>
@@ -1025,22 +1047,32 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
                   </div>
                 )}
                 <div className="mt-1 space-y-0.5 max-h-32 overflow-y-auto">
-                  {submitFailures.map((f, i) => (
-                    <div key={i} className="text-xs">
-                      <span className="font-medium text-[#4B3621]">{f.display_name}</span>
-                      <span className="text-charcoal-500 ml-2">{f.email}</span>
-                      <span className="text-charcoal-400 ml-2">{new Date(f.created_at).toLocaleString()}</span>
-                      {f.resolved === true && (
-                        <span className="ml-2 text-[#1f7a44] font-semibold">submitted later</span>
-                      )}
-                      {f.resolved === false && (
-                        <span className="ml-2 text-[#d1495b] font-semibold">
-                          {f.has_unsubmitted ? 'still unsubmitted — sheet on file' : 'no sheet on file'}
-                        </span>
-                      )}
-                      <div className="text-charcoal-600 ml-1">{f.stage}: {f.message}</div>
-                    </div>
-                  ))}
+                  {submitFailures.map((f, i) => {
+                    const o = outcomes[i]
+                    return (
+                      <div key={i} className="text-xs">
+                        <span className="font-medium text-[#4B3621]">{f.display_name}</span>
+                        <span className="text-charcoal-500 ml-2">{f.email}</span>
+                        <span className="text-charcoal-400 ml-2">{new Date(f.created_at).toLocaleString()}</span>
+                        {o === 'submitted' && (
+                          <span className="ml-2 text-[#1f7a44] font-semibold">
+                            ✓ got a sheet in for this week
+                          </span>
+                        )}
+                        {o === 'pending' && (
+                          <span className="ml-2 text-[#d1495b] font-semibold">
+                            ⚠ picks on file but never submitted
+                          </span>
+                        )}
+                        {o === 'none' && (
+                          <span className="ml-2 text-[#d1495b] font-semibold">
+                            ⚠ no sheet counted this week
+                          </span>
+                        )}
+                        <div className="text-charcoal-600 ml-1">{f.stage}: {f.message}</div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
