@@ -99,8 +99,16 @@ function pivotDifferences(rows: Row[]) {
   return Array.from(byPlayerGame.values())
 }
 
-export function buildReconciliationSheets(data: any, season: number, week: number): any[] {
+export function buildReconciliationSheets(
+  data: any,
+  season: number,
+  week: number,
+  extra: { unsubmitted?: any[]; failures?: any[] } = {},
+): any[] {
   const s = data.summary
+  const unsubmitted = extra.unsubmitted ?? []
+  const failures = extra.failures ?? []
+  const openFailures = failures.filter(f => f.resolved === false)
   const money = (n: any) => (n === null || n === undefined ? '' : Number(n))
 
   const summaryRows: Array<[string, any, string]> = [
@@ -117,13 +125,26 @@ export function buildReconciliationSheets(data: any, season: number, week: numbe
     ['Paid, submitted nothing', s.paid_submitted_none,
       `${s.split_identities} of these are playing under another address`],
     ['', '', ''],
-    ['WHAT TO ACT ON', '', ''],
-    ['Split identities to merge', data.split_identities.length, 'Run database/merge_split_identities.sql — tab: Split identities'],
+    [`WHAT WENT WRONG IN WEEK ${week}`, '', ''],
+    ['Sheets started but never submitted', unsubmitted.length,
+      `Tab: W${week} · Not submitted. Approve or chase before scoring closes`],
+    ['Submit attempts that errored', failures.length,
+      failures.length === 0 ? ''
+        : openFailures.length === 0
+          ? 'All retried successfully — record only, nobody to chase'
+          : `${openFailures.length} ${openFailures.length === 1 ? 'player is' : 'players are'} still without a submitted sheet — see the Outcome column`],
+    ['Players holding more than one sheet', data.duplicate_sheets.length,
+      `Tab: W${week} · Sheet differences`],
+    ['Anonymous entries still to tie', data.anonymous_to_tie.length,
+      'Tie them from the Anonymous picks row in Week Review'],
+    ['', '', ''],
+    ['SEASON TO DATE — NOT WEEK ' + week, '', ''],
+    ['Split identities to merge', data.split_identities.length, 'Run database/merge_split_identities.sql — tab: Season · Split identities'],
     ['Playing with no payment', data.playing_unpaid.length, 'After the split identities are accounted for'],
-    ['Paid no-shows', data.paid_no_picks.length, 'Paid, no sheet anywhere'],
+    ['Paid no-shows', data.paid_no_picks.length, 'Paid, no sheet anywhere this season'],
     ['Entries with money unsettled', data.money_issues.length, 'Pending transfers and overpayments'],
-    [`Sheets on file for players holding more than one (week ${week})`, data.duplicate_sheets.length, 'See Sheet differences'],
-    [`Anonymous entries still to tie (week ${week})`, data.anonymous_to_tie.length, 'Tie them from the Anonymous picks row in Week Review'],
+    ['(carry-over, not this week)', '',
+      `These four accumulate all season and mostly predate week ${week}. They are the standing record, not a week ${week} to-do list — work the block above first.`],
     ['', '', ''],
     ['GRACE PERIOD', '', ''],
     ['grace_period_weeks', s.grace_period_weeks, 'Unpaid players stay on the board while weeks-with-games <= this'],
@@ -157,7 +178,49 @@ export function buildReconciliationSheets(data: any, season: number, week: numbe
   const sheets: any[] = [
     summarySheet,
     {
-      sheet: 'Register',
+      sheet: `W${week} · Not submitted`,
+      ...table([
+        { key: 'display_name', label: 'Player', width: 24 },
+        { key: 'email', label: 'Email', width: 34 },
+        { key: 'picks', label: 'Picks' },
+        { key: 'has_lock', label: 'Has lock' },
+        { key: 'complete', label: 'Complete' },
+        { key: 'is_paid', label: 'Paid' },
+        { key: 'last_touch', label: 'Last touch', width: 22 },
+        { key: 'already_counted', label: 'Already counted' },
+        { key: 'approvable', label: 'Approvable' },
+        { key: 'blockers', label: 'Blockers', width: 46 },
+      ], unsubmitted, {
+        note: `Week ${week}: picks on file that were never submitted. Complete + approvable means six picks with one lock that you can count from Week Review; blockers say why the rest cannot be. This is the queue that decides whether someone silently misses a week.`,
+        flagKey: 'blockers',
+      }),
+    },
+    {
+      sheet: `W${week} · Submit failures`,
+      ...table([
+        { key: 'display_name', label: 'Player', width: 24 },
+        { key: 'email', label: 'Email', width: 34 },
+        { key: 'created_at', label: 'When', width: 22 },
+        { key: 'stage', label: 'Stage' },
+        { key: 'outcome', label: 'Outcome', width: 22 },
+        { key: 'message', label: 'Error', width: 48 },
+      ], failures.map(f => {
+        const unresolved = f.resolved === false
+          ? (f.has_unsubmitted ? 'STILL UNSUBMITTED' : 'NO SHEET ON FILE')
+          : ''
+        return {
+          ...f,
+          outcome: f.resolved === undefined ? '' : f.resolved ? 'submitted later' : unresolved,
+          // only the rows that still need action get tinted
+          flag: unresolved,
+        }
+      }), {
+        note: `Week ${week}: submits and pick writes that errored in the player's browser. "submitted later" means they retried and got in, so the row is a record of a flaky connection rather than something to chase — only the flagged outcomes need action. "Load failed" is Safari's wording for a request that never completed.`,
+        flagKey: 'flag',
+      }),
+    },
+    {
+      sheet: 'Season · Register',
       ...table([
         { key: 'leaguesafe_owner', label: 'LeagueSafe owner', width: 24 },
         { key: 'leaguesafe_email', label: 'LeagueSafe email', width: 34 },
@@ -178,7 +241,7 @@ export function buildReconciliationSheets(data: any, season: number, week: numbe
       }),
     },
     {
-      sheet: 'Split identities',
+      sheet: 'Season · Split identities',
       ...table([
         { key: 'paid_as', label: 'Paid as', width: 22 },
         { key: 'payment_email', label: 'Payment email', width: 34 },
@@ -195,7 +258,7 @@ export function buildReconciliationSheets(data: any, season: number, week: numbe
       }),
     },
     {
-      sheet: 'Playing unpaid',
+      sheet: 'Season · Playing unpaid',
       ...table([
         { key: 'playing_as', label: 'Playing as', width: 24 },
         { key: 'account_email', label: 'Account email', width: 34 },
@@ -209,7 +272,7 @@ export function buildReconciliationSheets(data: any, season: number, week: numbe
       }),
     },
     {
-      sheet: 'Paid no picks',
+      sheet: 'Season · Paid no picks',
       ...table([
         { key: 'paid_as', label: 'Paid as', width: 24 },
         { key: 'payment_email', label: 'Payment email', width: 34 },
@@ -221,7 +284,7 @@ export function buildReconciliationSheets(data: any, season: number, week: numbe
       }),
     },
     {
-      sheet: 'Money issues',
+      sheet: 'Season · Money issues',
       ...table([
         { key: 'leaguesafe_owner', label: 'LeagueSafe owner', width: 24 },
         { key: 'leaguesafe_email', label: 'LeagueSafe email', width: 34 },
@@ -236,7 +299,7 @@ export function buildReconciliationSheets(data: any, season: number, week: numbe
       }),
     },
     {
-      sheet: `Duplicate sheets W${week}`,
+      sheet: `W${week} · Duplicate sheets`,
       ...table([
         { key: 'player', label: 'Player', width: 22 },
         { key: 'account_email', label: 'Account email', width: 30 },
@@ -256,7 +319,7 @@ export function buildReconciliationSheets(data: any, season: number, week: numbe
       }),
     },
     {
-      sheet: 'Sheet differences',
+      sheet: `W${week} · Sheet differences`,
       ...table([
         { key: 'player', label: 'Player', width: 22 },
         { key: 'matchup', label: 'Game', width: 32 },
@@ -270,7 +333,7 @@ export function buildReconciliationSheets(data: any, season: number, week: numbe
       }),
     },
     {
-      sheet: 'Anonymous to tie',
+      sheet: `W${week} · Anonymous to tie`,
       ...table([
         { key: 'entry_name', label: 'Entry name', width: 24 },
         { key: 'entry_email', label: 'Entry email', width: 32 },
@@ -286,15 +349,36 @@ export function buildReconciliationSheets(data: any, season: number, week: numbe
     },
   ]
 
-  return sheets
+  // The file answers "what went wrong this week", so the week tabs lead and the
+  // season carry-over follows. Summary always stays first.
+  const isWeek = (x: any) => String(x.sheet).startsWith(`W${week} ·`)
+  return [
+    sheets[0],
+    ...sheets.slice(1).filter(isWeek),
+    ...sheets.slice(1).filter(x => !isWeek(x)),
+  ]
 }
 
 export async function downloadReconciliationWorkbook(season: number, week: number): Promise<string> {
-  const { data, error } = await supabase.rpc('wr_reconciliation', { p_season: season, p_week: week })
+  // wr_reconciliation does not carry the unsubmitted queue or the submit
+  // failures, and both are week-scoped things the commissioner has to act on,
+  // so pull them alongside. Neither is fatal: a workbook missing a tab beats no
+  // workbook, and the older failures function simply returns no outcome.
+  const [recon, unsubRes, failRes] = await Promise.all([
+    supabase.rpc('wr_reconciliation', { p_season: season, p_week: week }),
+    supabase.rpc('wr_unsubmitted_entries', { p_week: week, p_season: season }),
+    supabase.rpc('wr_recent_submission_failures', { p_week: week, p_season: season }),
+  ])
+  const { data, error } = recon
   if (error) throw new Error(error.message)
   if (!data) throw new Error('No reconciliation data returned')
+  if (unsubRes.error) console.warn('Unsubmitted queue unavailable:', unsubRes.error.message)
+  if (failRes.error) console.warn('Submit failures unavailable:', failRes.error.message)
 
-  const sheets = buildReconciliationSheets(data, season, week)
+  const sheets = buildReconciliationSheets(data, season, week, {
+    unsubmitted: (unsubRes.data as any[]) || [],
+    failures: (failRes.data as any[]) || [],
+  })
   const fileName = `leaguesafe-reconciliation-${season}-week-${week}.xlsx`
   // The browser build hands back a blob rather than saving; do the save here so
   // the filename carries the season and week.

@@ -415,8 +415,11 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
       setError(err?.message || 'Failed to approve sheet')
     } finally { setApproving(null) }
   }
+  // resolved/has_unsubmitted arrive from migration 248; both are optional so the
+  // panel still renders against the older function before it is applied.
   const [submitFailures, setSubmitFailures] = useState<
-    Array<{ display_name: string; email: string; stage: string; message: string; created_at: string }>
+    Array<{ display_name: string; email: string; stage: string; message: string; created_at: string;
+            resolved?: boolean; has_unsubmitted?: boolean }>
   >([])
   // Pick changes made after their game kicked off or after the deadline. The
   // audit trail deliberately ignores result/points_earned, so a scoring pass
@@ -1000,23 +1003,48 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
             )
           })()}
 
-          {submitFailures.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-[#f0ece5] text-sm">
-              <div className="font-medium text-[#d1495b]">
-                🚨 {submitFailures.length} failed submit {submitFailures.length === 1 ? 'attempt' : 'attempts'} recorded this week
-              </div>
-              <div className="mt-1 space-y-0.5 max-h-32 overflow-y-auto">
-                {submitFailures.map((f, i) => (
-                  <div key={i} className="text-xs">
-                    <span className="font-medium text-[#4B3621]">{f.display_name}</span>
-                    <span className="text-charcoal-500 ml-2">{f.email}</span>
-                    <span className="text-charcoal-400 ml-2">{new Date(f.created_at).toLocaleString()}</span>
-                    <div className="text-charcoal-600 ml-1">{f.stage}: {f.message}</div>
+          {submitFailures.length > 0 && (() => {
+            // An errored attempt only matters if the player never got a sheet
+            // in. Week 3 had six failures and six eventual submissions, and the
+            // bare count read like six people locked out.
+            const known = submitFailures.some(f => f.resolved !== undefined)
+            const open = submitFailures.filter(f => f.resolved === false)
+            const allResolved = known && open.length === 0
+            return (
+              <div className="mt-3 pt-3 border-t border-[#f0ece5] text-sm">
+                <div className={`font-medium ${allResolved ? 'text-[#1f7a44]' : 'text-[#d1495b]'}`}>
+                  {allResolved ? '✅' : '🚨'} {submitFailures.length} failed submit{' '}
+                  {submitFailures.length === 1 ? 'attempt' : 'attempts'} recorded this week
+                  {allResolved && ' — all of these players submitted afterwards, nothing to chase'}
+                  {known && open.length > 0 &&
+                    ` — ${open.length} ${open.length === 1 ? 'player is' : 'players are'} still without a submitted sheet`}
+                </div>
+                {known && open.length === 0 && (
+                  <div className="text-xs text-charcoal-500 mt-0.5">
+                    Kept as a record: a retried error still points at a slow or dropped connection worth knowing about.
                   </div>
-                ))}
+                )}
+                <div className="mt-1 space-y-0.5 max-h-32 overflow-y-auto">
+                  {submitFailures.map((f, i) => (
+                    <div key={i} className="text-xs">
+                      <span className="font-medium text-[#4B3621]">{f.display_name}</span>
+                      <span className="text-charcoal-500 ml-2">{f.email}</span>
+                      <span className="text-charcoal-400 ml-2">{new Date(f.created_at).toLocaleString()}</span>
+                      {f.resolved === true && (
+                        <span className="ml-2 text-[#1f7a44] font-semibold">submitted later</span>
+                      )}
+                      {f.resolved === false && (
+                        <span className="ml-2 text-[#d1495b] font-semibold">
+                          {f.has_unsubmitted ? 'still unsubmitted — sheet on file' : 'no sheet on file'}
+                        </span>
+                      )}
+                      <div className="text-charcoal-600 ml-1">{f.stage}: {f.message}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
         </CardContent>
       </Card>
 
