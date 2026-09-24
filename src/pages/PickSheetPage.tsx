@@ -1054,11 +1054,15 @@ export default function PickSheetPage() {
                 )}
               </div>
               
-              <div className="columns-1 md:columns-2 gap-4">
-                {games
-                  .sort((a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime())
+              {/* Grid, not CSS columns: columns rebalance when a card grows (picked cards
+                  show a Set Lock footer), which reshuffles every game below it. */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                {[...games]
+                  .sort((a, b) =>
+                    new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime() ||
+                    a.id.localeCompare(b.id))
                   .map(game => (
-                  <div key={game.id} className="mb-4 break-inside-avoid">
+                  <div key={game.id}>
                     <GameCard
                       game={game}
                       userPick={picks.find(p => p.game_id === game.id)}
