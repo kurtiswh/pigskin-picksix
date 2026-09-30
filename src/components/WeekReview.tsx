@@ -395,21 +395,30 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
       lock_count: number; picks_after_lock: number; changes_after_kickoff: number
       already_counted: boolean; is_paid: boolean
       approvable: boolean; blockers: string | null
+      // migration 249; optional so the panel renders against 247 until applied
+      approvable_short?: boolean; hard_blockers?: string | null
     }>
   >([])
 
   // Counting a sheet nobody submitted. Every check lives in
   // wr_approve_unsubmitted_sheet (migration 247) and runs again there, so this
-  // button cannot admit a sheet the list says is blocked.
+  // button cannot admit a sheet the list says is blocked. A short sheet (fewer
+  // than 6 picks or no lock, migration 249) needs an explicit confirm and the
+  // p_allow_short override; the late-pick and double-count checks still hold.
   const [approving, setApproving] = useState<string | null>(null)
-  const approveSheet = async (userId: string, name: string) => {
+  const approveSheet = async (userId: string, name: string, short?: { picks: number; locks: number }) => {
+    if (short && !window.confirm(
+      `Count ${name}'s SHORT sheet as submitted?\n\n${short.picks} pick(s), ${short.locks} lock(s). ` +
+      `Missing picks score nothing${short.locks === 0 ? ' and no pick is doubled' : ''}. ` +
+      `This is stamped in the admin note.`)) return
     setApproving(userId); setError('')
     try {
       const { error: e } = await supabase.rpc('wr_approve_unsubmitted_sheet', {
         p_user_id: userId, p_week: week, p_season: season,
+        ...(short ? { p_allow_short: true } : {}),
       })
       if (e) throw e
-      setConfirmsNote(`Counted ${name}'s sheet.`)
+      setConfirmsNote(`Counted ${name}'s ${short ? `short sheet (${short.picks} picks)` : 'sheet'}.`)
       await Promise.all([loadReview(), loadMissingConfirms()])
     } catch (err: any) {
       setError(err?.message || 'Failed to approve sheet')
@@ -920,7 +929,9 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
                 </div>
               )}
               <div className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
-                {unsubmitted.map(u => (
+                {unsubmitted.map(u => {
+                  const short = !u.approvable && !!u.approvable_short
+                  return (
                   <div key={u.user_id} className="flex items-start justify-between gap-3 text-xs py-1 border-b border-[#f0ece5] last:border-0">
                     <div className="min-w-0">
                       <span className="font-medium text-[#4B3621]">{u.display_name}</span>
@@ -928,25 +939,33 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
                       <span className="text-charcoal-400 ml-2">{u.picks} picks{u.has_lock ? ' + lock' : ''}</span>
                       {u.complete && <span className="ml-2 text-[#b06a1a] font-semibold">complete, unsubmitted</span>}
                       {!u.is_paid && <span className="ml-2 text-[#d1495b]">unpaid</span>}
-                      {u.blockers && <div className="text-[#d1495b] mt-0.5">Cannot count: {u.blockers}</div>}
+                      {u.blockers && (short
+                        ? <div className="text-[#b06a1a] mt-0.5">Short sheet: {u.blockers}. Can count as is.</div>
+                        : <div className="text-[#d1495b] mt-0.5">Cannot count: {u.hard_blockers ?? u.blockers}</div>)}
                     </div>
-                    <Button size="sm" variant="outline" className="shrink-0 h-7 text-xs"
-                      disabled={!u.approvable || approving === u.user_id}
+                    <Button size="sm" variant="outline"
+                      className={`shrink-0 h-7 text-xs ${short ? 'border-[#C9A04E] text-[#8a6a1e]' : ''}`}
+                      disabled={!(u.approvable || short) || approving === u.user_id}
                       title={u.approvable
                         ? 'Mark this sheet submitted and count it in the standings'
-                        : `Cannot count: ${u.blockers}`}
-                      onClick={() => approveSheet(u.user_id, u.display_name)}>
-                      {approving === u.user_id ? 'Counting…' : 'Count this sheet'}
+                        : short
+                          ? `Count this short sheet as is: ${u.blockers}. Missing picks score nothing.`
+                          : `Cannot count: ${u.hard_blockers ?? u.blockers}`}
+                      onClick={() => approveSheet(u.user_id, u.display_name,
+                        short ? { picks: Number(u.picks), locks: u.lock_count } : undefined)}>
+                      {approving === u.user_id ? 'Counting…' : short ? `Count ${u.picks} picks` : 'Count this sheet'}
                     </Button>
                   </div>
-                ))}
+                  )
+                })}
               </div>
               <div className="text-xs text-charcoal-500 mt-2">
                 Partial sheets are usually just players mid-week; complete ones are the worry.
                 Picks are saved either way — submitting is what enters them. Counting a sheet
-                checks first that it is six picks with one lock, that nothing else is already
-                being scored for them this week, and that no pick was made after its game
-                locked; the approval is stamped now, not back-dated.
+                checks first that nothing else is already being scored for them this week and
+                that no pick was made after its game locked. A short sheet (under six picks or
+                no lock) can be counted as is after a confirm: missing picks score nothing.
+                The approval is stamped now, not back-dated.
               </div>
             </div>
           )}
