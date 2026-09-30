@@ -191,7 +191,7 @@ export function buildReconciliationSheets(
         { key: 'approvable', label: 'Approvable' },
         { key: 'blockers', label: 'Blockers', width: 46 },
       ], unsubmitted, {
-        note: `Week ${week}: picks on file that were never submitted. Complete + approvable means six picks with one lock that you can count from Week Review; blockers say why the rest cannot be. This is the queue that decides whether someone silently misses a week.`,
+        note: `Week ${week}: picks on file that were never submitted. Complete + approvable means six picks with one lock that you can count from Week Review. A short sheet (under six picks or no lock) can also be counted there after a confirm when its only blockers are the pick and lock counts. This is the queue that decides whether someone silently misses a week.`,
         flagKey: 'blockers',
       }),
     },
