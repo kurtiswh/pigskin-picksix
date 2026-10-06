@@ -775,7 +775,7 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
               ? 'None'
               : faultySets.length > 0
                 ? `${faultySets.length} to fix`
-                : `${multiSetPlayers.length} ${multiSetPlayers.length === 1 ? 'player' : 'players'}`
+                : `${multiSetPlayers.length} ${multiSetPlayers.length === 1 ? 'player' : 'players'} · no action`
             : ''}
         >
           {multiSetPlayers.length === 0
@@ -1327,8 +1327,8 @@ function SheetCompare({ player, cells }: { player: MultiSetPlayer; cells: PickDi
   if (differing === 0 && afterKickoff === 0 && droppedCells === 0) {
     return (
       <div className="px-3 py-2 text-xs text-charcoal-600 border-t border-[#f0ece5]">
-        Both sheets hold the same {games.length} picks with the same lock — an exact duplicate, so which one
-        counts makes no difference to the score.
+        Both sheets hold the same {games.length} picks with the same lock: an exact duplicate, so which one
+        counts makes no difference to the score. No action needed.
       </div>
     )
   }
@@ -1390,14 +1390,28 @@ function SheetCompare({ player, cells }: { player: MultiSetPlayer; cells: PickDi
   )
 }
 
+/** Why a sheet contributes nothing, in the standings' own terms (migration 245). */
+function ignoredReason(st: PickSetEntry, sets: PickSetEntry[]): string {
+  if (st.source !== 'anonymous' && !st.is_submitted) return 'not submitted'
+  if (st.source === 'anonymous' && sets.some(o => o.source !== 'anonymous' && o.is_submitted && o.counted_picks > 0)) {
+    return 'account sheet counts'
+  }
+  return 'hidden'
+}
+
 function PickSetsList({ players, splitCount, diff }: { players: MultiSetPlayer[]; splitCount: number; diff: PickDiffCell[] }) {
+  const sheetsDiffer = (userId: string) =>
+    diff.some(d => d.user_id === userId && (d.game_disagrees || d.made_after_kickoff || d.dropped))
+  const needsAction = players.some(p => p.countedPicks > 6 || p.countedLocks > 1)
   return (
     <div className="space-y-3">
       <p className="text-sm text-charcoal-600">
-        Counting is per pick, not per sheet: a submitted account sheet takes the week over an anonymous
-        entry, and within an entry each pick can be shown or hidden. <b>Counted</b> is what the standings
-        score — the rest is on file and ignored, nothing here is deleted. More than 6 counted picks, or
-        more than one counted lock, means the week is scored wrong.
+        {needsAction
+          ? 'Some players below are scored wrong and need a fix before publishing.'
+          : 'Informational. Each player below is scored from one entry; nothing needs fixing.'}
+        {' '}Only one sheet can count: a submitted account sheet takes the week, otherwise the anonymous
+        entry does. <b>Counted</b> is what the standings score; the other sheet stays on file, ignored.
+        More than 6 counted picks, or more than one counted lock, means the week is scored wrong.
       </p>
       {splitCount > 0 && (
         <p className="text-sm text-charcoal-600">
@@ -1472,7 +1486,9 @@ function PickSetsList({ players, splitCount, diff }: { players: MultiSetPlayer[]
                     </td>
                     <td className="px-3 py-1.5 text-right whitespace-nowrap">
                       {st.counted_picks === 0
-                        ? <span className="text-xs px-2 py-0.5 rounded-full bg-[#f0ece5] text-charcoal-500">ignored</span>
+                        ? <span className="text-xs px-2 py-0.5 rounded-full bg-[#f0ece5] text-charcoal-500 whitespace-nowrap">
+                            ignored · {ignoredReason(st, p.sets)}
+                          </span>
                         : st.counted_picks === st.pick_count
                           ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#e6f4ea] text-[#1f7a44]">counted</span>
                           : <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#fff5e2] text-[#b06a1a]">partly</span>}
@@ -1496,18 +1512,20 @@ function PickSetsList({ players, splitCount, diff }: { players: MultiSetPlayer[]
                 {p.countedLocks} lock — a combination, not a duplicate.
               </div>
             )}
-            {!faulty && p.sheetsCounting === 1 && p.sets.some(st => st.counted_picks === 0 && st.pick_count >= 6) && (
+            {!faulty && p.sheetsCounting === 1 && sheetsDiffer(p.user_id)
+              && p.sets.some(st => st.counted_picks === 0 && st.pick_count >= 6) && (
               <div className="px-3 py-2 text-xs text-charcoal-500 border-t border-[#f0ece5]">
-                A full second sheet the standings ignore. Worth a look — the player may believe the
-                ignored one is their entry.
+                A full second sheet with different picks that the standings ignore. Worth a look: the
+                player may believe the ignored one is their entry.
               </div>
             )}
           </div>
         )
       })}
       <p className="text-xs text-charcoal-400">
-        Resolve in <b>Advanced pick tools</b> below (assign anonymous, duplicates, hidden, pick-set
-        management). All Picks shows only counted picks, so these players have more on file than it lists.
+        {needsAction ? 'Fix' : 'To change which sheet counts, use'} <b>Manage Sets</b> under Duplicate Pick Sets
+        in <b>Advanced pick tools</b> below. All Picks shows only counted picks, so these players have more
+        on file than it lists.
       </p>
     </div>
   )
