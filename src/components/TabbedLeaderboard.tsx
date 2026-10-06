@@ -161,7 +161,7 @@ export default function TabbedLeaderboard() {
       console.log('🔄 Loading season leaderboard for season', season, 'through week', selectedSeasonWeek)
       
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Overall timeout after 10 seconds')), 10000)
+        setTimeout(() => reject(new Error('Standings are taking too long to load. Please refresh in a minute.')), 10000)
       })
       
       // Get the current week to calculate rank changes
@@ -212,12 +212,7 @@ export default function TabbedLeaderboard() {
 
       setSeasonData(entries)
 
-      // Set strategy indicator based on data
-      if (entries.length === 1 && entries[0].user_id === 'emergency-1') {
-        setStrategy('Emergency static data - check console for errors')
-      } else if (entries.length > 0) {
-        setStrategy('Season data loaded successfully')
-      }
+      if (entries.length > 0) setStrategy('Season data loaded successfully')
 
     } catch (err: any) {
       if (seq !== loadSeq.current) return
@@ -245,7 +240,7 @@ export default function TabbedLeaderboard() {
       console.log('🔄 Loading weekly leaderboard for season', season, 'week', selectedWeek)
       
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Overall timeout after 10 seconds')), 10000)
+        setTimeout(() => reject(new Error('Standings are taking too long to load. Please refresh in a minute.')), 10000)
       })
       
       const dataPromise = EmergencyWeeklyLeaderboardService.getWeeklyLeaderboard(season, selectedWeek)
@@ -258,14 +253,7 @@ export default function TabbedLeaderboard() {
 
       setWeeklyData(entries)
       
-      // Set strategy indicator based on data
-      if (entries.length === 1 && entries[0].user_id.includes('emergency')) {
-        setStrategy('Emergency static data - check console for errors')
-      } else if (entries.length === 1 && entries[0].user_id.includes('production-static')) {
-        setStrategy('Production fallback data - weekly table may be empty')
-      } else if (entries.length > 0) {
-        setStrategy(`Week ${selectedWeek} data loaded successfully`)
-      }
+      if (entries.length > 0) setStrategy(`Week ${selectedWeek} data loaded successfully`)
       
     } catch (err: any) {
       if (seq !== weeklySeq.current) return
@@ -776,16 +764,13 @@ export default function TabbedLeaderboard() {
     if (error) {
       return (
         <div className="text-red-600 p-4 bg-red-50 rounded">
-          Error: {error}
+          {error}
         </div>
       )
     }
 
-    // Preseason: no weeks configured for this season yet. Placeholder rows from
-    // the emergency fallback ("Temporarily Unavailable") count as no data here.
-    const realData = isPreseason
-      ? data.filter((e) => !`${e.user_id}`.includes('emergency') && !`${e.user_id}`.includes('production-static'))
-      : data
+    // Preseason: no weeks configured for this season yet.
+    const realData = data
 
     if (realData.length === 0) {
       if (isPreseason) {
