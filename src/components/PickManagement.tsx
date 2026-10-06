@@ -607,6 +607,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
           user_id,
           show_on_leaderboard,
           submitted,
+          disqualified,
           users!picks_user_id_fkey (
             display_name
           )
@@ -621,6 +622,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
           assigned_user_id,
           show_on_leaderboard,
           submitted,
+          disqualified,
           users!anonymous_picks_assigned_user_id_fkey (
             display_name
           )
@@ -661,7 +663,12 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
           auth_visible: number,
           anon_visible: number,
           auth_submitted: boolean,
-          anon_submitted: boolean
+          anon_submitted: boolean,
+          // the standings' rule (migration 245): an account pick counts when submitted, shown
+          // and not dropped; any submitted+shown account pick takes the week over the anonymous entry
+          auth_counted: number,
+          auth_gate: boolean,
+          anon_countable: number
         }} = {}
         
         // Count authenticated picks
@@ -676,12 +683,19 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                 auth_visible: 0,
                 anon_visible: 0,
                 auth_submitted: pick.submitted || false,
-                anon_submitted: false
+                anon_submitted: false,
+                auth_counted: 0,
+                auth_gate: false,
+                anon_countable: 0
               }
             }
             userPickCounts[pick.user_id].auth++
             if (pick.show_on_leaderboard !== false) {
               userPickCounts[pick.user_id].auth_visible++
+            }
+            if (pick.submitted && pick.show_on_leaderboard === true) {
+              userPickCounts[pick.user_id].auth_gate = true
+              if (!pick.disqualified) userPickCounts[pick.user_id].auth_counted++
             }
             // Update submitted status - all picks in a set should have same submitted status
             userPickCounts[pick.user_id].auth_submitted = pick.submitted || false
@@ -721,12 +735,18 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                 auth_visible: 0,
                 anon_visible: 0,
                 auth_submitted: false,
-                anon_submitted: pick.submitted || false
+                anon_submitted: pick.submitted || false,
+                auth_counted: 0,
+                auth_gate: false,
+                anon_countable: 0
               }
             }
             userPickCounts[userId].anon++
             if (pick.show_on_leaderboard !== false) {
               userPickCounts[userId].anon_visible++
+            }
+            if (pick.show_on_leaderboard === true && !pick.disqualified) {
+              userPickCounts[userId].anon_countable++
             }
             // Update submitted status - all picks in a set should have same submitted status
             userPickCounts[userId].anon_submitted = pick.submitted || false
@@ -758,21 +778,19 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
             counts.auth > 0 && counts.anon > 0
           )
           .map(([userId, counts]) => {
-            // Determine which type is selected based on visibility and submission
+            // Which sheet the standings actually score. Visibility alone is not enough: an
+            // account sheet that was never submitted counts for nothing however it is toggled,
+            // and a submitted, shown account sheet shuts the anonymous entry out entirely.
             let selected_type = null
-            
-            // Check if picks are visible on leaderboard
-            const authVisible = counts.auth_visible > 0
-            const anonVisible = counts.anon_visible > 0
-            
-            if (authVisible && anonVisible) {
-              selected_type = 'both' // Both are visible - PROBLEM!
-            } else if (authVisible && !anonVisible) {
+            const authCounts = counts.auth_counted > 0
+            const anonCounts = !counts.auth_gate && counts.anon_countable > 0
+
+            if (authCounts) {
               selected_type = 'auth'
-            } else if (!authVisible && anonVisible) {
+            } else if (anonCounts) {
               selected_type = 'anon'
             } else {
-              selected_type = null // Neither visible (both hidden)
+              selected_type = null // nothing counting
             }
             
             return {
@@ -804,7 +822,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
             anon_picks: u.anon_picks,
             status: u.selected_type
           })),
-          problemUsers: multiple.filter(u => u.selected_type === 'both').map(u => u.display_name),
+          nothingCounting: multiple.filter(u => !u.selected_type).map(u => u.display_name),
           allUserCounts: Object.entries(userPickCounts).map(([id, counts]) => ({
             user_id: id,
             name: counts.display_name,
@@ -1081,6 +1099,32 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
     }
   }
   
+  // What the standings actually score from each sheet in the modal, by the same rule as
+  // wr_multiple_pick_sets (migration 245). The toggles only say shown/hidden; this says counted.
+  const pickSetStanding = (type: 'auth' | 'anon') => {
+    const set = pickSetDetails[type]
+    if (!set) return null
+    const shown = (s: PickSetDetails, pick: any) => s.individualPickVisibility?.[pick.id] ?? pick.show_on_leaderboard !== false
+    const auth = pickSetDetails.auth
+    const accountTakesWeek = !!auth && auth.picks.some(p => p.submitted && shown(auth, p))
+    const countsPick = (pick: any) => type === 'auth'
+      ? !!pick.submitted && shown(set, pick) && !pick.disqualified
+      : !accountTakesWeek && shown(set, pick) && !pick.disqualified
+    const counted = set.picks.filter(countsPick).length
+    const neverSubmitted = type === 'auth' && !set.picks.some(p => p.submitted)
+    let reason: string | null = null
+    if (counted === 0) {
+      reason = neverSubmitted
+        ? 'Never submitted, so none of these picks count however they are toggled.'
+        : type === 'anon' && accountTakesWeek
+          ? 'The submitted account sheet takes the week, so this entry is ignored.'
+          : 'Every pick is hidden or dropped.'
+    } else if (counted < set.picks.length) {
+      reason = `${counted} of ${set.picks.length} picks count; the rest are hidden or dropped.`
+    }
+    return { counted, total: set.picks.length, neverSubmitted, reason, countsPick }
+  }
+
   // Open manage pick sets modal
   const openManagePickSets = async (user: MultiplePickSets) => {
     setManagingPickSets(user)
@@ -1936,16 +1980,17 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
             <div className="flex items-center gap-2">
               <CardTitle className="text-lg">Duplicate Pick Sets</CardTitle>
               <Badge variant="outline" className="bg-orange-50">{multiplePickSets.length}</Badge>
-              {multiplePickSets.filter(u => u.selected_type === 'both').length > 0 && (
-                <Badge variant="destructive">
-                  {multiplePickSets.filter(u => u.selected_type === 'both').length} Both Active!
+              {multiplePickSets.filter(u => !u.selected_type).length > 0 && (
+                <Badge variant="outline" className="bg-orange-50 text-orange-700">
+                  {multiplePickSets.filter(u => !u.selected_type).length} with nothing counting
                 </Badge>
               )}
             </div>
             {sectionsCollapsed.multiple ? <ChevronDown /> : <ChevronUp />}
           </div>
           <CardDescription>
-            Users with picks in BOTH authenticated and anonymous tables (duplicates that need resolution)
+            Players with both an account sheet and an anonymous entry. Only one can count: a submitted account
+            sheet takes the week, otherwise the anonymous entry does. The checked badge is the one being scored.
           </CardDescription>
         </CardHeader>
         
@@ -1967,34 +2012,24 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                           {user.auth_picks > 0 && (
                             <Badge variant={user.selected_type === 'auth' ? 'default' : 'outline'} 
                                    className={user.selected_type === 'auth' ? 'bg-green-500 text-white' : ''}>
-                              {user.auth_picks} Auth {user.selected_type === 'auth' && '✓'}
+                              {user.auth_picks} Account {user.selected_type === 'auth' && '✓ counted'}
                             </Badge>
                           )}
                           {user.anon_picks > 0 && (
                             <Badge variant={user.selected_type === 'anon' ? 'default' : 'outline'}
                                    className={user.selected_type === 'anon' ? 'bg-green-500 text-white' : ''}>
-                              {user.anon_picks} Anon {user.selected_type === 'anon' && '✓'}
-                            </Badge>
-                          )}
-                          {user.selected_type === 'both' && (
-                            <Badge variant="destructive">
-                              <AlertTriangle className="w-3 h-3 mr-1" />
-                              BOTH VISIBLE!
+                              {user.anon_picks} Anon {user.selected_type === 'anon' && '✓ counted'}
                             </Badge>
                           )}
                           {!user.selected_type && (
                             <Badge variant="secondary">
                               <EyeOff className="w-3 h-3 mr-1" />
-                              Both Hidden
+                              Nothing counting
                             </Badge>
                           )}
                         </div>
                       </div>
-                      {user.selected_type === 'both' ? (
-                        <AlertTriangle className="w-4 h-4 text-red-500" />
-                      ) : (
-                        <AlertTriangle className="w-4 h-4 text-orange-500" />
-                      )}
+                      {!user.selected_type && <AlertTriangle className="w-4 h-4 text-orange-500" />}
                     </div>
                     <Button 
                       size="sm" 
@@ -2018,7 +2053,8 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
             <CardHeader>
               <CardTitle>Manage Pick Sets - {managingPickSets.display_name}</CardTitle>
               <CardDescription>
-                Control which picks are active for Week {selectedWeek}. You can toggle entire sets or individual picks.
+                Control which picks count for Week {selectedWeek}. Toggles show or hide picks, but only a submitted
+                account sheet can count, and when it does it replaces the anonymous entry.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -2037,7 +2073,8 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                         size="sm"
                         variant="default"
                         onClick={() => updateActivePickSet('auth')}
-                        disabled={!pickSetDetails.auth || updatingPickSets}
+                        disabled={!pickSetDetails.auth || pickSetStanding('auth')?.neverSubmitted || updatingPickSets}
+                        title={pickSetStanding('auth')?.neverSubmitted ? 'The account sheet was never submitted, so it cannot count' : undefined}
                       >
                         Use Authenticated Only
                       </Button>
@@ -2068,23 +2105,28 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                   </div>
                   
                   {/* Authenticated Picks */}
-                  {pickSetDetails.auth && (
-                    <div className={`border rounded-lg ${pickSetDetails.auth.show_on_leaderboard ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50'}`}>
+                  {pickSetDetails.auth && (() => { const standing = pickSetStanding('auth')!; return (
+                    <div className={`border rounded-lg ${standing.counted > 0 ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50'}`}>
                       <div className="p-4">
                         <div className="flex items-center justify-between mb-4">
                           <div>
                             <h3 className="font-semibold text-lg flex items-center gap-2">
                               Authenticated Picks
-                              {pickSetDetails.auth.show_on_leaderboard ? (
-                                <Badge className="bg-green-500 text-white">Active</Badge>
+                              {standing.counted === 0 ? (
+                                <Badge variant="outline" className="text-gray-600">Not counted</Badge>
+                              ) : standing.counted < standing.total ? (
+                                <Badge className="bg-orange-500 text-white">Partly counted</Badge>
                               ) : (
-                                <Badge variant="outline" className="text-gray-600">Inactive</Badge>
+                                <Badge className="bg-green-500 text-white">Counted</Badge>
                               )}
                             </h3>
                             <p className="text-sm text-gray-600 mt-1">
                               {pickSetDetails.auth.picks.length} picks
-                              {pickSetDetails.auth.submitted && ' (Submitted)'}
+                              {pickSetDetails.auth.submitted ? ' (Submitted)' : ' (Never submitted)'}
                             </p>
+                            {standing.reason && (
+                              <p className="text-xs text-gray-600 mt-1">{standing.reason}</p>
+                            )}
                             {pickSetDetails.auth.submitted_at && (
                               <p className="text-xs text-gray-500">
                                 Submitted: {new Date(pickSetDetails.auth.submitted_at).toLocaleString()}
@@ -2093,7 +2135,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                           </div>
                           <div className="flex items-center gap-2">
                             <Label htmlFor="auth-toggle" className="text-sm">
-                              Show on Leaderboard
+                              Shown
                             </Label>
                             <Switch
                               id="auth-toggle"
@@ -2127,7 +2169,8 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                             size="sm"
                             variant="default"
                             onClick={() => updateActivePickSet('auth')}
-                            disabled={updatingPickSets}
+                            disabled={pickSetStanding('auth')?.neverSubmitted || updatingPickSets}
+                            title={pickSetStanding('auth')?.neverSubmitted ? 'The account sheet was never submitted, so it cannot count' : undefined}
                           >
                             <Check className="w-3 h-3 mr-1" />
                             Set as Only Active
@@ -2141,7 +2184,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                             {pickSetDetails.auth.picks && Array.isArray(pickSetDetails.auth.picks) && pickSetDetails.auth.picks.map((pick: any) => (
                               <div key={pick.id} className="flex items-center justify-between p-2 bg-white rounded border">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-medium text-sm">{pick.selected_team}</span>
+                                  <span className={`font-medium text-sm ${standing.countsPick(pick) ? '' : 'text-gray-400'}`}>{pick.selected_team}</span>
                                   {pick.is_lock && (
                                     <Badge variant="outline" className="text-xs">LOCK</Badge>
                                   )}
@@ -2157,26 +2200,31 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                         </div>
                       </div>
                     </div>
-                  )}
+                  )})()}
                   
                   {/* Anonymous Picks */}
-                  {pickSetDetails.anon && (
-                    <div className={`border rounded-lg ${pickSetDetails.anon.show_on_leaderboard ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50'}`}>
+                  {pickSetDetails.anon && (() => { const standing = pickSetStanding('anon')!; return (
+                    <div className={`border rounded-lg ${standing.counted > 0 ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50'}`}>
                       <div className="p-4">
                         <div className="flex items-center justify-between mb-4">
                           <div>
                             <h3 className="font-semibold text-lg flex items-center gap-2">
                               Anonymous Picks
-                              {pickSetDetails.anon.show_on_leaderboard ? (
-                                <Badge className="bg-green-500 text-white">Active</Badge>
+                              {standing.counted === 0 ? (
+                                <Badge variant="outline" className="text-gray-600">Not counted</Badge>
+                              ) : standing.counted < standing.total ? (
+                                <Badge className="bg-orange-500 text-white">Partly counted</Badge>
                               ) : (
-                                <Badge variant="outline" className="text-gray-600">Inactive</Badge>
+                                <Badge className="bg-green-500 text-white">Counted</Badge>
                               )}
                             </h3>
                             <p className="text-sm text-gray-600 mt-1">
                               {pickSetDetails.anon.picks.length} picks
-                              {pickSetDetails.anon.submitted && ' (Submitted)'}
+                              {pickSetDetails.anon.submitted ? ' (Submitted)' : ' (Never submitted)'}
                             </p>
+                            {standing.reason && (
+                              <p className="text-xs text-gray-600 mt-1">{standing.reason}</p>
+                            )}
                             {pickSetDetails.anon.submitted_at && (
                               <p className="text-xs text-gray-500">
                                 Submitted: {new Date(pickSetDetails.anon.submitted_at).toLocaleString()}
@@ -2185,7 +2233,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                           </div>
                           <div className="flex items-center gap-2">
                             <Label htmlFor="anon-toggle" className="text-sm">
-                              Show on Leaderboard
+                              Shown
                             </Label>
                             <Switch
                               id="anon-toggle"
@@ -2233,7 +2281,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                             {pickSetDetails.anon.picks && Array.isArray(pickSetDetails.anon.picks) && pickSetDetails.anon.picks.map((pick: any) => (
                               <div key={pick.id} className="flex items-center justify-between p-2 bg-white rounded border">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-medium text-sm">{pick.selected_team}</span>
+                                  <span className={`font-medium text-sm ${standing.countsPick(pick) ? '' : 'text-gray-400'}`}>{pick.selected_team}</span>
                                   {pick.is_lock && (
                                     <Badge variant="outline" className="text-xs">LOCK</Badge>
                                   )}
@@ -2249,7 +2297,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                         </div>
                       </div>
                     </div>
-                  )}
+                  )})()}
                   
                   {/* Action buttons */}
                   <div className="flex justify-end gap-2 pt-4 border-t">
