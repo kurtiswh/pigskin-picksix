@@ -53,6 +53,8 @@ interface HiddenPicks {
   hidden_count: number
   pick_type: 'auth' | 'anon'
   submitted_at?: string
+  /** account sheets only: whether any pick was submitted (unsubmitted picks never count) */
+  submitted?: boolean
   user_email?: string
   profile_email?: string  // Email from the user's profile
   leaguesafe_email?: string  // Email from LeagueSafe payments
@@ -112,6 +114,25 @@ interface PickSetDetails {
   submitted: boolean
   submitted_at?: string
   individualPickVisibility?: { [pickId: string]: boolean }
+}
+
+// PostgREST caps every response at 1000 rows and a week holds ~3,500 account picks, so a
+// whole-week read must page or it silently returns a partial slice (same helper as UserManagement).
+async function fetchAllRows<T = any>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>
+): Promise<T[]> {
+  const pageSize = 1000
+  let from = 0
+  const all: T[] = []
+  while (true) {
+    const { data, error } = await build(from, from + pageSize - 1)
+    if (error) throw error
+    const rows = data || []
+    all.push(...rows)
+    if (rows.length < pageSize) break
+    from += pageSize
+  }
+  return all
 }
 
 interface UserOption {
@@ -333,7 +354,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
       
       // Load picks with show_on_leaderboard = false
       // Anonymous picks
-      const { data: hiddenAnon, error: hiddenAnonError } = await supabase
+      const hiddenAnon = await fetchAllRows((from, to) => supabase
         .from('anonymous_picks')
         .select(`
           id,
@@ -341,6 +362,7 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
           week,
           show_on_leaderboard,
           created_at,
+          submitted_at,
           email,
           name,
           processing_notes,
@@ -352,107 +374,92 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
         `)
         .eq('season', currentSeason)
         .eq('week', week)
-        .eq('show_on_leaderboard', false)
         .not('assigned_user_id', 'is', null)
-      
-      if (hiddenAnonError) throw hiddenAnonError
+        .order('id')
+        .range(from, to))
       
       console.log('🔍 Raw hidden anonymous picks data:', hiddenAnon)
       
+      // The query returns whole sheets, so pick_count is the sheet and hidden_count the hidden
+      // part of it; pick_ids and notes stay limited to the hidden picks, as before.
       const formattedHiddenAnon: HiddenPicks[] = (hiddenAnon || []).reduce((acc: HiddenPicks[], pick: any) => {
-        const existing = acc.find(p => p.user_id === pick.assigned_user_id && p.week === pick.week)
-        if (existing) {
-          existing.pick_count++
-          existing.hidden_count++
-          // Keep the earliest submission time
-          if (pick.created_at && (!existing.submitted_at || new Date(pick.created_at) < new Date(existing.submitted_at))) {
-            existing.submitted_at = pick.created_at
-          }
-          // Add pick ID to the list
-          if (existing.pick_ids) {
-            existing.pick_ids.push(pick.id)
-          }
-          // Update profile email if not set and this pick has one
-          if (!existing.profile_email && pick.users?.email) {
-            existing.profile_email = pick.users.email
-          }
-        } else {
-          const submissionEmail = pick.email || ''
-          const profileEmail = pick.users?.email || ''
-          
-          // Debug logging for Tyler Meier case
-          if (pick.users?.display_name?.toLowerCase().includes('tyler')) {
-            console.log('🔍 Tyler Meier debug:', {
-              display_name: pick.users?.display_name,
-              submission_email: submissionEmail,
-              profile_email: profileEmail,
-              leaguesafe_email: pick.users?.leaguesafe_email,
-              users_object: pick.users,
-              user_id: pick.assigned_user_id
-            })
-          }
-          
-          acc.push({
+        const hidden = pick.show_on_leaderboard === false
+        let existing = acc.find(p => p.user_id === pick.assigned_user_id && p.week === pick.week)
+        if (!existing) {
+          existing = {
             user_id: pick.assigned_user_id,
             display_name: pick.users?.display_name || 'Unknown',
             week: pick.week,
-            pick_count: 1,
-            hidden_count: 1,
+            pick_count: 0,
+            hidden_count: 0,
             pick_type: 'anon',
-            submitted_at: pick.created_at,
-            user_email: submissionEmail,  // Email from anonymous submission
-            profile_email: profileEmail,  // Email from user's profile
+            submitted_at: undefined,
+            user_email: pick.email || '',  // Email from anonymous submission
+            profile_email: pick.users?.email || '',  // Email from user's profile
             leaguesafe_email: pick.users?.leaguesafe_email || '', // Email from LeagueSafe
             assigned_user_id: pick.assigned_user_id,
-            processing_notes: pick.processing_notes || '',
-            pick_ids: [pick.id]
-          })
+            processing_notes: '',
+            pick_ids: []
+          }
+          acc.push(existing)
+        }
+        existing.pick_count++
+        const stamp = pick.submitted_at || pick.created_at
+        if (stamp && (!existing.submitted_at || new Date(stamp) > new Date(existing.submitted_at))) {
+          existing.submitted_at = stamp
+        }
+        if (hidden) {
+          existing.hidden_count++
+          existing.pick_ids!.push(pick.id)
+          if (!existing.processing_notes && pick.processing_notes) existing.processing_notes = pick.processing_notes
         }
         return acc
-      }, [])
+      }, []).filter(p => p.hidden_count > 0)
       
       // Hidden anonymous picks will be filtered later after multiple pick sets are calculated
       
       // Authenticated picks
-      const { data: hiddenAuth, error: hiddenAuthError } = await supabase
+      const hiddenAuth = await fetchAllRows((from, to) => supabase
         .from('picks')
         .select(`
           user_id,
           week,
           show_on_leaderboard,
-          created_at,
+          submitted,
+          submitted_at,
           users!picks_user_id_fkey (
             display_name
           )
         `)
         .eq('season', currentSeason)
         .eq('week', week)
-        .eq('show_on_leaderboard', false)
+        .order('id')
+        .range(from, to))
       
-      if (hiddenAuthError) throw hiddenAuthError
-      
+      // Whole sheets again: pick_count is the sheet, hidden_count the hidden part. An unsubmitted
+      // sheet is carried with submitted=false, since showing it would still count nothing.
       const formattedHiddenAuth: HiddenPicks[] = (hiddenAuth || []).reduce((acc: HiddenPicks[], pick: any) => {
-        const existing = acc.find(p => p.user_id === pick.user_id && p.week === pick.week)
-        if (existing) {
-          existing.pick_count++
-          existing.hidden_count++
-          // Keep the earliest submission time
-          if (pick.created_at && (!existing.submitted_at || new Date(pick.created_at) < new Date(existing.submitted_at))) {
-            existing.submitted_at = pick.created_at
-          }
-        } else {
-          acc.push({
+        let existing = acc.find(p => p.user_id === pick.user_id && p.week === pick.week)
+        if (!existing) {
+          existing = {
             user_id: pick.user_id,
             display_name: pick.users?.display_name || 'Unknown',
             week: pick.week,
-            pick_count: 1,
-            hidden_count: 1,
+            pick_count: 0,
+            hidden_count: 0,
             pick_type: 'auth',
-            submitted_at: pick.created_at
-          })
+            submitted: false
+          }
+          acc.push(existing)
+        }
+        existing.pick_count++
+        if (pick.show_on_leaderboard === false) existing.hidden_count++
+        if (pick.submitted) existing.submitted = true
+        if (pick.submitted_at && (!existing.submitted_at || new Date(pick.submitted_at) > new Date(existing.submitted_at))) {
+          existing.submitted_at = pick.submitted_at
         }
         return acc
-      }, [])
+      }, []).filter(p => p.hidden_count > 0)
       
       setHiddenAuthPicks(formattedHiddenAuth)
       
@@ -601,22 +608,33 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
       
       // Load users with multiple pick sets - those with more than 6 total picks
       // Get authenticated pick counts per user
-      const { data: authPicks, error: authError } = await supabase
-        .from('picks')
-        .select(`
-          user_id,
-          show_on_leaderboard,
-          submitted,
-          disqualified,
-          users!picks_user_id_fkey (
-            display_name
-          )
-        `)
-        .eq('season', currentSeason)
-        .eq('week', week)
+      let authPicks: any[] | null = null
+      let authError: any = null
+      try {
+        authPicks = await fetchAllRows((from, to) => supabase
+          .from('picks')
+          .select(`
+            user_id,
+            show_on_leaderboard,
+            submitted,
+            disqualified,
+            users!picks_user_id_fkey (
+              display_name
+            )
+          `)
+          .eq('season', currentSeason)
+          .eq('week', week)
+          .order('id')
+          .range(from, to))
+      } catch (err) {
+        authError = err
+      }
       
       // Get anonymous pick counts per user
-      const { data: anonPicks, error: anonError } = await supabase
+      let anonPicks: any[] | null = null
+      let anonError: any = null
+      try {
+        anonPicks = await fetchAllRows((from, to) => supabase
         .from('anonymous_picks')
         .select(`
           assigned_user_id,
@@ -630,6 +648,11 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
         .eq('season', currentSeason)
         .eq('week', week)
         .not('assigned_user_id', 'is', null)
+        .order('id')
+        .range(from, to))
+      } catch (err) {
+        anonError = err
+      }
       
       console.log('🔍 RAW PICKS DATA:', {
         authPicksCount: authPicks?.length || 0,
@@ -1717,12 +1740,6 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                                 LeagueSafe: {pick.leaguesafe_email}
                               </Badge>
                             )}
-                            {/* Debug info - remove after fixing */}
-                            {pick.display_name?.toLowerCase().includes('tyler') && (
-                              <Badge variant="destructive" className="text-xs">
-                                DEBUG: LS={pick.leaguesafe_email || 'NONE'}
-                              </Badge>
-                            )}
                           </div>
                           <p className="text-sm text-gray-600">
                             {pick.hidden_count} of {pick.pick_count} picks hidden
@@ -1839,7 +1856,8 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
             {sectionsCollapsed.hiddenAuth ? <ChevronDown /> : <ChevronUp />}
           </div>
           <CardDescription>
-            Authenticated picks marked as hidden from leaderboard (show_on_leaderboard = false)
+            Account sheets with hidden picks. A sheet that was never submitted counts for nothing whether
+            hidden or shown, and a submitted, shown account sheet takes the week from any anonymous entry.
           </CardDescription>
         </CardHeader>
         
@@ -1857,9 +1875,14 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                         <p className="text-sm text-gray-600">
                           {pick.hidden_count} of {pick.pick_count} picks hidden
                         </p>
-                        {pick.submitted_at && (
+                        {pick.submitted && pick.submitted_at && (
                           <p className="text-xs text-gray-500 mt-1">
                             Submitted: {new Date(pick.submitted_at).toLocaleString()}
+                          </p>
+                        )}
+                        {pick.submitted && hasMultiplePickSets(pick.user_id) && (
+                          <p className="text-xs text-orange-700 mt-1">
+                            Showing this sheet takes the week from their anonymous entry.
                           </p>
                         )}
                       </div>
@@ -1867,11 +1890,16 @@ export default function PickManagement({ currentWeek, currentSeason }: PickManag
                         <EyeOff className="w-3 h-3 mr-1" />
                         Hidden
                       </Badge>
+                      {!pick.submitted && (
+                        <Badge variant="outline" className="text-gray-600">Never submitted</Badge>
+                      )}
                     </div>
                     <Button 
                       size="sm" 
                       variant="outline"
                       onClick={() => toggleVisibility(pick.user_id, 'auth', true)}
+                      disabled={!pick.submitted}
+                      title={!pick.submitted ? 'Never submitted, so showing it would not count it' : undefined}
                     >
                       <Eye className="w-3 h-3 mr-1" />
                       Show on Leaderboard
