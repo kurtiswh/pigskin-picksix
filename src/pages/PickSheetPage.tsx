@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { Navigate, Link, useNavigate } from 'react-router-dom'
@@ -112,7 +112,9 @@ export default function PickSheetPage() {
   const [isUpdatingPick, setIsUpdatingPick] = useState(false)
   const [isTogglingLock, setIsTogglingLock] = useState(false)
   
-  const { activeSeason: currentSeason } = useCurrentSeason()
+  const { activeSeason: currentSeason, loading: seasonLoading } = useCurrentSeason()
+  // the week the newest load asked for; a slower, older load must not overwrite it
+  const loadingWeekRef = useRef(0)
   const [currentWeek, setCurrentWeek] = useState(0)
 
   // Check if user has unsaved changes
@@ -155,11 +157,16 @@ export default function PickSheetPage() {
   }, [hasUnsavedChanges])
 
   useEffect(() => {
-    // Get the active week when component mounts
+    // Wait for the real season. Asking while the season is still the 2025
+    // fallback returned 14 (2025's last week); if that answer landed after the
+    // real one, a sheet was saved as Week 14 while showing the real week's games.
+    if (seasonLoading) return
+    let stale = false
     getActiveWeek(currentSeason).then(activeWeek => {
-      setCurrentWeek(activeWeek)
+      if (!stale) setCurrentWeek(activeWeek)
     })
-  }, [currentSeason])
+    return () => { stale = true }
+  }, [currentSeason, seasonLoading])
 
   useEffect(() => {
     if (user && currentWeek > 0) {
@@ -208,10 +215,13 @@ export default function PickSheetPage() {
       setError('')
       
       console.log('🏈 Loading pick sheet data with direct API...')
+      const requestedWeek = currentWeek
+      loadingWeekRef.current = requestedWeek
 
       try {
         // Use direct API to get week data (settings + games)
         const weekData = await getWeekDataDirect(currentWeek, currentSeason)
+        if (loadingWeekRef.current !== requestedWeek) return // superseded by a newer week
         
         console.log('📊 Direct API loaded week settings:', weekData.weekSettings)
         console.log('📊 Direct API loaded games:', weekData.games?.length || 0)
@@ -277,6 +287,7 @@ export default function PickSheetPage() {
 
           if (picksResponse.ok) {
             const picksData = await picksResponse.json()
+            if (loadingWeekRef.current !== requestedWeek) return
             setPicks(picksData || [])
             console.log('✅ Loaded user picks via direct API:', picksData?.length || 0)
           } else {
@@ -400,8 +411,9 @@ export default function PickSheetPage() {
           body: JSON.stringify({
             user_id: user!.id,
             game_id: gameId,
-            week: currentWeek,
-            season: currentSeason,
+            // the game's own week, never the page's: a pick can only belong to its game's week
+            week: games.find(g => g.id === gameId)?.week ?? currentWeek,
+            season: games.find(g => g.id === gameId)?.season ?? currentSeason,
             selected_team: team,
             is_lock: false,
             submitted: false

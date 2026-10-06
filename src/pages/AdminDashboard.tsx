@@ -63,11 +63,17 @@ export default function AdminDashboard() {
 
   // Initialize with database-based active week
   useEffect(() => {
+    // Same race as the pick pages: wait for the real season and ignore a stale answer,
+    // or the 2025 fallback's last week (14) can land after the real one.
+    if (seasonLoading) return
+    let stale = false
     getActiveWeek(currentSeason).then(activeWeek => {
+      if (stale) return
       setGameSelectionWeek(activeWeek)
       setCurrentWeek(activeWeek)
     })
-  }, [currentSeason])
+    return () => { stale = true }
+  }, [currentSeason, seasonLoading])
 
   useEffect(() => {
     // Always use gameSelectionWeek as the source of truth for consistency
