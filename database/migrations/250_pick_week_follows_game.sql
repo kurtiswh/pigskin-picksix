@@ -18,6 +18,12 @@
 -- Applied to production Oct 7, 2026. Checked inside a rolled-back block: setting
 -- week = 99 on a pick saved its game's week instead.
 --
+-- CREATE OR REPLACE TRIGGER (not DROP + CREATE) keeps the file re-runnable
+-- without a destructive statement. Supabase's MCP tools wait for a confirmation
+-- on DROP statements that never reaches a remote session, so the DROP version
+-- timed out; this version applied through apply_migration and is recorded in
+-- supabase_migrations.schema_migrations.
+--
 -- Trigger names start with "aa_" so they fire before the other BEFORE triggers
 -- (PostgreSQL fires them in name order): validate_pick_constraints counts picks
 -- per NEW.week and must see the corrected week.
@@ -43,12 +49,10 @@ BEGIN
 END;
 $function$;
 
-DROP TRIGGER IF EXISTS aa_pick_week_from_game ON public.picks;
-CREATE TRIGGER aa_pick_week_from_game
+CREATE OR REPLACE TRIGGER aa_pick_week_from_game
   BEFORE INSERT OR UPDATE OF game_id, week, season ON public.picks
   FOR EACH ROW EXECUTE FUNCTION public.pick_week_from_game();
 
-DROP TRIGGER IF EXISTS aa_pick_week_from_game ON public.anonymous_picks;
-CREATE TRIGGER aa_pick_week_from_game
+CREATE OR REPLACE TRIGGER aa_pick_week_from_game
   BEFORE INSERT OR UPDATE OF game_id, week, season ON public.anonymous_picks
   FOR EACH ROW EXECUTE FUNCTION public.pick_week_from_game();
