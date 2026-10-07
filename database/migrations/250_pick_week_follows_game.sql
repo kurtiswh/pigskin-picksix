@@ -15,6 +15,9 @@
 -- until they are moved deliberately; an UPDATE of their week will then be
 -- corrected to the game's week by this same trigger.
 --
+-- Applied to production Oct 7, 2026. Checked inside a rolled-back block: setting
+-- week = 99 on a pick saved its game's week instead.
+--
 -- Trigger names start with "aa_" so they fire before the other BEFORE triggers
 -- (PostgreSQL fires them in name order): validate_pick_constraints counts picks
 -- per NEW.week and must see the corrected week.
