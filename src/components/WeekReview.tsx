@@ -424,6 +424,27 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
       setError(err?.message || 'Failed to approve sheet')
     } finally { setApproving(null) }
   }
+  // Stop one sheet counting (or start it again). Migration 252 names the sheet the
+  // way wr_multiple_pick_sets does, so a player with two anonymous entries can keep
+  // one; the old Duplicate Pick Sets toggle could only hide every anonymous pick.
+  const [togglingSheet, setTogglingSheet] = useState<string | null>(null)
+  const setSheetCounted = async (st: PickSetEntry, counted: boolean) => {
+    if (!counted && !window.confirm(
+      `Stop counting ${st.display_name}'s ${st.source === 'anonymous' ? 'anonymous entry' : 'account sheet'} ` +
+      `(${st.set_label})?\n\nIts ${st.pick_count} picks stay on file, hidden from the standings.`)) return
+    const key = `${st.user_id}|${st.source}|${st.set_label}`
+    setTogglingSheet(key); setError('')
+    try {
+      const { error: e } = await supabase.rpc('wr_set_sheet_counted', {
+        p_user_id: st.user_id, p_week: week, p_season: season,
+        p_source: st.source, p_set_label: st.set_label, p_counted: counted,
+      })
+      if (e) throw e
+      await loadReview()
+    } catch (err: any) {
+      setError(err?.message || 'Failed to update sheet')
+    } finally { setTogglingSheet(null) }
+  }
   // resolved/has_unsubmitted arrive from migration 248; both are optional so the
   // panel still renders against the older function before it is applied.
   const [submitFailures, setSubmitFailures] = useState<
@@ -780,7 +801,8 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
         >
           {multiSetPlayers.length === 0
             ? <p className="text-sm text-[#1f7a44]">✓ Every player has a single sheet this week.</p>
-            : <PickSetsList players={multiSetPlayers} splitCount={splitSets.length} diff={data?.pickDiff || []} />}
+            : <PickSetsList players={multiSetPlayers} splitCount={splitSets.length} diff={data?.pickDiff || []}
+                onSetCounted={setSheetCounted} toggling={togglingSheet} />}
         </ExpandRow>
 
         <ExpandRow
@@ -1399,7 +1421,10 @@ function ignoredReason(st: PickSetEntry, sets: PickSetEntry[]): string {
   return 'hidden'
 }
 
-function PickSetsList({ players, splitCount, diff }: { players: MultiSetPlayer[]; splitCount: number; diff: PickDiffCell[] }) {
+function PickSetsList({ players, splitCount, diff, onSetCounted, toggling }: {
+  players: MultiSetPlayer[]; splitCount: number; diff: PickDiffCell[]
+  onSetCounted: (st: PickSetEntry, counted: boolean) => void; toggling: string | null
+}) {
   const sheetsDiffer = (userId: string) =>
     diff.some(d => d.user_id === userId && (d.game_disagrees || d.made_after_kickoff || d.dropped))
   const needsAction = players.some(p => p.countedPicks > 6 || p.countedLocks > 1)
@@ -1446,6 +1471,7 @@ function PickSetsList({ players, splitCount, diff }: { players: MultiSetPlayer[]
                 <th className="px-3 py-1.5 font-medium">State</th>
                 <th className="px-3 py-1.5 font-medium text-right">Pts</th>
                 <th className="px-3 py-1.5 font-medium text-right">Counts?</th>
+                <th className="px-3 py-1.5"></th>
               </tr></thead>
               <tbody>
                 {p.sets.map((st, i) => (
@@ -1493,6 +1519,20 @@ function PickSetsList({ players, splitCount, diff }: { players: MultiSetPlayer[]
                           ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#e6f4ea] text-[#1f7a44]">counted</span>
                           : <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#fff5e2] text-[#b06a1a]">partly</span>}
                     </td>
+                    <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                      {/* An anonymous entry shut out by a counting account sheet would score
+                          nothing if shown, so it gets no Count button. */}
+                      {(st.counted_picks > 0 || ignoredReason(st, p.sets) === 'hidden') && (
+                        <button type="button"
+                          disabled={toggling !== null}
+                          onClick={() => onSetCounted(st, st.counted_picks === 0)}
+                          className="text-xs underline text-charcoal-500 hover:text-[#4B3621] disabled:opacity-50">
+                          {toggling === `${st.user_id}|${st.source}|${st.set_label}`
+                            ? 'Saving…'
+                            : st.counted_picks > 0 ? "Don't count" : 'Count'}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1503,7 +1543,7 @@ function PickSetsList({ players, splitCount, diff }: { players: MultiSetPlayer[]
                 ⚠️ {overPicks && `${p.countedPicks} picks are counting — 6 is the entry.`}
                 {overPicks && overLocks && ' '}
                 {overLocks && `${p.countedLocks} locks are counting — only one pick can be the lock.`}
-                {' '}Hide the extras in Advanced pick tools below before publishing.
+                {' '}Press <b>Don't count</b> on the extra sheet before publishing.
               </div>
             )}
             {!faulty && p.sheetsCounting > 1 && (
@@ -1523,9 +1563,9 @@ function PickSetsList({ players, splitCount, diff }: { players: MultiSetPlayer[]
         )
       })}
       <p className="text-xs text-charcoal-400">
-        {needsAction ? 'Fix' : 'To change which sheet counts, use'} <b>Manage Sets</b> under Duplicate Pick Sets
-        in <b>Advanced pick tools</b> below. All Picks shows only counted picks, so these players have more
-        on file than it lists.
+        Use <b>Don't count</b> / <b>Count</b> on a sheet to choose which one the standings score; its picks
+        stay on file either way. All Picks shows only counted picks, so these players have more on file than
+        it lists.
       </p>
     </div>
   )
