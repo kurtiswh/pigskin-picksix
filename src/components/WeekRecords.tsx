@@ -1,106 +1,9 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import {
-  Badge as RecordBadge, BadgeTier, StatKey, STATS, WeekRow, HISTORY_FIRST_SEASON,
-  badgesFor, rankWeek, statValue, topWeeks, weekLabel,
+  StatKey, STATS, WeekRow, HISTORY_FIRST_SEASON,
+  highlights, rankWeek, statValue, topWeeks, weekLabel,
 } from '@/lib/weekRecords'
-
-const TIER_CLASS: Record<BadgeTier, string> = {
-  record: 'bg-[#8a6a1f] text-white',
-  podium: 'bg-[#C9A04E] text-[#3a2a12]',
-  top: 'bg-[#efe6d0] text-[#5a4310]',
-  season: 'bg-[#4B3621] text-white',
-}
-
-/**
- * Badges for one stat, final weeks only. Tapping opens the all-time list.
- * Renders nothing when the week ranks outside the top 10 and isn't a season best.
- */
-export function StatRecordBadges({ stat, weeks, current, showRecordLine = true, align = 'center' }: {
-  stat: StatKey
-  weeks: WeekRow[]
-  current: WeekRow
-  showRecordLine?: boolean
-  align?: 'center' | 'start'
-}) {
-  const [open, setOpen] = useState(false)
-  const ranking = rankWeek(stat, weeks, current)
-  const badges = badgesFor(ranking)
-  if (badges.length === 0) return null
-  const def = STATS[stat]
-  const best = ranking.best
-  const recordLine = best
-    ? <>{ranking.rank === 1 ? 'Old record' : 'Record'}: {def.format(statValue(best, stat))} <span className="whitespace-nowrap">({weekLabel(best)})</span></>
-    : null
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={`mt-1 flex flex-col gap-0.5 ${align === 'start' ? 'items-start' : 'items-center'} w-full`}
-        aria-label={`${badges.map(b => b.text).join(', ')}. Show the all-time list for ${def.label}`}
-      >
-        <span className={`flex flex-wrap gap-1 ${align === 'start' ? 'justify-start' : 'justify-center'}`}>
-          {badges.map(b => <BadgeChip key={b.text} badge={b} />)}
-        </span>
-        {showRecordLine && recordLine && <span className="text-[10.5px] text-charcoal-500">{recordLine}</span>}
-      </button>
-      <RecordListDialog open={open} onOpenChange={setOpen} stat={stat} weeks={weeks} current={current} />
-    </>
-  )
-}
-
-function BadgeChip({ badge }: { badge: RecordBadge }) {
-  return (
-    <span className={`text-[10.5px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${TIER_CLASS[badge.tier]}`}>
-      {badge.text}
-    </span>
-  )
-}
-
-/** "Record week" banner: one line per all-time record set (final weeks only). */
-export function RecordWeekBanner({ weeks, current }: { weeks: WeekRow[]; current: WeekRow }) {
-  const records = (Object.keys(STATS) as StatKey[])
-    .map(stat => ({ stat, ranking: rankWeek(stat, weeks, current) }))
-    .filter(({ ranking }) => ranking.rank === 1)
-  if (records.length === 0) return null
-
-  return (
-    <div className="rounded-lg bg-[#fff8e6] border border-[#ecd59a] px-3 py-2.5 flex gap-2.5 items-start">
-      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a6a1f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
-        <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z" />
-        <path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3" />
-      </svg>
-      <div className="flex flex-col gap-0.5 text-sm">
-        <span className="font-bold text-[#4B3621]">Record week</span>
-        {records.map(({ stat, ranking }) => {
-          const def = STATS[stat]
-          const old = ranking.best
-          return (
-            <span key={stat} className="text-[13px] text-[#4a3a22] leading-snug">
-              {recordSentence(stat, statValue(current, stat), ranking.tied)}
-              {old && <> {ranking.tied ? 'Matches' : 'Old record:'} {def.format(statValue(old, stat))} ({weekLabel(old)}).</>}
-            </span>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function recordSentence(stat: StatKey, v: number, tied: boolean): string {
-  const most = tied ? 'tied for the most' : 'the most'
-  const best = tied ? 'tied for the best' : 'the best'
-  const since = `since ${HISTORY_FIRST_SEASON}`
-  switch (stat) {
-    case 'perfect': return `${v} perfect 6-0 weeks, ${most} in any week ${since}.`
-    case 'over100': return `${v} players scored over 100, ${most} in any week ${since}.`
-    case 'avg': return `Average score of ${v.toFixed(1)}, ${best} of any week ${since}.`
-    case 'winPct': return `Everyone's picks hit ${v.toFixed(1)}% ATS, ${best} of any week ${since}.`
-    case 'lockPct': return `Locks hit ${v.toFixed(1)}%, ${best} of any week ${since}.`
-  }
-}
 
 export interface WatchItem {
   stat: 'perfect' | 'over100'
@@ -169,63 +72,169 @@ export function RecordWatch({ items, weeks, current }: { items: WatchItem[]; wee
           </div>
         )
       })}
-      <p className="text-[11px] text-charcoal-500">Badges for the other stats appear once every game is final.</p>
+      <p className="text-[11px] text-charcoal-500">Full stats and the record book update once every game is final.</p>
     </div>
   )
 }
 
-function RecordListDialog({ open, onOpenChange, stat, weeks, current }: {
+/**
+ * One tappable line when the week is final: "Record week: 147 over 100
+ * (all-time record) · 26 perfect (#2 all-time) · +3 more". Nothing for an
+ * ordinary week. The full breakdown is one tap away.
+ */
+export function RecordHeadline({ weeks, current }: { weeks: WeekRow[]; current: WeekRow }) {
+  const [open, setOpen] = useState(false)
+  const list = highlights(weeks, current)
+  if (list.length === 0) return null
+  const isRecord = list[0].ranking.rank === 1
+  const lead = isRecord ? 'Record week' : list[0].ranking.rank <= 10 ? 'For the record books' : 'Season highs'
+  const shown = list.slice(0, 2)
+  const more = list.length - shown.length
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`w-full text-left rounded-lg px-3 py-2.5 flex items-start gap-2.5 border ${isRecord ? 'bg-[#fff8e6] border-[#ecd59a]' : 'bg-[#faf8f4] border-[#f0ece5]'} hover:border-[#C9A04E]`}
+      >
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a6a1f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
+          <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z" />
+          <path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3" />
+        </svg>
+        <span className="flex-1 min-w-0 text-sm leading-snug">
+          <span className="font-bold text-[#4B3621]">{lead}: </span>
+          <span className="text-[#4a3a22]">{shown.map(h => h.short).join(' · ')}</span>
+          {more > 0 && <span className="text-charcoal-500"> · +{more} more</span>}
+        </span>
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a6a1f" strokeWidth="2.2" strokeLinecap="round" className="shrink-0 mt-0.5"><path d="M9 6l6 6-6 6" /></svg>
+      </button>
+      <WeekRecordsDialog open={open} onOpenChange={setOpen} weeks={weeks} current={current} initialStat={list[0].stat} />
+    </>
+  )
+}
+
+/** Every stat's rank, plus the all-time top 5 for whichever stat is selected. */
+function WeekRecordsDialog({ open, onOpenChange, weeks, current, initialStat }: {
   open: boolean
   onOpenChange: (o: boolean) => void
-  stat: StatKey
   weeks: WeekRow[]
   current: WeekRow
+  initialStat: StatKey
 }) {
+  const [stat, setStat] = useState<StatKey>(initialStat)
   const def = STATS[stat]
   const list = topWeeks(stat, weeks, 5)
   const inList = list.some(x => x.row === current)
-  const currentRanking = rankWeek(stat, weeks, current)
+  const selected = rankWeek(stat, weeks, current)
   const share = (r: WeekRow) => (r.entries ? `${((100 * statValue(r, stat)) / r.entries).toFixed(1)}%` : '—')
+  const cols = def.isCount ? 'grid-cols-[36px_minmax(0,1fr)_52px_60px]' : 'grid-cols-[36px_minmax(0,1fr)_68px]'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-[#4B3621]">{def.listTitle}</DialogTitle>
-          <DialogDescription>Every week since {HISTORY_FIRST_SEASON} · {currentRanking.totalWeeks} weeks</DialogDescription>
+          <DialogTitle className="text-[#4B3621]">Week {current.week} in the record books</DialogTitle>
+          <DialogDescription>Ranked against every week since {HISTORY_FIRST_SEASON} ({selected.totalWeeks} weeks). Tap a stat for its all-time list.</DialogDescription>
         </DialogHeader>
+
         <div className="border border-[#ece7de] rounded-lg overflow-hidden text-sm">
-          <div className={`grid ${def.isCount ? 'grid-cols-[40px_minmax(0,1fr)_56px_64px]' : 'grid-cols-[40px_minmax(0,1fr)_72px]'} gap-2 px-3 py-2 bg-[#faf8f4] text-[10.5px] font-bold uppercase tracking-wide text-charcoal-500`}>
-            <span>#</span><span>Week</span><span className="text-right">{def.isCount ? 'Count' : 'Value'}</span>{def.isCount && <span className="text-right">Of field</span>}
-          </div>
-          {list.map(({ row, rank, value }) => {
-            const isCurrent = row === current
-            const tiedRank = list.filter(x => x.rank === rank).length > 1
+          {(Object.keys(STATS) as StatKey[]).map(k => {
+            const r = rankWeek(k, weeks, current)
+            const active = k === stat
             return (
-              <div key={`${row.season}-${row.week}`}
-                className={`grid ${def.isCount ? 'grid-cols-[40px_minmax(0,1fr)_56px_64px]' : 'grid-cols-[40px_minmax(0,1fr)_72px]'} gap-2 px-3 py-2 border-t border-[#f0ece5] items-center ${isCurrent ? 'bg-[#fbf4e3] font-semibold text-[#4B3621]' : ''}`}>
-                <span className={rank <= 3 ? 'font-extrabold text-[#8a6a1f]' : 'text-charcoal-500'}>{tiedRank ? 'T' : ''}{rank}</span>
-                <span>{weekLabel(row)}{isCurrent ? ' · this week' : ''}</span>
-                <span className="text-right tabular-nums font-bold">{def.format(value)}</span>
-                {def.isCount && <span className="text-right tabular-nums text-charcoal-500">{share(row)}</span>}
-              </div>
+              <button key={k} type="button" onClick={() => setStat(k)}
+                className={`w-full grid grid-cols-[minmax(0,1fr)_64px_92px] gap-2 px-3 py-2.5 text-left border-t first:border-t-0 border-[#f0ece5] items-center ${active ? 'bg-[#fbf4e3]' : 'hover:bg-[#faf8f4]'}`}>
+                <span className={active ? 'font-semibold text-[#4B3621]' : ''}>{STATS[k].label}</span>
+                <span className="text-right tabular-nums font-bold">{STATS[k].format(statValue(current, k))}</span>
+                <span className={`text-right text-xs ${r.rank <= 3 ? 'font-bold text-[#8a6a1f]' : 'text-charcoal-500'}`}>
+                  {r.rank === 1 ? 'All-time #1' : `#${r.rank} all-time`}
+                  {r.rank !== 1 && r.seasonWeeks >= 3 && r.seasonRank === 1 ? <span className="block text-[10.5px] text-[#4B3621]">Season best</span> : null}
+                </span>
+              </button>
             )
           })}
-          {!inList && (
-            <div className={`grid ${def.isCount ? 'grid-cols-[40px_minmax(0,1fr)_56px_64px]' : 'grid-cols-[40px_minmax(0,1fr)_72px]'} gap-2 px-3 py-2 border-t border-[#ecd59a] items-center bg-[#fbf4e3] font-semibold text-[#4B3621]`}>
-              <span>{currentRanking.rank}</span>
-              <span>{weekLabel(current)} · this week</span>
-              <span className="text-right tabular-nums font-bold">{def.format(statValue(current, stat))}</span>
-              {def.isCount && <span className="text-right tabular-nums text-charcoal-500">{share(current)}</span>}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-bold text-[#4B3621]">{def.listTitle}</span>
+          <div className="border border-[#ece7de] rounded-lg overflow-hidden text-sm">
+            <div className={`grid ${cols} gap-2 px-3 py-2 bg-[#faf8f4] text-[10.5px] font-bold uppercase tracking-wide text-charcoal-500`}>
+              <span>#</span><span>Week</span><span className="text-right">{def.isCount ? 'Count' : 'Value'}</span>{def.isCount && <span className="text-right">Of field</span>}
             </div>
+            {list.map(({ row, rank, value }) => {
+              const isCurrent = row === current
+              const tiedRank = list.filter(x => x.rank === rank).length > 1
+              return (
+                <div key={`${row.season}-${row.week}`}
+                  className={`grid ${cols} gap-2 px-3 py-2 border-t border-[#f0ece5] items-center ${isCurrent ? 'bg-[#fbf4e3] font-semibold text-[#4B3621]' : ''}`}>
+                  <span className={rank <= 3 ? 'font-extrabold text-[#8a6a1f]' : 'text-charcoal-500'}>{tiedRank ? 'T' : ''}{rank}</span>
+                  <span>{weekLabel(row)}{isCurrent ? ' · this week' : ''}</span>
+                  <span className="text-right tabular-nums font-bold">{def.format(value)}</span>
+                  {def.isCount && <span className="text-right tabular-nums text-charcoal-500">{share(row)}</span>}
+                </div>
+              )
+            })}
+            {!inList && (
+              <div className={`grid ${cols} gap-2 px-3 py-2 border-t border-[#ecd59a] items-center bg-[#fbf4e3] font-semibold text-[#4B3621]`}>
+                <span>{selected.rank}</span>
+                <span>{weekLabel(current)} · this week</span>
+                <span className="text-right tabular-nums font-bold">{def.format(statValue(current, stat))}</span>
+                {def.isCount && <span className="text-right tabular-nums text-charcoal-500">{share(current)}</span>}
+              </div>
+            )}
+          </div>
+          {def.isCount && (
+            <p className="text-xs text-charcoal-500">Ranked by raw count. The field has grown, so "Of field" shows each week's share for context.</p>
           )}
         </div>
-        {def.isCount && (
-          <p className="text-xs text-charcoal-500">
-            Ranked by raw count. The field has grown, so "Of field" shows each week's share for context.
-          </p>
-        )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+export interface MyWeek {
+  wins: number
+  losses: number
+  pushes: number
+  points: number
+  pending: number
+}
+
+/**
+ * The viewer's own line. Live: where you stand and what's left. Final: where
+ * you finished, and for a 6-0 card how rare this week's crop of them was.
+ */
+export function MyWeekLine({ me, field, live, weeks, current }: {
+  me: MyWeek
+  field: MyWeek[]
+  live: boolean
+  weeks: WeekRow[]
+  current: WeekRow
+}) {
+  const rec = `${me.wins}-${me.losses}${me.pushes ? `-${me.pushes}` : ''}`
+  const rank = 1 + field.filter(f => f.points > me.points).length
+  const beat = field.length > 1 ? Math.floor((100 * field.filter(f => f.points < me.points).length) / (field.length - 1)) : 0
+  let text: ReactNode
+
+  if (live && me.pending > 0) {
+    const unbeaten = me.losses === 0 && me.pushes === 0
+    const othersUnbeaten = field.filter(f => f.losses === 0 && f.pushes === 0 && (f.pending > 0 || f.wins === 6)).length - (unbeaten ? 1 : 0)
+    text = unbeaten
+      ? <>You're <b>{rec}</b> with {me.pending} to play. {othersUnbeaten} other{othersUnbeaten === 1 ? '' : 's'} still perfect.</>
+      : <>You're <b>{rec}</b> with {me.pending} to play: <b>{me.points}</b> pts so far, #{rank} of {field.length}.</>
+  } else if (me.wins === 6 && me.losses === 0 && me.pushes === 0) {
+    const r = rankWeek('perfect', weeks, current)
+    const where = r.rank === 1 ? `the most of any week since ${HISTORY_FIRST_SEASON}` : r.rank <= 10 ? `#${r.rank} among all weeks since ${HISTORY_FIRST_SEASON}` : null
+    text = <>You went <b>6-0</b> for <b>{me.points}</b> pts, one of {current.perfect} perfect cards{where ? <> ({where})</> : null}.</>
+  } else {
+    text = <>{live ? "You're done: " : 'You finished '}<b>{rec}</b>, <b>{me.points}</b> pts. #{rank} of {field.length}{field.length > 1 ? <>, better than {beat}% of the field</> : null}{live ? ' so far' : ''}.</>
+  }
+
+  return (
+    <div className="rounded-lg bg-[#fbf4e3] border border-[#ecd59a] px-3 py-2 text-sm text-[#3a2a12] leading-snug">
+      <span className="text-[10.5px] font-bold uppercase tracking-wide text-[#8a6a1f] mr-1.5">Your week</span>
+      {text}
+    </div>
   )
 }

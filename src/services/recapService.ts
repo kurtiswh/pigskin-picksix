@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase'
 import { EmailService } from './emailService'
 import type { BlogPost } from '@/types/blog'
+import { highlights } from '@/lib/weekRecords'
+import { loadWeekRecords } from '@/services/weekRecordsService'
 
 // The email itself lives in @/templates/recapEmail so the send-email Edge
 // Function can render it from a queued job. Re-exported here because callers
@@ -41,13 +43,23 @@ export interface RecapSeed {
   worst_lock: { game: string; losses: number } | null
   biggest_cover: { game: string; team: string; bonus: number } | null
   season_leader: { name: string; points: number } | null
+  /** Record-book sentences (all-time top 10 / season bests), best first. Added client-side. */
+  records?: string[]
   games: { game: string; away_pct: number; home_pct: number; locks: number; winner: string | null; win_pts: number; lock_win_pts: number }[]
 }
 
 export async function loadRecapSeed(week: number, season: number): Promise<RecapSeed> {
   const { data, error } = await supabase.rpc('wr_recap_seed', { p_week: week, p_season: season })
   if (error) throw error
-  return data as RecapSeed
+  const seed = data as RecapSeed
+  // The same ranking the Games page shows. Optional: a recap without it still works.
+  try {
+    const { weeks, current } = await loadWeekRecords(season, week)
+    seed.records = highlights(weeks, current).map(h => h.sentence)
+  } catch (err) {
+    console.warn('Recap: record-book lines unavailable', err)
+  }
+  return seed
 }
 
 // loadRecipients() is gone: wr_recap_recipients() is now called by
@@ -78,7 +90,10 @@ export function buildDraftHtml(s: RecapSeed): string {
   ${s.biggest_cover ? `<li>Biggest cover: <strong>${s.biggest_cover.team}</strong> (+${s.biggest_cover.bonus} margin bonus).</li>` : ''}
 </ul>
 
-<h2>Lock Report</h2>
+${s.records?.length ? `<h2>For the Record Books</h2>
+<ul>${s.records.map(r => `<li>${r}</li>`).join('')}</ul>
+
+` : ''}<h2>Lock Report</h2>
 <p>[your take] ${s.best_lock ? `Best lock: <strong>${s.best_lock.team}</strong> (${s.best_lock.wins} hit).` : ''} ${s.worst_lock ? `Roughest: ${s.worst_lock.losses} people got burned on ${s.worst_lock.game}.` : ''}</p>
 
 <h2>Standings Drama</h2>
@@ -132,6 +147,8 @@ export function buildRundownHtml(s: RecapSeed): string {
     : `<strong>Top of the board:</strong> ${w.name} took the week with ${w.points} pts.`))
   if (s.group_win_pct != null)
     items.push(li(`<strong>The field:</strong> ${s.entrants} entrants went ${s.group_win_pct}% ATS (${s.group_wins}-${s.group_losses})${s.lock_win_pct != null ? `, and just ${s.lock_win_pct}% on locks (${s.lock_hits}/${s.lock_total})` : ''}.`))
+  if (s.records?.length)
+    items.push(li(`<strong>Record book:</strong> ${s.records.slice(0, 2).join(' ')}`))
   if (s.perfect_count || s.winless_count)
     items.push(li(`<strong>Extremes:</strong> ${s.perfect_count} perfect 6-0${nameList(s.perfect)}${s.winless_count ? ` — and ${s.winless_count} winless 0-6${nameList(s.winless)}` : ''}.`))
   if (s.biggest_upset)

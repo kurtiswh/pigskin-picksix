@@ -1248,6 +1248,7 @@ export default function WeekReview({ season, initialWeek, seasonReady = true }: 
                 <RecapTile label="Perfect / winless" value={`${recap.perfect_count} / ${recap.winless_count}`} sub={`${recap.entrants} entrants`} />
               </div>
               <ul className="text-sm text-charcoal-700 space-y-1">
+                {recap.records?.map(r => <li key={r}>• <b>Record book:</b> {r}</li>)}
                 {recap.biggest_upset && <li>• <b>Upset that hit:</b> {recap.biggest_upset.team} ({recap.biggest_upset.pick_pct}% picked)</li>}
                 {recap.biggest_crowd_miss && <li>• <b>Crowd miss:</b> {recap.biggest_crowd_miss.team} ({recap.biggest_crowd_miss.pick_pct}% picked, lost)</li>}
                 {recap.best_lock && <li>• <b>Best lock:</b> {recap.best_lock.team} ({recap.best_lock.wins} hit)</li>}

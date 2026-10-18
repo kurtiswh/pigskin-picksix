@@ -132,23 +132,6 @@ export function rankWeek(key: StatKey, weeks: WeekRow[], current: WeekRow): Rank
   }
 }
 
-export type BadgeTier = 'record' | 'podium' | 'top' | 'season'
-export interface Badge { tier: BadgeTier; text: string }
-
-/**
- * At most two badges: an all-time one (top 10 only) and "Season best".
- * Season best needs 3+ weeks played, or Week 1 would be "best" at everything.
- */
-export function badgesFor(r: Ranking): Badge[] {
-  const out: Badge[] = []
-  if (r.rank === 1) out.push({ tier: 'record', text: r.tied ? 'Ties all-time record' : 'All-time record' })
-  else if (r.rank <= 3) out.push({ tier: 'podium', text: `${r.tied ? 'T-' : ''}#${r.rank} all-time` })
-  else if (r.rank <= 5) out.push({ tier: 'top', text: 'Top 5 all-time' })
-  else if (r.rank <= 10) out.push({ tier: 'top', text: 'Top 10 all-time' })
-  if (r.rank !== 1 && r.seasonWeeks >= 3 && r.seasonRank === 1) out.push({ tier: 'season', text: 'Season best' })
-  return out
-}
-
 /** Top N weeks for a stat (the current week included), best first. */
 export function topWeeks(key: StatKey, weeks: WeekRow[], n = 5): { row: WeekRow; rank: number; value: number }[] {
   const sorted = weeks.filter(r => r.entries > 0).sort((a, b) => statValue(b, key) - statValue(a, key))
@@ -160,4 +143,70 @@ export function topWeeks(key: StatKey, weeks: WeekRow[], n = 5): { row: WeekRow;
     out.push({ row, rank, value })
   }
   return out
+}
+
+export interface Highlight {
+  stat: StatKey
+  ranking: Ranking
+  value: number
+  /** Compact phrase for the headline: "147 over 100 (#1 all-time)" */
+  short: string
+  /** Full sentence for the recap: "147 players scored over 100, the most of any week since 2016 (old record: 112, 2019, Wk 5)." */
+  sentence: string
+}
+
+const SHORT_NAME: Record<StatKey, (v: string) => string> = {
+  perfect: v => `${v} perfect`,
+  over100: v => `${v} over 100`,
+  avg: v => `${v} avg`,
+  winPct: v => `${v} ATS`,
+  lockPct: v => `${v} on Locks`,
+}
+
+function rankPhrase(r: Ranking): string {
+  if (r.rank === 1) return r.tied ? 'ties the all-time record' : 'all-time record'
+  if (r.rank <= 10) return `${r.tied ? 'T-' : ''}#${r.rank} all-time`
+  return 'season best'
+}
+
+function sentenceFor(stat: StatKey, v: number, r: Ranking): string {
+  const f = STATS[stat].format(v)
+  const since = `since ${HISTORY_FIRST_SEASON}`
+  const where =
+    r.rank === 1 ? (r.tied ? `tied for the ${stat === 'perfect' || stat === 'over100' ? 'most' : 'best'} of any week ${since}` : `the ${stat === 'perfect' || stat === 'over100' ? 'most' : 'best'} of any week ${since}`)
+    : r.rank <= 10 ? `#${r.rank} of ${r.totalWeeks} weeks ${since}`
+    : `the best week of the season so far`
+  const lead: Record<StatKey, string> = {
+    perfect: `${f} perfect 6-0 cards`,
+    over100: `${f} players scored over 100`,
+    avg: `An average score of ${f}`,
+    winPct: `Everyone's picks hit ${f} ATS`,
+    lockPct: `Locks hit ${f}`,
+  }
+  const best = r.best
+  const tail = best && r.rank <= 10
+    ? ` (${r.rank === 1 ? (r.tied ? 'matching' : 'old record') : 'record'}: ${STATS[stat].format(statValue(best, stat))}, ${weekLabel(best)})`
+    : ''
+  return `${lead[stat]}, ${where}${tail}.`
+}
+
+/**
+ * What's notable about a week, best first: all-time top 10, or a season best
+ * (3+ weeks in). Empty for an ordinary week.
+ */
+export function highlights(weeks: WeekRow[], current: WeekRow): Highlight[] {
+  const out: Highlight[] = []
+  for (const stat of Object.keys(STATS) as StatKey[]) {
+    const ranking = rankWeek(stat, weeks, current)
+    const seasonBest = ranking.seasonWeeks >= 3 && ranking.seasonRank === 1
+    if (ranking.rank > 10 && !seasonBest) continue
+    const value = statValue(current, stat)
+    out.push({
+      stat, ranking, value,
+      short: `${SHORT_NAME[stat](STATS[stat].format(value))} (${rankPhrase(ranking)})`,
+      sentence: sentenceFor(stat, value, ranking),
+    })
+  }
+  // All-time ranks first (lower is better), then season bests
+  return out.sort((a, b) => Math.min(a.ranking.rank, 11) - Math.min(b.ranking.rank, 11))
 }
