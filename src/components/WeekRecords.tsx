@@ -77,40 +77,63 @@ export function RecordWatch({ items, weeks, current }: { items: WatchItem[]; wee
   )
 }
 
+const STRIP_NAME: Record<StatKey, string> = {
+  perfect: 'perfect 6-0',
+  over100: 'over 100',
+  avg: 'avg score',
+  winPct: 'field ATS',
+  lockPct: 'on Locks',
+}
+
 /**
- * One tappable line when the week is final: "Record week: 147 over 100
- * (all-time record) · 26 perfect (#2 all-time) · +3 more". Nothing for an
- * ordinary week. The full breakdown is one tap away.
+ * "Record book" strip when the week is final: one swipeable card per notable
+ * stat (all-time top 10 or season high), strongest first. Nothing for an
+ * ordinary week. Each card opens the full record book on its stat.
  */
-export function RecordHeadline({ weeks, current }: { weeks: WeekRow[]; current: WeekRow }) {
-  const [open, setOpen] = useState(false)
+export function RecordStrip({ weeks, current }: { weeks: WeekRow[]; current: WeekRow }) {
+  const [openStat, setOpenStat] = useState<StatKey | null>(null)
   const list = highlights(weeks, current)
   if (list.length === 0) return null
-  const isRecord = list[0].ranking.rank === 1
-  const lead = isRecord ? 'Record week' : list[0].ranking.rank <= 10 ? 'For the record books' : 'Season highs'
-  const shown = list.slice(0, 2)
-  const more = list.length - shown.length
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={`w-full text-left rounded-lg px-3 py-2.5 flex items-start gap-2.5 border ${isRecord ? 'bg-[#fff8e6] border-[#ecd59a]' : 'bg-[#faf8f4] border-[#f0ece5]'} hover:border-[#C9A04E]`}
-      >
-        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a6a1f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
-          <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z" />
-          <path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3" />
-        </svg>
-        <span className="flex-1 min-w-0 text-sm leading-snug">
-          <span className="font-bold text-[#4B3621]">{lead}: </span>
-          <span className="text-[#4a3a22]">{shown.map(h => h.short).join(' · ')}</span>
-          {more > 0 && <span className="text-charcoal-500"> · +{more} more</span>}
-        </span>
-        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a6a1f" strokeWidth="2.2" strokeLinecap="round" className="shrink-0 mt-0.5"><path d="M9 6l6 6-6 6" /></svg>
-      </button>
-      <WeekRecordsDialog open={open} onOpenChange={setOpen} weeks={weeks} current={current} initialStat={list[0].stat} />
-    </>
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs font-bold uppercase tracking-wide text-[#8a6a1f]">Record book</span>
+        <span className="text-[11px] text-charcoal-500">since {HISTORY_FIRST_SEASON}{list.length > 2 ? ' · swipe' : ''}</span>
+      </div>
+      <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1">
+        {list.map(h => {
+          const r = h.ranking
+          const tier = r.rank === 1 ? (r.tied ? 'Ties all-time record' : 'All-time record')
+            : r.rank <= 10 ? `${r.tied ? 'T-' : ''}#${r.rank} all-time`
+            : 'Season high'
+          const cls = r.rank === 1 ? 'bg-[#8a6a1f] text-white border-[#8a6a1f]'
+            : r.rank <= 3 ? 'bg-[#fff8e6] text-[#3a2a12] border-[#ecd59a]'
+            : 'bg-[#faf8f4] text-[#3a2a12] border-[#f0ece5]'
+          const sub = r.rank === 1 ? 'text-white/85' : 'text-charcoal-600'
+          const best = r.best
+          const ref = best && r.rank <= 10
+            ? `${r.rank === 1 ? (r.tied ? 'matches' : 'old') : 'record'} ${STATS[h.stat].format(statValue(best, h.stat))}`
+            : null
+          return (
+            <button
+              key={h.stat}
+              type="button"
+              onClick={() => setOpenStat(h.stat)}
+              className={`snap-start shrink-0 w-[136px] text-left rounded-lg border px-2.5 py-2 flex flex-col gap-0.5 ${cls}`}
+              aria-label={`${tier}: ${h.sentence} Show the record book.`}
+            >
+              <span className={`text-[10px] font-bold uppercase tracking-wide ${r.rank === 1 ? 'text-white/85' : 'text-[#8a6a1f]'}`}>{tier}</span>
+              <span className="text-xl font-extrabold tabular-nums">{STATS[h.stat].format(h.value)}</span>
+              <span className={`text-[11px] ${sub}`}>{STRIP_NAME[h.stat]}{ref ? ` · ${ref}` : ''}</span>
+            </button>
+          )
+        })}
+      </div>
+      {openStat && (
+        <WeekRecordsDialog open onOpenChange={o => !o && setOpenStat(null)} weeks={weeks} current={current} initialStat={openStat} />
+      )}
+    </div>
   )
 }
 

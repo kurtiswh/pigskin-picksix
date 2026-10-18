@@ -74,7 +74,7 @@ export type StatKey = 'perfect' | 'over100' | 'avg' | 'winPct' | 'lockPct'
 
 export const STATS: Record<StatKey, { label: string; listTitle: string; isCount: boolean; format: (v: number) => string }> = {
   perfect: { label: 'Perfect 6-0', listTitle: 'Most perfect 6-0 weeks', isCount: true, format: v => String(v) },
-  over100: { label: '>100 points', listTitle: 'Most entries over 100 points', isCount: true, format: v => String(v) },
+  over100: { label: 'Over 100 points', listTitle: 'Most entries over 100 points', isCount: true, format: v => String(v) },
   avg: { label: 'Average score', listTitle: 'Highest average score', isCount: false, format: v => v.toFixed(1) },
   winPct: { label: 'Picks ATS', listTitle: 'Best week for everyone’s picks', isCount: false, format: v => `${v.toFixed(1)}%` },
   lockPct: { label: 'Locks', listTitle: 'Best week for Locks', isCount: false, format: v => `${v.toFixed(1)}%` },

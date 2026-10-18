@@ -113,7 +113,10 @@ export function TrendChart({ stat, weeks, current, live }: {
   const def = STATS[stat]
   const hist = HISTORY_ROWS.map(r => statValue(r, stat))
   const typical = hist.reduce((a, b) => a + b, 0) / Math.max(1, hist.length)
-  const best = rankWeek(stat, weeks, current).best
+  const ranking = rankWeek(stat, weeks, current)
+  const best = ranking.best
+  // When this week is #1 the line marks the OLD record, so the dot shows it breaking through
+  const recordLabel = ranking.rank === 1 && !ranking.tied ? 'Old record' : 'All-time record'
   const record = best ? statValue(best, stat) : null
 
   const W = 320, H = 120, L = 6, R = 6, T = 16, B = 18
@@ -123,6 +126,8 @@ export function TrendChart({ stat, weeks, current, live }: {
   const y = (v: number) => T + (1 - (v - lo) / (hi - lo || 1)) * (H - T - B)
   const cur = series.findIndex(s => s.isCurrent)
   const fmt = def.format
+  // A typical week is an average, so counts get a decimal too ("37.7", not "37.657…")
+  const fmtTypical = def.isCount ? typical.toFixed(1) : fmt(typical)
 
   return (
     <div className="rounded-lg bg-white border border-[#ecd59a] px-3 py-2.5">
@@ -131,7 +136,7 @@ export function TrendChart({ stat, weeks, current, live }: {
         {cur >= 0 && <span className="text-[11px] text-charcoal-500">Wk {current.week}: <b className="text-[#4B3621]">{fmt(series[cur].value)}</b>{live ? ' so far' : ''}</span>}
       </div>
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img"
-        aria-label={`${def.label} by week: ${series.map(s => `week ${s.week} ${fmt(s.value)}`).join(', ')}. Typical week since ${HISTORY_FIRST_SEASON}: ${fmt(typical)}.${record != null ? ` Record: ${fmt(record)}.` : ''}`}>
+        aria-label={`${def.label} by week: ${series.map(s => `week ${s.week} ${fmt(s.value)}`).join(', ')}. Typical week since ${HISTORY_FIRST_SEASON}: ${fmtTypical}.${record != null ? ` Record: ${fmt(record)}.` : ''}`}>
         {record != null && (
           <>
             <line x1={L} x2={W - R} y1={y(record)} y2={y(record)} stroke="#C9A04E" strokeWidth="1.5" strokeDasharray="2 3" />
@@ -149,8 +154,8 @@ export function TrendChart({ stat, weeks, current, live }: {
         ))}
       </svg>
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[11px] text-charcoal-600">
-        <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-[#b9b0a0]" aria-hidden="true" />Typical week since {HISTORY_FIRST_SEASON}: {fmt(typical)}</span>
-        {record != null && <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dotted border-[#C9A04E]" aria-hidden="true" />All-time record: {fmt(record)}</span>}
+        <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-[#b9b0a0]" aria-hidden="true" />Typical week since {HISTORY_FIRST_SEASON}: {fmtTypical}</span>
+        {record != null && <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dotted border-[#C9A04E]" aria-hidden="true" />{recordLabel}: {fmt(record)}</span>}
       </div>
     </div>
   )

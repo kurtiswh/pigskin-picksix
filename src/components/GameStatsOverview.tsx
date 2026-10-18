@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import type { Game } from '@/types'
 import { WeekRow, EntryRow, summarizeWeek, summarizeSeason, allWeeks } from '@/lib/weekRecords'
 import { fetchAllRows, loadOtherWeeks } from '@/services/weekRecordsService'
-import { RecordHeadline, RecordWatch, WatchItem, MyWeekLine, MyWeek } from '@/components/WeekRecords'
+import { RecordStrip, RecordWatch, WatchItem, MyWeekLine, MyWeek } from '@/components/WeekRecords'
 import { useAuth } from '@/hooks/useAuth'
 import { ScoreHistogram, MiniTrend, TrendChart, seasonSeries } from '@/components/WeekCharts'
 import type { StatKey } from '@/lib/weekRecords'
@@ -645,7 +645,7 @@ export default function GameStatsOverview({
         )}
         {rec && (live
           ? <RecordWatch items={rec.watch} weeks={rec.weeks} current={rec.current} />
-          : <RecordHeadline weeks={rec.weeks} current={rec.current} />)}
+          : <RecordStrip weeks={rec.weeks} current={rec.current} />)}
 
         {isOpen && <>
         {/* 1. Three headline numbers; the rest is a caption */}
