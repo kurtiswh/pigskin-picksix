@@ -86,6 +86,12 @@ export default function GameStatsOverview({
   const [weekStats, setWeekStats] = useState<WeekStats | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Drop the previous week's stats so a week switch shows the skeleton, but a
+  // background score refresh of the same week keeps the current card on screen
+  useEffect(() => {
+    setWeekStats(null)
+  }, [season, week])
+
   useEffect(() => {
     if (showPickStats && games.length > 0) {
       loadWeekStats()
@@ -452,7 +458,7 @@ export default function GameStatsOverview({
     return null
   }
 
-  if (loading) {
+  if (loading && !weekStats) {
     return (
       <Card className={className}>
         <CardContent className="p-4">

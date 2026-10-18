@@ -4,15 +4,26 @@ import Layout from '@/components/Layout'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { PillTabs } from '@/components/ui/PillTabs'
 import GameResultCard from '@/components/GameResultCard'
 import GameStatsOverview from '@/components/GameStatsOverview'
 import { supabase } from '@/lib/supabase'
 import { getActiveWeek } from '@/services/weekService'
 import { useAuth } from '@/hooks/useAuth'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
-import type { Pick } from '@/types'
+import type { Pick, AnonymousPick } from '@/types'
 import type { Game } from '@/types'
 
+type GamesView = 'all' | 'mine'
+const VIEW_STORAGE_KEY = 'gamesPage.view'
+
+function readSavedView(): GamesView {
+  try {
+    return localStorage.getItem(VIEW_STORAGE_KEY) === 'mine' ? 'mine' : 'all'
+  } catch {
+    return 'all'
+  }
+}
 
 interface WeekSettings {
   week: number
@@ -49,6 +60,19 @@ export default function GamesPage() {
   const [error, setError] = useState('')
   const [offline] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [view, setView] = useState<GamesView>(readSavedView)
+  // Ticks so time-based labels ("Starts in 12m") stay current between data refreshes
+  const [, setClockTick] = useState(0)
+
+  const handleViewChange = (next: string) => {
+    const v: GamesView = next === 'mine' ? 'mine' : 'all'
+    setView(v)
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, v)
+    } catch {
+      // Storage blocked (private mode etc.) - the toggle still works for this visit
+    }
+  }
 
   const isAdmin = user?.is_admin === true
   const isPickDeadlinePassed = weekSettings 
@@ -89,9 +113,11 @@ export default function GamesPage() {
     loadGames()
     loadWeekSettings()
 
-    // Re-render periodically so time-based status (countdowns) stays current
+    // Re-render periodically so time-based status (countdowns) stays current.
+    // This must not touch `games`: a new games array makes GameStatsOverview
+    // refetch, and it used to swap in a skeleton that shifted the whole page.
     const gameRefreshInterval = setInterval(() => {
-      setGames(currentGames => [...currentGames])
+      setClockTick(t => t + 1)
     }, 30000)
 
     // Silent background refresh of scores/stats (server-side automation is the
@@ -214,22 +240,48 @@ export default function GamesPage() {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('picks')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('season', currentSeason)
-        .eq('week', currentWeek)
+      // Picks submitted anonymously and later assigned to this account live in
+      // anonymous_picks, so read both (same as the profile page does).
+      const [authRes, anonRes] = await Promise.all([
+        supabase
+          .from('picks')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('season', currentSeason)
+          .eq('week', currentWeek),
+        supabase
+          .from('anonymous_picks')
+          .select('*')
+          .eq('assigned_user_id', user.id)
+          .eq('season', currentSeason)
+          .eq('week', currentWeek)
+          .eq('is_active_pick_set', true)
+      ])
 
-      if (error) throw error
-      
-      console.log(`📊 Loaded ${data?.length || 0} user picks for Week ${currentWeek}, Season ${currentSeason}`)
-      setUserPicks(data || [])
+      if (authRes.error) throw authRes.error
+      if (anonRes.error) console.warn('Could not load assigned anonymous picks:', anonRes.error.message)
+
+      const authPicks: Pick[] = authRes.data || []
+      const pickedGameIds = new Set(authPicks.map(p => p.game_id))
+      const anonPicks = ((anonRes.data || []) as AnonymousPick[])
+        .filter(p => !pickedGameIds.has(p.game_id)) as unknown as Pick[]
+      const combined = [...authPicks, ...anonPicks]
+
+      console.log(`📊 Loaded ${combined.length} user picks for Week ${currentWeek}, Season ${currentSeason}`)
+      setUserPicks(combined)
     } catch (err: any) {
       console.error('Error loading user picks:', err)
       setUserPicks([])
     }
   }
+
+  const pickedGameIds = new Set(userPicks.map(p => p.game_id))
+  const hasPicks = pickedGameIds.size > 0
+  // Keep the saved preference even for weeks with no picks; just show everything then
+  const showMineOnly = view === 'mine' && hasPicks
+  const visibleGames = games
+    .map((game, index) => ({ game, gameNumber: index + 1 }))
+    .filter(({ game }) => !showMineOnly || pickedGameIds.has(game.id))
 
   const handleWeekChange = (week: string) => {
     setCurrentWeek(parseInt(week))
@@ -324,6 +376,20 @@ export default function GamesPage() {
       )}
 
 
+      {/* All games / My picks toggle (saved per browser) */}
+      {user && hasPicks && games.length > 0 && (
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <PillTabs
+            tabs={[
+              { key: 'all', label: `All Games (${games.length})` },
+              { key: 'mine', label: `My Picks (${games.filter(g => pickedGameIds.has(g.id)).length})` }
+            ]}
+            value={showMineOnly ? 'mine' : 'all'}
+            onChange={handleViewChange}
+          />
+        </div>
+      )}
+
       {/* Week Stats Overview */}
       <GameStatsOverview 
         season={currentSeason}
@@ -373,7 +439,7 @@ export default function GamesPage() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {games.map((game, index) => {
+            {visibleGames.map(({ game, gameNumber }) => {
               const userPick = userPicks.find(pick => pick.game_id === game.id)
               return (
                 <GameResultCard
@@ -383,7 +449,7 @@ export default function GamesPage() {
                     quarter: game.game_period || game.api_period,
                     clock: game.game_clock || game.api_clock
                   }}
-                  gameNumber={index + 1}
+                  gameNumber={gameNumber}
                   showPickStats={isPickDeadlinePassed}
                   isAdmin={isAdmin}
                   userPick={userPick}
