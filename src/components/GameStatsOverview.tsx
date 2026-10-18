@@ -21,6 +21,8 @@ interface WeekStats {
     averagePerfectRecords: number
     averageZeroRecords: number
     averageOver100Points: number
+    /** Earlier weeks the averages cover; 0 in Week 1, when there's nothing to compare to */
+    priorWeeks: number
   } | null
   overallRecord: {
     wins: number
@@ -66,6 +68,34 @@ interface WeekStats {
     winnerPickPercentage: number
     loserPickPercentage: number
   } | null
+}
+
+/**
+ * "↑ 20 above avg (6.3)": how this week compares to the season's earlier weeks.
+ * Spelled out because a bare "Avg: 6.3" read as "6.3 above average".
+ */
+function VsAvg({ value, avg, higherIsGood, decimals = 0 }: {
+  value: number
+  avg: number
+  higherIsGood: boolean
+  decimals?: number
+}) {
+  const factor = 10 ** decimals
+  const diff = Math.round((value - avg) * factor) / factor
+  const avgLabel = avg.toFixed(1)
+  if (diff === 0) {
+    return <div className="text-[11px] mt-0.5 text-charcoal-500">Same as avg ({avgLabel})</div>
+  }
+  const up = diff > 0
+  const good = up === higherIsGood
+  return (
+    <div
+      className={`text-[11px] mt-0.5 ${good ? 'text-[#1f7a44]' : 'text-[#d1495b]'}`}
+      title={`Average of this season's earlier weeks: ${avgLabel}`}
+    >
+      {up ? '↑' : '↓'} {Math.abs(diff).toFixed(decimals)} {up ? 'above' : 'below'} avg ({avgLabel})
+    </div>
+  )
 }
 
 interface GameStatsOverviewProps {
@@ -240,20 +270,27 @@ export default function GameStatsOverview({
         const activeUsers = seasonLeaderboard.filter(user => (user.total_picks || 0) > 0)
         const seasonTotalSubmissions = activeUsers.length
         
-        // To calculate per-week averages, we need to get weekly stats for all previous weeks
-        // Get weekly leaderboard data for all weeks this season
-        const { data: allWeeklyData, error: allWeeksError } = await supabase
-          .from('weekly_leaderboard')
-          .select(`
-            week,
-            wins,
-            losses,
-            pushes,
-            total_points
-          `)
-          .eq('season', season)
-          .gte('week', 1)
-          .lte('week', week)
+        // Per-week averages over the season's EARLIER weeks, so "vs. avg" compares
+        // this week to a typical week rather than to an average that includes it.
+        // Paged: a season is thousands of rows and one request stops at 1,000,
+        // which used to average a partial, arbitrary sample.
+        let allWeeklyData: { week: number; wins: number; losses: number; pushes: number; total_points: number }[] = []
+        let allWeeksError: any = null
+        const PAGE = 1000
+        for (let from = 0; week > 1; from += PAGE) {
+          const { data, error } = await supabase
+            .from('weekly_leaderboard')
+            .select('week, wins, losses, pushes, total_points')
+            .eq('season', season)
+            .gte('week', 1)
+            .lt('week', week)
+            .order('week', { ascending: true })
+            .order('user_id', { ascending: true })
+            .range(from, from + PAGE - 1)
+          if (error) { allWeeksError = error; break }
+          allWeeklyData = allWeeklyData.concat(data || [])
+          if (!data || data.length < PAGE) break
+        }
         
         let avgPerfectPerWeek = 0
         let avgZeroPerWeek = 0  
@@ -322,13 +359,14 @@ export default function GameStatsOverview({
         
         seasonStats = {
           totalSubmissions: seasonTotalSubmissions,
-          averageScore: avgScorePerWeek,
+          averageScore: avgScorePerWeek,  // mean of earlier weeks' averages
           perfectRecords: 0, // Not needed for display, using averages instead
           zeroRecords: 0, // Not needed for display, using averages instead  
           over100Points: 0, // Not needed for display, using averages instead
           averagePerfectRecords: avgPerfectPerWeek,
           averageZeroRecords: avgZeroPerWeek,
-          averageOver100Points: avgOver100PerWeek
+          averageOver100Points: avgOver100PerWeek,
+          priorWeeks: allWeeksError ? 0 : new Set(allWeeklyData.map(r => r.week)).size
         }
       }
       
@@ -476,6 +514,8 @@ export default function GameStatsOverview({
     return null
   }
 
+  const showVsAvg = !!weekStats.seasonStats && weekStats.seasonStats.priorWeeks > 0
+
   return (
     <Card className={className}>
       <CardHeader>
@@ -492,40 +532,22 @@ export default function GameStatsOverview({
           <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
             <div className="text-xl font-bold tabular-nums text-[#4B3621]">{weekStats.averageScore}</div>
             <div className="text-[11px] text-charcoal-500">Average Score</div>
-            {weekStats.seasonStats && <div className="text-[11px] text-charcoal-400 mt-0.5">Season: {weekStats.seasonStats.averageScore}</div>}
+            {showVsAvg && <VsAvg value={weekStats.averageScore} avg={weekStats.seasonStats!.averageScore} higherIsGood decimals={1} />}
           </div>
           <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
             <div className="text-xl font-bold tabular-nums text-[#1f7a44]">{weekStats.perfectRecords}</div>
             <div className="text-[11px] text-charcoal-500">Perfect Records</div>
-            {weekStats.seasonStats && (
-              <div className="text-[11px] mt-0.5">
-                {weekStats.perfectRecords >= weekStats.seasonStats.averagePerfectRecords
-                  ? <span className="text-[#1f7a44]">&uarr; Avg: {weekStats.seasonStats.averagePerfectRecords}</span>
-                  : <span className="text-[#d1495b]">&darr; Avg: {weekStats.seasonStats.averagePerfectRecords}</span>}
-              </div>
-            )}
+            {showVsAvg && <VsAvg value={weekStats.perfectRecords} avg={weekStats.seasonStats!.averagePerfectRecords} higherIsGood />}
           </div>
           <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
             <div className="text-xl font-bold tabular-nums text-[#d1495b]">{weekStats.zeroRecords}</div>
             <div className="text-[11px] text-charcoal-500">Zero Records</div>
-            {weekStats.seasonStats && (
-              <div className="text-[11px] mt-0.5">
-                {weekStats.zeroRecords > weekStats.seasonStats.averageZeroRecords
-                  ? <span className="text-[#d1495b]">&uarr; Avg: {weekStats.seasonStats.averageZeroRecords}</span>
-                  : <span className="text-[#1f7a44]">&darr; Avg: {weekStats.seasonStats.averageZeroRecords}</span>}
-              </div>
-            )}
+            {showVsAvg && <VsAvg value={weekStats.zeroRecords} avg={weekStats.seasonStats!.averageZeroRecords} higherIsGood={false} />}
           </div>
           <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
             <div className="text-xl font-bold tabular-nums text-[#b06a1a]">{weekStats.over100Points}</div>
             <div className="text-[11px] text-charcoal-500">&gt;100 Points</div>
-            {weekStats.seasonStats && (
-              <div className="text-[11px] mt-0.5">
-                {weekStats.over100Points >= weekStats.seasonStats.averageOver100Points
-                  ? <span className="text-[#1f7a44]">&uarr; Avg: {weekStats.seasonStats.averageOver100Points}</span>
-                  : <span className="text-[#d1495b]">&darr; Avg: {weekStats.seasonStats.averageOver100Points}</span>}
-              </div>
-            )}
+            {showVsAvg && <VsAvg value={weekStats.over100Points} avg={weekStats.seasonStats!.averageOver100Points} higherIsGood />}
           </div>
         </div>
 
