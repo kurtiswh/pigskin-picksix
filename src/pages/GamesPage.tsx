@@ -315,6 +315,13 @@ export default function GamesPage() {
     .filter(({ game }) => !showMineOnly || pickedGameIds.has(game.id))
   const statusCount = (f: StatusFilter) => scopedGames.filter(({ game }) => matchesStatus(game, f)).length
   const visibleGames = scopedGames.filter(({ game }) => matchesStatus(game, statusFilter))
+  const gameSections = (['live', 'upcoming', 'final'] as StatusFilter[])
+    .map(f => ({
+      key: f,
+      title: f === 'live' ? 'Live now' : STATUS_LABELS[f],
+      items: visibleGames.filter(({ game }) => matchesStatus(game, f))
+    }))
+    .filter(sec => sec.items.length > 0)
   // Hide empty statuses (e.g. no Live games before kickoff), but never the one selected
   const statusTabs = (['all', 'live', 'upcoming', 'final'] as StatusFilter[])
     .filter(f => f === 'all' || f === statusFilter || statusCount(f) > 0)
@@ -502,24 +509,38 @@ export default function GamesPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {visibleGames.map(({ game, gameNumber }) => {
-              const userPick = userPicks.find(pick => pick.game_id === game.id)
-              return (
-                <GameResultCard
-                  key={game.id}
-                  game={{
-                    ...game,
-                    quarter: game.game_period || game.api_period,
-                    clock: game.game_clock || game.api_clock
-                  }}
-                  gameNumber={gameNumber}
-                  showPickStats={isPickDeadlinePassed}
-                  isAdmin={isAdmin}
-                  userPick={userPick}
-                />
-              )
-            })}
+          <div className="space-y-6">
+            {/* Live first, then upcoming, then final: what's happening now is on top */}
+            {gameSections.map(section => (
+              <section key={section.key} aria-label={section.title}>
+                {gameSections.length > 1 && (
+                  <h2 className="flex items-center gap-2 mb-2 text-sm font-bold uppercase tracking-wide text-charcoal-600">
+                    {section.key === 'live' && <span className="w-2 h-2 rounded-full bg-[#c0392b] animate-pulse" aria-hidden="true" />}
+                    {section.title}
+                    <span className="font-semibold text-charcoal-400">{section.items.length}</span>
+                  </h2>
+                )}
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {section.items.map(({ game, gameNumber }) => {
+                    const userPick = userPicks.find(pick => pick.game_id === game.id)
+                    return (
+                      <GameResultCard
+                        key={game.id}
+                        game={{
+                          ...game,
+                          quarter: game.game_period || game.api_period,
+                          clock: game.game_clock || game.api_clock
+                        }}
+                        gameNumber={gameNumber}
+                        showPickStats={isPickDeadlinePassed}
+                        isAdmin={isAdmin}
+                        userPick={userPick}
+                      />
+                    )
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </div>
