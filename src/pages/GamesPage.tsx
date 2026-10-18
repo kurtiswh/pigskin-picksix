@@ -15,6 +15,21 @@ import type { Pick, AnonymousPick } from '@/types'
 import type { Game } from '@/types'
 
 type GamesView = 'all' | 'mine'
+type StatusFilter = 'all' | 'live' | 'upcoming' | 'final'
+
+const STATUS_LABELS: Record<StatusFilter, string> = {
+  all: 'All',
+  live: 'Live',
+  upcoming: 'Upcoming',
+  final: 'Final'
+}
+
+function matchesStatus(game: Game, filter: StatusFilter) {
+  if (filter === 'live') return game.status === 'in_progress'
+  if (filter === 'final') return game.status === 'completed'
+  if (filter === 'upcoming') return game.status !== 'in_progress' && game.status !== 'completed'
+  return true
+}
 const VIEW_STORAGE_KEY = 'gamesPage.view'
 
 function readSavedView(): GamesView {
@@ -61,6 +76,7 @@ export default function GamesPage() {
   const [offline] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [view, setView] = useState<GamesView>(readSavedView)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   // Ticks so time-based labels ("Starts in 12m") stay current between data refreshes
   const [, setClockTick] = useState(0)
 
@@ -293,9 +309,16 @@ export default function GamesPage() {
   const hasPicks = pickedGameIds.size > 0
   // Keep the saved preference even for weeks with no picks; just show everything then
   const showMineOnly = view === 'mine' && hasPicks
-  const visibleGames = games
+  // My Picks narrows first; the status chips count within whatever is in scope
+  const scopedGames = games
     .map((game, index) => ({ game, gameNumber: index + 1 }))
     .filter(({ game }) => !showMineOnly || pickedGameIds.has(game.id))
+  const statusCount = (f: StatusFilter) => scopedGames.filter(({ game }) => matchesStatus(game, f)).length
+  const visibleGames = scopedGames.filter(({ game }) => matchesStatus(game, statusFilter))
+  // Hide empty statuses (e.g. no Live games before kickoff), but never the one selected
+  const statusTabs = (['all', 'live', 'upcoming', 'final'] as StatusFilter[])
+    .filter(f => f === 'all' || f === statusFilter || statusCount(f) > 0)
+    .map(f => ({ key: f, label: `${STATUS_LABELS[f]} (${statusCount(f)})` }))
 
   const handleWeekChange = (week: string) => {
     setCurrentWeek(parseInt(week))
@@ -390,17 +413,29 @@ export default function GamesPage() {
       )}
 
 
-      {/* All games / My picks toggle (saved per browser) */}
-      {user && hasPicks && games.length > 0 && (
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <PillTabs
-            tabs={[
-              { key: 'all', label: `All Games (${games.length})` },
-              { key: 'mine', label: `My Picks (${games.filter(g => pickedGameIds.has(g.id)).length})` }
-            ]}
-            value={showMineOnly ? 'mine' : 'all'}
-            onChange={handleViewChange}
-          />
+      {/* Filters: All games / My picks (saved per browser), then game status */}
+      {games.length > 0 && (
+        <div className="flex flex-col gap-2 mb-4">
+          {user && hasPicks && (
+            <PillTabs
+              className="self-start"
+              tabs={[
+                { key: 'all', label: `All Games (${games.length})` },
+                { key: 'mine', label: `My Picks (${games.filter(g => pickedGameIds.has(g.id)).length})` }
+              ]}
+              value={showMineOnly ? 'mine' : 'all'}
+              onChange={handleViewChange}
+            />
+          )}
+          <div className="max-w-full overflow-x-auto">
+            <PillTabs
+              size="sm"
+              className="w-max"
+              tabs={statusTabs}
+              value={statusFilter}
+              onChange={(k) => setStatusFilter(k as StatusFilter)}
+            />
+          </div>
         </div>
       )}
 
@@ -449,6 +484,21 @@ export default function GamesPage() {
               <p className="text-charcoal-500 text-sm">
                 No games are available for {currentSeason} Week {currentWeek || '?'}
               </p>
+            </CardContent>
+          </Card>
+        ) : visibleGames.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <h3 className="text-lg font-medium text-charcoal-700 mb-2">
+                No {STATUS_LABELS[statusFilter].toLowerCase()} games{showMineOnly ? ' in your picks' : ''} right now
+              </h3>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                className="mt-2 px-4 py-1.5 rounded-md text-sm font-semibold bg-[#4B3621] text-white"
+              >
+                Show all games
+              </button>
             </CardContent>
           </Card>
         ) : (

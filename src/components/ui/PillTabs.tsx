@@ -10,11 +10,14 @@ export function PillTabs({
   value,
   onChange,
   className = '',
+  size = 'md',
 }: {
   tabs: PillTab[]
   value: string
   onChange: (key: string) => void
   className?: string
+  /** sm: tighter, single-line pills for rows that must fit a phone width */
+  size?: 'md' | 'sm'
 }) {
   return (
     <div className={`inline-flex gap-1 bg-[#F8F7F3] border border-[#e7e2da] p-1 rounded-lg ${className}`}>
@@ -23,7 +26,7 @@ export function PillTabs({
           key={t.key}
           type="button"
           onClick={() => onChange(t.key)}
-          className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${
+          className={`${size === 'sm' ? 'px-2.5 text-[13px] whitespace-nowrap' : 'px-4 text-sm'} py-1.5 rounded-md font-semibold transition-colors ${
             value === t.key ? 'bg-[#4B3621] text-white' : 'text-charcoal-600 hover:bg-[#efece5]'
           }`}
         >
