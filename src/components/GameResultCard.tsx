@@ -299,12 +299,13 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, us
     <Card className="overflow-hidden">
       {/* Header: game # · time · venue + status */}
       <div className="flex items-center justify-between gap-2 px-4 py-2 bg-[#faf8f4] border-b border-[#f0ece5]">
-        <span className="text-xs font-medium text-charcoal-500 truncate">
+        <span className="min-w-0 flex-1 text-xs font-medium text-charcoal-500 truncate">
           Game {gameNumber}
           {currentStatus !== 'completed' && gameTimeDisplay ? ` · ${gameTimeDisplay}` : ''}
           {game.venue ? ` · ${game.neutral_site ? 'Neutral site' : game.venue}` : ''}
         </span>
-        {getStatusBadge()}
+        {/* Never let a long venue name squeeze the badge into two lines */}
+        <span className="shrink-0 whitespace-nowrap">{getStatusBadge()}</span>
       </div>
 
       {/* Team rows — covering team highlighted green */}
