@@ -257,6 +257,11 @@ export default function GameResultCard({ game, gameNumber = 1, showPickStats, us
     if (currentStatus !== 'completed') {
       return <span className="text-[10px] bg-[#eef1f5] text-[#4a5568] px-1.5 py-0.5 rounded font-semibold whitespace-nowrap">MY PICK{lock}</span>
     }
+    // Final, but the pick hasn't been scored yet (scoring runs just after the
+    // game is marked final). Don't let a missing result read as a loss.
+    if (!userPickInfo.result) {
+      return <span className="text-[10px] bg-[#eef1f5] text-[#4a5568] px-1.5 py-0.5 rounded font-semibold whitespace-nowrap">Your pick · Scoring…{lock}</span>
+    }
     const cls = userPickInfo.isCorrect ? 'bg-[#e6f4ea] text-[#1f7a44]'
       : userPickInfo.isPush ? 'bg-[#fff5e2] text-[#b06a1a]' : 'bg-[#fbe9ec] text-[#d1495b]'
     const L = userPickInfo.isCorrect ? 'W' : userPickInfo.isPush ? 'P' : 'L'

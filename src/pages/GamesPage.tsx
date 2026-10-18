@@ -137,6 +137,15 @@ export default function GamesPage() {
     // (user is often null on the first render, before useAuth finishes.)
     if (currentWeek === null) return
     loadUserPicks()
+
+    // Re-fetch picks alongside the games refresh. Picks are scored server-side
+    // after a game goes final, so a page loaded during the game would otherwise
+    // keep the unscored pick until a manual reload. The interval lives here (not
+    // with the games interval) so it closes over the resolved user.
+    const picksRefreshInterval = setInterval(() => {
+      loadUserPicks(true)
+    }, 60000)
+    return () => clearInterval(picksRefreshInterval)
   }, [user?.id, currentSeason, currentWeek])
 
   useEffect(() => {
@@ -233,7 +242,8 @@ export default function GamesPage() {
     }
   }
 
-  const loadUserPicks = async () => {
+  // silent: background refresh - keep the picks already on screen if it fails
+  const loadUserPicks = async (silent = false) => {
     if (!user) {
       setUserPicks([])
       return
@@ -270,6 +280,10 @@ export default function GamesPage() {
       console.log(`📊 Loaded ${combined.length} user picks for Week ${currentWeek}, Season ${currentSeason}`)
       setUserPicks(combined)
     } catch (err: any) {
+      if (silent) {
+        console.warn('Silent picks refresh failed:', err.message)
+        return
+      }
       console.error('Error loading user picks:', err)
       setUserPicks([])
     }
