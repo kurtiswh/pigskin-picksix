@@ -6,6 +6,8 @@ import { WeekRow, EntryRow, summarizeWeek, summarizeSeason, allWeeks } from '@/l
 import { fetchAllRows, loadOtherWeeks } from '@/services/weekRecordsService'
 import { RecordHeadline, RecordWatch, WatchItem, MyWeekLine, MyWeek } from '@/components/WeekRecords'
 import { useAuth } from '@/hooks/useAuth'
+import { ScoreHistogram, MiniTrend, TrendChart, seasonSeries } from '@/components/WeekCharts'
+import type { StatKey } from '@/lib/weekRecords'
 
 /** Most a still-unscored pick can add: 20 + 5 bonus; the Lock doubles the bonus (+5). */
 const MAX_PICK_POINTS = 25
@@ -196,6 +198,8 @@ export default function GameStatsOverview({
   const { user } = useAuth()
   // null = automatic: collapsed while games are live, open once the week is final
   const [expanded, setExpanded] = useState<boolean | null>(null)
+  // Which headline tile has its full season chart open
+  const [trendStat, setTrendStat] = useState<StatKey | null>(null)
   const [loading, setLoading] = useState(false)
 
   // Drop the previous week's stats so a week switch shows the skeleton, but a
@@ -650,23 +654,36 @@ export default function GameStatsOverview({
           {weekStats.zeroRecords > 0 && <> · {weekStats.zeroRecords} went 0-6</>}
           {weekStats.seasonStats && <> · {weekStats.seasonStats.totalSubmissions} have played this season</>}
         </div>
+        {rec && rec.field.length > 0 && (
+          <ScoreHistogram points={rec.field.map(f => f.points)} myPoints={myEntry?.points} live={live} />
+        )}
+
+        {/* Tap a tile for its season chart */}
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-2 py-2.5 text-center">
-            <div className="text-2xl font-extrabold tabular-nums text-[#4B3621]">{weekStats.averageScore}</div>
-            <div className="text-[11px] text-charcoal-500">Avg score{soFar}</div>
-            {showVsAvg && <VsAvg value={weekStats.averageScore} avg={weekStats.seasonStats!.averageScore} higherIsGood decimals={1} />}
-          </div>
-          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-2 py-2.5 text-center">
-            <div className="text-2xl font-extrabold tabular-nums text-[#1f7a44]">{weekStats.perfectRecords}</div>
-            <div className="text-[11px] text-charcoal-500">Perfect 6-0{soFar}</div>
-            {showVsAvg && <VsAvg value={weekStats.perfectRecords} avg={weekStats.seasonStats!.averagePerfectRecords} higherIsGood />}
-          </div>
-          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-2 py-2.5 text-center">
-            <div className="text-2xl font-extrabold tabular-nums text-[#b06a1a]">{weekStats.over100Points}</div>
-            <div className="text-[11px] text-charcoal-500">Over 100{soFar}</div>
-            {showVsAvg && <VsAvg value={weekStats.over100Points} avg={weekStats.seasonStats!.averageOver100Points} higherIsGood />}
-          </div>
+          {([
+            { stat: 'avg' as StatKey, value: weekStats.averageScore, label: 'Avg score', color: '#4B3621', avg: weekStats.seasonStats?.averageScore, decimals: 1 },
+            { stat: 'perfect' as StatKey, value: weekStats.perfectRecords, label: 'Perfect 6-0', color: '#1f7a44', avg: weekStats.seasonStats?.averagePerfectRecords, decimals: 0 },
+            { stat: 'over100' as StatKey, value: weekStats.over100Points, label: 'Over 100', color: '#b06a1a', avg: weekStats.seasonStats?.averageOver100Points, decimals: 0 },
+          ]).map(t => {
+            const active = trendStat === t.stat
+            return (
+              <button
+                key={t.stat}
+                type="button"
+                onClick={() => setTrendStat(active ? null : t.stat)}
+                aria-expanded={active}
+                aria-label={`${t.label}: ${t.value}. ${active ? 'Hide' : 'Show'} the season chart`}
+                className={`rounded-lg border px-2 py-2.5 text-center ${active ? 'bg-[#fbf4e3] border-[#C9A04E]' : 'bg-[#faf8f4] border-[#f0ece5] hover:border-[#C9A04E]'}`}
+              >
+                <div className="text-2xl font-extrabold tabular-nums" style={{ color: t.color }}>{t.value}</div>
+                <div className="text-[11px] text-charcoal-500">{t.label}{soFar}</div>
+                {rec && <MiniTrend series={seasonSeries(rec.weeks, rec.current, t.stat)} color={t.color} live={live} />}
+                {showVsAvg && t.avg != null && <VsAvg value={t.value} avg={t.avg} higherIsGood decimals={t.decimals} />}
+              </button>
+            )
+          })}
         </div>
+        {rec && trendStat && <TrendChart stat={trendStat} weeks={rec.weeks} current={rec.current} live={live} />}
 
         {/* 2. Percentages, not win-loss totals (totals on hover) */}
         <div className="grid grid-cols-2 gap-2">
