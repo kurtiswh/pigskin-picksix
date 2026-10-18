@@ -1061,7 +1061,7 @@ export class EmergencyWeeklyLeaderboardService {
   private static async readWeeklyLeaderboard(season: number, week: number): Promise<EmergencyWeeklyLeaderboardEntry[]> {
     const query = supabase
       .from('weekly_leaderboard')
-      .select('user_id, display_name, weekly_rank, total_points, wins, losses, pushes, lock_wins, lock_losses, lock_pushes, pick_source, is_verified')
+      .select('user_id, display_name, weekly_rank, total_points, picks_made, wins, losses, pushes, lock_wins, lock_losses, lock_pushes, pick_source, is_verified')
       .eq('season', season)
       .eq('week', week)
       .or('is_verified.eq.true,pick_source.eq.anonymous,pick_source.eq.mixed')
@@ -1095,6 +1095,8 @@ export class EmergencyWeeklyLeaderboardService {
       lock_wins: entry.lock_wins || 0,
       lock_losses: entry.lock_losses || 0,
       lock_pushes: entry.lock_pushes || 0,
+      picks_made: entry.picks_made || 0,
+      pending: Math.max(0, (entry.picks_made || 0) - (entry.wins || 0) - (entry.losses || 0) - (entry.pushes || 0)),
       pick_source: entry.pick_source || 'authenticated'
     }))
   }

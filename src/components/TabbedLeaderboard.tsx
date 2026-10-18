@@ -19,7 +19,27 @@ import { SeasonExpandedDetails } from '@/components/SeasonExpandedDetails'
 import { WeeklyExpandedDetails } from '@/components/WeeklyExpandedDetails'
 import { BestFinishLeaderboard } from '@/components/BestFinishLeaderboard'
 import WinnersDisplay from '@/components/WinnersDisplay'
+import { PillTabs } from '@/components/ui/PillTabs'
 import { ADMIN_EMAIL, ENTRY_FEE, LEAGUESAFE_JOIN_URL } from '@/lib/league'
+
+type WeeklyFilter = 'all' | 'unbeaten' | 'alive'
+
+// Most a single unscored pick can still add: 20 for the win + up to 5 cover
+// bonus. The Lock doubles the bonus, so it can add 5 more on top.
+const MAX_PICK_POINTS = 25
+const MAX_LOCK_EXTRA = 5
+
+/** Unbeaten = every scored pick a win. A push breaks it, same as a loss. */
+function isUnbeaten(e: EmergencyWeeklyLeaderboardEntry) {
+  return (e.losses || 0) === 0 && (e.pushes || 0) === 0
+}
+
+/** Best case for the week if every unscored pick wins with the max bonus. */
+function maxPossiblePoints(e: EmergencyWeeklyLeaderboardEntry) {
+  const pending = e.pending || 0
+  const lockScored = (e.lock_wins || 0) + (e.lock_losses || 0) + (e.lock_pushes || 0) > 0
+  return (e.total_points || 0) + pending * MAX_PICK_POINTS + (pending > 0 && !lockScored ? MAX_LOCK_EXTRA : 0)
+}
 
 export default function TabbedLeaderboard() {
   const paymentsSyncedAt = usePaymentsSyncedAt()
@@ -56,6 +76,9 @@ export default function TabbedLeaderboard() {
   
   // Search state
   const [searchTerm, setSearchTerm] = useState('')
+  const [weeklyFilter, setWeeklyFilter] = useState<WeeklyFilter>('all')
+  // Latest week with results; only that week's board auto-refreshes
+  const [liveWeek, setLiveWeek] = useState<number | null>(null)
   
   // Scroll to top state
   const [showScrollTop, setShowScrollTop] = useState(false)
@@ -86,6 +109,7 @@ export default function TabbedLeaderboard() {
       ])
       if (seq !== initSeq.current) return // superseded by a newer season
       setSelectedWeek(latestWeek)
+      setLiveWeek(latestWeek)
       setMaxWeek(configuredMax || latestWeek || 0)
       setIsPreseason((configuredMax || 0) === 0)
     }
@@ -111,6 +135,18 @@ export default function TabbedLeaderboard() {
       loadWeeklyData()
     }
   }, [selectedWeek, season, seasonLoading, activeTab])
+
+  // Quietly refresh the current week's board every minute so records update
+  // during games without a reload. Past weeks don't change, so they don't poll.
+  useEffect(() => {
+    if (seasonLoading) return
+    if (activeTab !== 'weekly' || selectedWeek === null || selectedWeek !== liveWeek) return
+    const interval = setInterval(() => {
+      if (document.hidden) return
+      loadWeeklyData(true)
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [activeTab, selectedWeek, liveWeek, season, seasonLoading])
 
   // Scroll to top functionality
   useEffect(() => {
@@ -226,7 +262,8 @@ export default function TabbedLeaderboard() {
     }
   }
 
-  const loadWeeklyData = async () => {
+  // silent: background refresh - no spinner, and a failure keeps the current board
+  const loadWeeklyData = async (silent = false) => {
     const startTime = Date.now()
     const seq = ++weeklySeq.current
 
@@ -234,8 +271,10 @@ export default function TabbedLeaderboard() {
     if (selectedWeek === null) return
 
     try {
-      setLoading(true)
-      setError('')
+      if (!silent) {
+        setLoading(true)
+        setError('')
+      }
       setStrategy('')
       console.log('🔄 Loading weekly leaderboard for season', season, 'week', selectedWeek)
       
@@ -257,13 +296,17 @@ export default function TabbedLeaderboard() {
       
     } catch (err: any) {
       if (seq !== weeklySeq.current) return
+      if (silent) {
+        console.warn('Silent weekly refresh failed:', err.message)
+        return
+      }
       const loadTime = Date.now() - startTime
       console.error('❌ Failed to load weekly leaderboard after', loadTime, 'ms:', err)
       setError(err.message || 'Failed to load weekly leaderboard')
       setWeeklyData([])
       setStrategy(`Week ${selectedWeek} loading failed`)
     } finally {
-      if (seq === weeklySeq.current) setLoading(false)
+      if (seq === weeklySeq.current && !silent) setLoading(false)
     }
   }
 
@@ -273,6 +316,16 @@ export default function TabbedLeaderboard() {
     if (value === 'weekly' && weeklyData.length === 0) {
       loadWeeklyData()
     }
+  }
+
+  const myWeeklyEntry = user ? weeklyData.find(e => e.user_id === user.id) : undefined
+  // "Still alive" is relative to you, so it falls back to All when you're not on this week's board
+  const effectiveWeeklyFilter: WeeklyFilter =
+    weeklyFilter === 'alive' && !myWeeklyEntry ? 'all' : weeklyFilter
+  const passesWeeklyFilter = (e: EmergencyWeeklyLeaderboardEntry) => {
+    if (effectiveWeeklyFilter === 'unbeaten') return isUnbeaten(e)
+    if (effectiveWeeklyFilter === 'alive') return maxPossiblePoints(e) >= (myWeeklyEntry?.total_points || 0)
+    return true
   }
 
   const getCurrentData = () => {
@@ -616,6 +669,27 @@ export default function TabbedLeaderboard() {
               </SelectContent>
             </Select>
           </div>
+
+          {weeklyData.length > 0 && (
+            <div className="mb-4">
+              <PillTabs
+                tabs={[
+                  { key: 'all', label: `All (${weeklyData.length})` },
+                  { key: 'unbeaten', label: `Unbeaten (${weeklyData.filter(isUnbeaten).length})` },
+                  ...(myWeeklyEntry
+                    ? [{ key: 'alive', label: `Still alive (${weeklyData.filter(e => maxPossiblePoints(e) >= myWeeklyEntry.total_points).length})` }]
+                    : [])
+                ]}
+                value={effectiveWeeklyFilter}
+                onChange={(k) => setWeeklyFilter(k as WeeklyFilter)}
+              />
+              {effectiveWeeklyFilter === 'alive' && (
+                <p className="mt-2 text-xs text-charcoal-500">
+                  Players who could still match or pass your {myWeeklyEntry?.total_points} points if their remaining picks all win with the max cover bonus.
+                </p>
+              )}
+            </div>
+          )}
           
           <Card>
             <CardHeader>
@@ -869,6 +943,8 @@ export default function TabbedLeaderboard() {
               searchTerm === '' || 
               entry.display_name.toLowerCase().includes(searchTerm.toLowerCase())
             )
+            // Filters narrow the list only; ranks still come from the full board
+            .filter((entry) => activeTab !== 'weekly' || passesWeeklyFilter(entry))
             .map((entry) => {
             const tabType = activeTab === 'season' ? 'season' : 'weekly'
             const rowKey = expansionKey(entry.user_id, tabType)
@@ -949,6 +1025,7 @@ export default function TabbedLeaderboard() {
                   previousRank={activeTab === 'season' ? ('previous_rank' in entry ? entry.previous_rank : undefined) : undefined}
                   trend={activeTab === 'season' ? ('trend' in entry ? entry.trend : undefined) : undefined}
                   isCurrentUser={isMe}
+                  pendingCount={tabType === 'weekly' ? entry.pending : undefined}
                 />
               </ExpandableLeaderboardRow>
             )

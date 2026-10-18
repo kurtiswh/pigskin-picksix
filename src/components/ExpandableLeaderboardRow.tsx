@@ -40,6 +40,7 @@ interface LeaderboardRowContentProps {
   previousRank?: number  // Previous week's rank
   trend?: 'up' | 'down' | 'same'  // Trend indicator
   isCurrentUser?: boolean  // Highlight the logged-in user's own row
+  pendingCount?: number  // Weekly: picks still to be decided ("2 to play")
 }
 
 /** Placeholder rows that match the shape of the real breakdown. */
@@ -200,8 +201,14 @@ export function LeaderboardRowContent({
   isTied = false,
   rankChange,
   previousRank,
-  isCurrentUser = false
+  isCurrentUser = false,
+  pendingCount = 0
 }: LeaderboardRowContentProps) {
+  const pendingBadge = pendingCount > 0 ? (
+    <span className="text-[10px] font-semibold bg-[#eef1f5] text-[#4a5568] px-1.5 py-0.5 rounded-md whitespace-nowrap shrink-0">
+      {pendingCount} to play
+    </span>
+  ) : null
   const youBadge = isCurrentUser ? (
     <span className="text-[10px] font-bold uppercase tracking-wide bg-[#C9A04E] text-[#4B3621] px-1.5 py-0.5 rounded-md shrink-0">You</span>
   ) : null
@@ -291,6 +298,7 @@ export function LeaderboardRowContent({
         <div className="flex items-center gap-2 min-w-0">
           <span className="font-semibold text-gray-900 truncate">{displayName}</span>
           {youBadge}
+          {pendingBadge}
           {getPaymentBadge()}
           {getSourceBadge()}
         </div>
@@ -327,6 +335,7 @@ export function LeaderboardRowContent({
         <div className="mt-0.5 flex items-center gap-3 text-xs text-gray-500 tabular-nums">
           <span>{formatRecord(record)}</span>
           <span className="flex items-center gap-1"><Lock className="w-3 h-3" />{formatRecord(lockRecord)}</span>
+          {pendingBadge}
           {getPaymentBadge()}
           {getSourceBadge()}
         </div>

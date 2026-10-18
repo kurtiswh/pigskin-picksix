@@ -54,6 +54,9 @@ export interface EmergencyWeeklyLeaderboardEntry {
   lock_wins?: number
   lock_losses?: number
   lock_pushes?: number
+  picks_made?: number
+  /** Picks not yet scored (game unfinished, or final but not yet scored) */
+  pending?: number
   pick_source?: 'authenticated' | 'anonymous' | 'mixed'
   payment_status?: 'Paid' | 'NotPaid' | 'Pending'
   is_verified?: boolean
