@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 import type { Game } from '@/types'
-import { formatRecord } from '@/lib/records'
 import { WeekRow, EntryRow, summarizeWeek, summarizeSeason, allWeeks } from '@/lib/weekRecords'
 import { fetchAllRows, loadOtherWeeks } from '@/services/weekRecordsService'
 import { RecordHeadline, RecordWatch, WatchItem, MyWeekLine, MyWeek } from '@/components/WeekRecords'
@@ -60,16 +59,19 @@ interface WeekStats {
     game: string
     pickCount: number
     percentage: number
+    crowd?: CrowdSide | null
   } | null
   leastPopularGame: {
     game: string
     pickCount: number
     percentage: number
+    crowd?: CrowdSide | null
   } | null
   mostPopularLock: {
     game: string
     lockCount: number
     percentage: number
+    crowd?: CrowdSide | null
   } | null
   biggestUpset: {
     game: string
@@ -83,6 +85,68 @@ interface WeekStats {
     watch: WatchItem[]
     field: (MyWeek & { userId: string })[]
   } | null
+}
+
+type Outcome = 'covered' | 'lost' | 'push' | 'covering' | 'trailing' | 'level' | null
+
+/** The side most of the field (or most Locks) took in a game, and how it went. */
+interface CrowdSide {
+  team: string
+  count: number     // picks (or Locks) on that side
+  of: number        // picks (or Locks) on the game
+  outcome: Outcome
+}
+
+/** How `team` stands against the spread: final result, or right now while live. */
+function atsOutcome(game: Game, team: string): Outcome {
+  if (game.home_score == null || game.away_score == null) return null
+  const homeMargin = game.home_score - game.away_score + game.spread
+  const m = team === game.home_team ? homeMargin : -homeMargin
+  if (game.status === 'completed') return m > 0 ? 'covered' : m < 0 ? 'lost' : 'push'
+  if (game.status === 'in_progress') return m > 0 ? 'covering' : m < 0 ? 'trailing' : 'level'
+  return null
+}
+
+/** Majority side of a game by picks (Locks counted as picks) or by Locks alone. */
+function crowdSide(game: Game, by: 'picks' | 'locks'): CrowdSide | null {
+  const home = by === 'picks' ? (game.home_team_picks || 0) + (game.home_team_locks || 0) : (game.home_team_locks || 0)
+  const away = by === 'picks' ? (game.away_team_picks || 0) + (game.away_team_locks || 0) : (game.away_team_locks || 0)
+  if (home + away === 0) return null
+  const team = home >= away ? game.home_team : game.away_team
+  return { team, count: Math.max(home, away), of: home + away, outcome: atsOutcome(game, team) }
+}
+
+const OUTCOME_TEXT: Record<Exclude<Outcome, null>, { text: string; cls: string }> = {
+  covered: { text: '✓ covered', cls: 'text-[#1f7a44]' },
+  lost: { text: '✗ didn’t cover', cls: 'text-[#d1495b]' },
+  push: { text: 'push', cls: 'text-[#b06a1a]' },
+  covering: { text: 'covering now', cls: 'text-[#1f7a44]' },
+  trailing: { text: 'not covering now', cls: 'text-[#d1495b]' },
+  level: { text: 'even with the spread', cls: 'text-[#b06a1a]' },
+}
+
+/** One "story" line: what was popular, and what happened to it. */
+function NoteRow({ label, game, meta, detail, outcome, tone = 'plain' }: {
+  label: string
+  game: string
+  meta: string
+  detail: string
+  outcome?: Outcome
+  tone?: 'plain' | 'lock' | 'upset'
+}) {
+  const box = tone === 'lock' ? 'bg-[#fff5e2] border-[#f0dcb0]' : tone === 'upset' ? 'bg-[#fbe9ec] border-[#f2c9d1]' : 'bg-[#faf8f4] border-[#f0ece5]'
+  return (
+    <div className={`px-3 py-2 rounded-lg border ${box} text-sm`}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="truncate"><span className="font-semibold text-[#4B3621]">{label}</span> · {game}</span>
+        <span className="text-[11px] text-charcoal-500 tabular-nums shrink-0">{meta}</span>
+      </div>
+      <div className="text-[12.5px] text-charcoal-700">
+        {detail}
+        {outcome && <span className={`font-semibold ${OUTCOME_TEXT[outcome].cls}`}> · {OUTCOME_TEXT[outcome].text}</span>}
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -385,7 +449,7 @@ export default function GameStatsOverview({
       
       games.forEach(game => {
         gamePickCounts.set(game.id, {
-          picks: (game.home_team_picks || 0) + (game.away_team_picks || 0),
+          picks: (game.home_team_picks || 0) + (game.away_team_picks || 0) + (game.home_team_locks || 0) + (game.away_team_locks || 0),
           locks: (game.home_team_locks || 0) + (game.away_team_locks || 0),
           gameInfo: game
         })
@@ -500,17 +564,20 @@ export default function GameStatsOverview({
         mostPopularGame: mostPopular ? {
           game: `${mostPopular.gameInfo.away_team} vs. ${mostPopular.gameInfo.home_team}`,
           pickCount: mostPopular.picks,
-          percentage: Math.round((mostPopular.picks / totalSubmissions) * 100)
+          percentage: Math.round((mostPopular.picks / totalSubmissions) * 100),
+          crowd: crowdSide(mostPopular.gameInfo, 'picks')
         } : null,
         leastPopularGame: leastPopular ? {
           game: `${leastPopular.gameInfo.away_team} vs. ${leastPopular.gameInfo.home_team}`,
           pickCount: leastPopular.picks,
-          percentage: Math.round((leastPopular.picks / totalSubmissions) * 100)
+          percentage: Math.round((leastPopular.picks / totalSubmissions) * 100),
+          crowd: crowdSide(leastPopular.gameInfo, 'picks')
         } : null,
         mostPopularLock: mostPopularLock && mostPopularLock.locks > 0 ? {
           game: `${mostPopularLock.gameInfo.away_team} vs. ${mostPopularLock.gameInfo.home_team}`,
           lockCount: mostPopularLock.locks,
-          percentage: Math.round((mostPopularLock.locks / Math.max(1, gameStats.reduce((sum, g) => sum + g.locks, 0))) * 100)
+          percentage: Math.round((mostPopularLock.locks / Math.max(1, gameStats.reduce((sum, g) => sum + g.locks, 0))) * 100),
+          crowd: crowdSide(mostPopularLock.gameInfo, 'locks')
         } : null,
         biggestUpset
       })
@@ -577,84 +644,90 @@ export default function GameStatsOverview({
           : <RecordHeadline weeks={rec.weeks} current={rec.current} />)}
 
         {isOpen && <>
-        {/* Basic Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
-            <div className="text-xl font-bold tabular-nums text-[#4B3621]">{weekStats.totalSubmissions}</div>
-            <div className="text-[11px] text-charcoal-500">Submissions</div>
-            {weekStats.seasonStats && <div className="text-[11px] text-charcoal-400 mt-0.5">Season: {weekStats.seasonStats.totalSubmissions}</div>}
-          </div>
-          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
-            <div className="text-xl font-bold tabular-nums text-[#4B3621]">{weekStats.averageScore}</div>
-            <div className="text-[11px] text-charcoal-500">Average Score{soFar}</div>
+        {/* 1. Three headline numbers; the rest is a caption */}
+        <div className="text-xs text-charcoal-500">
+          {weekStats.totalSubmissions} entries{soFar}
+          {weekStats.zeroRecords > 0 && <> · {weekStats.zeroRecords} went 0-6</>}
+          {weekStats.seasonStats && <> · {weekStats.seasonStats.totalSubmissions} have played this season</>}
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-2 py-2.5 text-center">
+            <div className="text-2xl font-extrabold tabular-nums text-[#4B3621]">{weekStats.averageScore}</div>
+            <div className="text-[11px] text-charcoal-500">Avg score{soFar}</div>
             {showVsAvg && <VsAvg value={weekStats.averageScore} avg={weekStats.seasonStats!.averageScore} higherIsGood decimals={1} />}
           </div>
-          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
-            <div className="text-xl font-bold tabular-nums text-[#1f7a44]">{weekStats.perfectRecords}</div>
-            <div className="text-[11px] text-charcoal-500">Perfect Records{soFar}</div>
+          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-2 py-2.5 text-center">
+            <div className="text-2xl font-extrabold tabular-nums text-[#1f7a44]">{weekStats.perfectRecords}</div>
+            <div className="text-[11px] text-charcoal-500">Perfect 6-0{soFar}</div>
             {showVsAvg && <VsAvg value={weekStats.perfectRecords} avg={weekStats.seasonStats!.averagePerfectRecords} higherIsGood />}
           </div>
-          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
-            <div className="text-xl font-bold tabular-nums text-[#d1495b]">{weekStats.zeroRecords}</div>
-            <div className="text-[11px] text-charcoal-500">Zero Records{soFar}</div>
-            {showVsAvg && <VsAvg value={weekStats.zeroRecords} avg={weekStats.seasonStats!.averageZeroRecords} higherIsGood={false} />}
-          </div>
-          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
-            <div className="text-xl font-bold tabular-nums text-[#b06a1a]">{weekStats.over100Points}</div>
-            <div className="text-[11px] text-charcoal-500">&gt;100 Points{soFar}</div>
+          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-2 py-2.5 text-center">
+            <div className="text-2xl font-extrabold tabular-nums text-[#b06a1a]">{weekStats.over100Points}</div>
+            <div className="text-[11px] text-charcoal-500">Over 100{soFar}</div>
             {showVsAvg && <VsAvg value={weekStats.over100Points} avg={weekStats.seasonStats!.averageOver100Points} higherIsGood />}
           </div>
         </div>
 
-        {/* Records — compact tiles */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2">
-            <div className="text-[11px] text-charcoal-500">Week {week} Record</div>
-            <div className="font-bold text-[#4B3621] tabular-nums text-sm">{formatRecord(`${weekStats.overallRecord.wins}-${weekStats.overallRecord.losses}-${weekStats.overallRecord.pushes}`)} <span className="text-charcoal-500 font-semibold">· {weekStats.overallRecord.winPercentage}%</span></div>
+        {/* 2. Percentages, not win-loss totals (totals on hover) */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2"
+            title={`${weekStats.overallRecord.wins}-${weekStats.overallRecord.losses}-${weekStats.overallRecord.pushes} this week`}>
+            <div className="text-[11px] text-charcoal-500">Field ATS{soFar}</div>
+            <div className="text-lg font-bold tabular-nums text-[#4B3621]">{weekStats.overallRecord.winPercentage}%</div>
+            {weekStats.seasonRecord && <div className="text-[11px] text-charcoal-500">Season {weekStats.seasonRecord.winPercentage}%</div>}
           </div>
-          {weekStats.seasonRecord && (
-            <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2">
-              <div className="text-[11px] text-charcoal-500">Season Record</div>
-              <div className="font-bold text-[#4B3621] tabular-nums text-sm">{formatRecord(`${weekStats.seasonRecord.wins}-${weekStats.seasonRecord.losses}-${weekStats.seasonRecord.pushes}`)} <span className="text-charcoal-500 font-semibold">· {weekStats.seasonRecord.winPercentage}%</span></div>
-            </div>
-          )}
-          <div className="rounded-lg bg-[#fff5e2] border border-[#f0dcb0] px-3 py-2">
-            <div className="text-[11px] text-[#8a6a1f]">Week {week} Lock</div>
-            <div className="font-bold text-[#4B3621] tabular-nums text-sm">{formatRecord(`${weekStats.lockRecord.wins}-${weekStats.lockRecord.losses}-${weekStats.lockRecord.pushes}`)} <span className="text-[#8a6a1f] font-semibold">· {weekStats.lockRecord.winPercentage}%</span></div>
+          <div className="rounded-lg bg-[#fff5e2] border border-[#f0dcb0] px-3 py-2"
+            title={`${weekStats.lockRecord.wins}-${weekStats.lockRecord.losses}-${weekStats.lockRecord.pushes} this week`}>
+            <div className="text-[11px] text-[#8a6a1f]">Locks{soFar}</div>
+            <div className="text-lg font-bold tabular-nums text-[#4B3621]">{weekStats.lockRecord.winPercentage}%</div>
+            {weekStats.seasonLockRecord && <div className="text-[11px] text-[#8a6a1f]">Season {weekStats.seasonLockRecord.winPercentage}%</div>}
           </div>
-          {weekStats.seasonLockRecord && (
-            <div className="rounded-lg bg-[#fff5e2] border border-[#f0dcb0] px-3 py-2">
-              <div className="text-[11px] text-[#8a6a1f]">Season Lock</div>
-              <div className="font-bold text-[#4B3621] tabular-nums text-sm">{formatRecord(`${weekStats.seasonLockRecord.wins}-${weekStats.seasonLockRecord.losses}-${weekStats.seasonLockRecord.pushes}`)} <span className="text-[#8a6a1f] font-semibold">· {weekStats.seasonLockRecord.winPercentage}%</span></div>
-            </div>
-          )}
         </div>
 
-        {/* Notable — compact one-liners */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+        {/* 4. What was popular, and what happened to it */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {weekStats.mostPopularGame && (
-            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-[#faf8f4] border border-[#f0ece5]">
-              <span className="truncate">📈 Most picked · {weekStats.mostPopularGame.game}</span>
-              <span className="text-charcoal-500 tabular-nums shrink-0">{weekStats.mostPopularGame.pickCount} ({weekStats.mostPopularGame.percentage}%)</span>
-            </div>
-          )}
-          {weekStats.leastPopularGame && (
-            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-[#faf8f4] border border-[#f0ece5]">
-              <span className="truncate">📉 Least picked · {weekStats.leastPopularGame.game}</span>
-              <span className="text-charcoal-500 tabular-nums shrink-0">{weekStats.leastPopularGame.pickCount} ({weekStats.leastPopularGame.percentage}%)</span>
-            </div>
+            <NoteRow
+              label="Most picked"
+              game={weekStats.mostPopularGame.game}
+              meta={`${weekStats.mostPopularGame.pickCount} picks`}
+              detail={weekStats.mostPopularGame.crowd
+                ? `${Math.round((100 * weekStats.mostPopularGame.crowd.count) / weekStats.mostPopularGame.crowd.of)}% took ${weekStats.mostPopularGame.crowd.team}`
+                : 'No picks yet'}
+              outcome={weekStats.mostPopularGame.crowd?.outcome}
+            />
           )}
           {weekStats.mostPopularLock && (
-            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-[#fff5e2] border border-[#f0dcb0]">
-              <span className="truncate">🔒 Most locked · {weekStats.mostPopularLock.game}</span>
-              <span className="text-[#8a6a1f] tabular-nums shrink-0">{weekStats.mostPopularLock.lockCount} ({weekStats.mostPopularLock.percentage}%)</span>
-            </div>
+            <NoteRow
+              tone="lock"
+              label="Most locked"
+              game={weekStats.mostPopularLock.game}
+              meta={`${weekStats.mostPopularLock.lockCount} Locks`}
+              detail={weekStats.mostPopularLock.crowd
+                ? `${weekStats.mostPopularLock.crowd.count} locked ${weekStats.mostPopularLock.crowd.team}`
+                : ''}
+              outcome={weekStats.mostPopularLock.crowd?.outcome}
+            />
+          )}
+          {weekStats.leastPopularGame && (
+            <NoteRow
+              label="Least picked"
+              game={weekStats.leastPopularGame.game}
+              meta={`${weekStats.leastPopularGame.pickCount} picks`}
+              detail={weekStats.leastPopularGame.crowd
+                ? `${weekStats.leastPopularGame.crowd.count} of ${weekStats.leastPopularGame.crowd.of} took ${weekStats.leastPopularGame.crowd.team}`
+                : 'Nobody picked it'}
+              outcome={weekStats.leastPopularGame.crowd?.outcome}
+            />
           )}
           {weekStats.biggestUpset && (
-            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-[#fbe9ec] border border-[#f2c9d1]">
-              <span className="truncate">🚨 Biggest upset · {weekStats.biggestUpset.game}</span>
-              <span className="text-[#d1495b] tabular-nums shrink-0">{weekStats.biggestUpset.winnerPickPercentage}% picked winner</span>
-            </div>
+            <NoteRow
+              tone="upset"
+              label="Biggest upset"
+              game={weekStats.biggestUpset.game}
+              meta=""
+              detail={`Only ${weekStats.biggestUpset.winnerPickPercentage}% took the side that covered`}
+            />
           )}
         </div>
         </>}
