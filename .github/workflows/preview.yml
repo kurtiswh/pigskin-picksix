@@ -1,0 +1,56 @@
+name: Preview branch
+
+# Push to any branch except main = upload a PREVIEW version of the site to
+# Cloudflare and print its URL. A preview version is not deployed: it takes no
+# traffic and pigskinpicksix.com is untouched. It does talk to the production
+# Supabase project (same VITE_* secrets), so anything done on a preview, like
+# saving picks, is real.
+
+on:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_CFBD_API_KEY: ${{ secrets.VITE_CFBD_API_KEY }}
+        run: npm run build
+
+      - name: Upload preview version
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          # Alias: branch name, lowercase letters/digits/dashes, short enough for a hostname
+          alias=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-25 | sed -E 's/-+$//')
+          npx --yes wrangler@4 versions upload --preview-alias "$alias" --message "preview: $BRANCH @ ${GITHUB_SHA::7}" 2>&1 | tee upload.log
+          urls=$(grep -oE 'https://[^ ]+workers\.dev[^ ]*' upload.log | sort -u)
+          {
+            echo "### Preview for \`$BRANCH\`"
+            if [ -n "$urls" ]; then echo "$urls" | sed 's/^/- /'; else echo "No preview URL in wrangler output; see the log."; fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -319,9 +319,12 @@ export default function TabbedLeaderboard() {
   }
 
   const myWeeklyEntry = user ? weeklyData.find(e => e.user_id === user.id) : undefined
-  // "Still alive" is relative to you, so it falls back to All when you're not on this week's board
+  // Once every pick is scored nobody can move, so "Still alive" means nothing
+  const weekInProgress = weeklyData.some(e => (e.pending || 0) > 0)
+  const canShowAlive = !!myWeeklyEntry && weekInProgress
+  // "Still alive" is relative to you and only meaningful mid-week; otherwise fall back to All
   const effectiveWeeklyFilter: WeeklyFilter =
-    weeklyFilter === 'alive' && !myWeeklyEntry ? 'all' : weeklyFilter
+    weeklyFilter === 'alive' && !canShowAlive ? 'all' : weeklyFilter
   const passesWeeklyFilter = (e: EmergencyWeeklyLeaderboardEntry) => {
     if (effectiveWeeklyFilter === 'unbeaten') return isUnbeaten(e)
     if (effectiveWeeklyFilter === 'alive') return maxPossiblePoints(e) >= (myWeeklyEntry?.total_points || 0)
@@ -676,7 +679,7 @@ export default function TabbedLeaderboard() {
                 tabs={[
                   { key: 'all', label: `All (${weeklyData.length})` },
                   { key: 'unbeaten', label: `Unbeaten (${weeklyData.filter(isUnbeaten).length})` },
-                  ...(myWeeklyEntry
+                  ...(canShowAlive && myWeeklyEntry
                     ? [{ key: 'alive', label: `Still alive (${weeklyData.filter(e => maxPossiblePoints(e) >= myWeeklyEntry.total_points).length})` }]
                     : [])
                 ]}

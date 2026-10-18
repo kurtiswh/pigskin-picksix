@@ -3,6 +3,44 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 import type { Game } from '@/types'
 import { formatRecord } from '@/lib/records'
+import { WeekRow, EntryRow, summarizeWeek, summarizeSeason, allWeeks } from '@/lib/weekRecords'
+import { StatRecordBadges, RecordWeekBanner, RecordWatch, WatchItem } from '@/components/WeekRecords'
+
+/** Read every row of a query: one request stops at 1,000 rows. */
+async function fetchAllRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>): Promise<T[]> {
+  const PAGE = 1000
+  let out: T[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await page(from, from + PAGE - 1)
+    if (error) throw error
+    out = out.concat(data || [])
+    if (!data || data.length < PAGE) return out
+  }
+}
+
+// The season's OTHER weeks don't change while you watch this one, so the 60s
+// refresh reuses them instead of re-reading thousands of rows each minute.
+const otherWeeksCache = new Map<string, Promise<EntryRow[]>>()
+function loadOtherWeeks(season: number, week: number): Promise<EntryRow[]> {
+  const key = `${season}-${week}`
+  if (!otherWeeksCache.has(key)) {
+    const p = fetchAllRows<EntryRow>((from, to) => supabase
+      .from('weekly_leaderboard')
+      .select('week, picks_made, wins, losses, pushes, total_points, lock_wins, lock_losses')
+      .eq('season', season)
+      .neq('week', week)
+      .order('week', { ascending: true })
+      .order('user_id', { ascending: true })
+      .range(from, to))
+    p.catch(() => otherWeeksCache.delete(key)) // don't cache a failure
+    otherWeeksCache.set(key, p)
+  }
+  return otherWeeksCache.get(key)!
+}
+
+/** Most a still-unscored pick can add: 20 + 5 bonus; the Lock doubles the bonus (+5). */
+const MAX_PICK_POINTS = 25
+const MAX_LOCK_EXTRA = 5
 
 
 interface WeekStats {
@@ -68,6 +106,12 @@ interface WeekStats {
     winnerPickPercentage: number
     loserPickPercentage: number
   } | null
+  records?: {
+    weeks: WeekRow[]      // every week since 2016, this one included
+    current: WeekRow
+    live: boolean         // games still going or picks still unscored
+    watch: WatchItem[]
+  } | null
 }
 
 /**
@@ -132,25 +176,13 @@ export default function GameStatsOverview({
     try {
       setLoading(true)
 
-      // Get weekly leaderboard data - using likely column names
-      const { data: weeklyLeaderboard, error: leaderboardError } = await supabase
+      const weeklyLeaderboard = await fetchAllRows<any>((from, to) => supabase
         .from('weekly_leaderboard')
-        .select(`
-          user_id,
-          display_name,
-          picks_made,
-          total_points,
-          wins,
-          losses,
-          pushes,
-          lock_wins,
-          lock_losses,
-          lock_pushes
-        `)
+        .select('user_id, display_name, picks_made, total_points, wins, losses, pushes, lock_wins, lock_losses, lock_pushes')
         .eq('season', season)
         .eq('week', week)
-
-      if (leaderboardError) throw leaderboardError
+        .order('user_id', { ascending: true })
+        .range(from, to))
 
       if (!weeklyLeaderboard || weeklyLeaderboard.length === 0) {
         setWeekStats({
@@ -232,6 +264,7 @@ export default function GameStatsOverview({
       let seasonRecord = null
       let seasonLockRecord = null
       let seasonStats = null
+      let otherWeekRows: EntryRow[] = []
       
       if (seasonError) {
         console.error('Error fetching season leaderboard:', seasonError)
@@ -274,23 +307,13 @@ export default function GameStatsOverview({
         // this week to a typical week rather than to an average that includes it.
         // Paged: a season is thousands of rows and one request stops at 1,000,
         // which used to average a partial, arbitrary sample.
-        let allWeeklyData: { week: number; wins: number; losses: number; pushes: number; total_points: number }[] = []
         let allWeeksError: any = null
-        const PAGE = 1000
-        for (let from = 0; week > 1; from += PAGE) {
-          const { data, error } = await supabase
-            .from('weekly_leaderboard')
-            .select('week, wins, losses, pushes, total_points')
-            .eq('season', season)
-            .gte('week', 1)
-            .lt('week', week)
-            .order('week', { ascending: true })
-            .order('user_id', { ascending: true })
-            .range(from, from + PAGE - 1)
-          if (error) { allWeeksError = error; break }
-          allWeeklyData = allWeeklyData.concat(data || [])
-          if (!data || data.length < PAGE) break
+        try {
+          otherWeekRows = await loadOtherWeeks(season, week)
+        } catch (err) {
+          allWeeksError = err
         }
+        const allWeeklyData = otherWeekRows.filter(r => r.week >= 1 && r.week < week)
         
         let avgPerfectPerWeek = 0
         let avgZeroPerWeek = 0  
@@ -446,7 +469,35 @@ export default function GameStatsOverview({
         }
       }
 
+      // Records: rank this week against every week since 2016
+      let records: WeekStats['records'] = null
+      try {
+        const current = summarizeWeek(season, week, usersWithPicks)
+        const weeks = allWeeks(summarizeSeason(season, otherWeekRows), current)
+        const pendingOf = (u: any) => Math.max(0, (u.picks_made || 0) - (u.wins || 0) - (u.losses || 0) - (u.pushes || 0))
+        const live = games.some(g => g.status !== 'completed') || usersWithPicks.some(u => pendingOf(u) > 0)
+        const perfectChasing = usersWithPicks.filter(u => (u.losses || 0) === 0 && (u.pushes || 0) === 0 && pendingOf(u) > 0).length
+        const over100Chasing = usersWithPicks.filter(u => {
+          const pts = u.total_points || 0
+          const pending = pendingOf(u)
+          const lockScored = (u.lock_wins || 0) + (u.lock_losses || 0) + (u.lock_pushes || 0) > 0
+          return pts <= 100 && pending > 0 && pts + pending * MAX_PICK_POINTS + (lockScored ? 0 : MAX_LOCK_EXTRA) > 100
+        }).length
+        records = {
+          weeks,
+          current,
+          live,
+          watch: [
+            { stat: 'perfect', now: current.perfect, possible: current.perfect + perfectChasing, chasing: perfectChasing },
+            { stat: 'over100', now: current.over100, possible: current.over100 + over100Chasing, chasing: over100Chasing },
+          ],
+        }
+      } catch (err) {
+        console.warn('Week records unavailable:', err)
+      }
+
       setWeekStats({
+        records,
         totalSubmissions,
         averageScore,
         perfectRecords,
@@ -514,7 +565,14 @@ export default function GameStatsOverview({
     return null
   }
 
-  const showVsAvg = !!weekStats.seasonStats && weekStats.seasonStats.priorWeeks > 0
+  const rec = weekStats.records
+  const live = !!rec?.live
+  // A half-played week vs. full weeks isn't a fair comparison, so "vs. avg"
+  // waits for the final like the record badges do.
+  const showVsAvg = !live && !!weekStats.seasonStats && weekStats.seasonStats.priorWeeks > 0
+  const badges = (stat: Parameters<typeof StatRecordBadges>[0]['stat'], align: 'center' | 'start' = 'center') =>
+    rec && !live ? <StatRecordBadges stat={stat} weeks={rec.weeks} current={rec.current} align={align} /> : null
+  const soFar = live ? ' so far' : ''
 
   return (
     <Card className={className}>
@@ -522,6 +580,10 @@ export default function GameStatsOverview({
         <CardTitle className="text-lg">Week {week} Overview</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {rec && (live
+          ? <RecordWatch items={rec.watch} weeks={rec.weeks} current={rec.current} />
+          : <RecordWeekBanner weeks={rec.weeks} current={rec.current} />)}
+
         {/* Basic Stats Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
           <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
@@ -531,23 +593,26 @@ export default function GameStatsOverview({
           </div>
           <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
             <div className="text-xl font-bold tabular-nums text-[#4B3621]">{weekStats.averageScore}</div>
-            <div className="text-[11px] text-charcoal-500">Average Score</div>
+            <div className="text-[11px] text-charcoal-500">Average Score{soFar}</div>
             {showVsAvg && <VsAvg value={weekStats.averageScore} avg={weekStats.seasonStats!.averageScore} higherIsGood decimals={1} />}
+            {badges('avg')}
           </div>
           <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
             <div className="text-xl font-bold tabular-nums text-[#1f7a44]">{weekStats.perfectRecords}</div>
-            <div className="text-[11px] text-charcoal-500">Perfect Records</div>
+            <div className="text-[11px] text-charcoal-500">Perfect Records{soFar}</div>
             {showVsAvg && <VsAvg value={weekStats.perfectRecords} avg={weekStats.seasonStats!.averagePerfectRecords} higherIsGood />}
+            {badges('perfect')}
           </div>
           <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
             <div className="text-xl font-bold tabular-nums text-[#d1495b]">{weekStats.zeroRecords}</div>
-            <div className="text-[11px] text-charcoal-500">Zero Records</div>
+            <div className="text-[11px] text-charcoal-500">Zero Records{soFar}</div>
             {showVsAvg && <VsAvg value={weekStats.zeroRecords} avg={weekStats.seasonStats!.averageZeroRecords} higherIsGood={false} />}
           </div>
           <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2 text-center">
             <div className="text-xl font-bold tabular-nums text-[#b06a1a]">{weekStats.over100Points}</div>
-            <div className="text-[11px] text-charcoal-500">&gt;100 Points</div>
+            <div className="text-[11px] text-charcoal-500">&gt;100 Points{soFar}</div>
             {showVsAvg && <VsAvg value={weekStats.over100Points} avg={weekStats.seasonStats!.averageOver100Points} higherIsGood />}
+            {badges('over100')}
           </div>
         </div>
 
@@ -556,6 +621,7 @@ export default function GameStatsOverview({
           <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2">
             <div className="text-[11px] text-charcoal-500">Week {week} Record</div>
             <div className="font-bold text-[#4B3621] tabular-nums text-sm">{formatRecord(`${weekStats.overallRecord.wins}-${weekStats.overallRecord.losses}-${weekStats.overallRecord.pushes}`)} <span className="text-charcoal-500 font-semibold">· {weekStats.overallRecord.winPercentage}%</span></div>
+            {badges('winPct', 'start')}
           </div>
           {weekStats.seasonRecord && (
             <div className="rounded-lg bg-[#faf8f4] border border-[#f0ece5] px-3 py-2">
@@ -566,6 +632,7 @@ export default function GameStatsOverview({
           <div className="rounded-lg bg-[#fff5e2] border border-[#f0dcb0] px-3 py-2">
             <div className="text-[11px] text-[#8a6a1f]">Week {week} Lock</div>
             <div className="font-bold text-[#4B3621] tabular-nums text-sm">{formatRecord(`${weekStats.lockRecord.wins}-${weekStats.lockRecord.losses}-${weekStats.lockRecord.pushes}`)} <span className="text-[#8a6a1f] font-semibold">· {weekStats.lockRecord.winPercentage}%</span></div>
+            {badges('lockPct', 'start')}
           </div>
           {weekStats.seasonLockRecord && (
             <div className="rounded-lg bg-[#fff5e2] border border-[#f0dcb0] px-3 py-2">
