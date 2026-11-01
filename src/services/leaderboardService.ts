@@ -90,7 +90,7 @@ export class LeaderboardService {
       if (r.best_finish_user_id) ids.add(r.best_finish_user_id)
     }
     const usersRes = ids.size
-      ? await supabase.from('users').select('id, display_name').in('id', [...ids])
+      ? await supabase.from('public_user_profiles').select('id, display_name').in('id', [...ids])
       : { data: [] as any[] }
     const nameMap = new Map((usersRes.data || []).map((u: any) => [u.id, u.display_name]))
     const slMap = new Map((slRes.data || []).map((r: any) => [r.season, r]))
@@ -457,7 +457,7 @@ export class LeaderboardService {
       // Also query anonymous picks that might be linked to this user
       // Only include picks marked to show on leaderboard
       const anonPicksQuery = supabase
-        .from('anonymous_picks')
+        .from('public_anonymous_picks')
         .select(`
           week,
           result,
@@ -472,7 +472,7 @@ export class LeaderboardService {
 
       // Get user display name separately to avoid relationship ambiguity
       const userQuery = supabase
-        .from('users')
+        .from('public_user_profiles')
         .select('display_name')
         .eq('id', userId)
         .single()
@@ -653,7 +653,7 @@ export class LeaderboardService {
   private static async getAuthenticatedUserPicks(userId: string, season: number, week: number): Promise<UserWeeklyPicks | null> {
     try {
       const { data: userData } = await supabase
-        .from('users')
+        .from('public_user_profiles')
         .select('display_name')
         .eq('id', userId)
         .single()
@@ -748,7 +748,7 @@ export class LeaderboardService {
   private static async getAnonymousUserPicks(userId: string, season: number, week: number): Promise<UserWeeklyPicks | null> {
     try {
       const { data: userData, error: userError } = await supabase
-        .from('users')
+        .from('public_user_profiles')
         .select('display_name')
         .eq('id', userId)
         .single()
@@ -759,31 +759,17 @@ export class LeaderboardService {
       }
 
       const query = supabase
-        .from('anonymous_picks')
-        .select(`
-          game_id,
-          selected_team,
-          is_lock,
-          result,
-          points_earned,
-          games!inner(
-            home_team,
-            away_team,
-            status,
-            kickoff_time,
-            home_score,
-            away_score,
-            spread
-          )
-        `)
+        // public_anonymous_picks: no email/name columns, locked games only (migration 254).
+        // Games are fetched separately rather than embedded through the view.
+        .from('public_anonymous_picks')
+        .select('game_id, selected_team, is_lock, result, points_earned')
         .eq('assigned_user_id', userId)
         .eq('season', season)
         .eq('week', week)
         .eq('show_on_leaderboard', true)
         .eq('disqualified', false)
-        .order('games(kickoff_time)')
 
-      const { data: picks, error } = await Promise.race([
+      const { data: rawPicks, error } = await Promise.race([
         query,
         this.createTimeoutPromise<any>(DETAIL_QUERY_TIMEOUT_MS)
       ])
@@ -793,7 +779,33 @@ export class LeaderboardService {
         throw new LeaderboardDetailError('Could not load these picks.', error)
       }
 
-      if (!picks || picks.length === 0) {
+      if (!rawPicks || rawPicks.length === 0) {
+        return null
+      }
+
+      const gameIds = [...new Set((rawPicks as any[]).map(p => p.game_id))]
+      const { data: gameRows, error: gamesError } = await Promise.race([
+        supabase
+          .from('games')
+          .select('id, home_team, away_team, status, kickoff_time, home_score, away_score, spread')
+          .in('id', gameIds),
+        this.createTimeoutPromise<any>(DETAIL_QUERY_TIMEOUT_MS)
+      ])
+
+      if (gamesError) {
+        console.log('❌ [ANONYMOUS PICKS] Games query failed:', gamesError.message)
+        throw new LeaderboardDetailError('Could not load these picks.', gamesError)
+      }
+
+      // Same shape the embedded join produced: picks without a game are dropped
+      // (inner join) and the list is ordered by kickoff.
+      const gameById = new Map((gameRows || []).map((g: any) => [g.id, g]))
+      const picks = (rawPicks as any[])
+        .filter(p => gameById.has(p.game_id))
+        .map(p => ({ ...p, games: gameById.get(p.game_id) }))
+        .sort((a, b) => new Date(a.games.kickoff_time).getTime() - new Date(b.games.kickoff_time).getTime())
+
+      if (picks.length === 0) {
         return null
       }
 

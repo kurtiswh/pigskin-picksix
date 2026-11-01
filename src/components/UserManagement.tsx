@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
+import { getRestHeaders } from '@/lib/restHeaders'
 import { UserWithPayment, LeagueSafePayment } from '@/types'
 import { ENV } from '@/lib/env'
 import LeagueSafeUpload from './LeagueSafeUpload'
@@ -740,15 +741,9 @@ export default function UserManagement() {
           if (selectedUser) {
             // Wait for the state to update by manually re-fetching the specific user
             const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-            const apiKey = ENV.SUPABASE_ANON_KEY
-            
             // Fetch the specific user with updated payment data
             const userResponse = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${selectedUser.id}&select=*`, {
-              headers: {
-                'apikey': apiKey || '',
-                'Authorization': `Bearer ${apiKey || ''}`,
-                'Content-Type': 'application/json'
-              }
+              headers: await getRestHeaders()
             })
             
             if (userResponse.ok) {
@@ -758,11 +753,7 @@ export default function UserManagement() {
                 
                 // Load payment data for this user
                 const paymentsResponse = await fetch(`${supabaseUrl}/rest/v1/leaguesafe_payments?user_id=eq.${user.id}&select=*`, {
-                  headers: {
-                    'apikey': apiKey || '',
-                    'Authorization': `Bearer ${apiKey || ''}`,
-                    'Content-Type': 'application/json'
-                  }
+                  headers: await getRestHeaders()
                 })
                 
                 let season_payment_history = []

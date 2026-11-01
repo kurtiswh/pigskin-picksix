@@ -363,7 +363,7 @@ export class WinnersService {
     // Get user display names for lock winners
     const lockUserIds = lockWinners.map(([userId]) => userId)
     const { data: lockUsers } = await supabase
-      .from('users')
+      .from('public_user_profiles')
       .select('id, display_name')
       .in('id', lockUserIds)
 
@@ -376,7 +376,7 @@ export class WinnersService {
     ].filter(Boolean) as string[]
 
     const { data: bracketUsers } = await supabase
-      .from('users')
+      .from('public_user_profiles')
       .select('id, display_name')
       .in('id', bracketUserIds)
 
@@ -466,7 +466,7 @@ export class WinnersService {
     ;(stored.weekly_winners || []).forEach((w: any) => { if (w?.user_id) ids.add(w.user_id) })
 
     const { data: users } = ids.size
-      ? await supabase.from('users').select('id, display_name').in('id', [...ids])
+      ? await supabase.from('public_user_profiles').select('id, display_name').in('id', [...ids])
       : { data: [] as any[] }
     const userMap = new Map((users || []).map((u: any) => [u.id, u.display_name]))
 

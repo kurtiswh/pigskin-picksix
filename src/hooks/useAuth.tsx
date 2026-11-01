@@ -121,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (data.session?.user) {
             console.log('✅ [INIT] Email confirmation successful - user signed in!')
             // Don't clear the URL immediately - let LoginPage show success message first
-            await fetchUserProfile(data.session.user.id, data.session.user.email)
+            await fetchUserProfile(data.session.user.id, data.session.user.email, data.session.access_token)
             return
           }
         }
@@ -144,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (data.session?.user) {
             console.log(`✅ [INIT] ${type} authentication successful`)
             // Don't clear the URL hash immediately - let LoginPage show success message first
-            await fetchUserProfile(data.session.user.id, data.session.user.email)
+            await fetchUserProfile(data.session.user.id, data.session.user.email, data.session.access_token)
             return
           }
         }
@@ -175,7 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (session?.user) {
           console.log('🚀 [INIT] Step 3: Found session user, calling fetchUserProfile')
-          await fetchUserProfile(session.user.id, session.user.email)
+          await fetchUserProfile(session.user.id, session.user.email, session.access_token)
         } else {
           console.log('🚀 [INIT] Step 3: No session user found, setting loading to false')
           setLoading(false)
@@ -199,7 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (session?.user) {
         console.log('🔄 [AUTH-CHANGE] Calling fetchUserProfile - this may cause pinwheel')
-        await fetchUserProfile(session.user.id, session.user.email)
+        await fetchUserProfile(session.user.id, session.user.email, session.access_token)
         console.log('🔄 [AUTH-CHANGE] fetchUserProfile completed')
       } else {
         console.log('🔄 [AUTH-CHANGE] No session user, setting user to null')
@@ -316,7 +316,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const fetchUserProfile = async (userId: string, userEmail?: string, force = false) => {
+  // accessToken: the signed-in user's JWT. The profile request must carry it (not the anon
+  // key) so RLS sees who is asking; once the public read policy on users is removed
+  // (migration 255) an anon-key request returns nothing. It is passed in rather than read
+  // with getSession() because this runs inside onAuthStateChange, where awaiting other
+  // supabase-js auth calls can deadlock.
+  const fetchUserProfile = async (userId: string, userEmail?: string, accessToken?: string, force = false) => {
     if (!force && profileCache && profileCache.authId === userId && Date.now() - profileCache.at < PROFILE_TTL_MS) {
       setUser(profileCache.user)
       setLoading(false)
@@ -338,7 +343,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUserState(u)
     }
     try {
-      await fetchUserProfileUncached(userId, userEmail, captureUser)
+      await fetchUserProfileUncached(userId, userEmail, captureUser, accessToken)
     } finally {
       if (found) profileCache = { authId: userId, user: found, at: Date.now() }
       else if (profileCache?.authId === userId) profileCache = null
@@ -347,7 +352,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const fetchUserProfileUncached = async (userId: string, userEmail: string | undefined, setUser: (u: User | null) => void) => {
+  const fetchUserProfileUncached = async (userId: string, userEmail: string | undefined, setUser: (u: User | null) => void, accessToken?: string) => {
     console.log('👤 [FETCH-PROFILE] Starting fetchUserProfile for ID:', userId)
     console.log('👤 [FETCH-PROFILE] User email provided:', userEmail)
     console.log('👤 [FETCH-PROFILE] This function may be causing the pinwheel if it hangs')
@@ -372,7 +377,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         method: 'GET',
         headers: {
           'apikey': apiKey || '',
-          'Authorization': `Bearer ${apiKey || ''}`,
+          'Authorization': `Bearer ${accessToken || apiKey || ''}`,
           'Content-Type': 'application/json',
           'Prefer': 'return=representation'
         }
@@ -403,7 +408,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           method: 'GET',
           headers: {
             'apikey': apiKey || '',
-            'Authorization': `Bearer ${apiKey || ''}`,
+            'Authorization': `Bearer ${accessToken || apiKey || ''}`,
             'Content-Type': 'application/json',
             'Prefer': 'return=representation'
           }
@@ -639,7 +644,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user?.id) {
-      await fetchUserProfile(session.user.id, session.user.email, true)
+      await fetchUserProfile(session.user.id, session.user.email, session.access_token, true)
     }
   }
 

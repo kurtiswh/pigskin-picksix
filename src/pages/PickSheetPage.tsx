@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { Navigate, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { getRestHeaders } from '@/lib/restHeaders'
 import { getActiveWeek } from '@/services/weekService'
 import { getWeekDataDirect } from '@/lib/supabase-direct'
 import { ENV } from '@/lib/env'
@@ -274,15 +275,12 @@ export default function PickSheetPage() {
         try {
           console.log('📋 Loading user picks via direct API...')
           const supabaseUrl = ENV.SUPABASE_URL || 'https://zgdaqbnpgrabbnljmiqy.supabase.co'
-          const apiKey = ENV.SUPABASE_ANON_KEY
 
+          // Must carry the user's token: once picks are hidden until kickoff
+          // (migration 255) an anon-key request would come back empty here.
           const picksResponse = await fetch(`${supabaseUrl}/rest/v1/picks?user_id=eq.${user!.id}&week=eq.${currentWeek}&season=eq.${currentSeason}`, {
             method: 'GET',
-            headers: {
-              'apikey': apiKey || '',
-              'Authorization': `Bearer ${apiKey || ''}`,
-              'Content-Type': 'application/json'
-            }
+            headers: await getRestHeaders()
           })
 
           if (picksResponse.ok) {
