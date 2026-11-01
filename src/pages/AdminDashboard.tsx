@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { getWeekDataDirect, unsaveGamesDirect } from '@/lib/supabase-direct'
 import { WeekSettings } from '@/types'
 import { getGamesWithSpreads, CFBGame } from '@/services/collegeFootballApi'
-import { getActiveWeek } from '@/services/weekService'
+import { getActiveWeek, clearWeekCache } from '@/services/weekService'
 import { ENV } from '@/lib/env'
 import { getRestHeaders } from '@/lib/restHeaders'
 import AdminGameSelector, { sameMatchup } from '@/components/AdminGameSelector'
@@ -600,6 +600,7 @@ export default function AdminDashboard() {
           throw new Error(`Failed to update week settings: ${updateResponse.status} - ${errorText}`)
         }
 
+        clearWeekCache()
         updatedSettings = await updateResponse.json()
         console.log('✅ Week settings updated:', updatedSettings)
         console.log('🔍 Updated settings length:', updatedSettings.length)
@@ -778,6 +779,7 @@ export default function AdminDashboard() {
         throw new Error(`Failed to update settings: ${updateResponse.status} - ${errorText}`)
       }
 
+      clearWeekCache()
       const updatedSettings = await updateResponse.json()
       console.log('✅ Settings updated via direct API:', updatedSettings)
 

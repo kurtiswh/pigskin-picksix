@@ -6,6 +6,13 @@ import { ENV } from '@/lib/env'
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// The profile row barely changes, but fetchUserProfile runs on every auth event
+// (initial session, sign-in, hourly token refresh) and often twice on page load.
+// Reuse a recent result for the same user instead of refetching each time.
+const PROFILE_TTL_MS = 10 * 60 * 1000
+let profileCache: { authId: string; user: User; at: number } | null = null
+let profileInFlight: { authId: string; promise: Promise<User | null> } | null = null
+
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
@@ -17,7 +24,8 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   console.log('🚀 [STARTUP] AuthProvider component initializing')
   
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUserState] = useState<User | null>(null)
+  const setUser = setUserState
   const [loading, setLoading] = useState(true)
   const [, setUserCache] = useState<{[key: string]: {user: User, timestamp: number}}>({})
   
@@ -195,6 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('🔄 [AUTH-CHANGE] fetchUserProfile completed')
       } else {
         console.log('🔄 [AUTH-CHANGE] No session user, setting user to null')
+        profileCache = null
         setUser(null)
         setLoading(false)
       }
@@ -307,7 +316,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const fetchUserProfile = async (userId: string, userEmail?: string) => {
+  const fetchUserProfile = async (userId: string, userEmail?: string, force = false) => {
+    if (!force && profileCache && profileCache.authId === userId && Date.now() - profileCache.at < PROFILE_TTL_MS) {
+      setUser(profileCache.user)
+      setLoading(false)
+      return
+    }
+    // Two callers racing on page load share one request
+    if (!force && profileInFlight && profileInFlight.authId === userId) {
+      const shared = await profileInFlight.promise
+      setUser(shared)
+      setLoading(false)
+      return
+    }
+    let resolveShared: (u: User | null) => void = () => {}
+    const promise = new Promise<User | null>(r => { resolveShared = r })
+    profileInFlight = { authId: userId, promise }
+    let found: User | null = null
+    const captureUser = (u: User | null) => {
+      found = u
+      setUserState(u)
+    }
+    try {
+      await fetchUserProfileUncached(userId, userEmail, captureUser)
+    } finally {
+      if (found) profileCache = { authId: userId, user: found, at: Date.now() }
+      else if (profileCache?.authId === userId) profileCache = null
+      resolveShared(found)
+      if (profileInFlight?.promise === promise) profileInFlight = null
+    }
+  }
+
+  const fetchUserProfileUncached = async (userId: string, userEmail: string | undefined, setUser: (u: User | null) => void) => {
     console.log('👤 [FETCH-PROFILE] Starting fetchUserProfile for ID:', userId)
     console.log('👤 [FETCH-PROFILE] User email provided:', userEmail)
     console.log('👤 [FETCH-PROFILE] This function may be causing the pinwheel if it hangs')
@@ -520,6 +560,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('🚪 Starting sign out process...')
       
       // Clear local state first to provide immediate feedback
+      profileCache = null
       setUser(null)
       setUserCache({})
       setLoading(false)
@@ -540,6 +581,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('❌ Error during sign out:', err)
       // Force sign out even if Supabase fails
+      profileCache = null
       setUser(null)
       setUserCache({})
       setLoading(false)
@@ -597,7 +639,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user?.id) {
-      await fetchUserProfile(session.user.id, session.user.email)
+      await fetchUserProfile(session.user.id, session.user.email, true)
     }
   }
 

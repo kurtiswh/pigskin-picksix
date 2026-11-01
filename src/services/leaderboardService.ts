@@ -31,6 +31,22 @@ export class LeaderboardDetailError extends Error {
 // and the row went permanently blank.
 const DETAIL_QUERY_TIMEOUT_MS = 12000
 
+/** One row of get_historical_season_rankings: season standings through a given week */
+interface HistoricalSeasonRanking {
+  user_id: string
+  display_name: string
+  total_points: number
+  total_wins: number
+  total_losses: number
+  total_pushes: number
+  lock_wins: number
+  lock_losses: number
+  lock_pushes: number
+  payment_status: string | null
+  pick_source: string | null
+  season_rank: number
+}
+
 export interface SeasonChampion {
   season: number
   champion: { display_name: string; total_points: number | null; record: string | null } | null
@@ -295,8 +311,8 @@ export class LeaderboardService {
       
       // Create a map of previous rankings by user_id
       const previousRankMap = new Map<string, number>()
-      previousWeekRankings.forEach((entry, index) => {
-        previousRankMap.set(entry.user_id, index + 1) // Rankings are 1-based
+      previousWeekRankings.forEach(entry => {
+        previousRankMap.set(entry.user_id, entry.season_rank)
       })
       
       console.log('📈 Previous rank map created with', previousRankMap.size, 'entries')
@@ -355,195 +371,63 @@ export class LeaderboardService {
    * Shows what the season standings looked like at the end of that week
    */
   static async getSeasonLeaderboardAsOfWeek(season: number, throughWeek: number): Promise<LeaderboardEntry[]> {
-    console.log('📊 LeaderboardService.getSeasonLeaderboardAsOfWeek:', { season, throughWeek })
-    
-    try {
-      // Use the existing private method to get historical rankings
-      const rankings = await this.getSeasonRankingsAsOfWeek(season, throughWeek)
-      
-      if (!rankings || rankings.length === 0) {
-        console.log('📊 No historical data found for season', season, 'through week', throughWeek)
-        return []
-      }
-      
-      // Get additional data from weekly leaderboards for full records
-      console.log(`📊 Fetching weekly data for season ${season} through week ${throughWeek}`)
-      
-      // Fetch data week by week to avoid Supabase limit issues
-      let weeklyData: any[] = []
-      for (let week = 1; week <= throughWeek; week++) {
-        console.log(`📊 Fetching data for week ${week}`)
-        const { data: weekData, error: weekError } = await supabase
-          .from('weekly_leaderboard')
-          .select('user_id, display_name, week, wins, losses, pushes, lock_wins, lock_losses, lock_pushes, payment_status, pick_source')
-          .eq('season', season)
-          .eq('week', week)
-          .order('user_id', { ascending: true })
-        
-        if (weekError) {
-          console.error(`Error fetching week ${week} data:`, weekError)
-          continue
-        }
-        
-        if (weekData) {
-          console.log(`📊 Week ${week}: Found ${weekData.length} entries`)
-          weeklyData = weeklyData.concat(weekData)
-        }
-      }
-      
-      const weeklyError = null // No single error since we're doing multiple queries
-      
-      if (weeklyError) {
-        console.error('Error fetching weekly details:', weeklyError)
-      }
-      
-      // Aggregate weekly records
-      const userRecords = new Map<string, any>()
-      console.log('📊 Raw weekly data for aggregation:', weeklyData?.length, 'entries')
-      
-      // First, let's see what weeks we have data for
-      const weekCounts: Record<string, number> = {}
-      weeklyData?.forEach(entry => {
-        weekCounts[entry.week] = (weekCounts[entry.week] || 0) + 1
-      })
-      console.log('📊 Week distribution:', weekCounts)
-      
-      weeklyData?.forEach(entry => {
-        // Only log first few entries to avoid spam
-        if ((weekCounts[entry.week] || 0) <= 3) {
-          console.log(`📊 Processing: User ${entry.display_name} Week ${entry.week}: ${entry.wins}-${entry.losses}-${entry.pushes}`)
-        }
-        
-        const existing = userRecords.get(entry.user_id) || {
-          wins: 0, losses: 0, pushes: 0,
-          lock_wins: 0, lock_losses: 0, lock_pushes: 0,
-          payment_status: entry.payment_status,
-          pick_source: entry.pick_source
-        }
-        existing.wins += entry.wins || 0
-        existing.losses += entry.losses || 0
-        existing.pushes += entry.pushes || 0
-        existing.lock_wins += entry.lock_wins || 0
-        existing.lock_losses += entry.lock_losses || 0
-        existing.lock_pushes += entry.lock_pushes || 0
-        userRecords.set(entry.user_id, existing)
-      })
-      
-      // Log final aggregated records for debugging
-      userRecords.forEach((record, userId) => {
-        const totalGames = record.wins + record.losses + record.pushes
-        console.log(`📊 Final aggregated for ${userId}: ${record.wins}-${record.losses}-${record.pushes} (${totalGames} total games)`)
-      })
-      
-      // Format as LeaderboardEntry
-      const entries: LeaderboardEntry[] = rankings.map((user, index) => {
-        const records = userRecords.get(user.user_id) || {}
-        return {
-          user_id: user.user_id,
-          display_name: user.display_name,
-          season_record: `${records.wins || 0}-${records.losses || 0}-${records.pushes || 0}`,
-          weekly_record: '',
-          lock_record: `${records.lock_wins || 0}-${records.lock_losses || 0}-${records.lock_pushes || 0}`,
-          season_points: user.total_points || 0,
-          weekly_points: 0,
-          total_points: user.total_points || 0,
-          season_rank: index + 1,
-          weekly_rank: 0,
-          payment_status: records.payment_status,
-          is_verified: true,
-          pick_source: records.pick_source || 'authenticated',
-          total_picks: (records.wins || 0) + (records.losses || 0) + (records.pushes || 0),
-          total_wins: records.wins || 0,
-          total_losses: records.losses || 0,
-          total_pushes: records.pushes || 0,
-          lock_wins: records.lock_wins || 0,
-          lock_losses: records.lock_losses || 0,
-          lock_pushes: records.lock_pushes || 0
-        }
-      })
-      
-      console.log('✅ Historical season leaderboard generated:', entries.length, 'entries')
-      return entries
-      
-    } catch (error) {
-      console.error('📊 Failed to get historical season leaderboard:', error)
-      throw error
-    }
+    // One RPC returns the standings through `throughWeek` with records already summed.
+    // (This used to fetch weekly_leaderboard once per week, twice over: the main egress cost.)
+    const rankings = await this.getSeasonRankingsAsOfWeek(season, throughWeek)
+    return rankings.map(r => ({
+      user_id: r.user_id,
+      display_name: r.display_name,
+      season_record: `${r.total_wins}-${r.total_losses}-${r.total_pushes}`,
+      weekly_record: '',
+      lock_record: `${r.lock_wins}-${r.lock_losses}-${r.lock_pushes}`,
+      season_points: r.total_points,
+      weekly_points: 0,
+      total_points: r.total_points,
+      season_rank: r.season_rank,
+      weekly_rank: 0,
+      payment_status: r.payment_status,
+      is_verified: true,
+      pick_source: (r.pick_source || 'authenticated') as LeaderboardEntry['pick_source'],
+      total_picks: r.total_wins + r.total_losses + r.total_pushes,
+      total_wins: r.total_wins,
+      total_losses: r.total_losses,
+      total_pushes: r.total_pushes,
+      lock_wins: r.lock_wins,
+      lock_losses: r.lock_losses,
+      lock_pushes: r.lock_pushes
+    }))
   }
-  
+
   /**
-   * Get season rankings as they were at the end of a specific week (private helper)
-   * Uses same logic as season_leaderboard view but filtered to specific week
+   * Season standings through a given week, ranked the same way as season_leaderboard.
+   * Backed by the get_historical_season_rankings RPC (migration 253). On failure this
+   * returns [] (callers then show no rank change) rather than falling back to per-week
+   * fetches, which is what used to drive most of the project's egress.
    */
-  private static async getSeasonRankingsAsOfWeek(season: number, throughWeek: number): Promise<any[]> {
-    console.log('📊 Calculating season rankings through week', throughWeek)
-    console.log('📊 Parameters:', { season, throughWeek, throughWeekType: typeof throughWeek })
-    
-    try {
-      // Use a more complex query that mirrors the season_leaderboard view logic
-      // but filters to only include picks through the specified week
-      const { data, error } = await supabase.rpc('get_historical_season_rankings', {
-        p_season: season,
-        p_through_week: throughWeek
-      })
-      
-      if (error) {
-        console.warn('📊 RPC function not available, falling back to simpler calculation:', error.message)
-        
-        // Fallback: Use weekly leaderboards and sum them up (fetch week by week)
-        let weeklyData: any[] = []
-        for (let week = 1; week <= throughWeek; week++) {
-          const { data: weekData, error: weekError } = await supabase
-            .from('weekly_leaderboard')
-            .select('user_id, display_name, total_points, week')
-            .eq('season', season)
-            .eq('week', week)
-            .order('user_id', { ascending: true })
-          
-          if (weekError) {
-            console.error(`Error fetching week ${week} fallback data:`, weekError)
-            continue
-          }
-          
-          if (weekData) {
-            weeklyData = weeklyData.concat(weekData)
-          }
-        }
-        
-        const weeklyError = null // No single error since we're doing multiple queries
-        
-        if (weeklyError) {
-          console.error('Error fetching weekly data for historical calculation:', weeklyError)
-          return []
-        }
-        
-        // Aggregate by user
-        const userTotals = new Map<string, { user_id: string, display_name: string, total_points: number }>()
-        
-        weeklyData?.forEach(entry => {
-          const existing = userTotals.get(entry.user_id) || {
-            user_id: entry.user_id,
-            display_name: entry.display_name,
-            total_points: 0
-          }
-          existing.total_points += entry.total_points || 0
-          userTotals.set(entry.user_id, existing)
-        })
-        
-        const rankings = Array.from(userTotals.values())
-          .sort((a, b) => b.total_points - a.total_points)
-        
-        console.log('✅ Calculated historical rankings using weekly data:', rankings.length, 'users')
-        return rankings
-      }
-      
-      console.log('✅ Calculated historical rankings using RPC:', data?.length || 0, 'users')
-      return data || []
-      
-    } catch (error) {
-      console.error('Error calculating historical rankings:', error)
+  private static async getSeasonRankingsAsOfWeek(season: number, throughWeek: number): Promise<HistoricalSeasonRanking[]> {
+    const { data, error } = await supabase.rpc('get_historical_season_rankings', {
+      p_season: season,
+      p_through_week: throughWeek
+    })
+    if (error) {
+      console.error('get_historical_season_rankings failed:', error.message)
       return []
     }
+    // bigint columns can arrive as strings; normalize to numbers
+    return (data || []).map((r: Record<string, unknown>) => ({
+      user_id: r.user_id as string,
+      display_name: r.display_name as string,
+      total_points: Number(r.total_points) || 0,
+      total_wins: Number(r.total_wins) || 0,
+      total_losses: Number(r.total_losses) || 0,
+      total_pushes: Number(r.total_pushes) || 0,
+      lock_wins: Number(r.lock_wins) || 0,
+      lock_losses: Number(r.lock_losses) || 0,
+      lock_pushes: Number(r.lock_pushes) || 0,
+      payment_status: (r.payment_status as string) ?? null,
+      pick_source: (r.pick_source as string) ?? null,
+      season_rank: Number(r.season_rank) || 0
+    }))
   }
 
   /**

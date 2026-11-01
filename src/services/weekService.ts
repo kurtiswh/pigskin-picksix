@@ -1,5 +1,24 @@
 import { supabase } from '@/lib/supabase'
 
+// "Which week is it" lookups run on nearly every page and change only when an admin
+// opens a week or a game goes final. Share one answer per season for a short window
+// (and one in-flight request) instead of asking the database on every navigation.
+const WEEK_CACHE_TTL_MS = 2 * 60 * 1000
+const weekCache = new Map<string, { at: number; value: Promise<number> }>()
+
+function cachedWeek(key: string, load: () => Promise<number>): Promise<number> {
+  const hit = weekCache.get(key)
+  if (hit && Date.now() - hit.at < WEEK_CACHE_TTL_MS) return hit.value
+  const value = load()
+  weekCache.set(key, { at: Date.now(), value })
+  return value
+}
+
+/** Drop cached week lookups (call after an admin changes week_settings). */
+export function clearWeekCache(): void {
+  weekCache.clear()
+}
+
 /**
  * Highest week configured for a season (has games selected). Used to bound the
  * week-picker dropdowns so they only list weeks that actually exist, instead of
@@ -8,7 +27,11 @@ import { supabase } from '@/lib/supabase'
  * @param season - The season year
  * @returns The max configured week, or 0 if none found
  */
-export async function getMaxConfiguredWeek(season: number): Promise<number> {
+export function getMaxConfiguredWeek(season: number): Promise<number> {
+  return cachedWeek(`getMaxConfiguredWeek:${season}`, () => getMaxConfiguredWeekUncached(season))
+}
+
+async function getMaxConfiguredWeekUncached(season: number): Promise<number> {
   try {
     const { data, error } = await supabase
       .from('week_settings')
@@ -34,7 +57,11 @@ export async function getMaxConfiguredWeek(season: number): Promise<number> {
  * @param season - The season year
  * @returns The active week number that should be displayed
  */
-export async function getActiveWeek(season: number): Promise<number> {
+export function getActiveWeek(season: number): Promise<number> {
+  return cachedWeek(`getActiveWeek:${season}`, () => getActiveWeekUncached(season))
+}
+
+async function getActiveWeekUncached(season: number): Promise<number> {
   try {
     // First, try to get the most recent week with picks_open = true
     const { data: openWeek, error: openWeekError } = await supabase
@@ -103,7 +130,11 @@ export async function getActiveWeekSettings(season: number) {
  * @param season - The season year
  * @returns The latest week number with completed games, or 1 if none found
  */
-export async function getLatestWeekWithResults(season: number): Promise<number> {
+export function getLatestWeekWithResults(season: number): Promise<number> {
+  return cachedWeek(`getLatestWeekWithResults:${season}`, () => getLatestWeekWithResultsUncached(season))
+}
+
+async function getLatestWeekWithResultsUncached(season: number): Promise<number> {
   try {
     console.log('🔍 Finding latest week with results for season', season)
     

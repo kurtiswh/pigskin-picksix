@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Layout from '@/components/Layout'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -47,6 +47,18 @@ interface WeekSettings {
   picks_open: boolean
 }
 
+// Background polling only matters while something can still change. A game is
+// "active" from 15 minutes before kickoff until it goes final.
+const PRE_KICKOFF_MS = 15 * 60 * 1000
+const hasActiveGame = (games: Game[], now = Date.now()) =>
+  games.some(g => g.status !== 'completed' && new Date(g.kickoff_time).getTime() - PRE_KICKOFF_MS <= now)
+// Picks are scored server-side after a game goes final, so keep refreshing picks
+// until every pick on a finished game carries a result.
+const hasUnscoredFinalPick = (games: Game[], picks: Pick[]) => {
+  const finals = new Set(games.filter(g => g.status === 'completed').map(g => g.id))
+  return picks.some(p => finals.has(p.game_id) && !p.result)
+}
+
 export default function GamesPage() {
   const { season: urlSeason, week: urlWeek } = useParams()
   const navigate = useNavigate()
@@ -71,6 +83,11 @@ export default function GamesPage() {
   const [games, setGames] = useState<Game[]>([])
   const [weekSettings, setWeekSettings] = useState<WeekSettings | null>(null)
   const [userPicks, setUserPicks] = useState<Pick[]>([])
+  // Latest games/picks for the polling intervals, which outlive any one render
+  const gamesRef = useRef<Game[]>([])
+  const picksRef = useRef<Pick[]>([])
+  gamesRef.current = games
+  picksRef.current = userPicks
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [offline] = useState(false)
@@ -137,14 +154,22 @@ export default function GamesPage() {
     }, 30000)
 
     // Silent background refresh of scores/stats (server-side automation is the
-    // source of truth; this just keeps the on-screen data reasonably fresh)
-    const dataRefreshInterval = setInterval(() => {
+    // source of truth; this just keeps the on-screen data reasonably fresh).
+    // Skipped while the tab is hidden or no game is live/about to start: an idle
+    // tab left open on this page used to poll all day, every minute.
+    const maybeRefreshGames = () => {
+      if (document.hidden || !hasActiveGame(gamesRef.current)) return
       silentUpdateGames()
-    }, 60000)
+    }
+    const dataRefreshInterval = setInterval(maybeRefreshGames, 60000)
+    // Coming back to the tab: catch up right away instead of waiting a minute
+    const onVisible = () => { if (!document.hidden) maybeRefreshGames() }
+    document.addEventListener('visibilitychange', onVisible)
 
     return () => {
       clearInterval(gameRefreshInterval)
       clearInterval(dataRefreshInterval)
+      document.removeEventListener('visibilitychange', onVisible)
     }
   }, [seasonReady, currentSeason, currentWeek])
 
@@ -158,10 +183,19 @@ export default function GamesPage() {
     // after a game goes final, so a page loaded during the game would otherwise
     // keep the unscored pick until a manual reload. The interval lives here (not
     // with the games interval) so it closes over the resolved user.
-    const picksRefreshInterval = setInterval(() => {
+    // Only while a game is live or a finished game's pick is still unscored.
+    const maybeRefreshPicks = () => {
+      if (document.hidden || !user) return
+      if (!hasActiveGame(gamesRef.current) && !hasUnscoredFinalPick(gamesRef.current, picksRef.current)) return
       loadUserPicks(true)
-    }, 60000)
-    return () => clearInterval(picksRefreshInterval)
+    }
+    const picksRefreshInterval = setInterval(maybeRefreshPicks, 60000)
+    const onVisible = () => { if (!document.hidden) maybeRefreshPicks() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(picksRefreshInterval)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [user?.id, currentSeason, currentWeek])
 
   useEffect(() => {
