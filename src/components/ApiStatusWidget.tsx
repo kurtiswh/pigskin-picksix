@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { testApiConnection, getCurrentWeek } from '@/services/collegeFootballApi'
+import { testApiConnection } from '@/services/collegeFootballApi'
 
 interface ApiStatusWidgetProps {
   season: number
+  /** Week selected on the admin page; the dropdown shows this, not a calendar guess */
+  week: number
   onWeekChange?: (week: number) => void
 }
 
-export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidgetProps) {
+export default function ApiStatusWidget({ season, week, onWeekChange }: ApiStatusWidgetProps) {
   const [apiStatus, setApiStatus] = useState<'unknown' | 'connected' | 'error' | 'quota_exceeded'>('unknown')
-  const [currentWeek, setCurrentWeek] = useState(getCurrentWeek(season))
   const [testing, setTesting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [missingKey, setMissingKey] = useState(false)
@@ -53,7 +54,6 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
   }
 
   const handleWeekChange = (newWeek: number) => {
-    setCurrentWeek(newWeek)
     onWeekChange?.(newWeek)
   }
 
@@ -92,7 +92,7 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
             <div className="flex items-center space-x-2">
               <span className="text-sm font-medium">Week:</span>
               <select
-                value={currentWeek}
+                value={week || ''}
                 onChange={(e) => handleWeekChange(parseInt(e.target.value))}
                 className="border rounded px-2 py-1 text-sm"
               >
@@ -183,7 +183,7 @@ export default function ApiStatusWidget({ season, onWeekChange }: ApiStatusWidge
         )}
         
         <div className="mt-2 text-xs text-gray-500">
-          Season {season} • Current week: {getCurrentWeek(season)} • Data from CollegeFootballData.com
+          Season {season} • Setting up week {week || '…'} • Data from CollegeFootballData.com
         </div>
       </CardContent>
     </Card>

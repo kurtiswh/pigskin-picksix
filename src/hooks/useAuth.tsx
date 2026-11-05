@@ -11,7 +11,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 // Reuse a recent result for the same user instead of refetching each time.
 const PROFILE_TTL_MS = 10 * 60 * 1000
 let profileCache: { authId: string; user: User; at: number } | null = null
-let profileInFlight: { authId: string; promise: Promise<User | null> } | null = null
+// Resolves to undefined when the load was rejected and a session refresh is reloading it
+let profileInFlight: { authId: string; promise: Promise<User | null | undefined> } | null = null
+// Last time a rejected (401) profile load triggered a session refresh, so a token that
+// keeps being rejected cannot loop refresh -> 401 -> refresh.
+let lastProfileRefreshAt = 0
 
 export function useAuth() {
   const context = useContext(AuthContext)
@@ -330,29 +334,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Two callers racing on page load share one request
     if (!force && profileInFlight && profileInFlight.authId === userId) {
       const shared = await profileInFlight.promise
+      if (shared === undefined) return // refresh in progress; it will set the user
       setUser(shared)
       setLoading(false)
       return
     }
-    let resolveShared: (u: User | null) => void = () => {}
-    const promise = new Promise<User | null>(r => { resolveShared = r })
+    let resolveShared: (u: User | null | undefined) => void = () => {}
+    const promise = new Promise<User | null | undefined>(r => { resolveShared = r })
     profileInFlight = { authId: userId, promise }
     let found: User | null = null
     const captureUser = (u: User | null) => {
       found = u
       setUserState(u)
     }
+    let outcome: 'unauthorized' | void = undefined
     try {
-      await fetchUserProfileUncached(userId, userEmail, captureUser, accessToken)
+      outcome = await fetchUserProfileUncached(userId, userEmail, captureUser, accessToken)
     } finally {
       if (found) profileCache = { authId: userId, user: found, at: Date.now() }
       else if (profileCache?.authId === userId) profileCache = null
-      resolveShared(found)
+      resolveShared(outcome === 'unauthorized' ? undefined : found)
       if (profileInFlight?.promise === promise) profileInFlight = null
+    }
+
+    if (outcome === 'unauthorized') {
+      // The session's access token was rejected, usually because a returning visitor's
+      // saved token expired before supabase-js refreshed it. Refresh and load again rather
+      // than showing them as signed out. setTimeout moves the refresh outside
+      // onAuthStateChange, where awaiting auth calls can deadlock. If the refresh fails,
+      // they really are signed out.
+      if (Date.now() - lastProfileRefreshAt < 60_000) {
+        setUserState(null)
+        setLoading(false)
+        return
+      }
+      lastProfileRefreshAt = Date.now()
+      setTimeout(async () => {
+        try {
+          const { data, error } = await supabase.auth.refreshSession()
+          if (error || !data.session) throw error || new Error('No session after refresh')
+          await fetchUserProfile(data.session.user.id, data.session.user.email, data.session.access_token)
+        } catch (err) {
+          console.warn('Session refresh after rejected profile load failed:', err)
+          setUserState(null)
+          setLoading(false)
+        }
+      }, 0)
     }
   }
 
-  const fetchUserProfileUncached = async (userId: string, userEmail: string | undefined, setUser: (u: User | null) => void, accessToken?: string) => {
+  const fetchUserProfileUncached = async (userId: string, userEmail: string | undefined, setUser: (u: User | null) => void, accessToken?: string): Promise<'unauthorized' | void> => {
+    // Set when the token was rejected: the caller refreshes, so stay in the loading state
+    let keepLoading = false
     console.log('👤 [FETCH-PROFILE] Starting fetchUserProfile for ID:', userId)
     console.log('👤 [FETCH-PROFILE] User email provided:', userEmail)
     console.log('👤 [FETCH-PROFILE] This function may be causing the pinwheel if it hangs')
@@ -384,6 +417,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       console.log('🔍 ID search response status:', response.status)
+
+      if (response.status === 401 && accessToken) {
+        keepLoading = true
+        return 'unauthorized'
+      }
 
       if (response.status === 200) {
         const data = await response.json()
@@ -443,8 +481,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('❌ Exception in fetchUserProfile:', error)
       setUser(null)
     } finally {
-      console.log('🏁 Setting loading to false')
-      setLoading(false)
+      if (!keepLoading) {
+        console.log('🏁 Setting loading to false')
+        setLoading(false)
+      }
     }
   }
 

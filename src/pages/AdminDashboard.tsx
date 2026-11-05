@@ -44,6 +44,9 @@ export default function AdminDashboard() {
   
   const { activeSeason: currentSeason, loading: seasonLoading } = useCurrentSeason()
   const [gameSelectionWeek, setGameSelectionWeek] = useState(0)
+  // The week players are on (latest week with picks open). Week Review, Pick Management and
+  // Live Scores start here; Week Setup starts on the next week once this one has locked.
+  const [activeWeek, setActiveWeek] = useState(0)
   const [currentWeek, setCurrentWeek] = useState(0)
   const maxGames = 15
 
@@ -67,10 +70,25 @@ export default function AdminDashboard() {
     // or the 2025 fallback's last week (14) can land after the real one.
     if (seasonLoading) return
     let stale = false
-    getActiveWeek(currentSeason).then(activeWeek => {
+    getActiveWeek(currentSeason).then(async activeWeek => {
       if (stale) return
-      setGameSelectionWeek(activeWeek)
-      setCurrentWeek(activeWeek)
+      // Once the active week's deadline has passed, the week to set up is the next one.
+      // (The setup dropdown used to start on a calendar estimate that ran a week ahead,
+      // while this page silently held the active week, so the two disagreed.)
+      let setupWeek = activeWeek
+      if (activeWeek < 15) {
+        const { data } = await supabase
+          .from('week_settings')
+          .select('deadline')
+          .eq('season', currentSeason)
+          .eq('week', activeWeek)
+          .maybeSingle()
+        if (data?.deadline && new Date(data.deadline) <= new Date()) setupWeek = activeWeek + 1
+      }
+      if (stale) return
+      setActiveWeek(activeWeek)
+      setGameSelectionWeek(setupWeek)
+      setCurrentWeek(setupWeek)
     })
     return () => { stale = true }
   }, [currentSeason, seasonLoading])
@@ -894,6 +912,7 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <ApiStatusWidget
                 season={currentSeason}
+                week={gameSelectionWeek}
                 onWeekChange={(week) => {
                   setGameSelectionWeek(week)
                   setCfbGames([])
@@ -952,7 +971,7 @@ export default function AdminDashboard() {
 
         {activeTab === 'weekreview' && (
           <div className="space-y-6">
-            <WeekReview season={currentSeason} initialWeek={currentWeek} seasonReady={!seasonLoading} />
+            <WeekReview season={currentSeason} initialWeek={activeWeek} seasonReady={!seasonLoading} />
 
             {/* Advanced pick tools (assign anon, duplicates, unsubmitted, hidden,
                 pick-set management). Folded in from the old Pick Management tab;
@@ -962,14 +981,14 @@ export default function AdminDashboard() {
                 🛠️ Advanced pick tools — assign anonymous, duplicates, unsubmitted, hidden
               </summary>
               <div className="p-4 border-t border-charcoal-100">
-                <PickManagement currentWeek={currentWeek} currentSeason={currentSeason} />
+                <PickManagement currentWeek={activeWeek || currentWeek} currentSeason={currentSeason} />
               </div>
             </details>
           </div>
         )}
 
         {activeTab === 'scores' && (
-          <LiveDashboard season={currentSeason} initialWeek={currentWeek} />
+          <LiveDashboard season={currentSeason} initialWeek={activeWeek} />
         )}
 
         {activeTab === 'winners' && (
