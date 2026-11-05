@@ -1,4 +1,5 @@
 import { Card } from '@/components/ui/card'
+import { defaultGameLockTime, isThursdayFridayGame as isThuFriGame } from '@/lib/centralTime'
 import { cn } from '@/lib/utils'
 import { Game, Pick } from '@/types'
 import PickStatisticsBar from '@/components/PickStatisticsBar'
@@ -51,48 +52,12 @@ export default function GameCard({
     })
   }
 
-  // Calculate the default lock time for this game
-  const calculateDefaultLockTime = (gameStartDate: string) => {
-    const gameDate = new Date(gameStartDate)
-    const gameDay = gameDate.getDay() // 0 = Sunday, 6 = Saturday
-    
-    if (gameDay === 4 || gameDay === 5) {
-      // Thursday and Friday games - lock at 6:00 PM CT on the actual game day
-      const gameDayLock = new Date(gameDate.getFullYear(), gameDate.getMonth(), gameDate.getDate())
-      gameDayLock.setUTCHours(23, 0, 0, 0) // 6:00 PM CDT = 23:00 UTC
-      return gameDayLock
-    } else {
-      // Saturday, Sunday, Monday, Tuesday games - lock at Saturday 11:00 AM CT
-      // Find the Saturday that defines this week
-      const saturdayLock = new Date(gameDate)
-      
-      if (gameDay === 6) {
-        // Saturday game - lock the same Saturday at 11:00 AM CT
-        // No date change needed
-      } else if (gameDay === 0) {
-        // Sunday game - part of the previous Saturday's week (go back 1 day to Saturday)
-        saturdayLock.setDate(saturdayLock.getDate() - 1)
-      } else if (gameDay === 1) {
-        // Monday game - part of the previous Saturday's week (go back 2 days to Saturday)
-        saturdayLock.setDate(saturdayLock.getDate() - 2)
-      } else if (gameDay === 2) {
-        // Tuesday game - part of the previous Saturday's week (go back 3 days to Saturday)
-        saturdayLock.setDate(saturdayLock.getDate() - 3)
-      } else if (gameDay === 3) {
-        // Wednesday game - part of the upcoming Saturday's week (go forward 3 days to Saturday)
-        saturdayLock.setDate(saturdayLock.getDate() + 3)
-      }
-      
-      // Set to 11:00 AM CDT = 16:00 UTC
-      saturdayLock.setUTCHours(16, 0, 0, 0)
-      return saturdayLock
-    }
-  }
+  // Default lock: Thu/Fri games at 6:00 PM CT on game day, others at Saturday 11:00 AM CT.
+  // DST-aware; see src/lib/centralTime.ts (fixed UTC hours locked games an hour early in CST).
+  const calculateDefaultLockTime = (gameStartDate: string) => defaultGameLockTime(new Date(gameStartDate))
 
   // Determine if we should show lock time indicator
-  const gameDate = new Date(game.kickoff_time)
-  const gameDay = gameDate.getDay() // 0 = Sunday, 6 = Saturday
-  const isThursdayFridayGame = gameDay === 4 || gameDay === 5 // Thursday or Friday
+  const isThursdayFridayGame = isThuFriGame(new Date(game.kickoff_time))
   
   const hasCustomLockTime = !!game.custom_lock_time
   const actualLockTime = hasCustomLockTime ? new Date(game.custom_lock_time!) : calculateDefaultLockTime(game.kickoff_time)

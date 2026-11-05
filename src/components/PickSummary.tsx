@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { defaultGameLockTime, isThursdayFridayGame } from '@/lib/centralTime'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -20,22 +21,16 @@ interface PickSummaryProps {
  *
  * League rule, matching GameCard.calculateDefaultLockTime and the database's
  * game_effective_lock_time(): Thursday and Friday games lock at 6:00 PM CT on
- * game day; everything else rides the Saturday deadline. CT is UTC-5 in
- * season, so 18:00 CT is 23:00 UTC.
+ * game day; everything else rides the Saturday deadline. Computed in Central
+ * time for that date (src/lib/centralTime.ts): a fixed 23:00 UTC was only right
+ * during daylight time and locked an hour early after DST ended.
  */
 function isGameLockedForPick(game: Game | undefined, deadline: Date | null, now: Date): boolean {
   if (!game) return false
   if (game.custom_lock_time) return now > new Date(game.custom_lock_time)
 
   const kickoff = new Date(game.kickoff_time)
-  const inCT = (opts: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', ...opts }).format(kickoff)
-
-  const weekday = inCT({ weekday: 'short' })
-  if (weekday === 'Thu' || weekday === 'Fri') {
-    const day = inCT({ year: 'numeric', month: '2-digit', day: '2-digit' })
-    return now > new Date(`${day}T23:00:00Z`)
-  }
+  if (isThursdayFridayGame(kickoff)) return now > defaultGameLockTime(kickoff)
 
   return deadline ? now > deadline : false
 }

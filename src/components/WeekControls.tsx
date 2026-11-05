@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { centralParts, defaultGameLockTime, saturdayDeadlineFor } from '@/lib/centralTime'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -102,42 +103,8 @@ export default function WeekControls({
     })
   }
 
-  const calculateDefaultLockTime = (gameStartDate: string) => {
-    const gameDate = new Date(gameStartDate)
-    const gameDay = gameDate.getDay() // 0 = Sunday, 6 = Saturday
-    
-    if (gameDay === 4 || gameDay === 5) {
-      // Thursday and Friday games - lock at 6:00 PM CT on the actual game day
-      const gameDayLock = new Date(gameDate.getFullYear(), gameDate.getMonth(), gameDate.getDate())
-      gameDayLock.setUTCHours(23, 0, 0, 0) // 6:00 PM CDT = 23:00 UTC
-      return gameDayLock
-    } else {
-      // Saturday, Sunday, Monday, Tuesday games - lock at Saturday 11:00 AM CT
-      // Find the Saturday that defines this week
-      const saturdayLock = new Date(gameDate.getFullYear(), gameDate.getMonth(), gameDate.getDate())
-      
-      if (gameDay === 6) {
-        // Saturday game - lock the same Saturday at 11:00 AM CT
-        // Use the same Saturday date
-      } else if (gameDay === 0) {
-        // Sunday game - part of the previous Saturday's week (go back 1 day to Saturday)
-        saturdayLock.setDate(saturdayLock.getDate() - 1)
-      } else if (gameDay === 1) {
-        // Monday game - part of the previous Saturday's week (go back 2 days to Saturday)
-        saturdayLock.setDate(saturdayLock.getDate() - 2)
-      } else if (gameDay === 2) {
-        // Tuesday game - part of the previous Saturday's week (go back 3 days to Saturday)
-        saturdayLock.setDate(saturdayLock.getDate() - 3)
-      } else if (gameDay === 3) {
-        // Wednesday game - part of the upcoming Saturday's week (go forward 3 days to Saturday)
-        saturdayLock.setDate(saturdayLock.getDate() + 3)
-      }
-      
-      // Set to 11:00 AM CDT = 16:00 UTC (corrected timezone)
-      saturdayLock.setUTCHours(16, 0, 0, 0)
-      return saturdayLock
-    }
-  }
+  // Thu/Fri games lock at 6:00 PM CT on game day, others at Saturday 11:00 AM CT (DST-aware)
+  const calculateDefaultLockTime = (gameStartDate: string) => defaultGameLockTime(new Date(gameStartDate))
 
   const getGameLockTime = (game: CFBGame) => {
     // Use custom lock time if set, otherwise calculate default
@@ -155,55 +122,13 @@ export default function WeekControls({
     })
   }
 
+  // Pick deadline: Saturday 11:00 AM CT of the week these games belong to. Computed in
+  // Central time for that date, so it stays 11 AM after DST ends (it was a fixed 16:00 UTC,
+  // which is 10 AM CST). Prefer a Saturday game to anchor the week, as before.
   const calculateOptimalDeadline = () => {
     if (selectedGames.length === 0) return null
-    
-    // The "week" is defined by Saturday - find the Saturday that defines this week
-    // Look for a Saturday game, or find the Saturday that these games belong to
-    
-    let weekSaturday: Date | null = null
-    
-    // First, check if there's a Saturday game - that defines the week
-    const saturdayGame = selectedGames.find(game => new Date(game.start_date).getDay() === 6)
-    if (saturdayGame) {
-      weekSaturday = new Date(saturdayGame.start_date)
-    } else {
-      // No Saturday game, so find the Saturday that these games belong to
-      // For any game, find its associated Saturday (the Saturday of that "week")
-      const anyGame = selectedGames[0]
-      const gameDate = new Date(anyGame.start_date)
-      const dayOfWeek = gameDate.getDay()
-      
-      weekSaturday = new Date(gameDate)
-      
-      if (dayOfWeek === 0) {
-        // Sunday - part of the previous Saturday's week (go back 1 day)
-        weekSaturday.setDate(weekSaturday.getDate() - 1)
-      } else if (dayOfWeek === 1) {
-        // Monday - part of the previous Saturday's week (go back 2 days)
-        weekSaturday.setDate(weekSaturday.getDate() - 2)
-      } else if (dayOfWeek === 2) {
-        // Tuesday - part of the previous Saturday's week (go back 3 days)
-        weekSaturday.setDate(weekSaturday.getDate() - 3)
-      } else if (dayOfWeek === 3) {
-        // Wednesday - part of the upcoming Saturday's week (go forward 3 days)
-        weekSaturday.setDate(weekSaturday.getDate() + 3)
-      } else if (dayOfWeek === 4) {
-        // Thursday - part of the upcoming Saturday's week (go forward 2 days)
-        weekSaturday.setDate(weekSaturday.getDate() + 2)
-      } else if (dayOfWeek === 5) {
-        // Friday - part of the upcoming Saturday's week (go forward 1 day)
-        weekSaturday.setDate(weekSaturday.getDate() + 1)
-      }
-      // Saturday case is handled above
-    }
-    
-    if (!weekSaturday) return null
-    
-    // Pick deadline is Saturday at 11:00 AM CT
-    weekSaturday.setUTCHours(16, 0, 0, 0) // 11:00 AM CDT = 16:00 UTC
-    
-    return weekSaturday
+    const anchor = selectedGames.find(game => centralParts(new Date(game.start_date)).weekday === 6) ?? selectedGames[0]
+    return saturdayDeadlineFor(new Date(anchor.start_date))
   }
 
   const isGameLocked = (game: CFBGame) => {
