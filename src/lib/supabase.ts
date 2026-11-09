@@ -109,6 +109,7 @@ export type Database = {
       games: {
         Row: {
           id: string
+          cfbd_game_id: number | null
           week: number
           season: number
           home_team: string
@@ -129,6 +130,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          cfbd_game_id?: number | null
           week: number
           season: number
           home_team: string
@@ -149,6 +151,7 @@ export type Database = {
         }
         Update: {
           id?: string
+          cfbd_game_id?: number | null
           week?: number
           season?: number
           home_team?: string
