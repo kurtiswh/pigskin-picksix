@@ -22,6 +22,15 @@ export interface WeekRow {
   lockLosses: number
 }
 
+/**
+ * A week's totals as returned by the weekly_summaries() RPC (migration 257): the WeekRow
+ * fields plus the entries/points of rows with a result, for the "average score" comparison.
+ */
+export interface WeekSummaryRow extends WeekRow {
+  scoredEntries: number
+  scoredPoints: number
+}
+
 /** One weekly_leaderboard row, as far as the summaries need it */
 export interface EntryRow {
   week: number

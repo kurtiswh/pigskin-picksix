@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { EntryRow, WeekRow, allWeeks, summarizeSeason, summarizeWeek } from '@/lib/weekRecords'
+import { EntryRow, WeekRow, WeekSummaryRow, allWeeks, summarizeWeek } from '@/lib/weekRecords'
 
 /** Read every row of a query: one request stops at 1,000 rows. */
 export async function fetchAllRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>): Promise<T[]> {
@@ -16,21 +16,38 @@ export async function fetchAllRows<T>(page: (from: number, to: number) => Promis
 const ENTRY_COLUMNS = 'week, picks_made, wins, losses, pushes, total_points, lock_wins, lock_losses'
 
 // The season's OTHER weeks don't change while you watch this one, so the Games
-// page's 60s refresh reuses them instead of re-reading thousands of rows.
-const otherWeeksCache = new Map<string, Promise<EntryRow[]>>()
+// page's 60s refresh reuses them.
+const otherWeeksCache = new Map<string, Promise<WeekSummaryRow[]>>()
 
-/** Every weekly_leaderboard row for the season except `week` (cached per page view). */
-export function loadOtherWeeks(season: number, week: number): Promise<EntryRow[]> {
+/**
+ * Per-week totals for every week of the season except `week` (cached per page view).
+ * Summed in the database by weekly_summaries() (migration 257): this used to download
+ * every weekly_leaderboard row for those weeks (~4,700 by week 10) and add them up here,
+ * one of the largest sources of Supabase egress.
+ */
+export function loadOtherWeeks(season: number, week: number): Promise<WeekSummaryRow[]> {
   const key = `${season}-${week}`
   if (!otherWeeksCache.has(key)) {
-    const p = fetchAllRows<EntryRow>((from, to) => supabase
-      .from('weekly_leaderboard')
-      .select(ENTRY_COLUMNS)
-      .eq('season', season)
-      .neq('week', week)
-      .order('week', { ascending: true })
-      .order('user_id', { ascending: true })
-      .range(from, to))
+    const p = (async () => {
+      const { data, error } = await supabase.rpc('weekly_summaries', { p_season: season, p_exclude_week: week })
+      if (error) throw error
+      // bigint columns can arrive as strings; normalize to numbers
+      return ((data || []) as Record<string, unknown>[]).map(r => ({
+        season,
+        week: Number(r.week),
+        entries: Number(r.entries) || 0,
+        perfect: Number(r.perfect) || 0,
+        zero: Number(r.zero) || 0,
+        over100: Number(r.over100) || 0,
+        points: Number(r.points) || 0,
+        wins: Number(r.wins) || 0,
+        losses: Number(r.losses) || 0,
+        lockWins: Number(r.lock_wins) || 0,
+        lockLosses: Number(r.lock_losses) || 0,
+        scoredEntries: Number(r.scored_entries) || 0,
+        scoredPoints: Number(r.scored_points) || 0,
+      }))
+    })()
     p.catch(() => otherWeeksCache.delete(key)) // don't cache a failure
     otherWeeksCache.set(key, p)
   }
@@ -39,7 +56,7 @@ export function loadOtherWeeks(season: number, week: number): Promise<EntryRow[]
 
 /** One week ranked against every week since 2016 (used by the recap draft). */
 export async function loadWeekRecords(season: number, week: number): Promise<{ weeks: WeekRow[]; current: WeekRow }> {
-  const [weekRows, otherRows] = await Promise.all([
+  const [weekRows, otherWeeks] = await Promise.all([
     fetchAllRows<EntryRow>((from, to) => supabase
       .from('weekly_leaderboard')
       .select(ENTRY_COLUMNS)
@@ -50,5 +67,5 @@ export async function loadWeekRecords(season: number, week: number): Promise<{ w
     loadOtherWeeks(season, week),
   ])
   const current = summarizeWeek(season, week, weekRows)
-  return { weeks: allWeeks(summarizeSeason(season, otherRows), current), current }
+  return { weeks: allWeeks(otherWeeks, current), current }
 }

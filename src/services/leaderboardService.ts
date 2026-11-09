@@ -169,6 +169,28 @@ export class LeaderboardService {
   }
 
   /**
+   * The top `limit` season players, for previews (home page). Asks the database for just
+   * those rows: the home page used to download all ~650 standings to show five, which was
+   * one of the largest sources of Supabase egress. Players with points come first; if
+   * nobody has scored yet, the top of the board is returned as-is, matching the old
+   * filter-then-slice behavior.
+   */
+  static async getSeasonTopPlayers(season: number, limit = 5): Promise<LeaderboardEntry[]> {
+    const COLUMNS = 'user_id, display_name, total_points, season_rank, total_wins, total_losses, total_pushes, lock_wins, lock_losses, lock_pushes, total_picks, is_verified, pick_source'
+    const query = (withPoints: boolean) => {
+      let q = supabase.from('season_leaderboard').select(COLUMNS).eq('season', season)
+      if (withPoints) q = q.gt('total_points', 0)
+      return q.order('season_rank', { ascending: true }).limit(limit)
+    }
+    const { data, error } = await Promise.race([query(true), this.createTimeoutPromise<any>(10000)])
+    if (error) throw new Error(`Database error: ${error.message}`)
+    if (data && data.length > 0) return this.formatSeasonData(data)
+    const { data: anyRows, error: anyError } = await Promise.race([query(false), this.createTimeoutPromise<any>(10000)])
+    if (anyError) throw new Error(`Database error: ${anyError.message}`)
+    return this.formatSeasonData(anyRows || [])
+  }
+
+  /**
    * Format season data for frontend consumption
    */
   private static formatSeasonData(data: any[]): LeaderboardEntry[] {

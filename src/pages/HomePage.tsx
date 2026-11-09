@@ -168,15 +168,10 @@ export default function HomePage() {
       try {
         console.log('🏆 Fetching season leaderboard preview for homepage')
         setLeaderboardError(null) // Clear any previous errors
-        const leaderboardData = await LeaderboardService.getSeasonLeaderboard(previewSeason)
+        // Only the top 5 (with points, if anyone has scored): the full board is ~650 rows
+        const topPlayersSlice = await LeaderboardService.getSeasonTopPlayers(previewSeason, 5)
         
-        if (leaderboardData && leaderboardData.length > 0) {
-          // Get top 5 players with points (exclude players with 0 total points)
-          const playersWithPoints = leaderboardData.filter(player => (player.season_points || 0) > 0)
-          const topPlayersSlice = playersWithPoints.length > 0 
-            ? playersWithPoints.slice(0, 5)
-            : leaderboardData.slice(0, 5) // Show top 5 even if no points yet
-          
+        if (topPlayersSlice.length > 0) {
           setTopPlayers(topPlayersSlice)
           console.log('✅ Season leaderboard preview loaded:', topPlayersSlice.length, 'players')
           console.log('📊 Top player data:', topPlayersSlice[0])

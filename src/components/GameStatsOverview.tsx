@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 import type { Game } from '@/types'
-import { WeekRow, EntryRow, summarizeWeek, summarizeSeason, allWeeks } from '@/lib/weekRecords'
+import { WeekRow, WeekSummaryRow, summarizeWeek, allWeeks } from '@/lib/weekRecords'
 import { fetchAllRows, loadOtherWeeks } from '@/services/weekRecordsService'
 import { RecordStrip, RecordWatch, WatchItem, MyWeekLine, MyWeek } from '@/components/WeekRecords'
 import { useAuth } from '@/hooks/useAuth'
@@ -306,7 +306,7 @@ export default function GameStatsOverview({
       let seasonRecord = null
       let seasonLockRecord = null
       let seasonStats = null
-      let otherWeekRows: EntryRow[] = []
+      let otherWeekRows: WeekSummaryRow[] = []
       
       if (seasonError) {
         console.error('Error fetching season leaderboard:', seasonError)
@@ -362,64 +362,24 @@ export default function GameStatsOverview({
         let avgOver100PerWeek = 0
         let avgScorePerWeek = 0
         
-        if (!allWeeksError && allWeeklyData && allWeeklyData.length > 0) {
-          // Group by week and calculate stats for each week
-          const weeklyStats = new Map()
-          
-          allWeeklyData.forEach(entry => {
-            if (!weeklyStats.has(entry.week)) {
-              weeklyStats.set(entry.week, [])
-            }
-            weeklyStats.get(entry.week).push(entry)
-          })
-          
+        if (!allWeeksError && allWeeklyData.length > 0) {
+          // Per-week totals come pre-summed from weekly_summaries() (migration 257). A week's
+          // average score counts only entries with a result, as before.
+          const weeksWithData = allWeeklyData.length
           let totalPerfectRecords = 0
           let totalZeroRecords = 0
           let totalOver100Points = 0
           let totalWeeklyAverageScores = 0
-          const weeksWithData = weeklyStats.size
-          
-          // Calculate stats for each week
-          weeklyStats.forEach((weekData, _weekNum) => {
-            const usersWithPicksThisWeek = weekData.filter((user: any) => (user.wins || 0) + (user.losses || 0) + (user.pushes || 0) > 0)
-            
-            // Perfect records for this week (6-0-0)
-            const weekPerfectRecords = usersWithPicksThisWeek.filter((user: any) => 
-              (user.wins || 0) === 6 && 
-              (user.losses || 0) === 0 && 
-              (user.pushes || 0) === 0
-            ).length
-            
-            // Zero records for this week (0-6-0)
-            const weekZeroRecords = usersWithPicksThisWeek.filter((user: any) => 
-              (user.wins || 0) === 0 && 
-              (user.losses || 0) === 6 && 
-              (user.pushes || 0) === 0
-            ).length
-            
-            // Over 100 points for this week
-            const weekOver100Points = usersWithPicksThisWeek.filter((user: any) => 
-              (user.total_points || 0) > 100
-            ).length
-            
-            // Calculate average score for this week
-            const weekScores = usersWithPicksThisWeek.map((user: any) => user.total_points || 0)
-            const weekAverageScore = weekScores.length > 0 ? 
-              weekScores.reduce((a: any, b: any) => a + b, 0) / weekScores.length : 0
-            
-            totalPerfectRecords += weekPerfectRecords
-            totalZeroRecords += weekZeroRecords
-            totalOver100Points += weekOver100Points
-            totalWeeklyAverageScores += weekAverageScore
-          })
-          
-          // Calculate per-week averages
-          if (weeksWithData > 0) {
-            avgPerfectPerWeek = Math.round((totalPerfectRecords / weeksWithData) * 10) / 10
-            avgZeroPerWeek = Math.round((totalZeroRecords / weeksWithData) * 10) / 10
-            avgOver100PerWeek = Math.round((totalOver100Points / weeksWithData) * 10) / 10
-            avgScorePerWeek = Math.round((totalWeeklyAverageScores / weeksWithData) * 10) / 10
+          for (const w of allWeeklyData) {
+            totalPerfectRecords += w.perfect
+            totalZeroRecords += w.zero
+            totalOver100Points += w.over100
+            totalWeeklyAverageScores += w.scoredEntries > 0 ? w.scoredPoints / w.scoredEntries : 0
           }
+          avgPerfectPerWeek = Math.round((totalPerfectRecords / weeksWithData) * 10) / 10
+          avgZeroPerWeek = Math.round((totalZeroRecords / weeksWithData) * 10) / 10
+          avgOver100PerWeek = Math.round((totalOver100Points / weeksWithData) * 10) / 10
+          avgScorePerWeek = Math.round((totalWeeklyAverageScores / weeksWithData) * 10) / 10
         }
         
         seasonStats = {
@@ -431,7 +391,7 @@ export default function GameStatsOverview({
           averagePerfectRecords: avgPerfectPerWeek,
           averageZeroRecords: avgZeroPerWeek,
           averageOver100Points: avgOver100PerWeek,
-          priorWeeks: allWeeksError ? 0 : new Set(allWeeklyData.map(r => r.week)).size
+          priorWeeks: allWeeksError ? 0 : allWeeklyData.length
         }
       }
       
@@ -515,7 +475,7 @@ export default function GameStatsOverview({
       let records: WeekStats['records'] = null
       try {
         const current = summarizeWeek(season, week, usersWithPicks)
-        const weeks = allWeeks(summarizeSeason(season, otherWeekRows), current)
+        const weeks = allWeeks(otherWeekRows, current)
         const pendingOf = (u: any) => Math.max(0, (u.picks_made || 0) - (u.wins || 0) - (u.losses || 0) - (u.pushes || 0))
         const live = games.some(g => g.status !== 'completed') || usersWithPicks.some(u => pendingOf(u) > 0)
         const perfectChasing = usersWithPicks.filter(u => (u.losses || 0) === 0 && (u.pushes || 0) === 0 && pendingOf(u) > 0).length
