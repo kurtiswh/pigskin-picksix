@@ -165,7 +165,8 @@ export default function AdminDashboard() {
           home_team: game.home_team,
           away_team: game.away_team,
           spread: game.spread,
-          custom_lock_time: game.custom_lock_time // Include custom lock time from database
+          custom_lock_time: game.custom_lock_time, // Include custom lock time from database
+          cfbd_game_id: game.cfbd_game_id ?? null
         }))
         
         console.log('📊 Loaded games with custom lock times:', cfbFormatGames.map(g => ({
@@ -201,7 +202,8 @@ export default function AdminDashboard() {
             home_team: game.home_team,
             away_team: game.away_team,
             spread: game.spread,
-            custom_lock_time: game.custom_lock_time // Include custom lock time from database
+            custom_lock_time: game.custom_lock_time, // Include custom lock time from database
+            cfbd_game_id: game.cfbd_game_id ?? null
           }))
           
           setSavedGames(cfbFormatGames)
@@ -538,6 +540,9 @@ export default function AdminDashboard() {
         home_team_ranking: game.home_ranking || null,
         away_team_ranking: game.away_ranking || null,
         venue: game.venue || null,
+        // Games reloaded from the DB carry cfbd_game_id (their id is synthetic);
+        // games picked from the CFBD list carry the real CFBD id in game.id.
+        cfbd_game_id: 'cfbd_game_id' in game ? (game.cfbd_game_id ?? null) : game.id,
         status: 'scheduled'
       }))
       
@@ -568,7 +573,8 @@ export default function AdminDashboard() {
                 headers: await getRestHeaders(),
                 body: JSON.stringify({
                   spread: gameData.spread,
-                  custom_lock_time: gameData.custom_lock_time
+                  custom_lock_time: gameData.custom_lock_time,
+                  ...(gameData.cfbd_game_id != null ? { cfbd_game_id: gameData.cfbd_game_id } : {})
                 })
               })
               

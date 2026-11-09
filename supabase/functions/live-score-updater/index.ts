@@ -85,7 +85,7 @@ serve(async (req) => {
     // Step 2: Get database games for active week
     const { data: dbGames, error: dbError } = await supabase
       .from('games')
-      .select('id, home_team, away_team, home_score, away_score, status, spread, kickoff_time, winner_against_spread, margin_bonus, game_period, game_clock')
+      .select('id, cfbd_game_id, home_team, away_team, home_score, away_score, status, spread, kickoff_time, winner_against_spread, margin_bonus, game_period, game_clock')
       .eq('season', activeWeek.season)
       .eq('week', activeWeek.week)
       .or('status.neq.completed,winner_against_spread.is.null')
@@ -151,7 +151,11 @@ serve(async (req) => {
         console.log(`   📊 DB: ${dbGame.status}, ${dbGame.away_score || 0}-${dbGame.home_score || 0}`)
 
         // Check if update is needed
-        const updateData = calculateUpdateData(dbGame, cfbdGame)
+        let updateData = calculateUpdateData(dbGame, cfbdGame)
+        // Backfill the CFBD id for rows saved before migration 258
+        if (dbGame.cfbd_game_id == null) {
+          updateData = { ...(updateData || {}), cfbd_game_id: cfbdGame.id }
+        }
         if (!updateData) {
           console.log(`   ⏭️ No updates needed`)
           continue
@@ -293,25 +297,28 @@ serve(async (req) => {
  * Find matching CFBD game for database game
  */
 function findMatchingCFBDGame(dbGame: any, cfbdGames: CFBDScoreboardGame[]): CFBDScoreboardGame | null {
-  return cfbdGames.find(cfbdGame => {
-    const dbHome = normalizeTeamName(dbGame.home_team)
-    const dbAway = normalizeTeamName(dbGame.away_team)
-    const cfbdHome = normalizeTeamName(cfbdGame.homeTeam.name)
-    const cfbdAway = normalizeTeamName(cfbdGame.awayTeam.name)
-
-    // Exact match
-    if (dbHome === cfbdHome && dbAway === cfbdAway) {
-      return true
+  // Match on the CFBD game id saved with the slate. Team-name matching is only
+  // a one-time backfill for rows saved before migration 258, and it must be
+  // exact: a loose name match scored Kentucky @ Tennessee with Western
+  // Kentucky @ Middle Tennessee's score (2026 week 10).
+  if (dbGame.cfbd_game_id != null) {
+    const g = cfbdGames.find(c => c.id === dbGame.cfbd_game_id)
+    if (!g) return null
+    // Scores are copied home-to-home, so if our row lists the teams the other
+    // way round, flip the CFBD record rather than swap the score.
+    if (normalizeTeamName(g.homeTeam.name) === normalizeTeamName(dbGame.away_team) &&
+        normalizeTeamName(g.awayTeam.name) === normalizeTeamName(dbGame.home_team)) {
+      return { ...g, homeTeam: g.awayTeam, awayTeam: g.homeTeam }
     }
-
-    // Partial match
-    const homeMatch = dbHome.includes(cfbdHome.substring(0, 5)) ||
-                     cfbdHome.includes(dbHome.substring(0, 5))
-    const awayMatch = dbAway.includes(cfbdAway.substring(0, 5)) ||
-                     cfbdAway.includes(dbAway.substring(0, 5))
-
-    return homeMatch && awayMatch
-  }) || null
+    return g
+  }
+  const dbHome = normalizeTeamName(dbGame.home_team)
+  const dbAway = normalizeTeamName(dbGame.away_team)
+  const matches = cfbdGames.filter(g =>
+    normalizeTeamName(g.homeTeam.name) === dbHome &&
+    normalizeTeamName(g.awayTeam.name) === dbAway
+  )
+  return matches.length === 1 ? matches[0] : null
 }
 
 /**

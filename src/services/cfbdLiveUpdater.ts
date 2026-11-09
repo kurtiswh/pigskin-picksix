@@ -67,7 +67,7 @@ export class CFBDLiveUpdater {
       // IMPORTANT: Also fetch completed games without winners (they may have been marked complete by time without scores)
       const { data: dbGames, error: dbError } = await supabase
         .from('games')
-        .select('id, home_team, away_team, home_score, away_score, status, spread, kickoff_time, winner_against_spread, margin_bonus, game_period, game_clock')
+        .select('id, cfbd_game_id, home_team, away_team, home_score, away_score, status, spread, kickoff_time, winner_against_spread, margin_bonus, game_period, game_clock')
         .eq('season', activeWeek.season)
         .eq('week', activeWeek.week)
         .or('status.neq.completed,winner_against_spread.is.null') // Get non-completed OR completed without winner
@@ -103,7 +103,11 @@ export class CFBDLiveUpdater {
           console.log(`   📊 DB: ${dbGame.status}, ${dbGame.away_score || 0}-${dbGame.home_score || 0}`)
           
           // Check if update is needed
-          const updateData = this.calculateUpdateData(dbGame, cfbdGame)
+          let updateData = this.calculateUpdateData(dbGame, cfbdGame)
+          // Backfill the CFBD id for rows saved before migration 258
+          if (dbGame.cfbd_game_id == null) {
+            updateData = { ...(updateData || {}), cfbd_game_id: cfbdGame.id }
+          }
           if (!updateData) {
             console.log(`   ⏭️ No updates needed`)
             continue
@@ -258,26 +262,28 @@ export class CFBDLiveUpdater {
    * Find matching CFBD game for database game
    */
   private static findMatchingCFBDGame(dbGame: any, cfbdGames: CFBDScoreboardGame[]): CFBDScoreboardGame | null {
-    return cfbdGames.find(cfbdGame => {
-      // Multiple matching strategies
-      const dbHome = this.normalizeTeamName(dbGame.home_team)
-      const dbAway = this.normalizeTeamName(dbGame.away_team)
-      const cfbdHome = this.normalizeTeamName(cfbdGame.homeTeam.name)
-      const cfbdAway = this.normalizeTeamName(cfbdGame.awayTeam.name)
-      
-      // Exact match
-      if (dbHome === cfbdHome && dbAway === cfbdAway) {
-        return true
+    // Match on the CFBD game id saved with the slate. Team-name matching is only
+    // a one-time backfill for rows saved before migration 258, and it must be
+    // exact: a loose name match scored Kentucky @ Tennessee with Western
+    // Kentucky @ Middle Tennessee's score (2026 week 10).
+    if (dbGame.cfbd_game_id != null) {
+      const g = cfbdGames.find(c => c.id === dbGame.cfbd_game_id)
+      if (!g) return null
+      // Scores are copied home-to-home, so if our row lists the teams the other
+      // way round, flip the CFBD record rather than swap the score.
+      if (this.normalizeTeamName(g.homeTeam.name) === this.normalizeTeamName(dbGame.away_team) &&
+          this.normalizeTeamName(g.awayTeam.name) === this.normalizeTeamName(dbGame.home_team)) {
+        return { ...g, homeTeam: g.awayTeam, awayTeam: g.homeTeam }
       }
-      
-      // Partial match (one team name contains the other)
-      const homeMatch = dbHome.includes(cfbdHome.substring(0, 5)) || 
-                       cfbdHome.includes(dbHome.substring(0, 5))
-      const awayMatch = dbAway.includes(cfbdAway.substring(0, 5)) || 
-                       cfbdAway.includes(dbAway.substring(0, 5))
-      
-      return homeMatch && awayMatch
-    }) || null
+      return g
+    }
+    const dbHome = this.normalizeTeamName(dbGame.home_team)
+    const dbAway = this.normalizeTeamName(dbGame.away_team)
+    const matches = cfbdGames.filter(g =>
+      this.normalizeTeamName(g.homeTeam.name) === dbHome &&
+      this.normalizeTeamName(g.awayTeam.name) === dbAway
+    )
+    return matches.length === 1 ? matches[0] : null
   }
   
   /**

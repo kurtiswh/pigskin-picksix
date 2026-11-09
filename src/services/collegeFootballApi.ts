@@ -57,6 +57,7 @@ export interface CFBGame {
   home_ranking?: number
   away_ranking?: number
   game_importance?: number // calculated importance score
+  cfbd_game_id?: number | null // set on games reloaded from our DB; id is synthetic there
   is_mock?: boolean // true when this came from getMockGames(), not the API
   custom_lock_time?: string // custom lock time set by admin
   // Live game data
