@@ -13,6 +13,19 @@ export const RULES_SEASON = 2026
 /** Regular-season weeks that count for picks (2026: Sept 5 – Nov 28). */
 export const REGULAR_SEASON_WEEKS = 13
 
+/** First week of the Best Finish championship: the final four regular-season weeks (2026: 10-13). */
+export const BEST_FINISH_START_WEEK = REGULAR_SEASON_WEEKS - 3
+
+/**
+ * Default best_finish_eligible for a newly created week_settings row. Only
+ * decides for RULES_SEASON; other seasons default to false and are set in
+ * Admin > Best Finish Config. Without this, a new week came in unflagged and
+ * dropped out of the Best Finish leaderboard until someone noticed.
+ */
+export function isDefaultBestFinishWeek(season: number, week: number): boolean {
+  return season === RULES_SEASON && week >= BEST_FINISH_START_WEEK && week <= REGULAR_SEASON_WEEKS
+}
+
 /**
  * LeagueSafe league for {@link RULES_SEASON}. Two different links, two audiences:
  *

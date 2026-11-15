@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { Trophy, Calendar, Lock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { BestFinishWeeklyDetail } from '@/services/bestFinishService'
@@ -178,7 +179,12 @@ export function BestFinishExpandedDetails({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3">
+        {/* Column-first at sm+ (down the left, then down the right) so weeks
+            read in order, matching the season breakdown. */}
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 sm:grid-flow-col sm:[grid-template-rows:repeat(var(--week-rows),auto)] gap-3"
+          style={{ '--week-rows': Math.ceil(data.length / 2) } as CSSProperties}
+        >
           {data
             .sort((a, b) => a.week - b.week)
             .map((week) => (

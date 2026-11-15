@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { isDefaultBestFinishWeek } from '@/lib/league'
 
 export interface WeekSettings {
   id: string
@@ -91,6 +92,7 @@ export class WeekSettingsService {
             games_locked: false,
             scoring_complete: false,
             leaderboard_complete: false,
+            best_finish_eligible: isDefaultBestFinishWeek(season, week),
             admin_custom_message: null
           })
           .select()

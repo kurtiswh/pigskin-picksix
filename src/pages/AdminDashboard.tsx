@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { Navigate, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { isDefaultBestFinishWeek } from '@/lib/league'
 import { getWeekDataDirect, unsaveGamesDirect } from '@/lib/supabase-direct'
 import { WeekSettings } from '@/types'
 import { getGamesWithSpreads, CFBGame } from '@/services/collegeFootballApi'
@@ -507,7 +508,8 @@ export default function AdminDashboard() {
           deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           games_selected: false,
           picks_open: false,
-          games_locked: false
+          games_locked: false,
+          best_finish_eligible: isDefaultBestFinishWeek(currentSeason, currentWeek)
         }
 
         const settingsResponse = await fetch(`${supabaseUrl}/rest/v1/week_settings`, {

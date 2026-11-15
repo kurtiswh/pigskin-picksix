@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
 import { BestFinishService, BestFinishEntry } from '@/services/bestFinishService'
 import { useAuth } from '@/hooks/useAuth'
+import { BEST_FINISH_START_WEEK } from '@/lib/league'
 import { ExpandableLeaderboardRow, LeaderboardRowContent } from '@/components/ExpandableLeaderboardRow'
 import { BestFinishExpandedDetails } from '@/components/BestFinishExpandedDetails'
 import { useExpandableRows } from '@/hooks/useExpandableRows'
@@ -126,7 +127,7 @@ export function BestFinishLeaderboard({ season, searchTerm = '' }: BestFinishLea
       <div className="text-center py-12">
         <p className="text-gray-500">
           {data.length === 0
-            ? 'No Best Finish data available yet. The competition starts in Week 11.'
+            ? `No Best Finish data available yet. The competition starts in Week ${BEST_FINISH_START_WEEK}.`
             : 'No players match your search.'
           }
         </p>
