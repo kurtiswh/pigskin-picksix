@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { Trophy, Lock } from 'lucide-react'
 import { UserWeeklyBreakdown } from '@/services/leaderboard.types'
 import { formatRecord } from '@/lib/records'
@@ -28,6 +29,7 @@ export function SeasonExpandedDetails({ data, isLoading = false, asOfWeek, curre
   const bestWeek = weeks.find(w => w.best_week)
   const averagePoints = weeks.length > 0 ? (totalPoints / weeks.length).toFixed(1) : '0'
   const isHistorical = asOfWeek && currentWeek && asOfWeek < currentWeek
+  const leftColumnCount = Math.ceil(weeks.length / 2)
 
   return (
     <div className="space-y-3">
@@ -44,13 +46,19 @@ export function SeasonExpandedDetails({ data, isLoading = false, asOfWeek, curre
         </div>
       </div>
 
-      {/* Weeks: 2 columns on desktop to fill the width, single column on mobile */}
+      {/* Weeks: 2 columns on desktop to fill the width, single column on mobile.
+          Desktop fills column-first (down the left, then down the right) so the
+          season reads in order instead of zigzagging. The left column takes the
+          extra week when the count is odd. */}
       <div className="rounded-xl border border-[#ece7de] bg-white overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-2">
+        <div
+          className="grid grid-cols-1 lg:grid-cols-2 lg:grid-flow-col lg:[grid-template-rows:repeat(var(--week-rows),auto)]"
+          style={{ '--week-rows': leftColumnCount } as CSSProperties}
+        >
           {weeks.map((w, i) => (
             <div
               key={w.week}
-              className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-1 sm:gap-x-3 px-2.5 sm:px-3.5 py-2.5 border-b border-[#f0ece5] ${i % 2 === 1 ? 'lg:border-l lg:border-[#ece7de]' : ''} ${w.best_week ? 'bg-[#fff8ea]' : ''}`}
+              className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-1 sm:gap-x-3 px-2.5 sm:px-3.5 py-2.5 border-b border-[#f0ece5] ${i >= leftColumnCount ? 'lg:border-l lg:border-[#ece7de]' : ''} ${w.best_week ? 'bg-[#fff8ea]' : ''}`}
             >
               {/* Wraps rather than squashes: everything used to be shrink-0 on
                   one line, so on a narrow phone the row ran past the card, and
