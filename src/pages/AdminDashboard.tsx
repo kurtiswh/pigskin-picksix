@@ -4,6 +4,7 @@ import { useCurrentSeason } from '@/hooks/useCurrentSeason'
 import { Navigate, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { isDefaultBestFinishWeek } from '@/lib/league'
+import { centralParts, saturdayDeadlineFor } from '@/lib/centralTime'
 import { getWeekDataDirect, unsaveGamesDirect } from '@/lib/supabase-direct'
 import { WeekSettings } from '@/types'
 import { getGamesWithSpreads, CFBGame } from '@/services/collegeFootballApi'
@@ -502,10 +503,23 @@ export default function AdminDashboard() {
       if (!weekSettings) {
         console.log('📝 Creating new week settings...')
         
+        // The week's real pick deadline, Saturday 11:00 AM Central, worked out
+        // from the games being saved (the same rule WeekControls uses to fill
+        // the deadline field). This used to be now + 7 days as a placeholder,
+        // and the column is NOT NULL so the placeholder counted as "deadline
+        // set": picks could be opened, and the reminders queued, against it.
+        // That scheduled every reminder for four to five days after the real
+        // deadline in seven of the first thirteen weeks of 2026.
+        const anchorGame =
+          tempSelectedGames.find(g => centralParts(new Date(g.start_date)).weekday === 6) ?? tempSelectedGames[0]
+        const initialDeadline = anchorGame
+          ? saturdayDeadlineFor(new Date(anchorGame.start_date))
+          : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
         const settingsData = {
           week: currentWeek,
           season: currentSeason,
-          deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          deadline: initialDeadline.toISOString(),
           games_selected: false,
           picks_open: false,
           games_locked: false,

@@ -1140,7 +1140,7 @@ export default function PickSheetPage() {
                 Are you sure you want to make this {
                   pendingEdit?.team === '' ? 'removal' : 
                   pendingEdit?.team === 'TOGGLE_LOCK' ? 'lock change' : 'change'
-                } and resubmit your picks?
+                }? You will need to submit your picks again afterward.
               </p>
               <div className="flex space-x-3">
                 <Button
@@ -1148,8 +1148,10 @@ export default function PickSheetPage() {
                   className="flex-1 bg-amber-600 hover:bg-amber-700"
                 >
                   {
-                    pendingEdit?.team === '' ? 'Remove & Resubmit' : 
-                    pendingEdit?.team === 'TOGGLE_LOCK' ? 'Change Lock & Resubmit' : 'Edit & Resubmit'
+                    // Not "... & Resubmit": the button only makes the change. Submitting
+                    // again is a separate step, and a label that named it read as done.
+                    pendingEdit?.team === '' ? 'Remove Pick' : 
+                    pendingEdit?.team === 'TOGGLE_LOCK' ? 'Change Lock' : 'Change Pick'
                   }
                 </Button>
                 <Button
