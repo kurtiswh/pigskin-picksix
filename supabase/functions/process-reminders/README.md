@@ -61,7 +61,8 @@ One row in `reminder_config`:
 | `monthly_quota` | 50000 | The Resend plan's monthly allowance. Set this to match the plan. |
 | `reminder_ceiling_pct` | 80 | Reminder-class email stops at this share of the quota, so reminders can never crowd out pick confirmations. |
 | `nudge_hours` | `{3,1}` | Hours before the deadline at which the saved-but-not-submitted nudge goes out. |
-| `alerts_enabled` | true | Whether the watchdog emails admins. |
+| `alerts_enabled` | true | Whether the watchdog emails anyone. |
+| `alert_emails` | empty | Who the watchdog emails. Empty means every admin account. |
 
 Month-to-date is counted from `email_jobs` by calendar month. Resend counts by
 billing cycle and also counts mail that never touches `email_jobs` (auth email,
@@ -78,7 +79,7 @@ overdue, how many are scheduled after their own deadline, recent failures,
 sends today and this month against the ceiling, and the upcoming slots.
 
 `reminder_watchdog` runs every 15 minutes on its own cron entry and emails
-every admin when it finds reminders overdue, reminders scheduled after their
+`reminder_config.alert_emails` (every admin, if that is empty) when it finds reminders overdue, reminders scheduled after their
 deadline, repeated send failures, a processor that has stopped completing runs,
 or the send ceiling reached. Each kind of problem is reported at most once
 every six hours. What it found is kept in `email_health_alerts`.
