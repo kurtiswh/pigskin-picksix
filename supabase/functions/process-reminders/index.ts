@@ -9,229 +9,205 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-interface EmailJob {
-  id: string
-  email: string
-  subject: string
-  html_content: string | null
-  payload: Record<string, unknown>
-  scheduled_for: string
-  template_type: string
-  status: string
-  user_id: string | null
-  created_at: string
+const FROM = 'Pigskin Pick Six <admin@pigskinpicksix.com>'
+
+/**
+ * How many emails one run sends. cron calls this every two minutes and waits up
+ * to 55 seconds for it (run_reminder_processor, migration 261), so a batch has
+ * to finish well inside that: 100 sends at roughly a quarter second each.
+ * A 500-player reminder slot therefore drains in about ten minutes.
+ */
+const BATCH = 100
+/** Gap between sends, to stay under Resend's requests-per-second limit. */
+const PAUSE_MS = 120
+/** Stop starting new sends after this long and hand the rest to the next run. */
+const RUN_BUDGET_MS = 45_000
+
+/** A row handed over by claim_due_reminder_emails / claim_unsubmit_notice. */
+interface ClaimedJob {
+  job_id: string
+  to_email: string
+  job_type: string
+  job_subject: string | null
+  job_payload: Record<string, unknown> | null
+  job_week: number | null
+  job_season: number | null
 }
 
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+
+/**
+ * Resend said "not now" rather than "no": a rate limit or an exhausted quota.
+ * The job is fine and must not be marked failed; it goes back in the queue.
+ */
+function isThrottle(err: { name?: string; message?: string; statusCode?: number }): boolean {
+  if (err.statusCode === 429) return true
+  return /rate_limit|quota|too many requests/i.test(`${err.name ?? ''} ${err.message ?? ''}`)
+}
+
+const isQuota = (err: { name?: string; message?: string }) =>
+  /quota/i.test(`${err.name ?? ''} ${err.message ?? ''}`)
+
+/**
+ * Sends reminder-class email: "picks due soon", the saved-but-not-submitted
+ * nudge, and the notice that a sheet was just unsubmitted.
+ *
+ * This function no longer decides WHO gets an email. That moved into SQL
+ * (migration 261) because the old loop asked the database two questions per job
+ * and stopped after 50 jobs, and a reminder slot is about 500 jobs, most of
+ * them for players who have already submitted. The rest sat pending forever:
+ * 865 of 14,148 reminders sent in 2026. claim_due_reminder_emails now cancels
+ * everything that should not send (already submitted, not paid, deadline
+ * passed, hours late, over the monthly ceiling) in a handful of statements and
+ * returns only what should go out, already claimed so an overlapping run cannot
+ * send it twice.
+ *
+ * Two ways in:
+ *   {}            the cron path: take the next batch of due jobs.
+ *   { jobId }     one unsubmit notice, called by the picks trigger the moment
+ *                 the unsubmit commits (migration 262), so the notice lands
+ *                 before the player has had time to submit again.
+ */
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  const started = Date.now()
+
   try {
-    console.log('🕐 Processing reminder emails cron job started')
-    
-    // Get environment variables
     const resendApiKey = Deno.env.get('RESEND_API_KEY')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
     if (!resendApiKey) {
       throw new Error('RESEND_API_KEY environment variable not set')
     }
 
-    // Initialize clients
     const resend = new Resend(resendApiKey)
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Get current time
-    const now = new Date()
-    console.log(`📅 Current time: ${now.toISOString()}`)
-
-    // Staleness floor: never send a reminder that is already this far past its
-    // scheduled_for time. A reminder that late is meaningless (the deadline has
-    // long passed) and blindly draining an old backlog would spam users — as
-    // happened when a cron timeout fix released ~10k stale 2025 jobs.
-    const STALE_THRESHOLD_HOURS = 6
-    const staleFloor = new Date(now.getTime() - STALE_THRESHOLD_HOURS * 60 * 60 * 1000)
-    console.log(`⏳ Ignoring reminders scheduled before ${staleFloor.toISOString()} (>${STALE_THRESHOLD_HOURS}h late)`)
-
-    // Query for reminder emails that are due to be sent (and not stale)
-    const { data: dueEmails, error: queryError } = await supabase
-      .from('email_jobs')
-      .select('*')
-      .eq('status', 'pending')
-      .in('template_type', ['pick_reminder', 'deadline_alert', 'picks_unsubmitted'])
-      .lte('scheduled_for', now.toISOString())
-      .gte('scheduled_for', staleFloor.toISOString())
-      .order('scheduled_for', { ascending: true })
-      .limit(50) // Process max 50 emails per run
-
-    if (queryError) {
-      console.error('❌ Error querying due emails:', queryError)
-      throw queryError
+    let body: { jobId?: unknown } = {}
+    try {
+      body = await req.json()
+    } catch {
+      // cron posts '{}', but an empty body is just as valid
     }
 
-    console.log(`📧 Found ${dueEmails?.length || 0} reminder emails due to be sent`)
+    const single = typeof body?.jobId === 'string' ? body.jobId : null
+    const { data, error: claimError } = single
+      ? await supabase.rpc('claim_unsubmit_notice', { p_job_id: single })
+      : await supabase.rpc('claim_due_reminder_emails', { p_limit: BATCH })
 
-    if (!dueEmails || dueEmails.length === 0) {
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'No reminder emails due to be sent',
-          processed: 0,
-          errors: 0 
-        }),
-        { 
-          status: 200, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+    if (claimError) {
+      console.error('❌ Could not claim reminder jobs:', claimError)
+      throw new Error(claimError.message)
     }
 
-    let processed = 0
-    let errors = 0
+    const jobs = (data ?? []) as ClaimedJob[]
+    console.log(`📧 ${single ? 'Unsubmit notice' : 'Reminder run'}: ${jobs.length} to send`)
 
-    // Process each due email
-    // Re-check submission at SEND time, not just queue time. Cancel-on-submit
-    // covers the normal path, but a submit that bypassed it (an admin edit, a
-    // direct API call) would otherwise still trigger "your picks aren't in".
-    const candidates = dueEmails ?? []
-    const reminderish = candidates.filter(j =>
-      ['pick_reminder', 'deadline_alert', 'picks_unsubmitted'].includes(j.template_type))
-    const skipIds = new Set<string>()
-    for (const j of reminderish) {
-      if (!j.user_id || j.week == null || j.season == null) continue
-      const { data: sub } = await supabase
-        .from('picks')
-        .select('id')
-        .eq('user_id', j.user_id).eq('week', j.week).eq('season', j.season)
-        .eq('submitted', true)
-        .limit(1)
-      if (sub && sub.length > 0) {
-        skipIds.add(j.id)
-        await supabase.from('email_jobs').update({ status: 'cancelled' }).eq('id', j.id)
-        console.log(`⏭️ Skipping ${j.template_type} for ${j.email} — already submitted`)
-        continue
+    let sent = 0
+    let failed = 0
+    let released = 0
+    let stoppedBy: string | null = null
+
+    /** Hand unsent jobs back so the next run takes them now, not in ten minutes. */
+    const release = async (ids: string[]) => {
+      if (ids.length === 0) return
+      const { error } = await supabase.rpc('release_reminder_claims', { p_ids: ids })
+      if (error) console.error('❌ Could not release claims:', error)
+      released += ids.length
+    }
+
+    for (let i = 0; i < jobs.length; i++) {
+      const job = jobs[i]
+
+      if (Date.now() - started > RUN_BUDGET_MS) {
+        stoppedBy = 'time budget'
+        await release(jobs.slice(i).map(j => j.job_id))
+        break
       }
 
-      // "Picks due soon" goes to paid entries only, re-checked HERE rather than
-      // trusting the queue-time audience: a register re-upload can flip someone
-      // to NotPaid after their job was queued. picks_unsubmitted is deliberately
-      // exempt -- picks count during the grace period regardless of payment, and
-      // that email never mentions money.
-      if (j.template_type === 'pick_reminder' || j.template_type === 'deadline_alert') {
-        const { data: paid } = await supabase
-          .from('leaguesafe_payments')
-          .select('id')
-          .eq('user_id', j.user_id).eq('season', j.season).eq('status', 'Paid')
-          .limit(1)
-        if (!paid || paid.length === 0) {
-          skipIds.add(j.id)
-          await supabase.from('email_jobs').update({ status: 'cancelled' }).eq('id', j.id)
-          console.log(`⏭️ Skipping ${j.template_type} for ${j.email} — not marked paid`)
-        }
-      }
-    }
-
-    for (const email of (dueEmails ?? []).filter(j => !skipIds.has(j.id))) {
       try {
-        console.log(`📤 Sending reminder email ${email.id} to ${email.email}`)
-        
-        // Render server-side from the payload. These jobs are queued with
-        // html_content NULL on purpose (the server owns the content), so the
-        // old `email.html_content.replace(...)` threw on every single one --
-        // which is why no reminder had ever actually sent.
-        const rendered = renderJobPayload(email.template_type, email.payload, {} as RenderContext)
+        // Jobs are queued with html_content NULL on purpose: the server owns
+        // the content and renders it here from the payload.
+        const rendered = renderJobPayload(job.job_type, job.job_payload, {} as RenderContext)
 
-        const emailData = {
-          from: 'Pigskin Pick Six <admin@pigskinpicksix.com>',
-          to: [email.email],
-          subject: rendered.subject || email.subject,
+        const result = await resend.emails.send({
+          from: FROM,
+          to: [job.to_email],
+          subject: rendered.subject || job.job_subject || 'Pigskin Pick Six',
           html: rendered.html,
           text: rendered.text,
-        }
-
-        const result = await resend.emails.send(emailData)
+        })
 
         if (result.error) {
-          console.error(`❌ Resend error for email ${email.id}:`, result.error)
-          
-          // Mark as failed
+          if (isThrottle(result.error)) {
+            console.warn(`⏸️ Resend is throttling (${result.error.message}); stopping this run`)
+            stoppedBy = result.error.message || 'throttled'
+            await release(jobs.slice(i).map(j => j.job_id))
+            if (isQuota(result.error)) {
+              // An exhausted quota blocks pick confirmations too. Tell someone.
+              await supabase.rpc('record_email_health_alert', {
+                p_kind: 'resend_quota',
+                p_details: { summary: `Resend refused a send: ${result.error.message}` },
+              })
+            }
+            break
+          }
+
+          console.error(`❌ Resend error for ${job.job_id}:`, result.error)
           await supabase
             .from('email_jobs')
-            .update({
-              status: 'failed',
-              error_message: result.error.message,
-              sent_at: new Date().toISOString()
-            })
-            .eq('id', email.id)
-          
-          errors++
+            .update({ status: 'failed', error_message: result.error.message })
+            .eq('id', job.job_id)
+          failed++
         } else {
-          console.log(`✅ Email ${email.id} sent successfully:`, result.data?.id)
-          
-          // Mark as sent
           await supabase
             .from('email_jobs')
             .update({
               status: 'sent',
               sent_at: new Date().toISOString(),
-              external_message_id: result.data?.id
+              external_message_id: result.data?.id ?? null,
             })
-            .eq('id', email.id)
-          
-          processed++
+            .eq('id', job.job_id)
+          sent++
         }
-
-        // Small delay between emails to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100))
-
-      } catch (emailError) {
-        console.error(`❌ Error processing email ${email.id}:`, emailError)
-        
-        // Mark as failed
+      } catch (jobError) {
+        console.error(`❌ Error sending ${job.job_id}:`, jobError)
         await supabase
           .from('email_jobs')
           .update({
             status: 'failed',
-            error_message: emailError instanceof Error ? emailError.message : 'Unknown error',
-            sent_at: new Date().toISOString()
+            error_message: jobError instanceof Error ? jobError.message : 'Unknown error',
           })
-          .eq('id', email.id)
-        
-        errors++
+          .eq('id', job.job_id)
+        failed++
       }
+
+      await new Promise(resolve => setTimeout(resolve, PAUSE_MS))
     }
 
-    console.log(`🏁 Cron job completed: ${processed} emails sent, ${errors} errors`)
+    console.log(`🏁 Done: ${sent} sent, ${failed} failed, ${released} released${stoppedBy ? ` (stopped: ${stoppedBy})` : ''}`)
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: `Processed ${processed} reminder emails with ${errors} errors`,
-        processed,
-        errors,
-        timestamp: now.toISOString()
-      }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
-
+    return json({
+      success: true,
+      claimed: jobs.length,
+      sent,
+      failed,
+      released,
+      stoppedBy,
+      ms: Date.now() - started,
+    })
   } catch (error) {
-    console.error('❌ Cron job error:', error)
-    
-    return new Response(
-      JSON.stringify({ 
-        error: 'Cron job failed',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
+    console.error('❌ process-reminders failed:', error)
+    return json({
+      error: 'process-reminders failed',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    }, 500)
   }
 })

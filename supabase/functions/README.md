@@ -43,12 +43,15 @@ This directory contains Supabase Edge Functions for automated live scoring and g
 **Purpose**: Automatically send scheduled email reminders
 
 **Schedule**:
-- Every 15 minutes during active hours (6 AM - 11 PM CT)
+- Every 2 minutes, every day (`*/2 * * * *`, five fields), via `run_reminder_processor()`
+- Also called directly by the `picks` trigger for the unsubmit notice
 
 **What it does**:
-- Queries `email_jobs` table for pending reminders
-- Sends emails via Resend API
-- Updates job status (sent/failed)
+- Asks `claim_due_reminder_emails` which reminders should send (the SQL decides, not this function)
+- Sends them via Resend API
+- Updates job status (sent/failed), or releases jobs it could not get to
+
+See `process-reminders/README.md` for the full picture.
 
 **Environment Variables**:
 - `RESEND_API_KEY` - Resend API key for sending emails

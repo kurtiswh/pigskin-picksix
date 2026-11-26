@@ -32,6 +32,11 @@ import {
   getPicksUnsubmittedText,
 } from './templates/picksUnsubmitted.ts'
 import {
+  getPicksUnsubmitNoticeSubject,
+  getPicksUnsubmitNoticeHtml,
+  getPicksUnsubmitNoticeText,
+} from './templates/picksUnsubmitNotice.ts'
+import {
   getDeadlineAlertSubject, getDeadlineAlertHtml, getDeadlineAlertText,
 } from './templates/deadlineAlert.ts'
 import {
@@ -256,6 +261,27 @@ export function renderJobPayload(
         subject: getPicksUnsubmittedSubject(data),
         html: getPicksUnsubmittedHtml(data),
         text: getPicksUnsubmittedText(data),
+      }
+    }
+
+    // Queued by the picks trigger (migration 262) the moment a submitted sheet
+    // stops being submitted. unsubmittedAt is a raw timestamp for the same
+    // reason deadline is: one place formats dates, in league time.
+    case 'picks_unsubmit_notice': {
+      const raw = payload as Record<string, unknown>
+      const data = {
+        userDisplayName: String(raw.userDisplayName || 'there'),
+        week: Number(raw.week), season: Number(raw.season), baseUrl: SITE_URL,
+        deadlineStr: formatDeadline(raw.deadline as string) ?? '',
+        unsubmittedStr: formatDeadline(raw.unsubmittedAt as string) ?? '',
+        pickCount: Number(raw.pickCount ?? 0),
+        hasLock: Boolean(raw.hasLock),
+        picks: Array.isArray(raw.picks) ? (raw.picks as any[]) : [],
+      }
+      return {
+        subject: getPicksUnsubmitNoticeSubject(data),
+        html: getPicksUnsubmitNoticeHtml(data),
+        text: getPicksUnsubmitNoticeText(data),
       }
     }
 
